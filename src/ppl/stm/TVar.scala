@@ -5,7 +5,8 @@
 
 package ppl.stm
 
-/** See {@link ppl.stm.TVar}. */
+// /** See {@link ppl.stm.TVar}. */
+/** See <a href="TVar.html"><code>ppl.stm.TVar</code></a>. */
 object TVar {
   
   /** Returns a new {@link ppl.stm.TVar} instance with the specified initial
@@ -18,8 +19,11 @@ object TVar {
    *  {@link ppl.stm.TVar}.
    */
   trait Source[+T] {
-    /** Equivalent to {@link ppl.stm.TVar.Source#bind bind(txn)}
-     *  {@link ppl.stm.TVar.BoundSource#elem .elem}.
+//    /** Equivalent to {@link ppl.stm.TVar.Source#bind bind(txn)}
+//     *  {@link ppl.stm.TVar.BoundSource#elem .elem}.
+//     */
+    /** Equivalent to <a href="#bind%28ppl.stm.Txn%29"><code>bind(txn)</code></a>
+     *  <a href="TVar$object.BoundSource.html#elem"><code>.elem</code></a>.
      */
     def elem(implicit txn: Txn): T = bind(txn).elem
 
@@ -112,12 +116,12 @@ object TVar {
      */
     def elem: T
 
-    /** Equivalent to <code>$1</code>({@link ppl.stm.TVar.BoundSource#elem elem}),
+    /** Equivalent to <code>f</code>({@link ppl.stm.TVar.BoundSource#elem elem}),
      *  except that transaction rollback may be avoided on concurrent update to
      *  the <code>TVar</code> if there is no change to <code>f(elem)</code>.  Requires
      *  that <code>f(x) == f(x)</code>.
      *  @param f an idempotent function.
-     *  @returns the result of applying <code>$1</code> to the value read by this
+     *  @returns the result of applying <code>f</code> to the value read by this
      *      view.
      */
     def elemMap[Z](f: T => Z): Z = {
@@ -208,7 +212,7 @@ object TVar {
      *  {@link ppl.stm.TVar#nonTxn TVar.nonTxn} (or
      *  {@link ppl.stm.TVar.Sink#nonTxn TVar.Sink#nonTxn}) the value will be
      *  made available immediately, and a happens-before relationship will be
-     *  established between this thread and any thread that reads <code>$1</code>
+     *  established between this thread and any thread that reads <code>v</code>
      *  from this <code>TVar</code>.
      *  @param v a value to store in the <code>TVar</code>.
      *  @throws IllegalStateException if this view is bound to a transaction
@@ -265,7 +269,7 @@ object TVar {
     }
 
     /** Atomically replaces the value <i>v</i> stored in the <code>TVar</code> with
-     *  <code>$1</code>(<i>v</i>), possibly deferring execution of <code>$1</code> or
+     *  <code>f</code>(<i>v</i>), possibly deferring execution of <code>f</code> or
      *  calling <code>f</code> multiple times to reduce transaction conflicts.
      *  @param f a function that may be called multiple times during the bound
      *      transaction (if any).

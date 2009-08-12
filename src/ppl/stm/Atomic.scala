@@ -13,9 +13,11 @@ package ppl.stm
  *  parameters to be marked implicit, this class will probably become obsolete.
  *  <p>
  *  Typical usage:<pre>
- *    val tv = new TVar(0)
+ *    val tx: TVar[Int]
+ *    val ty: TVar[Int]
+ *
  *    new Atomic { def body {
- *      if (tv.elem > 10) tv.elem = 20
+ *      if (tx.elem > 10) ty.elem = 20
  *    }}.run
  *  </pre>
  */
