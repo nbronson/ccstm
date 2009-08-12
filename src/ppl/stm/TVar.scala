@@ -5,8 +5,6 @@
 
 package ppl.stm
 
-import stm.TVar.BoundSource
-
 /** See {@link ppl.stm.TVar}. */
 object TVar {
   
@@ -177,17 +175,40 @@ object TVar {
     /** Atomically replaces the value <i>v</i> stored in the {@code TVar} with
      *  {@code f}(<i>v</i>), possibly deferring execution of {@code f} or
      *  calling {@code f} multiple times to reduce transaction conflicts.
-     *  Requires that <code>f(x) == f(x)</code>.
-     *  @param f an idempotent function.
+     *  @param f a function that may be called multiple times during the bound
+     *      transaction (if any).
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
      */
     def transform(f: T => T)
 
-    // TODO: is there a use case for this?
-    //def transform(precondition: T => Boolean, f: T => T)
+    /** Atomically replaces the value <i>v</i> stored in the {@code TVar} with
+     *  {@code f}(<i>v</i>) if {@code cond}(<i>v</i>) is true, otherwise leaves
+     *  the element unchanged.  Returns true if the condition was true, false
+     *  otherwise.  {@code cond} and {@code f} may be called multiple times and
+     *  may be called after this method has returned.
+     *  @param cond a precondition that may be tested multiple times during the
+     *      bound transaction (if any).
+     *  @param f a function that may be called multiple times during the bound
+     *      transaction (if any).
+     *  @throws IllegalStateException if this view is bound to a transaction
+     *      that is not active.
+     */
+    def testAndTransform(cond: T => Boolean, f: T => T): Boolean
   }
 }
+
+private trait TVarAccessor[T] {
+  val instance: TVar[T]
+  def field = 0
+  def metadata = instance._metadata
+  def metadata_=(v: STM.Metadata) { instance._metadata = v }
+  def data = instance._data
+  def data_=(v: Any) { instance._data = v }
+}
+
+private class TVarNonTxnAccessor[T](val instance: TVar[T]) extends STM.NonTxnAccessor[T] with TVarAccessor[T]
+private class TVarTxnAccessor[T](val txn: Txn, val instance: TVar[T]) extends STM.TxnAccessor[T] with TVarAccessor[T]
 
 /** Holds a single element of type <i>T</i>, providing optimistic concurrency
  *  control using software transactional memory.  Reads and writes performed
@@ -209,17 +230,13 @@ object TVar {
  *  storage and indirection overheads.  If storage efficiency is a primary
  *  concern {@link ppl.stm.TFieldUpdater} may also be useful.
  */
-class TVar[T](initialValue: T) extends TVar.Source[T] with TVar.Sink[T] {
+class TVar[T](initialValue: T) extends STM.MetadataHolder with TVar.Source[T] with TVar.Sink[T] {
 
-  @volatile private var _version: Txn.Version = 0
-  @volatile private var _data: Any = initialValue
-
-  //////////// Source+Sink convenience behavior
+  @volatile private[stm] var _data: Any = initialValue
 
   /** Equivalent to {@link ppl.stm.TVar#bind bind(txn)}
    *  {@link ppl.stm.TVar.Bound#compareAndSet .compareAndSet(before,after)}.
    */
-
   def compareAndSet(before: T, after: T)(implicit txn: Txn) = bind(txn).compareAndSet(before, after)
 
   /** Equivalent to {@link ppl.stm.TVar#bind bind(txn)}
@@ -227,7 +244,10 @@ class TVar[T](initialValue: T) extends TVar.Source[T] with TVar.Sink[T] {
    */
   def transform(f: T => T)(implicit txn: Txn) { bind(txn).transform(f) }
 
-  //////////// Core implementation
+  /** Equivalent to {@link ppl.stm.TVar#bind bind(txn)}
+   *  {@link ppl.stm.TVar.Bound#testAndTransform .testAndTransform(f)}.
+   */
+  def testAndTransform(cond: T => Boolean, f: T => T)(implicit txn: Txn) = bind(txn).testAndTransform(cond, f)
 
   /** Returns a view on this {@code TVar.Source} that can be used to read or
    *  write the cell's value as part of the transaction {@code txn}.  A
@@ -237,7 +257,7 @@ class TVar[T](initialValue: T) extends TVar.Source[T] with TVar.Sink[T] {
    *  @returns a view onto the value of a {@code TVar} under the context of
    *      {@code txn}.
    */
-  def bind(implicit txn: Txn): TVar.Bound[T] = null
+  def bind(implicit txn: Txn): TVar.Bound[T] = new TVarTxnAccessor(txn, this)
 
   /** Returns a view of this {@code TVar.Sink} that can be used to perform
    *  individual (non-transactional) reads and writes of the cell's value. The
@@ -247,68 +267,5 @@ class TVar[T](initialValue: T) extends TVar.Source[T] with TVar.Sink[T] {
    *  @returns a view into the value of a {@code TVar}, that will perform each
    *      operation as if in its own transaction.
    */
-  def nonTxn: TVar.Bound[T] = new TVar.Bound[T] {
-    
-    def context: Option[Txn] = None
-
-    def elem: T = {
-      _data match {
-        case d: Txn.Changing[_] => d.asInstanceOf[Txn.Changing[T]].elem
-        case d => d.asInstanceOf[T]
-      }
-    }
-
-    def elemMap[Z](f: (T) => Z): Z = f(elem)
-
-    def elem_=(newValue: T) {
-      while (true) {
-        (TVar.this.synchronized {
-          _data match {
-            case d: Txn.Changing[_] => d.txn
-            case _ => {
-              _version |= Txn.VersionChanging
-              _data = newValue
-              _version = Txn.nextNonTxnWriteVersion()
-              return
-            }
-          }
-        }).awaitCompletion()
-      }
-    }
-
-    def transform(f: (T) => T) {
-      while (true) {
-        (TVar.this.synchronized {
-          _data match {
-            case d: Txn.Changing[_] => d.txn
-            case d => {
-              val newValue = f(d.asInstanceOf[T])
-              _version |= Txn.VersionChanging
-              _data = newValue
-              _version = Txn.nextNonTxnWriteVersion()
-              return
-            }
-          }
-        }).awaitCompletion()
-      }
-    }
-
-    def compareAndSet(before: T, after: T): Boolean = {
-      while (true) {
-        (TVar.this.synchronized {
-          _data match {
-            case d: Txn.Changing[_] => d.txn
-            case d => {
-              if (before != d.asInstanceOf[T]) return false
-              _version |= Txn.VersionChanging
-              _data = after
-              _version = Txn.nextNonTxnWriteVersion()
-              return true
-            }
-          }
-        }).awaitCompletion()
-      }
-      throw new Error("unreachable")
-    }
-  }
+  def nonTxn: TVar.Bound[T] = new TVarNonTxnAccessor(this)
 }
