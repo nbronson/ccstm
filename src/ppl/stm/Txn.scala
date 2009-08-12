@@ -62,11 +62,15 @@ class Txn extends STM.TxnImpl {
 
   def active: Boolean = !completed && !committing
   def committing: Boolean = false
-  def committed: Boolean = false
+  override def committed: Boolean = false
   def completed: Boolean = false
 
   def rollback() {}
   def attemptCommit(): Boolean = false
 
   def awaitCompletion() {}
+
+  def markRollbackOnly() {}
+
+  def addReadResource(handler: ReadSetCallback) {}
 }

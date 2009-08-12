@@ -1,5 +1,8 @@
 package ppl.stm.tl2
 
+import ppl.stm.TVar
+import ppl.stm.UnrecordedRead
+
 /* TL2
  *
  * Copyright 2009 Nathan Bronson and Stanford University.
@@ -11,7 +14,7 @@ trait TL2 {
   type TxnAccessor[T] = TL2TxnAccessor[T]
   type NonTxnAccessor[T] = TL2NonTxnAccessor[T]
 
-  private[stm] case class Changing[T](txn: Txn, before: T, after: T) {
+  private[stm] case class Changing[T](txn: TxnImpl, before: T, after: T) {
     def elem = if (txn.committed) after else before
   }
 
@@ -29,7 +32,7 @@ trait TL2 {
 
 
   class TxnImpl {
-
+    def committed = false
   }
 }
 
@@ -149,15 +152,11 @@ abstract class TL2TxnAccessor[T] extends TVar.Bound[T] {
 //    throw new Error("unreachable")
 //  }
 
-  def elem_=(v: T) {}
-
-  def elemMap[Z](f: (T) => Z): Z = null.asInstanceOf[Z]
-
   def elem: T = null.asInstanceOf[T]
 
-  def compareAndSet(before: T, after: T): Boolean = false
+  def unrecordedRead: UnrecordedRead[T] = null
 
-  def transform(f: (T) => T) {}
+  def elem_=(v: T) {}
 
   def testAndTransform(cond: (T) => Boolean, f: (T) => T): Boolean = false
 }
@@ -232,15 +231,11 @@ abstract class TL2NonTxnAccessor[T] extends TVar.Bound[T] {
 //  }
 
 
-  def elem_=(v: T) {}
-
-  def elemMap[Z](f: (T) => Z): Z = null.asInstanceOf[Z]
-
   def elem: T = null.asInstanceOf[T]
 
-  def compareAndSet(before: T, after: T): Boolean = false
+  def unrecordedRead: UnrecordedRead[T] = null
 
-  def transform(f: (T) => T) {}
+  def elem_=(v: T) {}
 
   def testAndTransform(cond: (T) => Boolean, f: (T) => T): Boolean = false
 }

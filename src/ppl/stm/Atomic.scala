@@ -20,7 +20,7 @@ package ppl.stm
  *  </pre>
  */
 abstract class Atomic {
-  private var _currentTxn: Txn = _
+  private var _currentTxn: Txn = null
 
   /** Returns the transaction currently being attempted by this atomic block,
    *  or null if none.
