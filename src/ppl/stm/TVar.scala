@@ -46,6 +46,8 @@ object TVar {
      *      perform each read operation as if in its own transaction.
      */
     def nonTxn: BoundSource[T]
+
+    // implicit access to unrecordedRead is omitted to discourage its use
   }
 
   /** <code>Sink</code> defines the contravariant write-only interface of a
@@ -176,6 +178,8 @@ object TVar {
      *  existing elements of the read set prior to returning.
      *  @returns an <code>UnrecordedRead</code> instance that holds the read value
      *      and allows explicit revalidation.
+     *  @throws IllegalStateException if this view is bound to a transaction
+     *      that is not active.
      */
     def unrecordedRead: UnrecordedRead[T]
   }
@@ -218,6 +222,31 @@ object TVar {
    *  a {@link ppl.stm.Txn Txn} or the non-transactional context.
    */
   trait Bound[T] extends BoundSource[T] with BoundSink[T] {
+    /** Returns the same value as {@link ppl.stm.TVar.BoundSource#elem elem},
+     *  but adds the <code>TVar</code> to the write set of the bound
+     *  transaction context, if any.  Equivalent to <code>elem</code> when
+     *  called from a non-transactional context.
+     *  @returns the current value of the bound <code>TVar</code> as observed by
+     *      the binding context.
+     *  @throws IllegalStateException if this view is bound to a transaction
+     *      that is not active.
+     */
+    def readForWrite: T = {
+      // a more efficient implementation may be possible
+      context match {
+        case None => {
+          // non-transactional, no difference from a normal read
+          elem
+        }
+        case Some(txn) => {
+          // transactional
+          val z = elem
+          elem = z
+          z
+        }
+      }
+    }
+
     /** Equivalent to <pre>
      *    (if (elem == before) { elem = after; true } else false)
      *  </pre>but may be more efficient.
@@ -300,6 +329,8 @@ private class TVarTxnAccessor[T](val txn: Txn, val instance: TVar[T]) extends ST
 class TVar[T](initialValue: T) extends STM.MetadataHolder with TVar.Source[T] with TVar.Sink[T] {
 
   @volatile private[stm] var _data: Any = initialValue
+
+  // implicit access to readForWrite is omitted to discourage its use 
 
   /** Equivalent to {@link ppl.stm.TVar#bind bind(txn)}
    *  {@link ppl.stm.TVar.Bound#compareAndSet .compareAndSet(before,after)}.
