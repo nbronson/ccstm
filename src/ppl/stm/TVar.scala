@@ -187,15 +187,6 @@ object TVar {
     // TODO: is there a use case for this?
     //def transform(precondition: T => Boolean, f: T => T)
   }
-
-  private class Binding[T](val instance: TVar[T]) {
-    def version = instance._version
-    def version_=(v: Txn.Version) { instance._version = v }
-    def elem = instance._elem
-    def elem_=(v: T) { instance._elem = v }
-  }
-  private class TxnBinding[T](instance: TVar[T], val txn: Txn) extends Binding(instance) with Txn.TxnBinding[T]
-  private class NonTxnBinding[T](instance: TVar[T]) extends Binding(instance) with Txn.NonTxnBinding[T]
 }
 
 /** Holds a single element of type <i>T</i>, providing optimistic concurrency
@@ -221,7 +212,7 @@ object TVar {
 class TVar[T](initialValue: T) extends TVar.Source[T] with TVar.Sink[T] {
 
   @volatile private var _version: Txn.Version = 0
-  @volatile private var _elem = initialValue
+  @volatile private var _data: Any = initialValue
 
   //////////// Source+Sink convenience behavior
 
@@ -246,7 +237,7 @@ class TVar[T](initialValue: T) extends TVar.Source[T] with TVar.Sink[T] {
    *  @returns a view onto the value of a {@code TVar} under the context of
    *      {@code txn}.
    */
-  def bind(implicit txn: Txn): TVar.Bound[T] = new TVar.TxnBinding(txn, this)
+  def bind(implicit txn: Txn): TVar.Bound[T] = null
 
   /** Returns a view of this {@code TVar.Sink} that can be used to perform
    *  individual (non-transactional) reads and writes of the cell's value. The
@@ -256,5 +247,68 @@ class TVar[T](initialValue: T) extends TVar.Source[T] with TVar.Sink[T] {
    *  @returns a view into the value of a {@code TVar}, that will perform each
    *      operation as if in its own transaction.
    */
-  def nonTxn: TVar.Bound[T] = new TVar.NonTxnBinding(this)
+  def nonTxn: TVar.Bound[T] = new TVar.Bound[T] {
+    
+    def context: Option[Txn] = None
+
+    def elem: T = {
+      _data match {
+        case d: Txn.Changing[_] => d.asInstanceOf[Txn.Changing[T]].elem
+        case d => d.asInstanceOf[T]
+      }
+    }
+
+    def elemMap[Z](f: (T) => Z): Z = f(elem)
+
+    def elem_=(newValue: T) {
+      while (true) {
+        (TVar.this.synchronized {
+          _data match {
+            case d: Txn.Changing[_] => d.txn
+            case _ => {
+              _version |= Txn.VersionChanging
+              _data = newValue
+              _version = Txn.nextNonTxnWriteVersion()
+              return
+            }
+          }
+        }).awaitCompletion()
+      }
+    }
+
+    def transform(f: (T) => T) {
+      while (true) {
+        (TVar.this.synchronized {
+          _data match {
+            case d: Txn.Changing[_] => d.txn
+            case d => {
+              val newValue = f(d.asInstanceOf[T])
+              _version |= Txn.VersionChanging
+              _data = newValue
+              _version = Txn.nextNonTxnWriteVersion()
+              return
+            }
+          }
+        }).awaitCompletion()
+      }
+    }
+
+    def compareAndSet(before: T, after: T): Boolean = {
+      while (true) {
+        (TVar.this.synchronized {
+          _data match {
+            case d: Txn.Changing[_] => d.txn
+            case d => {
+              if (before != d.asInstanceOf[T]) return false
+              _version |= Txn.VersionChanging
+              _data = after
+              _version = Txn.nextNonTxnWriteVersion()
+              return true
+            }
+          }
+        }).awaitCompletion()
+      }
+      throw new Error("unreachable")
+    }
+  }
 }
