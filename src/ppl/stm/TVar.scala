@@ -1,4 +1,4 @@
-/* TVar
+/* $Id$
  *
  * Copyright 2009 Nathan Bronson and Stanford University.
  */
@@ -320,7 +320,7 @@ object TVar {
 }
 
 private trait TVarAccessor[T] {
-  val instance: TVar[T]
+  def instance: TVar[T]
   def field = 0
   def metadata = instance._metadata
   def metadata_=(v: STM.Metadata) { instance._metadata = v }
