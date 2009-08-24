@@ -158,7 +158,7 @@ abstract class TL2TxnAccessor[T] extends TVar.Bound[T] {
 
   def elem_=(v: T) {}
 
-  def testAndTransform(cond: (T) => Boolean, f: (T) => T): Boolean = false
+  def transformIfDefined(pf: PartialFunction[T,T]): Boolean = false
 }
 
 abstract class TL2NonTxnAccessor[T] extends TVar.Bound[T] {
@@ -237,6 +237,6 @@ abstract class TL2NonTxnAccessor[T] extends TVar.Bound[T] {
 
   def elem_=(v: T) {}
 
-  def testAndTransform(cond: (T) => Boolean, f: (T) => T): Boolean = false
+  def transformIfDefined(pf: PartialFunction[T,T]): Boolean = false
 }
 
