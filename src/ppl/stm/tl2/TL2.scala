@@ -13,37 +13,37 @@ trait TL2 {
   type MetadataHolder = LongMetadataHolder
   type TxnAccessor[T] = TL2TxnAccessor[T]
   type NonTxnAccessor[T] = TL2NonTxnAccessor[T]
+  type TxnImpl = TL2Txn
+}
 
-  private[stm] case class Changing[T](txn: TxnImpl, before: T, after: T) {
+private [tl2] object TL2 {
+
+  case class Changing[T](txn: TL2Txn, before: T, after: T) {
     def elem = if (txn.committed) after else before
   }
 
-  private[stm] type Version = Long
+  type Version = Long
 
-  private[stm] val VersionChanging: Version = 1L
+  val VersionChanging: Version = 1L
 
   /** The fundamental correctness assumption of the system is that if txn R
    *  observes {@link #globalVersion} to be
    */
-  @volatile private[stm] var globalVersion: Version = 0
+  @volatile var globalVersion: Version = 0
 
-  private[stm] def nextNonTxnWriteVersion(): Version = 0
-
-
-
-  class TxnImpl {
-    def committed = false
-  }
+  def nextNonTxnWriteVersion(): Version = 0
 }
 
-object TL2STM extends TL2
+class TL2Txn {
+  def committed = false
+}
 
 abstract class TL2TxnAccessor[T] extends TVar.Bound[T] {
-  import TL2STM._
+  import TL2._
 
   def field: Int
   val txn: Txn
-  var metadata: Metadata
+  var metadata: Version
   var data: Any
 
   var _addedToReadSet = false
@@ -162,9 +162,9 @@ abstract class TL2TxnAccessor[T] extends TVar.Bound[T] {
 }
 
 abstract class TL2NonTxnAccessor[T] extends TVar.Bound[T] {
-  import TL2STM._
+  import TL2._
 
-  var metadata: Metadata
+  var metadata: Version
   var data: Any
 
   def context: Option[Txn] = None
