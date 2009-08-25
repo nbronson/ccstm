@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: b9b3c5ac67e5a0fd359300f16afb42cd6d47e6ac $
  *
  * Copyright 2009 Nathan Bronson and Stanford University.
  */
@@ -153,6 +153,7 @@ abstract class AbstractTxn {
    */
   def validatedStatus: Status
 
+  
   //////////////// Callback registration
 
   def addCallback(cb: ReadSetCallback) { addReadSetCallback(cb) }
