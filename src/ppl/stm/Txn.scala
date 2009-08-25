@@ -68,60 +68,207 @@ object Txn {
 
   //////////////// Traits to extend for callback functionality
 
+  trait ReadSetCallback {
+    /** Called during the <code>Active</code> and/or <code>Prepared</code>
+     *  states.  Validation during the <code>Preparing</code> state may be
+     *  skipped if no other transactions have committed since the last
+     *  validation, or if no <code>WriteSetCallback</code>s have been
+     *  registered.  Implementations should call
+     *  <code>txn.requireRollback</code> if <code>txn</code> is no longer
+     *  valid.
+     */
+    def validate(txn: Txn)
+  }
+
+  trait WriteSetCallback {
+    /** Called during the <code>Preparing</code> state.  All locks or other
+     *  resources required to complete the commit must be acquired during this
+     *  callback, or else <code>txn.requireRollback</code> must be called.
+     */
+    def prepare(txn: Txn)
+
+    /** Called during the <code>Committing</code> state. */
+    def performCommit(txn: Txn)
+
+    /** Called during the <code>RollingBack</code> state. */
+    def performRollback(txn: Txn)
+  }
+
+  trait PreCompletionCallback {
+    /** Called during the <code>Active</code> or <code>MarkedRollback</code>
+     *  states, after completion has been requested.
+     */
+    def beforeCompletion(txn: Txn)
+  }
+
+  trait PostCommitCallback {
+    /** Called during the <code>Committed</code> state. */
+    def afterCommit(txn: Txn)
+  }
+
+  trait PostRollbackCallback {
+    /** Called during the <code>Rolledback</code> state. */
+    def afterRollback(txn: Txn)
+  }
+
+}
+
+abstract class AbstractTxn {
+  this: ppl.stm.Txn =>
+
+  import Txn._
+
+  private[stm] var _readSetCallbacks: Array[ReadSetCallback] = null
+  private[stm] var _readSetCount = 0
+
+  private[stm] var _writeSetCallbacks: Array[WriteSetCallback] = null
+  private[stm] var _writeSetCount = 0
+
+  private[stm] var _preCompletionCallbacks: Array[PreCompletionCallback] = null
+  private[stm] var _preCompletionCount = 0
+
+  private[stm] var _postCommitCallbacks: Array[PostCommitCallback] = null
+  private[stm] var _postCommitCount = 0
+
+  private[stm] var _postRollbackCallbacks: Array[PostRollbackCallback] = null
+  private[stm] var _postRollbackCount = 0
+
+
+  /** Returns the transaction's current status, as of the most recent
+   *  operation.  Does not validate the transaction.
+   */
+  def status: Status
+
+  /** Validates that the transaction is consistent with all other committed
+   *  transactions and completed non-transactional accesses, throwing
+   *  <code>RollbackException</code> if this transaction is not consistent.
+   *  @throws ppl.stm.RollbackException if this transaction cannot commit.
+   */
+  def validate { if (!validatedStatus.mayCommit) throw RollbackException }
+
+  /** Validates that the transaction is consistent with all other committed
+   *  transactions and completed non-transactional accesses, setting the
+   *  status to <code>RollingBack</code> if the transaction is inconsistent,
+   *  then returns the current status.
+   */
+  def validatedStatus: Status
+
+  //////////////// Callback registration
+
+  def addCallback(cb: ReadSetCallback) { addReadSetCallback(cb) }
+
+  def addReadSetCallback(cb: ReadSetCallback) {
+    val n = _readSetCount
+    _readSetCount = n + 1
+    if (n == 0 || n == _readSetCallbacks.length) _readSetCallbacks = grow(_readSetCallbacks, 32)
+    _readSetCallbacks(n) = cb
+  }
+
+  private[stm] def callValidate {
+    var i = _readSetCount - 1
+    while (i >= 0) {
+      _readSetCallbacks(i).validate(this)
+      i -= 1
+    }
+  }
+
+
+  def addCallback(cb: WriteSetCallback) { addWriteSetCallback(cb) }
+
+  def addWriteSetCallback(cb: WriteSetCallback) {
+    val n = _writeSetCount
+    _writeSetCount = n + 1
+    if (n == 0 || n == _writeSetCallbacks.length) _writeSetCallbacks = grow(_writeSetCallbacks, 4)
+    _writeSetCallbacks(n) = cb
+  }
+
+  private[stm] def callPrepare {
+    var i = _writeSetCount - 1
+    while (i >= 0) {
+      _writeSetCallbacks(i).prepare(this)
+      i -= 1
+    }
+  }
+
+  private[stm] def callPerformCommit {
+    var i = _writeSetCount - 1
+    while (i >= 0) {
+      _writeSetCallbacks(i).performCommit(this)
+      i -= 1
+    }
+  }
+
+  private[stm] def callPerformRollback {
+    var i = _writeSetCount - 1
+    while (i >= 0) {
+      _writeSetCallbacks(i).performRollback(this)
+      i -= 1
+    }
+  }
+
+
+  def addCallback(cb: PreCompletionCallback) { addPreCompletionCallback(cb) }
+
+  def addPreCompletionCallback(cb: PreCompletionCallback) {
+    val n = _preCompletionCount
+    _preCompletionCount = n + 1
+    if (n == 0 || n == _preCompletionCallbacks.length) _preCompletionCallbacks = grow(_preCompletionCallbacks, 4)
+    _preCompletionCallbacks(n) = cb
+  }
+
+  private[stm] def callBeforeCompletion {
+    var i = _preCompletionCount - 1
+    while (i >= 0) {
+      _preCompletionCallbacks(i).beforeCompletion(this)
+      i -= 1
+    }
+  }
+
   
-  abstract class AbstractTxn {
-    this <= ppl.stm.Txn
+  def addCallback(cb: PostCommitCallback) { addPostCommitCallback(cb) }
 
-    private var _indexedCallbacks: Array[AnyRef] = new Array[AnyRef](nextSlot)
+  def addPostCommitCallback(cb: PostCommitCallback) {
+    val n = _postCommitCount
+    _postCommitCount = n + 1
+    if (n == 0 || n == _postCommitCallbacks.length) _postCommitCallbacks = grow(_postCommitCallbacks, 4)
+    _postCommitCallbacks(n) = cb
+  }
 
-    /** Returns the transaction's current status, as of the most recent
-     *  operation.  Does not validate the transaction.
-     */
-    def status: Status
-
-    /** Validates that the transaction is consistent with all other committed
-     *  transactions and completed non-transactional accesses, throwing
-     *  <code>RollbackException</code> if this transaction is not consistent.
-     *  @throws ppl.stm.RollbackException if this transaction cannot commit.
-     */
-    def validate { if (!validatedStatus.mayCommit) throw RollbackException }
-
-    /** Validates that the transaction is consistent with all other committed
-     *  transactions and completed non-transactional accesses, setting the
-     *  status to <code>RollingBack</code> if the transaction is inconsistent,
-     *  then returns the current status.
-     */
-    def validatedStatus: Status
-
-    /** Returns the indexed callback for <code>index</code> registered with
-     *  this transaction, creating and registering a new callback instance if
-     *  necessary.
-     */
-    def callback[CB](key: SharedCallbackKey[CB]): CB = {
-      if (key.slot >= _indexedCallbacks.length) {
-        growIndexedCallbacks
-      }
-      val existing = _indexedCallbacks(key.slot)
-      if (existing != null) {
-        existing.asInstanceOf[CB]
-      }
-      else {
-        val fresh = key.factory(this)
-        _indexedCallbacks(key.slot) = fresh
-        fresh
-      }
+  private[stm] def callAfterCommit {
+    var i = _postCommitCount - 1
+    while (i >= 0) {
+      _postCommitCallbacks(i).afterCommit(this)
+      i -= 1
     }
+  }
 
-    private def growIndexedCallbacks {
-      val before = _indexedCallbacks
-      val after = new Array[AnyRef](nextSlot)
-      Array.copy(before, 0, after, 0, before.length)
-      _indexedCallbacks = after
+
+  def addCallback(cb: PostRollbackCallback) { addPostRollbackCallback(cb) }
+
+  def addPostRollbackCallback(cb: PostRollbackCallback) {
+    val n = _postRollbackCount
+    _postRollbackCount = n + 1
+    if (n == 0 || n == _postRollbackCallbacks.length) _postRollbackCallbacks = grow(_postRollbackCallbacks, 4)
+    _postRollbackCallbacks(n) = cb
+  }
+
+  private[stm] def callAfterRollback {
+    var i = _postRollbackCount - 1
+    while (i >= 0) {
+      _postRollbackCallbacks(i).afterRollback(this)
+      i -= 1
     }
+  }
 
-    def addCallback(cb: ReadSetCallback) { addReadSetCallback(cb) }
-    
-    def addReadSetCallback(cb: ReadSetCallback) { callback(genericReadSetCallbacks) += cb }
+  private def grow[T <: AnyRef](xs: Array[T], initialSize: Int): Array[T] = {
+    if (xs == null) {
+      new Array[T](initialSize)
+    }
+    else {
+      val z = new Array[T](xs.length * 2)
+      Array.copy(xs, 0, z, 0, xs.length)
+      z
+    }
   }
 }
 

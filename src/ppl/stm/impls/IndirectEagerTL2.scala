@@ -20,7 +20,7 @@ trait IndirectEagerTL2 {
   type TxnImpl = IndirectEagerTL2Txn
 }
 
-private [tl2] object IndirectEagerTL2 {
+private[impls] object IndirectEagerTL2 {
 
   abstract class Wrapped[T](val value: T, val version: Long) {
     def owner: IndirectEagerTL2Txn
