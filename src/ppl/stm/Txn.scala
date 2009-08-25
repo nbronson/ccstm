@@ -1,11 +1,16 @@
-/* Txn
+/* $Id$
  *
  * Copyright 2009 Nathan Bronson and Stanford University.
  */
 
 package ppl.stm
 
+
+import java.util.concurrent.atomic.AtomicInteger
+
 object Txn {
+
+  //////////////// Status
 
   /** Represents the current status of a <code>Txn</code>. */
   sealed abstract class Status(mayCommit0: Boolean, willCommit0: Boolean) {
@@ -61,45 +66,14 @@ object Txn {
   case class Rolledback(explicit: Boolean, cause: Any) extends Status(false, false)
 
 
-  trait ReadSetCallback {
-    /** Called during the <code>Active</code> and/or <code>Prepared</code>
-     *  states.  Validation during the <code>Preparing</code> state may be
-     *  skipped if no other transactions have committed since the last
-     *  validation, or if no <code>WriteSetCallback</code>s have been
-     *  registered.  Implementations should call
-     *  <code>txn.requireRollback</code> if <code>txn</code> is no longer
-     *  valid.
-     */
-    def validate(txn: Txn)
-  }
+  //////////////// Traits to extend for callback functionality
 
-  trait WriteSetCallback {
-    /** Called during the <code>Preparing</code> state.  All locks or other
-     *  resources required to complete the commit must be acquired during this
-     *  callback, or else <code>txn.requireRollback</code> must be called.
-     */
-    def prepare(txn: Txn)
-
-    /** Called during the <code>Committing</code> state. */
-    def performCommit(txn: Txn)
-
-    /** Called during the <code>RollingBack</code> state. */
-    def performRollback(txn: Txn)
-  }
-
-  trait Synchronization {
-    /** Called during the <code>Active</code> or <code>MarkedRollback</code>
-     *  states, after completion has been requested.
-     */
-    def beforeCompletion(txn: Txn)
-
-    /** Called during the <code>Committed</code> or <code>Rolledback</code>
-     *  states.
-     */
-    def afterCompletion(txn: Txn)
-  }
-
+  
   abstract class AbstractTxn {
+    this <= ppl.stm.Txn
+
+    private var _indexedCallbacks: Array[AnyRef] = new Array[AnyRef](nextSlot)
+
     /** Returns the transaction's current status, as of the most recent
      *  operation.  Does not validate the transaction.
      */
@@ -118,6 +92,36 @@ object Txn {
      *  then returns the current status.
      */
     def validatedStatus: Status
+
+    /** Returns the indexed callback for <code>index</code> registered with
+     *  this transaction, creating and registering a new callback instance if
+     *  necessary.
+     */
+    def callback[CB](key: SharedCallbackKey[CB]): CB = {
+      if (key.slot >= _indexedCallbacks.length) {
+        growIndexedCallbacks
+      }
+      val existing = _indexedCallbacks(key.slot)
+      if (existing != null) {
+        existing.asInstanceOf[CB]
+      }
+      else {
+        val fresh = key.factory(this)
+        _indexedCallbacks(key.slot) = fresh
+        fresh
+      }
+    }
+
+    private def growIndexedCallbacks {
+      val before = _indexedCallbacks
+      val after = new Array[AnyRef](nextSlot)
+      Array.copy(before, 0, after, 0, before.length)
+      _indexedCallbacks = after
+    }
+
+    def addCallback(cb: ReadSetCallback) { addReadSetCallback(cb) }
+    
+    def addReadSetCallback(cb: ReadSetCallback) { callback(genericReadSetCallbacks) += cb }
   }
 }
 
