@@ -239,6 +239,23 @@ object TVar {
      *  @see ppl.stm.TVar#nonTxn
      */
     def elem_=(v: T)
+
+    /** Updates the element held by the bound <code>TVar</code> without
+     *  blocking and returns true, or does nothing and returns false.  For STM
+     *  implementations that perform eager acquisition of write locks this
+     *  method will return false if the bound <code>TVar</code> is already
+     *  locked by a different (non-parent) transaction.  For STMs that perform
+     *  lazy detection of write-write conflicts this method may operate in an
+     *  identical fashion to <code>elem_=(v)</code>.  Regardless of the return
+     *  value from this method the bound transaction (if any) will be
+     *  validated.
+     *  @param v a value to store in the <code>TVar</code>.
+     *  @return true if the value was stored, false if nothing was done.
+     *  @throws IllegalStateException if this view is bound to a transaction
+     *      that is not active.
+     *  @see ppl.stm.TVar#elem_=
+     */
+    def tryWrite(v: T): Boolean
   }
 
   /** A <code>TVar</code> view that supports reads and writes.  Reads and writes
@@ -271,14 +288,15 @@ object TVar {
       }
     }
 
-    /** Equivalent to <code>(if (elem == before) { elem = after; true } else
-     *  false)</code>, but may be more efficient.
+    /** Equivalent to atomically executing <code>(if (elem == before) { elem =
+     *  after; true } else false)</code>, but may be more efficient.
      *  @param before a value to compare against the current <code>TVar</code>
      *      contents.
      *  @param after a value to store in the <code>TVar</code> if <code>before</code>
      *      was equal to the previous cell contents.
-     *  @return <code>true</code> if <code>after</code> was written into the cell,
-     *      <code>false</code> otherwise.
+     *  @return <code>true</code> if <code>before</code> was equal to the
+     *      previous value of the bound <code>TVar</code>, <code>false</code>
+     *      otherwise.
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
      */
@@ -290,11 +308,22 @@ object TVar {
       })
     }
 
+    /** Works like <code>compareAndSet</code>, but allows spurious failures.  A
+     *  false return from this method does not necessarily mean that the
+     *  previous value of the <code>TVar</code> is not equal to
+     *  <code>before</code>.
+     *  @see ppl.stm.TVar.Bound#compareAndSet
+     */
+    def weakCompareAndSet(before: T, after: T): Boolean = {
+      // a more efficient implementation may be possible
+      compareAndSet(before, after)
+    }
+
     /** Atomically replaces the value <i>v</i> stored in the <code>TVar</code> with
      *  <code>f</code>(<i>v</i>), possibly deferring execution of <code>f</code> or
-     *  calling <code>f</code> multiple times to reduce transaction conflicts.
-     *  @param f a function that may be called multiple times during the bound
-     *      transaction (if any).
+     *  calling <code>f</code> multiple times.
+     *  @param f a function that is safe to call multiple times, and safe to
+     *      call later during the bound transaction (if any).
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
      */
@@ -310,10 +339,12 @@ object TVar {
      *  with <code>pf</code>(<i>v</i>) if <code>pf.isDefinedAt</code>(<i>v</i>),
      *  returning true, otherwise leaves the element unchanged and returns
      *  false.  <code>pf.apply</code> and <code>pf.isDefinedAt</code> may be
-     *  called multiple times and may be called after this method has returned,
-     *  to avoid transaction rollback due to a conflicting update.
-     *  @param pf a partial function that may be called multiple times during
-     *      the bound transaction (if any).
+     *  called multiple times in both transactional and non-transactional
+     *  contexts.  They may be called after this method has returned in a
+     *  transactional context, to avoid transaction rollback due to a
+     *  conflicting update.
+     *  @param pf a partial function that is safe to call multiple times, and
+     *      safe to call later in the bound transaction (if any).
      *  @return <code>pf.isDefinedAt(<i>v</i>)</code>, where <i>v</i> is the
      *      element held by this <code>TVar</code> on entry.
      *  @throws IllegalStateException if this view is bound to a transaction
