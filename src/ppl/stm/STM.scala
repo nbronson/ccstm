@@ -8,4 +8,4 @@ package ppl.stm
 /** This is the master switch that controls which STM implementation is in use.
  *  Any change requires complete recompilation of everything that uses the STM.
  */
-object STM extends tl2.TL2
+object STM extends impls.IndirectEagerTL2

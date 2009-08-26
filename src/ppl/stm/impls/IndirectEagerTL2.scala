@@ -5,6 +5,7 @@
 
 package ppl.stm.impls
 
+import java.util.concurrent.atomic.AtomicLong
 import ppl.stm.TVar
 import ppl.stm.UnrecordedRead
 
@@ -22,30 +23,26 @@ trait IndirectEagerTL2 {
 
 private[impls] object IndirectEagerTL2 {
 
-  abstract class Wrapped[T](val value: T, val version: Long) {
+  type Version = Long
+
+  abstract class Wrapped[T](val value: T, val version: Version) {
     def owner: IndirectEagerTL2Txn
   }
 
-  case class Unlocked[T]()
+  class Unlocked[T](value: T, version: Version) extends Wrapped[T](value, version)
 
-  case class Changing[T](txn: IndirectEagerTL2Txn, before: T, after: T) {
-    def elem = if (txn.committed) after else before
-  }
+  class Locked[T](value: T,
+                  version: Version,
+                  val specValue: T,
+                  val owner: IndirectEagerTL2Txn) extends Wrapped[T](value, version)
 
-  type Version = Long
 
-  val VersionChanging: Version = 1L
-
-  /** The fundamental correctness assumption of the system is that if txn R
-   *  observes {@link #globalVersion} to be
-   */
-  @volatile var globalVersion: Version = 0
+  val globalVersion = new AtomicLong
 
   def nextNonTxnWriteVersion(): Version = 0
 }
 
-class IndirectEagerTL2Txn {
-  def committed = false
+class IndirectEagerTL2Txn extends AbstractTxn {
 }
 
 abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
@@ -53,8 +50,6 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
 
   def field: Int
   val txn: Txn
-  var metadata: Version
-  var data: Any
 
   var _addedToReadSet = false
   var _addedToWriteSet = false

@@ -66,26 +66,31 @@ object Txn {
   case class Rolledback(explicit: Boolean, cause: Any) extends Status(false, false)
 
 
-  //////////////// Traits to extend for callback functionality
+  //////////////// Resources participate in a two-phase commit
 
-  trait ReadSetCallback {
+  trait ReadResource {
     /** Called during the <code>Active</code> and/or <code>Prepared</code>
-     *  states.  Validation during the <code>Preparing</code> state may be
-     *  skipped if no other transactions have committed since the last
-     *  validation, or if no <code>WriteSetCallback</code>s have been
-     *  registered.  Implementations should call
-     *  <code>txn.requireRollback</code> if <code>txn</code> is no longer
-     *  valid.
+     *  states, returns true iff <code>txn</code> is still valid.  Validation
+     *  during the <code>Preparing</code> state may be skipped if no other
+     *  transactions have committed since the last validation, or if no
+     *  <code>WriteResource</code>s have been registered.
+     *  @return true if <code>txn</code> is still valid, false if
+     *      <code>txn</code> should be rolled back immediately.
      */
-    def validate(txn: Txn)
+    def validate(txn: Txn): Boolean    
   }
 
-  trait WriteSetCallback {
-    /** Called during the <code>Preparing</code> state.  All locks or other
-     *  resources required to complete the commit must be acquired during this
-     *  callback, or else <code>txn.requireRollback</code> must be called.
+  trait WriteResource {
+    /** Called during the <code>Preparing</code> state, returns true if this
+     *  resource agrees to commit.  All locks or other resources required to
+     *  complete the commit must be acquired during this callback, or else
+     *  this method must return false.  The consensus decision will be
+     *  delivered via a subsequent call to <code>performCommit</code> or
+     *  <code>performRollback</code>.
+     *  @return true if this resource can definitely succeed, false if
+     *      <code>txn</code> must be rolled back. 
      */
-    def prepare(txn: Txn)
+    def prepare(txn: Txn): Boolean
 
     /** Called during the <code>Committing</code> state. */
     def performCommit(txn: Txn)
@@ -94,45 +99,23 @@ object Txn {
     def performRollback(txn: Txn)
   }
 
-  trait PreCompletionCallback {
-    /** Called during the <code>Active</code> or <code>MarkedRollback</code>
-     *  states, after completion has been requested.
-     */
-    def beforeCompletion(txn: Txn)
-  }
-
-  trait PostCommitCallback {
-    /** Called during the <code>Committed</code> state. */
-    def afterCommit(txn: Txn)
-  }
-
-  trait PostRollbackCallback {
-    /** Called during the <code>Rolledback</code> state. */
-    def afterRollback(txn: Txn)
-  }
-
+  private[Txn] val EmptyPrioCallbackMap = Map.empty[Int,List[Txn => Unit]]
 }
 
+/** @see ppl.stm.AbstractTxn
+ */
+sealed class Txn extends STM.TxnImpl
+
 abstract class AbstractTxn {
-  this: ppl.stm.Txn =>
+  this: Txn =>
 
   import Txn._
 
-  private[stm] var _readSetCallbacks: Array[ReadSetCallback] = null
-  private[stm] var _readSetCount = 0
-
-  private[stm] var _writeSetCallbacks: Array[WriteSetCallback] = null
-  private[stm] var _writeSetCount = 0
-
-  private[stm] var _preCompletionCallbacks: Array[PreCompletionCallback] = null
-  private[stm] var _preCompletionCount = 0
-
-  private[stm] var _postCommitCallbacks: Array[PostCommitCallback] = null
-  private[stm] var _postCommitCount = 0
-
-  private[stm] var _postRollbackCallbacks: Array[PostRollbackCallback] = null
-  private[stm] var _postRollbackCount = 0
-
+  private var _beforeCommit = EmptyPrioCallbackMap
+  private var _readResources: List[ReadResource] = Nil
+  private var _writeResources: List[WriteResource] = Nil
+  private var _afterCommit = EmptyPrioCallbackMap
+  private var _afterRollback = EmptyPrioCallbackMap
 
   /** Returns the transaction's current status, as of the most recent
    *  operation.  Does not validate the transaction.
@@ -153,146 +136,126 @@ abstract class AbstractTxn {
    */
   def validatedStatus: Status
 
-  
-  //////////////// Callback registration
-
-  def addCallback(cb: ReadSetCallback) { addReadSetCallback(cb) }
-
-  def addReadSetCallback(cb: ReadSetCallback) {
-    val n = _readSetCount
-    _readSetCount = n + 1
-    if (n == 0 || n == _readSetCallbacks.length) _readSetCallbacks = grow(_readSetCallbacks, 32)
-    _readSetCallbacks(n) = cb
+  /** Arranges for <code>callback</code> to be executed as late as possible
+   *  while the transaction is still active.  If the transaction rolls back
+   *  then the callback may not be invoked.  If the callback throws an
+   *  exception then the transaction will be rolled back.  If two callbacks
+   *  have different priorities then the one with the smaller priority will be
+   *  executed first.
+   */
+  def beforeCommit(callback: Txn => Unit)(prio: Int) {
+    _beforeCommit = _beforeCommit.update(prio, callback :: _beforeCommit.getOrElse(prio, Nil))
   }
 
-  private[stm] def callValidate {
-    var i = _readSetCount - 1
-    while (i >= 0) {
-      _readSetCallbacks(i).validate(this)
-      i -= 1
+  /** Calls all callbacks registered via <code>beforeCommit</code>. */
+  private[stm] def callBeforeCommit {
+    if (!_beforeCommit.isEmpty) {
+      for ((_,cbs) <- _beforeCommit; cb <- cbs) cb(this)
     }
   }
 
+  /** Enqueues a before-commit callback with the default priority of 0. */
+  def beforeCommit(callback: Txn => Unit) { beforeCommit(callback)(0) }
 
-  def addCallback(cb: WriteSetCallback) { addWriteSetCallback(cb) }
-
-  def addWriteSetCallback(cb: WriteSetCallback) {
-    val n = _writeSetCount
-    _writeSetCount = n + 1
-    if (n == 0 || n == _writeSetCallbacks.length) _writeSetCallbacks = grow(_writeSetCallbacks, 4)
-    _writeSetCallbacks(n) = cb
+  /** Adds a read resource to the transaction, which will participate in
+   *  validation.
+   */
+  def addReadResource(readResource: ReadResource) {
+    _readResources = readResource :: _readResources
   }
 
-  private[stm] def callPrepare {
-    var i = _writeSetCount - 1
-    while (i >= 0) {
-      _writeSetCallbacks(i).prepare(this)
-      i -= 1
+  /** Calls <code>ReadResource.validate(this)</code> until a resource that
+   *  fails validation is found, returning false, or returns true if all read
+   *  resources are valid.
+   */
+  private[stm] def resourceValidate: Boolean = {
+    _readResources.isEmpty || !_readResources.exists(r => !r.validate(this))
+  }
+
+  /** Adds a write resource to the transaction, which will participate in the
+   *  two-phase commit protocol.
+   */
+  def addWriteResource(writeResource: WriteResource) {
+    _writeResources = writeResource :: _writeResources
+  }
+
+  /** Calls <code>WriteResource.prepare(this)</code> until a resource that is
+   *  not ready to commit is found, returning false, or returns true if all
+   *  write resources are prepared.
+   */
+  private[stm] def resourcePrepare: Boolean = {
+    _writeResources.isEmpty || !_writeResources.exists(r => !r.prepare(this))
+  }
+
+  /** Calls <code>WriteResource.performCommit(this)</code>, returning the last
+   *  exception thrown, or null if no exception occurred.
+   */
+  private[stm] def resourcePerformCommit: Exception = {
+    if (_writeResources.isEmpty) {
+      null
+    } else {
+      var failure: Exception = null
+      for (r <- _writeResources) {
+        try {
+          r.performCommit(this)
+        }
+        catch {
+          case x: Exception => failure = x
+        }
+      }
+      failure
     }
   }
 
-  private[stm] def callPerformCommit {
-    var i = _writeSetCount - 1
-    while (i >= 0) {
-      _writeSetCallbacks(i).performCommit(this)
-      i -= 1
-    }
+  /** Arranges for <code>callback</code> to be executed after transaction
+   *  completion, if this transaction commits.  An exception thrown from an
+   *  after-commit callback will be rethrown after the rest of the after-commit
+   *  callbacks are invoked.  If two callbacks have different priorities then
+   *  the one with the smaller priority will be executed first.
+   */
+  def afterCommit(callback: Txn => Unit)(prio: Int) {
+    _afterCommit = _afterCommit.update(prio, callback :: _afterCommit.getOrElse(prio, Nil))
   }
 
-  private[stm] def callPerformRollback {
-    var i = _writeSetCount - 1
-    while (i >= 0) {
-      _writeSetCallbacks(i).performRollback(this)
-      i -= 1
-    }
+  /** Enqueues an after-commit callback with the default priority of 0. */
+  def afterCommit(callback: Txn => Unit) { afterCommit(callback)(0) }
+
+  /** Arranges for <code>callback</code> to be executed after transaction
+   *  completion, if this transaction rolls back.  An exception thrown from an
+   *  after-commit callback will be rethrown after the rest of the after-commit
+   *  callbacks are invoked.  If two callbacks have different priorities then
+   *  the one with the smaller priority will be executed first.
+   */
+  def afterRollback(callback: Txn => Unit)(prio: Int) {
+    _afterRollback = _afterRollback.update(prio, callback :: _afterRollback.getOrElse(prio, Nil))    
   }
 
+  /** Enqueues an after-rollback callback with the default priority of 0.
+   *  @see #afterRollback 
+   */
+  // TODO: fix @see
+  def afterRollback(callback: Txn => Unit) { afterRollback(callback)(0) }
 
-  def addCallback(cb: PreCompletionCallback) { addPreCompletionCallback(cb) }
-
-  def addPreCompletionCallback(cb: PreCompletionCallback) {
-    val n = _preCompletionCount
-    _preCompletionCount = n + 1
-    if (n == 0 || n == _preCompletionCallbacks.length) _preCompletionCallbacks = grow(_preCompletionCallbacks, 4)
-    _preCompletionCallbacks(n) = cb
-  }
-
-  private[stm] def callBeforeCompletion {
-    var i = _preCompletionCount - 1
-    while (i >= 0) {
-      _preCompletionCallbacks(i).beforeCompletion(this)
-      i -= 1
-    }
-  }
-
-  
-  def addCallback(cb: PostCommitCallback) { addPostCommitCallback(cb) }
-
-  def addPostCommitCallback(cb: PostCommitCallback) {
-    val n = _postCommitCount
-    _postCommitCount = n + 1
-    if (n == 0 || n == _postCommitCallbacks.length) _postCommitCallbacks = grow(_postCommitCallbacks, 4)
-    _postCommitCallbacks(n) = cb
-  }
-
-  private[stm] def callAfterCommit {
-    var i = _postCommitCount - 1
-    while (i >= 0) {
-      _postCommitCallbacks(i).afterCommit(this)
-      i -= 1
-    }
-  }
-
-
-  def addCallback(cb: PostRollbackCallback) { addPostRollbackCallback(cb) }
-
-  def addPostRollbackCallback(cb: PostRollbackCallback) {
-    val n = _postRollbackCount
-    _postRollbackCount = n + 1
-    if (n == 0 || n == _postRollbackCallbacks.length) _postRollbackCallbacks = grow(_postRollbackCallbacks, 4)
-    _postRollbackCallbacks(n) = cb
-  }
-
-  private[stm] def callAfterRollback {
-    var i = _postRollbackCount - 1
-    while (i >= 0) {
-      _postRollbackCallbacks(i).afterRollback(this)
-      i -= 1
-    }
-  }
-
-  private def grow[T <: AnyRef](xs: Array[T], initialSize: Int): Array[T] = {
-    if (xs == null) {
-      new Array[T](initialSize)
+  /** Calls the handlers registered with either <code>afterCommit</code> or
+   *  <code>afterRollback</code>, as appropriate, returning the last caught
+   *  exception or returning null if no callbacks threw an exception.
+   */
+  private[stm] def callAfter: Exception = {
+    val callbacks = if (status == Rolledback) _afterRollback else _afterCommit
+    if (callbacks.isEmpty) {
+      null
     }
     else {
-      val z = new Array[T](xs.length * 2)
-      Array.copy(xs, 0, z, 0, xs.length)
-      z
+      var failure: Exception = null
+      for ((_,cbs) <- callbacks; cb <- cbs) {
+        try {
+          cb(this)
+        }
+        catch {
+          case x: Exception => failure = x
+        }
+      }
+      failure
     }
   }
-}
-
-class Txn extends STM.TxnImpl {
-  import Txn._
-
-
-
-  def valid: Boolean = false
-
-  def validate() { if (!valid) throw RollbackException }
-
-  def active: Boolean = !completed && !committing
-  def committing: Boolean = false
-  override def committed: Boolean = false
-  def completed: Boolean = false
-
-  def rollback() {}
-  def attemptCommit(): Boolean = false
-
-  def awaitCompletion() {}
-
-  def markRollbackOnly() {}
-
-  def addReadResource(handler: ReadSetCallback) {}
 }

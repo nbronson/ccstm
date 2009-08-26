@@ -5,6 +5,10 @@
 
 package ppl.stm
 
+
+import java.lang.reflect.Field
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater
+
 /** An object that provides a factory method for <code>TVar</code> instances.
  *  @see ppl.stm.TVar
  */
@@ -317,20 +321,24 @@ object TVar {
      */
     def transformIfDefined(pf: PartialFunction[T,T]): Boolean
   }
+
+  private[TVar] val _dataUpdater = (new TVar[Any](null)).newDataUpdater 
+
+  private trait Accessor[T] {
+    val instance: TVar[T]
+    def fieldIndex = 0
+    def metadata = instance._metadata
+    def metadata_=(v: STM.Metadata) { instance._metadata = v }
+    def metadataCAS(before: STM.Metadata, after: STM.Metadata) = instance._metadataCAS(before, after)
+    def data = instance._data
+    def data_=(v: Any) { instance._data = v }
+    def dataCAS(before: Any, after: Any) = TVar._dataUpdater.compareAndSet(instance, before, after)
+  }
 }
 
-private trait TVarAccessor[T] {
-  def instance: TVar[T]
-  def field = 0
-  def metadata = instance._metadata
-  def metadata_=(v: STM.Metadata) { instance._metadata = v }
-  def data = instance._data
-  def data_=(v: Any) { instance._data = v }
-}
+private class TVarNonTxnAccessor[T](val instance: TVar[T]) extends STM.NonTxnAccessor[T] with TVar.Accessor[T]
 
-private class TVarNonTxnAccessor[T](val instance: TVar[T]) extends STM.NonTxnAccessor[T] with TVarAccessor[T]
-
-private class TVarTxnAccessor[T](val txn: Txn, val instance: TVar[T]) extends STM.TxnAccessor[T] with TVarAccessor[T]
+private class TVarTxnAccessor[T](val txn: Txn, val instance: TVar[T]) extends STM.TxnAccessor[T] with TVar.Accessor[T]
 
 /** Holds a single element of type <i>T</i>, providing optimistic concurrency
  *  control using software transactional memory.  Reads and writes performed
@@ -355,6 +363,10 @@ private class TVarTxnAccessor[T](val txn: Txn, val instance: TVar[T]) extends ST
 class TVar[T](initialValue: T) extends STM.MetadataHolder with TVar.Source[T] with TVar.Sink[T] {
 
   @volatile private[stm] var _data: Any = initialValue
+
+  private[TVar] def newDataUpdater = {
+    AtomicReferenceFieldUpdater.newUpdater(classOf[TVar], classOf[Object], "_data")
+  }
 
   // implicit access to readForWrite is omitted to discourage its use 
 
