@@ -146,7 +146,7 @@ object TVar {
           val u = unrecordedRead
           val result = f(u.value)
           if (!u.recorded) {
-            val callback = new Txn.ReadSetCallback {
+            val callback = new Txn.ReadResource {
               var _latestRead = u
 
               def validate(txn: Txn) = {
@@ -154,10 +154,9 @@ object TVar {
                   // reread, and see if that changes the result
                   _latestRead = unrecordedRead
                   val reapply = f(_latestRead.value)
-                  if (result != reapply) {
-                    // result changed
-                    txn.markRollbackOnly
-                  }
+                  result == reapply
+                } else {
+                  true
                 }
               }
             }
@@ -353,9 +352,9 @@ object TVar {
     def transformIfDefined(pf: PartialFunction[T,T]): Boolean
   }
 
-  private[TVar] val _dataUpdater = (new TVar[Any](null)).newDataUpdater 
+  private[stm] val dataUpdater = (new TVar[Any](null)).newDataUpdater
 
-  private trait Accessor[T] {
+  private[stm] trait Accessor[T] {
     val instance: TVar[T]
     def fieldIndex = 0
     def metadata = instance._metadata
@@ -363,7 +362,9 @@ object TVar {
     def metadataCAS(before: STM.Metadata, after: STM.Metadata) = instance._metadataCAS(before, after)
     def data = instance._data
     def data_=(v: Any) { instance._data = v }
-    def dataCAS(before: Any, after: Any) = TVar._dataUpdater.compareAndSet(instance, before, after)
+    def dataCAS(before: Any, after: Any) = {
+      TVar.dataUpdater.compareAndSet(instance, before.asInstanceOf[Object], after.asInstanceOf[Object])
+    }
   }
 }
 
@@ -395,8 +396,8 @@ class TVar[T](initialValue: T) extends STM.MetadataHolder with TVar.Source[T] wi
 
   @volatile private[stm] var _data: Any = initialValue
 
-  private[TVar] def newDataUpdater = {
-    AtomicReferenceFieldUpdater.newUpdater(classOf[TVar], classOf[Object], "_data")
+  private[stm] def newDataUpdater = {
+    AtomicReferenceFieldUpdater.newUpdater(classOf[TVar[_]], classOf[Object], "_data")
   }
 
   // implicit access to readForWrite is omitted to discourage its use 

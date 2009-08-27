@@ -55,7 +55,7 @@ private[impls] object IndirectEagerTL2 {
                      val owner: IndirectEagerTL2Txn) extends Wrapped[T](value0, version0) {
     def nonTxnRead = if (owner.decidedCommit) specValue else value
     def nonTxnVersion = if (owner.decidedCommit) owner.commitVersion else version
-    def nonTxnSnapshot = if (owner.decidedCommit) new Unlocked(owner.commitVersion, specValue) else this
+    def nonTxnSnapshot = if (owner.decidedCommit) new Unlocked(specValue, owner.commitVersion) else this
 
     def txnRead(txn: Txn) = if ((txn eq owner) || owner.decidedCommit) specValue else value
   }
@@ -65,13 +65,27 @@ private[impls] object IndirectEagerTL2 {
   def nonTxnWriteVersion(prevVersion: Version): Version = 0
 }
 
-class IndirectEagerTL2Txn extends AbstractTxn {
+abstract class IndirectEagerTL2Txn extends AbstractTxn {
+  this: Txn =>
+
+  import IndirectEagerTL2._
+  import Txn._
+
+  def status: Status = new Rolledback(true, null)
+  def validatedStatus: Status = new Rolledback(true, null)
+
+  private[impls] def commitVersion: Version = 0
+
+  private[stm] def attemptCommit: Boolean = {
+    // TODO: implement
+    false
+  }
 }
 
 abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
   import IndirectEagerTL2._
 
-  def field: Int
+  def fieldIndex: Int
   val txn: Txn
 
   var _addedToReadSet = false
@@ -186,71 +200,23 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
 
   def elem_=(v: T) {}
 
+  def tryWrite(v: T): Boolean = false
+
   def transformIfDefined(pf: PartialFunction[T,T]): Boolean = false
 }
 
 abstract class IndirectEagerTL2NonTxnAccessor[T] extends TVar.Bound[T] {
   import IndirectEagerTL2._
 
+  //////////////// Abstract methods
+
   def data: Any
   def data_=(v: Any)
   def dataCAS(before: Any, after: Any): Boolean
 
-  def context: Option[Txn] = None
+  //////////////// Implementation
 
-//
-//  def elemMap[Z](f: (T) => Z): Z = f(elem)
-//
-//  def elem_=(newValue: T) {
-//    while (true) {
-//      (TVar.this.synchronized {
-//        data match {
-//          case c: Txn.Changing[_] => c.txn
-//          case _ => {
-//            _version |= Txn.VersionChanging
-//            data = newValue
-//            _version = Txn.nextNonTxnWriteVersion()
-//            return
-//          }
-//        }
-//      }).awaitCompletion()
-//    }
-//  }
-//
-//  def transform(f: (T) => T) {
-//    while (true) {
-//      (TVar.this.synchronized {
-//        data match {
-//          case c: Txn.Changing[_] => c.txn
-//          case v => {
-//            val newValue = f(v.asInstanceOf[T])
-//            _version |= Txn.VersionChanging
-//            data = newValue
-//            _version = Txn.nextNonTxnWriteVersion()
-//            return
-//          }
-//        }
-//      }).awaitCompletion()
-//    }
-//  }
-//
-//  def compareAndSet(before: T, after: T): Boolean = {
-//    while (true) {
-//      (TVar.this.synchronized {
-//        data match {
-//          case c: Txn.Changing[_] => c.txn
-//          case v => {
-//            if (before != v.asInstanceOf[T]) return false
-//            _version |= Txn.VersionChanging
-//            data = after
-//            _version = Txn.nextNonTxnWriteVersion()
-//            return true
-//          }
-//        }
-//      }).awaitCompletion()
-//    }
-//    throw new Error("unreachable")
-//  }
+  def context: Option[Txn] = None
 
   def elem: T = {
     data.asInstanceOf[Wrapped[T]].nonTxnRead
@@ -267,13 +233,14 @@ abstract class IndirectEagerTL2NonTxnAccessor[T] extends TVar.Bound[T] {
   }
 
   private def awaitUnlock: Unlocked[T] = {
-    // TODO: magic
+    // TODO
+    null
   }
 
   private def acquireLock: Unlocked[T] = {
     var u: Unlocked[T] = null
     do {
-      u = awaitLock
+      u = awaitUnlock
     } while (!dataCAS(u, new NonTxnLocked(u.value, u.version)))
     u
   }

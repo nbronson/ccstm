@@ -99,7 +99,7 @@ object Txn {
     def performRollback(txn: Txn)
   }
 
-  private[Txn] val EmptyPrioCallbackMap = Map.empty[Int,List[Txn => Unit]]
+  private[stm] val EmptyPrioCallbackMap = Map.empty[Int,List[Txn => Unit]]
 }
 
 /** @see ppl.stm.AbstractTxn
@@ -122,6 +122,16 @@ abstract class AbstractTxn {
    */
   def status: Status
 
+  /** Returns true if this transaction's <code>status</code> is either
+   *  <code>Committed</code> or <code>Rolledback</code>.
+   */
+  def completed: Boolean = { val s = status ; s == Committed || s == Rolledback }
+
+  /** Returns true if this transaction's <code>status</code> is either
+   *  <code>Committing</code> or <code>Committed</code>.
+   */
+  def decidedCommit: Boolean = { val s = status ; s == Committing || s == Committed }
+
   /** Validates that the transaction is consistent with all other committed
    *  transactions and completed non-transactional accesses, throwing
    *  <code>RollbackException</code> if this transaction is not consistent.
@@ -143,7 +153,7 @@ abstract class AbstractTxn {
    *  have different priorities then the one with the smaller priority will be
    *  executed first.
    */
-  def beforeCommit(callback: Txn => Unit)(prio: Int) {
+  def beforeCommit(callback: Txn => Unit, prio: Int) {
     _beforeCommit = _beforeCommit.update(prio, callback :: _beforeCommit.getOrElse(prio, Nil))
   }
 
@@ -155,7 +165,7 @@ abstract class AbstractTxn {
   }
 
   /** Enqueues a before-commit callback with the default priority of 0. */
-  def beforeCommit(callback: Txn => Unit) { beforeCommit(callback)(0) }
+  def beforeCommit(callback: Txn => Unit) { beforeCommit(callback, 0) }
 
   /** Adds a read resource to the transaction, which will participate in
    *  validation.
@@ -213,12 +223,12 @@ abstract class AbstractTxn {
    *  callbacks are invoked.  If two callbacks have different priorities then
    *  the one with the smaller priority will be executed first.
    */
-  def afterCommit(callback: Txn => Unit)(prio: Int) {
+  def afterCommit(callback: Txn => Unit, prio: Int) {
     _afterCommit = _afterCommit.update(prio, callback :: _afterCommit.getOrElse(prio, Nil))
   }
 
   /** Enqueues an after-commit callback with the default priority of 0. */
-  def afterCommit(callback: Txn => Unit) { afterCommit(callback)(0) }
+  def afterCommit(callback: Txn => Unit) { afterCommit(callback, 0) }
 
   /** Arranges for <code>callback</code> to be executed after transaction
    *  completion, if this transaction rolls back.  An exception thrown from an
@@ -226,15 +236,12 @@ abstract class AbstractTxn {
    *  callbacks are invoked.  If two callbacks have different priorities then
    *  the one with the smaller priority will be executed first.
    */
-  def afterRollback(callback: Txn => Unit)(prio: Int) {
+  def afterRollback(callback: Txn => Unit, prio: Int) {
     _afterRollback = _afterRollback.update(prio, callback :: _afterRollback.getOrElse(prio, Nil))    
   }
 
-  /** Enqueues an after-rollback callback with the default priority of 0.
-   *  @see #afterRollback 
-   */
-  // TODO: fix @see
-  def afterRollback(callback: Txn => Unit) { afterRollback(callback)(0) }
+  /** Enqueues an after-rollback callback with the default priority of 0. */
+  def afterRollback(callback: Txn => Unit) { afterRollback(callback, 0) }
 
   /** Calls the handlers registered with either <code>afterCommit</code> or
    *  <code>afterRollback</code>, as appropriate, returning the last caught
