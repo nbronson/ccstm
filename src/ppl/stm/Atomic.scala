@@ -7,10 +7,10 @@ package ppl.stm
 
 /** An abstract class that allows a relatively compact syntax for transactions
  *  under current Scala rules.  The trait performs its magic by declaring an
- *  implicit function that returns a {@link ppl.stm.Txn}, which means that
- *  anonymous subclasses that implement {@link ppl.stm.Atomic#body body} have
- *  an implicit transaction in scope.  If/when Scala allows anonymous function
- *  parameters to be marked implicit, this class will probably become obsolete.
+ *  implicit function that returns a <code>ppl.stm.Txn</code>, which means that
+ *  anonymous subclasses that implement <code>body</code> have an implicit
+ *  transaction in scope.  If/when Scala allows anonymous function parameters
+ *  to be marked implicit, this class will probably become obsolete.
  *  <p>
  *  Typical usage:<pre>
  *    val tx: TVar[Int] = ..
@@ -37,7 +37,9 @@ abstract class Atomic {
    *  threw an exception and the transaction is valid, the exception will be
    *  rethrown from this method.  If the body threw an exception but the
    *  transaction was not valid, the exception will be discarded and this
-   *  method will return false. 
+   *  method will return false.
+   *
+   *  TODO: reevaluate whether we should roll back on exception, at least a few times
    */
   def attempt(): Boolean = {
     assert(_currentTxn == null)
@@ -56,11 +58,11 @@ abstract class Atomic {
     }
   }
 
-  /** Repeatedly calls {@link ppl.stm.Atomic#attempt attempt()} until a
-   *  transaction can be successfully committed, possibly raising the priority
-   *  of subsequent attempts in an implementation-specific manner.  If the body
-   *  throws an exception and the transaction is valid, the exception will be
-   *  rethrown from this method.
+  /** Repeatedly calls <code>attempt()</code> until a transaction can be
+   *  successfully committed, possibly raising the priority of subsequent
+   *  attempts in an implementation-specific manner.  If the body throws an
+   *  exception and the transaction is valid, the exception will be rethrown
+   *  from this method.
    */
   def run() {
     while (!attempt()) {} // TODO: something more sophisticated
