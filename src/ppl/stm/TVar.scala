@@ -82,11 +82,10 @@ object TVar {
      */
     def bind(implicit txn: Txn): BoundSink[T]
 
-    /** Returns a view of this <code>TVar.Sink</code> that can be used to perform
-     *  individual (non-transactional) writes of the cell's value.  The
+    /** Returns a view of this <code>TVar.Sink</code> that can be used to
+     *  perform individual (non-transactional) writes of the cell's value.  The
      *  returned view acts as if each operation is performed in its own
-     *  transaction. The returned view is valid for the lifetime of the
-     *  program.
+     *  transaction. The returned view is valid for the lifetime of the program.
      *  @return a write-only view into the value of a <code>TVar</code>, that will
      *      perform each update operation as if in its own transaction.
      */
@@ -103,7 +102,8 @@ object TVar {
    */
   trait BoundSource[+T] {
     /** Returns <code>Some(txn)</code> if this view is bound to a transaction
-     *  <code>txn</code>, <code>None</code> if it is bound to the non-transactional context.
+     *  <code>txn</code>, <code>None</code> if it is bound to the
+     *  non-transactional context.
      */
     def context: Option[Txn]
 
@@ -272,7 +272,7 @@ object TVar {
      *      that is not active.
      */
     def readForWrite: T = {
-      // a more efficient implementation may be possible
+      // a more efficient implementation may be provided by the STM
       context match {
         case None => {
           // non-transactional, no difference from a normal read
@@ -300,9 +300,30 @@ object TVar {
      *      that is not active.
      */
     def compareAndSet(before: T, after: T): Boolean = {
-      // a more efficient implementation may be possible
+      // a more efficient implementation may be provided by the STM
       transformIfDefined(new PartialFunction[T,T] {
         def isDefinedAt(v: T): Boolean = before == v
+        def apply(v: T): T = after
+      })
+    }
+
+    /** Equivalent to atomically executing <code>(if (elem eq before) { elem =
+     *  after; true } else false)</code>, but may be more efficient.
+     *  @param before a reference whose identity will be compared against the
+     *      current <code>TVar</code> contents.
+     *  @param after a value to store in the <code>TVar</code> if <code>before</code>
+     *      has the same reference identity as the previous cell contents.
+     *  @return <code>true</code> if <code>before</code> has the same reference
+     *      identity as the previous value of the bound <code>TVar</code>,
+     *      <code>false</code> otherwise.
+     *  @throws IllegalStateException if this view is bound to a transaction
+     *      that is not active.
+     *  @see ppl.stm.TVar.Bound#compareAndSet
+     */
+    def compareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = {
+      // a more efficient implementation may be provided by the STM
+      transformIfDefined(new PartialFunction[T,T] {
+        def isDefinedAt(v: T): Boolean = (before eq v.asInstanceOf[AnyRef])
         def apply(v: T): T = after
       })
     }
@@ -314,8 +335,19 @@ object TVar {
      *  @see ppl.stm.TVar.Bound#compareAndSet
      */
     def weakCompareAndSet(before: T, after: T): Boolean = {
-      // a more efficient implementation may be possible
+      // a more efficient implementation may be provided by the STM
       compareAndSet(before, after)
+    }
+
+    /** Works like <code>compareAndSetIdentity</code>, but allows spurious
+     *  failures.  A false return from this method does not necessarily mean
+     *  that the previous value of the <code>TVar</code> has a different
+     *  reference identity than <code>before</code>.
+     *  @see ppl.stm.TVar.Bound#compareAndSetIdentity
+     */
+    def weakCompareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = {
+      // a more efficient implementation may be provided by the STM
+      compareAndSetIdentity(before, after)
     }
 
     /** Atomically replaces the value <i>v</i> stored in the <code>TVar</code> with
@@ -327,7 +359,7 @@ object TVar {
      *      that is not active.
      */
     def transform(f: T => T) {
-      // a more efficient implementation may be possible
+      // a more efficient implementation may be provided by the STM
       transformIfDefined(new PartialFunction[T,T] {
         def isDefinedAt(v: T): Boolean = true
         def apply(v: T): T = f(v)
@@ -349,7 +381,9 @@ object TVar {
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
      */
-    def transformIfDefined(pf: PartialFunction[T,T]): Boolean
+    def transformIfDefined(pf: PartialFunction[T,T]): Boolean = {
+      // a more efficient implementation may be provided by the STM
+    }
   }
 
   private[stm] val dataUpdater = (new TVar[Any](null)).newDataUpdater

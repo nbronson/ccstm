@@ -30,7 +30,11 @@ private[impls] object IndirectEagerTL2 {
     def nonTxnVersion: Version
     def nonTxnSnapshot: Wrapped[T]
 
-    def txnRead(txn: Txn): T
+    /** True iff a CAS may be used to obtain write permission. */
+    def isAcquirable: Boolean
+    def isLockedBy(txn: IndirectEagerTL2Txn): Boolean
+
+    def txnRead(txn: IndirectEagerTL2Txn): T
   }
 
   class Unlocked[T](value0: T, version0: Version) extends Wrapped[T](value0, version0) {
@@ -38,15 +42,21 @@ private[impls] object IndirectEagerTL2 {
     def nonTxnVersion = version
     def nonTxnSnapshot = this
 
-    def txnRead(txn: Txn) = value
+    def isAcquirable = false
+    def isLockedBy(txn: IndirectEagerTL2Txn) = false
+
+    def txnRead(txn: IndirectEagerTL2Txn) = value
   }
 
-  class NonTxnLocked[T](value0: T, version0: Version) extends Wrapped[T](value0, version0) {
+  class NonTxnLocked[T](val unlocked: Unlocked[T]) extends Wrapped[T](unlocked.value, unlocked.version) {
     def nonTxnRead = value
     def nonTxnVersion = version
     def nonTxnSnapshot = this
 
-    def txnRead(txn: Txn) = value
+    def isAcquirable = true
+    def isLockedBy(txn: IndirectEagerTL2Txn) = false
+
+    def txnRead(txn: IndirectEagerTL2Txn) = value
   }
 
   class TxnLocked[T](value0: T,
@@ -57,12 +67,31 @@ private[impls] object IndirectEagerTL2 {
     def nonTxnVersion = if (owner.decidedCommit) owner.commitVersion else version
     def nonTxnSnapshot = if (owner.decidedCommit) new Unlocked(specValue, owner.commitVersion) else this
 
-    def txnRead(txn: Txn) = if ((txn eq owner) || owner.decidedCommit) specValue else value
+    def isAcquirable = !owner.isDoomed
+    def isLockedBy(txn: IndirectEagerTL2Txn) = (owner == txn)
+
+    def txnRead(txn: IndirectEagerTL2Txn) = (if (isLockedBy(txn)) specValue else value)
   }
 
   val globalVersion = new AtomicLong
 
-  def nonTxnWriteVersion(prevVersion: Version): Version = 0
+  /** Guarantees that <code>globalVersion</code> is greater than
+   *  or equal to <code>prevVersion</code>, and returns a value greater than
+   *  the value of <code>globalVersion</code> present on entry and greater
+   *  than <code>prevVersion</code>.
+   */
+  def nonTxnWriteVersion(prevVersion: Version): Version = {
+    val g0 = globalVersion.get
+    if (g0 >= prevVersion) {
+      1 + g0
+    } else {
+      var g = g0
+      while (g < prevVersion && !globalVersion.compareAndSet(g, prevVersion)) {
+        g = globalVersion.get
+      }
+      1 + prevVersion
+    }
+  }
 }
 
 abstract class IndirectEagerTL2Txn extends AbstractTxn {
@@ -71,10 +100,34 @@ abstract class IndirectEagerTL2Txn extends AbstractTxn {
   import IndirectEagerTL2._
   import Txn._
 
-  def status: Status = new Rolledback(true, null)
-  def validatedStatus: Status = new Rolledback(true, null)
+  //////////////// State
+
+  private[impls] var _readCount = 0
+  private[impls] var _reads = new Array[IndirectEagerTL2TxnAccessor[_]](8)
+
+  private[impls] def addToReadSet(w: IndirectEagerTL2TxnAccessor[_]) {
+    if (_readCount == _reads.length) {
+      val n = new Array[IndirectEagerTL2TxnAccessor[_]](_readCount * 2)
+      Array.copy(_reads, 0, n, 0, _readCount)
+      _reads = n
+    }
+    _reads(_readCount) = w
+    _readCount += 1
+  }
+
+  //////////////// Private interface
+
+  private[impls] val readVersion: Version
+
+  /** True if all reads should be performed as writes. */
+  private[impls] val barging: Boolean
 
   private[impls] def commitVersion: Version = 0
+
+  //////////////// Public interface
+
+  def status: Status = new Rolledback(true, null)
+  def validatedStatus: Status = new Rolledback(true, null)
 
   private[stm] def attemptCommit: Boolean = {
     // TODO: implement
@@ -85,124 +138,243 @@ abstract class IndirectEagerTL2Txn extends AbstractTxn {
 abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
   import IndirectEagerTL2._
 
-  def fieldIndex: Int
-  val txn: Txn
+  //////////////// Abstract methods
 
-  var _addedToReadSet = false
-  var _addedToWriteSet = false
+  def data: Any
+  def data_=(v: Any)
+  def dataCAS(before: Any, after: Any): Boolean
+
+  def fieldIndex: Int
+  val txn: IndirectEagerTL2Txn
+
+  //////////////// Implementation
+
+  var _readVersion: Wrapped[T] = null
 
   def context: Option[Txn] = Some(txn)
 
-//  def elem: T = {
-//    var attempts = 0
-//    while (attempts < 100) {
-//    }
-//
-//    null.asInstanceOf[T]
-//  }
-//
-//  private def attemptRead(addToRS: Boolean): Option[T] = {
-//    val v = metadata
-//    val d = data
-//    if (v != metadata) return None
-//
-//    if (v > txn.readVersion && !txn.revalidate(v)) throw RollbackException
-//
-//    val z = (if ((v & Txn.VersionChanging) != 0) {
-//      // Somebody is changing _data.  If they have installed a Txn.Changing
-//      // instance then we can choose to grab the pre-change value and
-//      // continue, because we may commit before them.  If no Txn.Changing
-//      // instance is available then the situation will quickly change,
-//      // because threads do little work in that state, or we are very
-//      // unlucky and the blocking thread has been preempted.
-//      d match {
-//        case c: Txn.Changing[T] => {
-//          if (txn == c.txn) return Some(c.after)
-//          c.before
-//        }
-//        case _ => return None
-//      }
-//    } else {
-//      assert(!d.isInstanceOf[Txn.Changing[_]])
-//      d.asInstanceOf[T]
-//    })
-//
-//    // read is stable and consistent, should we add it to the read set?
-//    if (addToRS) {
-//      _addedToReadSet = true
-//      txn.addToReadSet(this)
-//    }
-//  }
-//
-//  def elemMap[Z](f: (T) => Z): Z = {
-//    if (_addedToReadSet || _addedToWriteSet) {
-//      // no benefit to reexecution of f later
-//      f(elem)
-//    } else {
-//
-//    }
-//  }
-//
-//  def elem_=(newValue: T) {
-//    while (true) {
-//      (TVar.this.synchronized {
-//        data match {
-//          case d: Txn.Changing[_] => d.txn
-//          case _ => {
-//            _version |= Txn.VersionChanging
-//            data = newValue
-//            _version = Txn.nextNonTxnWriteVersion()
-//            return
-//          }
-//        }
-//      }).awaitCompletion()
-//    }
-//  }
-//
-//  def transform(f: (T) => T) {
-//    while (true) {
-//      (TVar.this.synchronized {
-//        data match {
-//          case d: Txn.Changing[_] => d.txn
-//          case d => {
-//            val newValue = f(d.asInstanceOf[T])
-//            _version |= Txn.VersionChanging
-//            data = newValue
-//            _version = Txn.nextNonTxnWriteVersion()
-//            return
-//          }
-//        }
-//      }).awaitCompletion()
-//    }
-//  }
-//
-//  def compareAndSet(before: T, after: T): Boolean = {
-//    while (true) {
-//      (TVar.this.synchronized {
-//        data match {
-//          case d: Txn.Changing[_] => d.txn
-//          case d => {
-//            if (before != d.asInstanceOf[T]) return false
-//            _version |= Txn.VersionChanging
-//            data = after
-//            _version = Txn.nextNonTxnWriteVersion()
-//            return true
-//          }
-//        }
-//      }).awaitCompletion()
-//    }
-//    throw new Error("unreachable")
-//  }
+  def elem: T = {
+    val t = txn
+    t.requireActive
 
-  def elem: T = null.asInstanceOf[T]
+    val w: Wrapped[T] = data.asInstanceOf[T]
+    if (w.isLockedBy(t)) {
+      w.asInstanceOf[TxnLocked[T]].specValue
+    } else {
+      readImpl(t, w, false).value
+    }
+  }
 
-  def unrecordedRead: UnrecordedRead[T] = null
+  // does not check for read-after-write
+  private[impls] def readImpl(t: IndirectEagerTL2Txn, w0: Wrapped[T], unrecorded: Boolean): Wrapped[T] = {
+    var w: Wrapped[T] = w0
 
-  def elem_=(v: T) {}
+    // is this txn desperate?
+    if (t.barging) {
+      return readForWriteImpl(t, w0)
+    }
 
-  def tryWrite(v: T): Boolean = false
+    var okay = false
+    do {
+      w match {
+        case u: Unlocked[_] => {
+          // No waiting necessary
+          okay = true
+        }
+        case nl: NonTxnLocked[_] => {
+          // NonTxnLocked is only used by non-transactional transform-like
+          // operations that fail to succeed with a weakCompareAndSet on their
+          // first try.  Although it would be correct to try to use the old
+          // value and see if we can commit first, it seems unlikely that this
+          // will be profitable in practice.
+          w = waitForNonTxn(nl)
+        }
+        case tl: TxnLocked[_] => {
+          // We checked for read-after-write earlier, so this is a true
+          // conflict.  We can either wait, or we can use the old value and
+          // hope we commit before them.  To avoid deadlock cycles, we impose a
+          // partial ordering on transactions and only wait for those that are
+          // less than the current one.
+          if (t.shouldWaitForRead(tl.owner)) {
+            w = waitForTxn(tl.owner)
+          } else {
+            okay = true
+          }
+        }
+      }
+    } while (!okay)
 
-  def transformIfDefined(pf: PartialFunction[T,T]): Boolean = false
+    // attempt to read at w.version
+    if (w.version > t.readVersion && !t.revalidate(w.version)) {
+      throw RollbackException
+    }
+
+    // read is stable and consistent
+    if (!unrecorded && _readVersion == null) {
+      _readVersion = w
+      t.addToReadSet(this)
+    }
+
+    return w
+  }
+
+  private def waitForNonTxn(nl: NonTxnLocked[_]): Wrapped[T] = {
+    // TODO: park after some spins
+    var d = data
+    while (d.asInstanceOf[AnyRef] eq nl) {
+      Thread.`yield`
+      d = data
+    }
+    d.asInstanceOf[Wrapped[T]]
+  }
+
+  private def waitForTxn(tl: TxnLocked[_]): Wrapped[T] = {
+    // TODO: park after some spins
+    while (!tl.owner.completedOrDoomed) {
+      Thread.`yield`
+    }
+    data.asInstanceOf[Wrapped[T]]
+  }
+
+  def unrecordedRead: UnrecordedRead[T] = {
+    val t = txn
+    t.requireActive
+
+    val w: Wrapped[T] = data.asInstanceOf[T]
+    if (w.isLockedBy(t)) {
+      return new UnrecordedRead[T] {
+        def value: T = null
+
+        def recorded: Boolean = true
+
+        def stillValid: Boolean = txn.isActive 
+      }
+      w.asInstanceOf[TxnLocked[T]].specValue
+    } else {
+      readImpl(t, w, false).value
+    }
+    
+  }
+
+  // write barrier
+  def elem_=(v: T) {
+    readForWriteImpl.specValue = v
+  }
+
+  private[impls] def readForWriteImpl: TxnLocked[T] = {
+    val t = txn
+    t.requireActive
+
+    val w: Wrapped[T] = data.asInstanceOf[T]
+    if (w.isLockedBy(t)) {
+      // easy
+      w.asInstanceOf[TxnLocked[T]]
+    } else {
+      readForWriteImpl(t, w0)
+    }
+  }
+
+  private[impls] def readForWriteImpl(t: IndirectEagerTL2Txn, w0: Wrapped[T]): TxnLocked[T] = {
+    var w = w0
+    var result: TxnLocked[T] = null
+    while (result == null) {
+      if (w.isAcquirable) {
+        // Unlocked, or locked by a doomed txn
+
+        // Validate previous version
+        if (w.version > t.readVersion && !t.revalidate(w.version)) {
+          throw RollbackException
+        }
+
+        // Acquire write permission, possibly stealing the slot from a doomed
+        // txn that has not yet completely rolled back.
+        val v = w.value
+        val after = new TxnLocked(v, w.version, v, t)
+        if (dataCAS(w, after)) {
+          // success!
+          addToWriteSet(this)
+          result = after
+        }
+      }
+      else {
+        // Locked by somebody
+        w match {
+          case nl: NonTxnLocked[_] => {
+            // We never doom a non-txn update.
+            w = waitForNonTxn(nl)
+          }
+          case tl: TxnLocked[_] => {
+            // Since we can't buffer multiple speculative versions for this
+            // data type in this STM, write-write conflicts must be handled
+            // immediately.  We can: doom the other txn and steal the lock,
+            // block the current txn, or roll back the current txn.  If the
+            // contention manager in resolveWWConflict wants to roll back the
+            // current txn it will throw RollbackException itself.  If it
+            // wants to doom tl.owner it will also do that directly.
+            t.resolveWriteWriteConflict(tl.owner)
+            w = waitForTxn(tl.owner)
+          }
+        }
+      }
+    }
+
+    return result
+  }
+
+  def tryWrite(v: T): Boolean = {
+    val t = txn
+    var w: Wrapped[T] = data.asInstanceOf[T]
+
+    t.requireActive
+
+    if (w.isLockedBy(t)) {
+      // easy
+      w.asInstanceOf[TxnLocked[T]].specValue = v
+      return true
+    }
+
+    if (!w.isAcquirable) {
+      // fail without blocking
+      return false
+    }
+
+    // Unlocked, or locked by a doomed txn
+
+    // Validate previous version
+    if (w.version > t.readVersion && !t.revalidate(w.version)) {
+      throw RollbackException
+    }
+
+    // Attempt to acquire write permission, possibly stealing the slot from a
+    // doomed txn that has not yet completely rolled back.
+    val after = new TxnLocked(w.value, w.version, v, t)
+    if (dataCAS(w, after)) {
+      // success!
+      addToWriteSet(this)
+      return true
+    } else {
+      // failure, don't retry
+      return false
+    }
+  }
+
+  override def readForWrite: T = {
+    readForWriteImpl.specValue
+  }
+
+  override def transform(f: T => T) {
+    // TODO: a better implementation
+    val tl = readForWriteImpl
+    tl.specValue = f(tl.specValue)
+  }
+
+  def transformIfDefined(pf: PartialFunction[T,T]): Boolean = {
+    // TODO: a better implementation
+    if (elemMap(pf.isDefined(_))) {
+      val tl = readForWriteImpl
+      tl.specValue = pf(tl.specValue)
+    }
+  }
 }
 
 abstract class IndirectEagerTL2NonTxnAccessor[T] extends TVar.Bound[T] {
@@ -233,16 +405,28 @@ abstract class IndirectEagerTL2NonTxnAccessor[T] extends TVar.Bound[T] {
   }
 
   private def awaitUnlock: Unlocked[T] = {
-    // TODO
-    null
+    // TODO improve
+    var d = data
+    while (!d.isInstanceOf[Unlocked[_]]) {
+      Thread.`yield`
+      d = data
+    }
+    d.asInstanceOf[Unlocked[T]]
   }
 
-  private def acquireLock: Unlocked[T] = {
-    var u: Unlocked[T] = null
+  private def acquireLock: NonTxnLocked[T] = {
+    var before: Unlocked[T] = null
+    var after: NonTxnLocked[T] = null
     do {
-      u = awaitUnlock
-    } while (!dataCAS(u, new NonTxnLocked(u.value, u.version)))
-    u
+      before = awaitUnlock
+      after = new NonTxnLocked(before)
+    } while (!dataCAS(before, after))
+    after
+  }
+
+  private def releaseLock(before: NonTxnLocked[T], after: Unlocked[T]) = {
+    // TODO: maybe some notify logic?
+    data = after
   }
 
   def elem_=(v: T) {
@@ -261,18 +445,35 @@ abstract class IndirectEagerTL2NonTxnAccessor[T] extends TVar.Bound[T] {
     var u: Unlocked[T] = null
     do {
       u = awaitUnlock
-      if (before != u.value) return false
+      if (!(before == u.value)) return false
+    } while (!dataCAS(u, new Unlocked(after, nonTxnWriteVersion(u.version))))
+    return true
+  }
+
+  override def compareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = {
+    var u: Unlocked[T] = null
+    do {
+      u = awaitUnlock
+      if (!(before eq u.value)) return false
     } while (!dataCAS(u, new Unlocked(after, nonTxnWriteVersion(u.version))))
     return true
   }
 
   override def weakCompareAndSet(before: T, after: T): Boolean = {
-    val d = data
-    if (d.isInstanceOf[Unlocked[_]]) {
-      val u = d.asInstanceOf[Unlocked[T]]
-      before == u.value && dataCAS(d, new Unlocked(after, nonTxnWriteVersion(u.version)))
-    } else {
-      false
+    data match {
+      case u: Unlocked[_] =>
+        before == u.value && dataCAS(d, new Unlocked(after, nonTxnWriteVersion(u.version)))
+      case _ =>
+        false
+    }
+  }
+
+  override def weakCompareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = {
+    data match {
+      case u: Unlocked[_] =>
+        (before eq u.value) && dataCAS(d, new Unlocked(after, nonTxnWriteVersion(u.version)))
+      case _ =>
+        false
     }
   }
 
@@ -283,7 +484,7 @@ abstract class IndirectEagerTL2NonTxnAccessor[T] extends TVar.Bound[T] {
 
   private def lockedTransform(f: T => T) {
     val prev = acquireLock
-    data = new Unlocked(f(prev.value), nonTxnWriteVersion(prev.version))
+    releaseLock(prev, new Unlocked(f(prev.value), nonTxnWriteVersion(prev.version)))
   }
 
   def transformIfDefined(pf: PartialFunction[T,T]): Boolean = {
@@ -300,10 +501,10 @@ abstract class IndirectEagerTL2NonTxnAccessor[T] extends TVar.Bound[T] {
   private def lockedTransformIfDefined(pf: PartialFunction[T,T]): Boolean = {
     val prev = acquireLock
     if (!pf.isDefinedAt(prev.value)) {
-      data = prev
+      releaseLock(prev, prev.unlocked)
       false
     } else {
-      data = new Unlocked(pf(prev.value), nonTxnWriteVersion(prev.version))
+      releaseLock(prev, new Unlocked(pf(prev.value), nonTxnWriteVersion(prev.version)))
       true
     }
   }
