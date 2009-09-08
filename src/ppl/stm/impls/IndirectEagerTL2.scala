@@ -67,7 +67,7 @@ private[impls] object IndirectEagerTL2 {
     def nonTxnVersion = if (owner.decidedCommit) owner.commitVersion else version
     def nonTxnSnapshot = if (owner.decidedCommit) new Unlocked(specValue, owner.commitVersion) else this
 
-    def isAcquirable = !owner.isDoomed
+    def isAcquirable = owner.status.mustRollBack
     def isLockedBy(txn: IndirectEagerTL2Txn) = (owner == txn)
 
     def txnRead(txn: IndirectEagerTL2Txn) = (if (isLockedBy(txn)) specValue else value)
@@ -127,21 +127,40 @@ abstract class IndirectEagerTL2Txn extends AbstractTxn {
 
   //////////////// Private interface
 
-  private[impls] def requireActive { require(status == Active) }
-
+  /** Returns the read version of this transaction.  It is guaranteed that all
+   *  values read by this transaction have a version number less than or equal
+   *  to this value, and that any transaction whose writes conflict with this
+   *  transaction will label those writes with a version number greater than
+   *  this value.
+   */
   private[impls] val readVersion: Version
 
   /** True if all reads should be performed as writes. */
   private[impls] val barging: Boolean
 
-  private[impls] def isDoomed: Boolean
-  private[impls] def completedOrDoomed: Boolean // TODO: rename
+  /** Returns true if this txn has released all of its locks or if the locks
+   *  are eligible to be stolen.
+   */
+  private[impls] def completedOrDoomed: Boolean = {
+    val s = status
+    (s == Committed || s.mustRollBack)
+  }
 
+  /** The version number with which this transaction's writes are labelled. */
   private[impls] def commitVersion: Version = 0
 
+  /** */
   private[impls] def revalidate(minReadVersion: Version) {
     // TODO: implement
   }
+
+  /** Returns true if the caller should wait for the txn to complete, false if
+   *  the reader should proceed with the old value, hoping to commit before
+   *  <code>currentOwner</code>.  May also choose to doom either txn.
+   */
+  private[impls] def shouldWaitForRead(currentOwner: IndirectEagerTL2Txn): Boolean
+  
+  private[impls] def resolveWriteWriteConflict(currentOwner: IndirectEagerTL2Txn)
 
   //////////////// Public interface
 
@@ -260,6 +279,7 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
     val w0 = data.asInstanceOf[Wrapped[T]]
     if (w0.isLockedBy(t)) {
       return new UnrecordedRead[T] {
+        def context = IndirectEagerTL2TxnAccessor.this.context
         val value = w0.asInstanceOf[TxnLocked[T]].specValue
         def recorded = true
         def stillValid = (w0 eq data.asInstanceOf[AnyRef])
@@ -267,6 +287,7 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
     } else {
       val w = readImpl(t, w0, false)
       return new UnrecordedRead[T] {
+        def context = IndirectEagerTL2TxnAccessor.this.context
         def value = w.value
         val recorded = (_readVersion != null)
         def stillValid = {
@@ -391,6 +412,9 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
     if (elemMap(v => pf.isDefinedAt(v))) {
       val tl = readForWriteImpl
       tl.specValue = pf(tl.specValue)
+      true
+    } else {
+      false
     }
   }
 }
@@ -416,6 +440,7 @@ abstract class IndirectEagerTL2NonTxnAccessor[T] extends TVar.Bound[T] {
     new UnrecordedRead[T] {
       private val _snapshot = data.asInstanceOf[Wrapped[T]].nonTxnSnapshot
 
+      def context = None
       def value: T = _snapshot.value
       def stillValid: Boolean = _snapshot.version == data.asInstanceOf[Wrapped[T]].nonTxnVersion
       def recorded: Boolean = false

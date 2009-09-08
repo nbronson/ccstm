@@ -13,58 +13,99 @@ object Txn {
   //////////////// Status
 
   /** Represents the current status of a <code>Txn</code>. */
-  sealed abstract class Status(mayCommit0: Boolean, willCommit0: Boolean) {
-    /** True if a transaction with this status may eventually commit, false if
-     *  rollback is inevitable.
+  sealed abstract class Status {
+    /** True if a transaction with this status might eventually commit, false
+     *  if rollback is inevitable.
      */
-    val mayCommit = mayCommit0
+    def mightCommit: Boolean
 
     /** True if a transaction with this status has decided on commit, false if
      *  rollback may still occur.
      */
-    val willCommit = willCommit0
+    def mustCommit: Boolean
+
+    /** True if a transaction with this status might roll back, false if commit
+     *  has already been decided.  Equivalent to <code>!willCommit</code>.
+     */
+    def mightRollBack = !mustCommit
+    
+    /** True if a transaction with this status definitely will not commit,
+     *  false if commit is possible.  Equivalent to <code>!mightCommit</code>.
+     */
+    def mustRollBack = !mightCommit
   }
 
   /** The <code>Status</code> for a <code>Txn</code> that may commit, but for
    *  which completion has not yet been requested.
    */
-  case object Active extends Status(true, false)
+  case object Active extends Status {
+    def mightCommit = true
+    def mustCommit = false
+  }
 
   /** The <code>Status</code> for a <code>Txn</code> that will not commit, but
    *  for which completion has not yet been requested. 
    */
-  case object MarkedRollback extends Status(false, false)
+  case object MarkedRollback extends Status {
+    def mightCommit = false
+    def mustCommit = false
+  }
 
   /** The <code>Status</code> for a <code>Txn</code> that may commit and whose
    *  completion has been requested, but that has not yet acquired the
    *  resources required to guarantee that commit is possible.
    */
-  case object Preparing extends Status(true, false)
+  case object Preparing extends Status {
+    def mightCommit = true
+    def mustCommit = false
+  }
 
   /** The <code>Status</code> for a <code>Txn</code> that is guaranteed to
    *  commit, but that has not yet released all of its resources.
    */
-  case object Committing extends Status(true, true)
+  case object Committing extends Status {
+    def mightCommit = true
+    def mustCommit = true
+  }
 
   /** The <code>Status</code> for a <code>Txn</code> that has successfully
    *  committed, applying all of its changes.
    */
-  case object Committed extends Status(true, true)
+  case object Committed extends Status {
+    def mightCommit = true
+    def mustCommit = true
+  }
 
   /** The <code>Status</code> for a <code>Txn</code> that will definitely roll
    *  back, but that has not yet released all of its resources.  A rollback is
-   *  considered to be implicit if <code>Txn.requireRollback</code> was called
+   *  considered to be explicit if <code>Txn.requireRollback</code> was called
    *  during a lifecycle handler's invocation, explicit otherwise.
    */
-  case class RollingBack(explicit: Boolean, cause: Any) extends Status(false, false)
+  case class RollingBack(explicit: Boolean, cause: Any) extends Status {
+    def mightCommit = false
+    def mustCommit = false
+  }
 
   /** The <code>Status</code> for a <code>Txn</code> that has been completely
    *  rolled back.  A rollback is considered to be implicit if
    *  <code>Txn.triggerRollback</code> was called during a lifecycle handler's
    *  invocation, explicit otherwise.
    */
-  case class Rolledback(explicit: Boolean, cause: Any) extends Status(false, false)
+  case class Rolledback(explicit: Boolean, cause: Any) extends Status {
+    def mightCommit = false
+    def mustCommit = false
+  }
 
+
+  sealed abstract class RollbackCause {
+
+  }
+
+  case class ExplicitRetryException extends RollbackCause
+
+  abstract class OptimisticFailureException(val target: Any) extends Exception with Stackless
+  class InvalidReadException(target0: Any) extends OptimisticFailureException(target0)
+  class WriteConflictException(target0: Any) extends OptimisticFailureException(target0)
 
   //////////////// Resources participate in a two-phase commit
 
@@ -106,7 +147,7 @@ object Txn {
  */
 sealed class Txn extends STM.TxnImpl
 
-abstract class AbstractTxn {
+abstract class AbstractTxn(protected val retryHistory: List[Txn.Rolledback]) {
   this: Txn =>
 
   import Txn._
@@ -121,6 +162,23 @@ abstract class AbstractTxn {
    *  operation.  Does not validate the transaction.
    */
   def status: Status
+
+  /** Throws <code>RollbackException</code> if the transaction is marked
+   *  for rollback, otherwise throws an <code>IllegalStateException</code> if
+   *  the transaction is not active.
+   *  @see ppl.stm.Txn.Active
+   *  @see ppl.stm.Txn.MarkedRollback
+   */
+  protected def requireActive {
+    val s = status
+    if (s != Active) {
+      if (s == MarkedRollback) {
+        throw RollbackException
+      } else {
+        throw new IllegalStateException("txn.status is " + s)
+      }
+    }
+  }
 
   /** Returns true if this transaction's <code>status</code> is either
    *  <code>Committed</code> or <code>Rolledback</code>.
