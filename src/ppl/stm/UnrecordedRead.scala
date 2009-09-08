@@ -28,6 +28,12 @@ package ppl.stm
  *  @see ppl.stm.TVar.BoundSource#unrecordedRead
  */
 trait UnrecordedRead[+T] {
+  /** Returns <code>Some(txn)</code> if this unrecorded read was made from a
+   *  transactional context, or <code>None</code> if this unrecorded read was
+   *  made from a non-transactional context.
+   */
+  def context: Option[Txn]
+
   /** Returns the value observed by this <code>UnrecordedRead</code>.  For any
    *  particular <code>UnrecordedRead</code> instance this method will always
    *  return the same result.
@@ -36,12 +42,15 @@ trait UnrecordedRead[+T] {
    */
   def value: T
 
-  /** Returns true if repeating this unrecorded read in the same context as
-   *  it was originally performed would definitely produce the same value, and
-   *  would have produced the same value at every point between the creation of
-   *  this instance and the call, false if repeating the read would produce a
-   *  different value or if an ABA change may have occurred.  Some STM
-   *  implementations may occasionally spuriously return false.
+  /** Returns true if definitely no changes have occurred to the data whose
+   *  unrecorded read is encapsulated in this <code>UnrecordedRead</code>
+   *  instance by any transaction other than <code>context.get</code> or by any
+   *  non-transactional context.  This method may be useful for detecting ABA
+   *  problems.  Some STM implementations may occasionally spuriously return
+   *  false.  If this unrecorded read occurred in a transactional context and
+   *  that transaction has since performed writes to the location, then it is
+   *  possible that <code>value</code> differs from the current data value
+   *  while the unrecorded read remains valid.
    *  @return true if the unrecorded read has definitely remained valid from
    *      its original creation until this method invocation, false otherwise.  
    */

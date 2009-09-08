@@ -177,14 +177,14 @@ object TVar {
      *  bound to a transactional context does not add the <code>TVar</code> to
      *  the transaction's read set.  The caller is responsible for guaranteeing
      *  that the transaction's behavior is correct even if the
-     *  <code>TVar</code> is changed before commit.  This method may be useful
-     *  for heuristic decisions that can tolerate inconsistent or stale data,
-     *  or for methods that register transaction handlers to perform validation
-     *  at a semantic level.  When called from a non-transactional context the
-     *  wrapping <code>UnrecordedRead</code> instance can be used to determine
-     *  if any changes have been made to a <code>TVar</code>, which may be
-     *  useful to avoid ABA problems.  Some STM implementations may spuriously
-     *  indicate that a read is no longer valid.
+     *  <code>TVar</code> is changed by an outside context before commit.  This
+     *  method may be useful for heuristic decisions that can tolerate
+     *  inconsistent or stale data, or for methods that register transaction
+     *  handlers to perform validation at a semantic level.  When called from a
+     *  non-transactional context the wrapping <code>UnrecordedRead</code>
+     *  instance can be used to determine if any changes have been made to a
+     *  <code>TVar</code>, which may be useful to avoid ABA problems.  Some STM
+     *  implementations may spuriously indicate that a read is no longer valid.
      *  <p>
      *  When combining this method with transaction resource callbacks, it is
      *  important to consider the case that the unrecorded read is already
@@ -381,9 +381,7 @@ object TVar {
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
      */
-    def transformIfDefined(pf: PartialFunction[T,T]): Boolean = {
-      // a more efficient implementation may be provided by the STM
-    }
+    def transformIfDefined(pf: PartialFunction[T,T]): Boolean
   }
 
   private[stm] val dataUpdater = (new TVar[Any](null)).newDataUpdater
