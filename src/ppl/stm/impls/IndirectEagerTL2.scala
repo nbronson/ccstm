@@ -16,6 +16,7 @@ import ppl.stm.UnrecordedRead
 trait IndirectEagerTL2 {
   type Metadata = Unit
   type MetadataHolder = UnitMetadataHolder
+  def initialData[T](initialValue: T): AnyRef = new IndirectEagerTL2.Unlocked(initialValue, 0L)
   type TxnAccessor[T] = IndirectEagerTL2TxnAccessor[T]
   type NonTxnAccessor[T] = IndirectEagerTL2NonTxnAccessor[T]
   type TxnImpl = IndirectEagerTL2Txn

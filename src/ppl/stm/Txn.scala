@@ -97,11 +97,7 @@ object Txn {
   }
 
 
-  sealed abstract class RollbackCause {
-
-  }
-
-  case class ExplicitRetryException extends RollbackCause
+  object ExplicitRetryException extends Exception with Stackless
 
   abstract class OptimisticFailureException(val target: Any) extends Exception with Stackless
   class InvalidReadException(target0: Any) extends OptimisticFailureException(target0)
@@ -169,7 +165,7 @@ abstract class AbstractTxn(protected val retryHistory: List[Txn.Rolledback]) {
    *  @see ppl.stm.Txn.Active
    *  @see ppl.stm.Txn.MarkedRollback
    */
-  protected def requireActive {
+  private[stm] def requireActive {
     val s = status
     if (s != Active) {
       if (s == MarkedRollback) {
@@ -195,7 +191,7 @@ abstract class AbstractTxn(protected val retryHistory: List[Txn.Rolledback]) {
    *  <code>RollbackException</code> if this transaction is not consistent.
    *  @throws ppl.stm.RollbackException if this transaction cannot commit.
    */
-  def validate { if (!validatedStatus.mayCommit) throw RollbackException }
+  def validate { if (!validatedStatus.mightCommit) throw RollbackException }
 
   /** Validates that the transaction is consistent with all other committed
    *  transactions and completed non-transactional accesses, setting the

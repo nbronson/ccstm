@@ -6,7 +6,6 @@
 package ppl.stm
 
 
-import java.lang.reflect.Field
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater
 
 /** An object that provides a factory method for <code>TVar</code> instances.
@@ -24,7 +23,15 @@ object TVar {
    *  <code>TVar</code> instance.
    */
   trait Source[+T] {
-    /** Equivalent to <code>bind(txn).elem</code>.
+    /** Performs a transactional read.  Equivalent to <code>elem</code> or
+     *  <code>bind(txn).elem</code>.
+     *  @see ppl.stm.TVar.Source#bind
+     *  @see ppl.stm.TVar.BoundSource#elem
+     */
+    def unary_! (implicit txn: Txn): T = elem(txn)
+
+    /** Performs a transactional read.  Equivalent to
+     *  <code>bind(txn).elem</code>.
      *  @see ppl.stm.TVar.Source#bind
      *  @see ppl.stm.TVar.BoundSource#elem
      */
@@ -62,7 +69,15 @@ object TVar {
    *  <code>TVar</code> instance.
    */
   trait Sink[-T] {
-    /** Equivalent to <code>bind(txn).elem_=(v)</code>.
+    /** Performs a transactional write.  Equivalent to
+     *  <code>bind(txn).elem_=(v)</code>.
+     *  @see ppl.stm.TVar.Sink#bind
+     *  @see ppl.stm.TVar.BoundSink#elem_=
+     */
+    def := (v: T)(implicit txn: Txn) { bind(txn).elem_=(v) }
+
+    /** Performs a transactional write.  Equivalent to
+     *  <code>bind(txn).elem_=(v)</code>.
      *  <p>
      *  Note that Scala allows this method to be called without the underscore
      *  (as a property setter) only if the corresponding property getter is
@@ -392,10 +407,10 @@ object TVar {
     def metadata = instance._metadata
     def metadata_=(v: STM.Metadata) { instance._metadata = v }
     def metadataCAS(before: STM.Metadata, after: STM.Metadata) = instance._metadataCAS(before, after)
-    def data = instance._data
-    def data_=(v: Any) { instance._data = v }
-    def dataCAS(before: Any, after: Any) = {
-      TVar.dataUpdater.compareAndSet(instance, before.asInstanceOf[Object], after.asInstanceOf[Object])
+    def data: AnyRef = instance._data
+    def data_=(v: AnyRef) { instance._data = v }
+    def dataCAS(before: AnyRef, after: AnyRef) = {
+      TVar.dataUpdater.compareAndSet(instance, before, after)
     }
   }
 }
@@ -426,7 +441,7 @@ private class TVarTxnAccessor[T](val txn: Txn, val instance: TVar[T]) extends ST
  */
 class TVar[T](initialValue: T) extends STM.MetadataHolder with TVar.Source[T] with TVar.Sink[T] {
 
-  @volatile private[stm] var _data: Any = initialValue
+  @volatile private[stm] var _data: AnyRef = STM.initialData(initialValue)
 
   private[stm] def newDataUpdater = {
     AtomicReferenceFieldUpdater.newUpdater(classOf[TVar[_]], classOf[Object], "_data")
