@@ -1,15 +1,15 @@
-/* $Id$
+/* TVar
  *
  * Copyright 2009 Nathan Bronson and Stanford University.
  */
 
-package ppl.stm
+package edu.stanford.ppl.ccstm
 
 
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater
 
 /** An object that provides a factory method for <code>TVar</code> instances.
- *  @see ppl.stm.TVar
+ *  @see edu.stanford.ppl.ccstm.TVar
  */
 object TVar {
   
@@ -25,21 +25,21 @@ object TVar {
   trait Source[+T] {
     /** Performs a transactional read.  Equivalent to <code>elem</code> or
      *  <code>bind(txn).elem</code>.
-     *  @see ppl.stm.TVar.Source#bind
-     *  @see ppl.stm.TVar.BoundSource#elem
+     *  @see edu.stanford.ppl.ccstm.TVar.Source#bind
+     *  @see edu.stanford.ppl.ccstm.TVar.BoundSource#elem
      */
     def unary_! (implicit txn: Txn): T = elem(txn)
 
     /** Performs a transactional read.  Equivalent to
      *  <code>bind(txn).elem</code>.
-     *  @see ppl.stm.TVar.Source#bind
-     *  @see ppl.stm.TVar.BoundSource#elem
+     *  @see edu.stanford.ppl.ccstm.TVar.Source#bind
+     *  @see edu.stanford.ppl.ccstm.TVar.BoundSource#elem
      */
     def elem(implicit txn: Txn): T = bind(txn).elem
 
     /** Equivalent to <code>bind(txn).elemMap(f)</code>.
-     *  @see ppl.stm.TVar.Source#bind
-     *  @see ppl.stm.TVar.BoundSource#elemMap
+     *  @see edu.stanford.ppl.ccstm.TVar.Source#bind
+     *  @see edu.stanford.ppl.ccstm.TVar.BoundSource#elemMap
      */
     def elemMap[Z](f: T => Z)(implicit txn: Txn) = bind(txn).elemMap(f)
 
@@ -71,8 +71,8 @@ object TVar {
   trait Sink[-T] {
     /** Performs a transactional write.  Equivalent to
      *  <code>bind(txn).elem_=(v)</code>.
-     *  @see ppl.stm.TVar.Sink#bind
-     *  @see ppl.stm.TVar.BoundSink#elem_=
+     *  @see edu.stanford.ppl.ccstm.TVar.Sink#bind
+     *  @see edu.stanford.ppl.ccstm.TVar.BoundSink#elem_=
      */
     def := (v: T)(implicit txn: Txn) { bind(txn).elem_=(v) }
 
@@ -82,8 +82,8 @@ object TVar {
      *  Note that Scala allows this method to be called without the underscore
      *  (as a property setter) only if the corresponding property getter is
      *  available from <code>TVar.Source</code>.
-     *  @see ppl.stm.TVar.Sink#bind
-     *  @see ppl.stm.TVar.BoundSink#elem_=
+     *  @see edu.stanford.ppl.ccstm.TVar.Sink#bind
+     *  @see edu.stanford.ppl.ccstm.TVar.BoundSink#elem_=
      */
     def elem_=(v: T)(implicit txn: Txn) { bind(txn).elem_=(v) }
 
@@ -113,7 +113,7 @@ object TVar {
    *  the same values as if they were executed at the transaction's commit
    *  (linearization) point, or the non-transactional context, which guarantees
    *  that each read will be linearized with all writes to the cell.
-   *  @see ppl.stm.TVar
+   *  @see edu.stanford.ppl.ccstm.TVar
    */
   trait BoundSource[+T] {
     /** Returns <code>Some(txn)</code> if this view is bound to a transaction
@@ -137,8 +137,8 @@ object TVar {
      *      the binding context.
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
-     *  @see ppl.stm.TVar#bind
-     *  @see ppl.stm.TVar#nonTxn
+     *  @see edu.stanford.ppl.ccstm.TVar#bind
+     *  @see edu.stanford.ppl.ccstm.TVar#nonTxn
      */
     def elem: T
 
@@ -149,7 +149,7 @@ object TVar {
      *  @param f an idempotent function.
      *  @return the result of applying <code>f</code> to the value read by this
      *      view.
-     *  @see ppl.stm.TVar.BoundSource#elem
+     *  @see edu.stanford.ppl.ccstm.TVar.BoundSource#elem
      */
     def elemMap[Z](f: T => Z): Z = {
       context match {
@@ -211,7 +211,7 @@ object TVar {
      *      and allows explicit revalidation.
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
-     *  @see ppl.stm.TVar.BoundSource#elem
+     *  @see edu.stanford.ppl.ccstm.TVar.BoundSource#elem
      */
     def unrecordedRead: UnrecordedRead[T]
   }
@@ -224,7 +224,7 @@ object TVar {
    *  context, which guarantees that each write will be linearized (and a
    *  happens-before relationship established) with all other reads and writes
    *  to the cell.
-   *  @see ppl.stm.TVar
+   *  @see edu.stanford.ppl.ccstm.TVar
    */
   trait BoundSink[-T] {
     /** Returns <code>Some(txn)</code> if this view is bound to a transaction
@@ -249,8 +249,8 @@ object TVar {
      *  @param v a value to store in the <code>TVar</code>.
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
-     *  @see ppl.stm.TVar#bind
-     *  @see ppl.stm.TVar#nonTxn
+     *  @see edu.stanford.ppl.ccstm.TVar#bind
+     *  @see edu.stanford.ppl.ccstm.TVar#nonTxn
      */
     def elem_=(v: T)
 
@@ -267,7 +267,7 @@ object TVar {
      *  @return true if the value was stored, false if nothing was done.
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
-     *  @see ppl.stm.TVar#elem_=
+     *  @see edu.stanford.ppl.ccstm.TVar#elem_=
      */
     def tryWrite(v: T): Boolean
   }
@@ -306,8 +306,8 @@ object TVar {
      *  after; true } else false)</code>, but may be more efficient.
      *  @param before a value to compare against the current <code>TVar</code>
      *      contents.
-     *  @param after a value to store in the <code>TVar</code> if <code>before</code>
-     *      was equal to the previous cell contents.
+     *  @param after a value to store in the <code>TVar</code> if
+     *      <code>before</code> was equal to the previous cell contents.
      *  @return <code>true</code> if <code>before</code> was equal to the
      *      previous value of the bound <code>TVar</code>, <code>false</code>
      *      otherwise.
@@ -326,14 +326,15 @@ object TVar {
      *  after; true } else false)</code>, but may be more efficient.
      *  @param before a reference whose identity will be compared against the
      *      current <code>TVar</code> contents.
-     *  @param after a value to store in the <code>TVar</code> if <code>before</code>
-     *      has the same reference identity as the previous cell contents.
+     *  @param after a value to store in the <code>TVar</code> if
+     *      <code>before</code> has the same reference identity as the previous
+     *      cell contents.
      *  @return <code>true</code> if <code>before</code> has the same reference
      *      identity as the previous value of the bound <code>TVar</code>,
      *      <code>false</code> otherwise.
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
-     *  @see ppl.stm.TVar.Bound#compareAndSet
+     *  @see edu.stanford.ppl.ccstm.TVar.Bound#compareAndSet
      */
     def compareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = {
       // a more efficient implementation may be provided by the STM
@@ -347,7 +348,7 @@ object TVar {
      *  false return from this method does not necessarily mean that the
      *  previous value of the <code>TVar</code> is not equal to
      *  <code>before</code>.
-     *  @see ppl.stm.TVar.Bound#compareAndSet
+     *  @see edu.stanford.ppl.ccstm.TVar.Bound#compareAndSet
      */
     def weakCompareAndSet(before: T, after: T): Boolean = {
       // a more efficient implementation may be provided by the STM
@@ -358,16 +359,16 @@ object TVar {
      *  failures.  A false return from this method does not necessarily mean
      *  that the previous value of the <code>TVar</code> has a different
      *  reference identity than <code>before</code>.
-     *  @see ppl.stm.TVar.Bound#compareAndSetIdentity
+     *  @see edu.stanford.ppl.ccstm.TVar.Bound#compareAndSetIdentity
      */
     def weakCompareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = {
       // a more efficient implementation may be provided by the STM
       compareAndSetIdentity(before, after)
     }
 
-    /** Atomically replaces the value <i>v</i> stored in the <code>TVar</code> with
-     *  <code>f</code>(<i>v</i>), possibly deferring execution of <code>f</code> or
-     *  calling <code>f</code> multiple times.
+    /** Atomically replaces the value <i>v</i> stored in the <code>TVar</code>
+     *  with <code>f</code>(<i>v</i>), possibly deferring execution of
+     *  <code>f</code> or calling <code>f</code> multiple times.
      *  @param f a function that is safe to call multiple times, and safe to
      *      call later during the bound transaction (if any).
      *  @throws IllegalStateException if this view is bound to a transaction
@@ -399,9 +400,9 @@ object TVar {
     def transformIfDefined(pf: PartialFunction[T,T]): Boolean
   }
 
-  private[stm] val dataUpdater = (new TVar[Any](null)).newDataUpdater
+  private[ccstm] val dataUpdater = (new TVar[Any](null)).newDataUpdater
 
-  private[stm] trait Accessor[T] {
+  private[ccstm] trait Accessor[T] {
     val instance: TVar[T]
     def fieldIndex = 0
     def metadata = instance._metadata
@@ -437,33 +438,33 @@ private class TVarTxnAccessor[T](val txn: Txn, val instance: TVar[T]) extends ST
  *  <code>TVar</code> allows subclassing to allow it to be opportunistically
  *  embedded in the internal node objects of collection classes, to reduce
  *  storage and indirection overheads.
- *  @see ppl.stm.Txn
+ *  @see edu.stanford.ppl.ccstm.Txn
  */
 class TVar[T](initialValue: T) extends STM.MetadataHolder with TVar.Source[T] with TVar.Sink[T] {
 
-  @volatile private[stm] var _data: AnyRef = STM.initialData(initialValue)
+  @volatile private[ccstm] var _data: AnyRef = STM.initialData(initialValue)
 
-  private[stm] def newDataUpdater = {
+  private[ccstm] def newDataUpdater = {
     AtomicReferenceFieldUpdater.newUpdater(classOf[TVar[_]], classOf[Object], "_data")
   }
 
   // implicit access to readForWrite is omitted to discourage its use 
 
   /** Equivalent to <code>bind(txn).compareAndSet(before, after)</code>.
-   *  @see ppl.stm.TVar#bind
-   *  @see ppl.stm.TVar.Bound#compareAndSet
+   *  @see edu.stanford.ppl.ccstm.TVar#bind
+   *  @see edu.stanford.ppl.ccstm.TVar.Bound#compareAndSet
    */
   def compareAndSet(before: T, after: T)(implicit txn: Txn) = bind(txn).compareAndSet(before, after)
 
   /** Equivalent to <code>bind(txn).transform(f)</code>.
-   *  @see ppl.stm.TVar#bind
-   *  @see ppl.stm.TVar.Bound#transform
+   *  @see edu.stanford.ppl.ccstm.TVar#bind
+   *  @see edu.stanford.ppl.ccstm.TVar.Bound#transform
    */
   def transform(f: T => T)(implicit txn: Txn) { bind(txn).transform(f) }
 
   /** Equivalent to <code>bind(txn).transformIfDefined(pf)</code>.
-   *  @see ppl.stm.TVar#bind
-   *  @see ppl.stm.TVar.Bound#testAndTransform
+   *  @see edu.stanford.ppl.ccstm.TVar#bind
+   *  @see edu.stanford.ppl.ccstm.TVar.Bound#testAndTransform
    */
   def transformIfDefined(pf: PartialFunction[T,T])(implicit txn: Txn) = bind(txn).transformIfDefined(pf)
 

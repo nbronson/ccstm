@@ -3,7 +3,7 @@
  * Copyright 2009 Nathan Bronson and Stanford University.
  */
 
-package ppl.stm
+package edu.stanford.ppl.ccstm
 
 
 import java.util.concurrent.atomic.AtomicLongFieldUpdater
@@ -13,9 +13,9 @@ private object LongMetadataHolder {
 }
 
 abstract class LongMetadataHolder {
-  @volatile private[stm] var _metadata: Long = 0L
+  @volatile private[ccstm] var _metadata: Long = 0L
 
-  private[stm] def _metadataCAS(before: Long, after: Long) = {
+  private[ccstm] def _metadataCAS(before: Long, after: Long) = {
     LongMetadataHolder._metadataUpdater.compareAndSet(this, before, after)
   }
 

@@ -3,7 +3,7 @@
  * Copyright 2009 Nathan Bronson and Stanford University.
  */
 
-package ppl.stm
+package edu.stanford.ppl.ccstm
 
 class TMap {
 

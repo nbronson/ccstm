@@ -1,9 +1,9 @@
-/* $Id$
+/* Txn
  *
  * Copyright 2009 Nathan Bronson and Stanford University.
  */
 
-package ppl.stm
+package edu.stanford.ppl.ccstm
 
 
 import java.util.concurrent.atomic.AtomicInteger
@@ -136,10 +136,10 @@ object Txn {
     def performRollback(txn: Txn)
   }
 
-  private[stm] val EmptyPrioCallbackMap = Map.empty[Int,List[Txn => Unit]]
+  private[ccstm] val EmptyPrioCallbackMap = Map.empty[Int,List[Txn => Unit]]
 }
 
-/** @see ppl.stm.AbstractTxn
+/** @see edu.stanford.ppl.ccstm.AbstractTxn
  */
 sealed class Txn extends STM.TxnImpl
 
@@ -162,10 +162,10 @@ abstract class AbstractTxn(protected val retryHistory: List[Txn.Rolledback]) {
   /** Throws <code>RollbackException</code> if the transaction is marked
    *  for rollback, otherwise throws an <code>IllegalStateException</code> if
    *  the transaction is not active.
-   *  @see ppl.stm.Txn.Active
-   *  @see ppl.stm.Txn.MarkedRollback
+   *  @see edu.stanford.ppl.ccstm.Txn.Active
+   *  @see edu.stanford.ppl.ccstm.Txn.MarkedRollback
    */
-  private[stm] def requireActive {
+  private[ccstm] def requireActive {
     val s = status
     if (s != Active) {
       if (s == MarkedRollback) {
@@ -189,7 +189,7 @@ abstract class AbstractTxn(protected val retryHistory: List[Txn.Rolledback]) {
   /** Validates that the transaction is consistent with all other committed
    *  transactions and completed non-transactional accesses, throwing
    *  <code>RollbackException</code> if this transaction is not consistent.
-   *  @throws ppl.stm.RollbackException if this transaction cannot commit.
+   *  @throws edu.stanford.ppl.ccstm.RollbackException if this transaction cannot commit.
    */
   def validate { if (!validatedStatus.mightCommit) throw RollbackException }
 
@@ -212,7 +212,7 @@ abstract class AbstractTxn(protected val retryHistory: List[Txn.Rolledback]) {
   }
 
   /** Calls all callbacks registered via <code>beforeCommit</code>. */
-  private[stm] def callBeforeCommit {
+  private[ccstm] def callBeforeCommit {
     if (!_beforeCommit.isEmpty) {
       for ((_,cbs) <- _beforeCommit; cb <- cbs) cb(this)
     }
@@ -232,7 +232,7 @@ abstract class AbstractTxn(protected val retryHistory: List[Txn.Rolledback]) {
    *  fails validation is found, returning false, or returns true if all read
    *  resources are valid.
    */
-  private[stm] def resourceValidate: Boolean = {
+  private[ccstm] def resourceValidate: Boolean = {
     _readResources.isEmpty || !_readResources.exists(r => !r.validate(this))
   }
 
@@ -247,14 +247,14 @@ abstract class AbstractTxn(protected val retryHistory: List[Txn.Rolledback]) {
    *  not ready to commit is found, returning false, or returns true if all
    *  write resources are prepared.
    */
-  private[stm] def resourcePrepare: Boolean = {
+  private[ccstm] def resourcePrepare: Boolean = {
     _writeResources.isEmpty || !_writeResources.exists(r => !r.prepare(this))
   }
 
   /** Calls <code>WriteResource.performCommit(this)</code>, returning the last
    *  exception thrown, or null if no exception occurred.
    */
-  private[stm] def resourcePerformCommit: Exception = {
+  private[ccstm] def resourcePerformCommit: Exception = {
     if (_writeResources.isEmpty) {
       null
     } else {
@@ -301,7 +301,7 @@ abstract class AbstractTxn(protected val retryHistory: List[Txn.Rolledback]) {
    *  <code>afterRollback</code>, as appropriate, returning the last caught
    *  exception or returning null if no callbacks threw an exception.
    */
-  private[stm] def callAfter: Exception = {
+  private[ccstm] def callAfter: Exception = {
     val callbacks = if (status == Rolledback) _afterRollback else _afterCommit
     if (callbacks.isEmpty) {
       null

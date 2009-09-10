@@ -3,7 +3,7 @@
  * Copyright 2009 Nathan Bronson and Stanford University.
  */
 
-package ppl.stm
+package edu.stanford.ppl.ccstm
 
 /** Holds the result of an unrecorded read, which may be used to avoid
  *  transaction conflicts, or to detect ABA changes when performing
@@ -25,7 +25,7 @@ package ppl.stm
  *  Some STM implementations may spuriously indicate that an unrecorded read
  *  has become invalid, despite no change actually occurring to the original
  *  value.
- *  @see ppl.stm.TVar.BoundSource#unrecordedRead
+ *  @see edu.stanford.ppl.ccstm.TVar.BoundSource#unrecordedRead
  */
 trait UnrecordedRead[+T] {
   /** Returns <code>Some(txn)</code> if this unrecorded read was made from a

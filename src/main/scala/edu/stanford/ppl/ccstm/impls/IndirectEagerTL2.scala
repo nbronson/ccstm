@@ -3,11 +3,11 @@
  * Copyright 2009 Nathan Bronson and Stanford University.
  */
 
-package ppl.stm.impls
+package edu.stanford.ppl.ccstm.impls
 
 import java.util.concurrent.atomic.AtomicLong
-import ppl.stm.TVar
-import ppl.stm.UnrecordedRead
+import edu.stanford.ppl.ccstm.TVar
+import edu.stanford.ppl.ccstm.UnrecordedRead
 
 /** An STM implementation that uses a TL2-style timestamp system, but that
  *  performs eager acquisition of write locks and that associates version
@@ -168,7 +168,7 @@ abstract class IndirectEagerTL2Txn extends AbstractTxn {
   def status: Status = new Rolledback(true, null)
   def validatedStatus: Status = new Rolledback(true, null)
 
-  private[stm] def attemptCommit: Boolean = {
+  private[ccstm] def attemptCommit: Boolean = {
     // TODO: implement
     false
   }

@@ -3,11 +3,11 @@
  * Copyright 2009 Nathan Bronson and Stanford University.
  */
 
-package ppl.stm
+package edu.stanford.ppl.ccstm
 
 /** An abstract class that allows a relatively compact syntax for transactions
  *  under current Scala rules.  The trait performs its magic by declaring an
- *  implicit function that returns a <code>ppl.stm.Txn</code>, which means that
+ *  implicit function that returns a <code>Txn</code>, which means that
  *  anonymous subclasses that implement <code>body</code> have an implicit
  *  transaction in scope.  If/when Scala allows anonymous function parameters
  *  to be marked implicit, this class will probably become obsolete.
