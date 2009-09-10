@@ -1,7 +1,6 @@
-/* LongMetadataHolder
- *
- * Copyright 2009 Nathan Bronson and Stanford University.
- */
+/* CCSTM - (c) 2009 Stanford University - PPL */
+
+// LongMetadataHolder.scala
 
 package edu.stanford.ppl.ccstm
 

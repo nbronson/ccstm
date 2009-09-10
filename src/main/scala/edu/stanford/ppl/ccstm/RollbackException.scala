@@ -1,9 +1,9 @@
-/* RollbackException
- *
- * Copyright 2009 Nathan Bronson and Stanford University.
- */
+/* CCSTM - (c) 2009 Stanford University - PPL */
+
+// RollbackException.scala
 
 package edu.stanford.ppl.ccstm
+
 
 private[ccstm] object RollbackException extends Exception {
   {

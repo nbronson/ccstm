@@ -1,9 +1,9 @@
-/* TMap
- *
- * Copyright 2009 Nathan Bronson and Stanford University.
- */
+/* CCSTM - (c) 2009 Stanford University - PPL */
+
+// TMap.scala
 
 package edu.stanford.ppl.ccstm
+
 
 class TMap {
 

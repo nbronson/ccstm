@@ -1,9 +1,9 @@
-/* Atomic
- *
- * Copyright 2009 Nathan Bronson and Stanford University.
- */
+/* CCSTM - (c) 2009 Stanford University - PPL */
+
+// Atomic.scala
 
 package edu.stanford.ppl.ccstm
+
 
 /** An abstract class that allows a relatively compact syntax for transactions
  *  under current Scala rules.  The trait performs its magic by declaring an
@@ -20,6 +20,8 @@ package edu.stanford.ppl.ccstm
  *      if (tx.elem &gt; 10) ty.elem = 20
  *    }}.run
  *  </pre>
+ *
+ *  @author Nathan Bronson
  */
 abstract class Atomic {
   private var _currentTxn: Txn = null

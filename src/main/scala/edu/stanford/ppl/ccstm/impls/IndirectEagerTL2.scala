@@ -1,7 +1,6 @@
-/* $Id$
- *
- * Copyright 2009 Nathan Bronson and Stanford University.
- */
+/* CCSTM - (c) 2009 Stanford University - PPL */
+
+// IndirectEagerTL2.scala
 
 package edu.stanford.ppl.ccstm.impls
 
@@ -12,6 +11,8 @@ import edu.stanford.ppl.ccstm.UnrecordedRead
 /** An STM implementation that uses a TL2-style timestamp system, but that
  *  performs eager acquisition of write locks and that associates version
  *  metadata with each value via an immutable wrapper.
+ *
+ *  @author Nathan Bronson
  */
 trait IndirectEagerTL2 {
   type Metadata = Unit
@@ -553,4 +554,3 @@ abstract class IndirectEagerTL2NonTxnAccessor[T] extends TVar.Bound[T] {
     }
   }
 }
-

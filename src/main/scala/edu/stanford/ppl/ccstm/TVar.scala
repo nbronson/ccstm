@@ -1,7 +1,6 @@
-/* TVar
- *
- * Copyright 2009 Nathan Bronson and Stanford University.
- */
+/* CCSTM - (c) 2009 Stanford University - PPL */
+
+// TVar.scala
 
 package edu.stanford.ppl.ccstm
 
@@ -10,6 +9,8 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater
 
 /** An object that provides a factory method for <code>TVar</code> instances.
  *  @see edu.stanford.ppl.ccstm.TVar
+ *
+ *  @author Nathan Bronson
  */
 object TVar {
   
@@ -439,6 +440,8 @@ private class TVarTxnAccessor[T](val txn: Txn, val instance: TVar[T]) extends ST
  *  embedded in the internal node objects of collection classes, to reduce
  *  storage and indirection overheads.
  *  @see edu.stanford.ppl.ccstm.Txn
+ *
+ *  @author Nathan Bronson
  */
 class TVar[T](initialValue: T) extends STM.MetadataHolder with TVar.Source[T] with TVar.Sink[T] {
 

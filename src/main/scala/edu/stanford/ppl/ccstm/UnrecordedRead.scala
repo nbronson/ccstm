@@ -1,9 +1,9 @@
-/* UnrecordedRead
- *
- * Copyright 2009 Nathan Bronson and Stanford University.
- */
+/* CCSTM - (c) 2009 Stanford University - PPL */
+
+// UnrecordedRead.scala
 
 package edu.stanford.ppl.ccstm
+
 
 /** Holds the result of an unrecorded read, which may be used to avoid
  *  transaction conflicts, or to detect ABA changes when performing
@@ -26,6 +26,8 @@ package edu.stanford.ppl.ccstm
  *  has become invalid, despite no change actually occurring to the original
  *  value.
  *  @see edu.stanford.ppl.ccstm.TVar.BoundSource#unrecordedRead
+ *
+ *  @author Nathan Bronson
  */
 trait UnrecordedRead[+T] {
   /** Returns <code>Some(txn)</code> if this unrecorded read was made from a

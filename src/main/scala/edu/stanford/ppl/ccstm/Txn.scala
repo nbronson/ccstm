@@ -1,12 +1,9 @@
-/* Txn
- *
- * Copyright 2009 Nathan Bronson and Stanford University.
- */
+/* CCSTM - (c) 2009 Stanford University - PPL */
+
+// Txn.scala
 
 package edu.stanford.ppl.ccstm
 
-
-import java.util.concurrent.atomic.AtomicInteger
 
 object Txn {
 
