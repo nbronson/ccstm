@@ -1,0 +1,18 @@
+#!/bin/bash
+
+X=`dirname $0`
+BASE=`cd $X/.. ; pwd`
+
+SRC=src/main/scala
+DST=out/apidoc
+
+cd $BASE
+mkdir -p $DST
+
+if [ "x`uname -s`" = "xLinux" ]; then
+  WRAPPER='/usr/bin/time -f \n%Usec --quiet'
+else
+  WRAPPER=''
+fi
+
+$WRAPPER bin/proj_scala scala.tools.nsc.ScalaDoc -d $DST -sourcepath $SRC `find $SRC -name '*.scala'`

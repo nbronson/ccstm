@@ -1,0 +1,72 @@
+#!/bin/bash
+
+# This is a wrapper for use of Scala in the CCSTM (concurrent collections
+# STM) project.  It reads ../system.properties to locate a Scala
+# installation and a JVM, setting up the appropriate classpath.
+#
+# To pass options to the JVM use the JAVA_OPTS environment variable or
+# the CLASSPATH variable.
+#
+# The command line options --gc=throughput, --gc=latency, and --gc=g1
+# are recognized in the first parameter position, and expanded into
+# options valid for a late-model 1.6 JVM.  The command line option
+# --esc is recognized in the first (remaining) parameter position and
+# is expanded into the options required to perform escape analysis.
+
+if [ "x$1" = "x--gc=throughput" ]; then
+  JAVA_OPTS="$JAVA_OPTS -XX:+UseParallelGC -XX:+UseParallelOldGC"
+  shift
+elif [ "x$1" = "x--gc=latency" ]; then
+  JAVA_OPTS="$JAVA_OPTS -XX:+UseConcMarkSweepGC"
+  shift
+elif [ "x$1" = "x--gc=g1" ]; then
+  JAVA_OPTS="$JAVA_OPTS -XX:+UnlockExperimentalVMOptions -XX:+UseG1GC"
+  shift
+fi
+
+if [ "x$1" = "x--esc" ]; then
+  JAVA_OPTS="$JAVA_OPTS -XX:+UnlockExperimentalVMOptions -XX:+DoEscapeAnalysis"
+  shift
+fi
+
+CCSTM_BASE=`dirname $0`/..
+PROPS=$CCSTM_BASE/system.properties
+
+if [ ! -f "$PROPS" ]; then
+  echo "Unable to locate properties file $PROPS" 1>&2
+  exit 1
+fi
+
+JAVA_CMD=`awk -F= '$1=="jdk.home" {print $2 "/bin/java"} $1=="java.cmd" {print $2}' $PROPS`
+JAVA_CMD=`sh -c "echo $JAVA_CMD"`
+if [ "x$JAVA_CMD" = "x" ]; then
+  echo "Unable to load jdk.home or java.cmd from properties file $PROPS" 1>&2
+  exit 1
+fi
+if [ ! -x "$JAVA_CMD" ]; then
+  echo "JVM '$JAVA_CMD' specified in properties file $PROPS is not executable" 1>&2
+  exit 1
+fi
+
+SCALA_HOME=`awk -F= '$1=="scala.home" {print $2}' $PROPS`
+if [ "x$SCALA_HOME" = "x" ]; then
+  echo "Unable to load scala.home from properties file $PROPS" 1>&2
+  exit 1
+fi
+
+
+L="$SCALA_HOME/lib"
+CP="$CLASSPATH:$CCSTM_BASE/out/main/classes:$CCSTM_BASE/out/test/classes"
+for i in scala-compiler scala-library; do
+  CP="${CP}:$L/${i}.jar"
+done
+
+SCALA_MAIN=""
+if [ "x$*" = "x" ]; then
+  SCALA_MAIN="scala.tools.nsc.MainGenericRunner"
+fi
+
+"$JAVA_CMD" \
+    $JAVA_OPTS \
+    -cp "$CP" \
+    -Dscala.home="$SCALA_HOME" $SCALA_MAIN "$@"
