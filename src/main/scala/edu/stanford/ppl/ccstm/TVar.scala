@@ -165,7 +165,7 @@ object TVar {
             val callback = new Txn.ReadResource {
               var _latestRead = u
 
-              def validate(txn: Txn) = {
+              def valid(txn: Txn) = {
                 if (!_latestRead.stillValid) {
                   // reread, and see if that changes the result
                   _latestRead = unrecordedRead
@@ -176,11 +176,13 @@ object TVar {
                 }
               }
             }
-            txn.addReadResource(callback)
 
-            // protect against changes to the read that occurred between the call
-            // to unrecordedRead and addReadOnlyResource()
-            callback.validate(txn)
+            // It is safe to skip calling callback.valid() here, because we
+            // have made no calls into the txn that might have resulted in it
+            // moving its virtual snapshot forward.  This means that the
+            // unrecorded read that initialized u is consistent with all of the
+            // reads performed so far.
+            txn.addReadResource(callback, false)
           }
 
           result

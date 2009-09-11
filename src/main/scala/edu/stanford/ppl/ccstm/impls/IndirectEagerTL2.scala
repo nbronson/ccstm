@@ -9,8 +9,10 @@ import edu.stanford.ppl.ccstm.TVar
 import edu.stanford.ppl.ccstm.UnrecordedRead
 
 /** An STM implementation that uses a TL2-style timestamp system, but that
- *  performs eager acquisition of write locks and that associates version
- *  metadata with each value via an immutable wrapper.
+ *  performs eager acquisition of write locks and that revalidates the
+ *  transaction to extend the read version, rather than rolling back.  Version
+ *  metadata is associated with each value via an immutable wrapper, so there
+ *  is no need to store metadata in the holding object.
  *
  *  @author Nathan Bronson
  */
@@ -96,7 +98,11 @@ private[impls] object IndirectEagerTL2 {
   }
 }
 
-abstract class IndirectEagerTL2Txn(failureHistory0: List[Throwable]) extends AbstractTxn(failureHistory0) {
+/** @see edu.stanford.ppl.ccstm.IndirectEagerTL2
+ *
+ *  @author Nathan Bronson
+ */
+abstract class IndirectEagerTL2Txn(failureHistory: List[Throwable]) extends AbstractTxn {
   this: Txn =>
 
   import IndirectEagerTL2._
@@ -166,20 +172,19 @@ abstract class IndirectEagerTL2Txn(failureHistory0: List[Throwable]) extends Abs
 
   //////////////// Public interface
 
-  def status: Status = Rolledback
+  private[ccstm] def statusImpl: Status = Active
 
-  private[ccstm] def commit: Status = {
+  private[ccstm] def commitImpl(): Status = {
     // TODO: implement
     null
   }
 
 
+  private[ccstm] def failImpl(cause: Throwable) {}
 
-  private[ccstm] def failure_=(v: Throwable) {}
-
-  def failure: Throwable = null
-
-  def explicitlyValidateReads() {}
+  private[ccstm] def explicitlyValidateReadsImpl() {
+    revalidate(0)
+  }
 }
 
 abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
@@ -402,7 +407,7 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
       t.addToWriteSet(this)
       return true
     } else {
-      // failure, don't retry
+      // rollbackCause, don't retry
       return false
     }
   }

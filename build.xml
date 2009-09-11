@@ -11,8 +11,8 @@
 
     <property name="module.ccstm.src.main.scala.dir" value="${basedir}/src/main/scala"/>
     <property name="module.ccstm.src.test.scala.dir" value="${basedir}/src/test/scala"/>
-    <property name="module.ccstm.main.classes.dir" value="${basedir}/main/classes"/>
-    <property name="module.ccstm.test.classes.dir" value="${basedir}/test/classes"/>
+    <property name="module.ccstm.main.classes.dir" value="${basedir}/out/main/classes"/>
+    <property name="module.ccstm.test.classes.dir" value="${basedir}/out/test/classes"/>
 
     <!-- Global Libraries -->
 
@@ -60,7 +60,7 @@
         <scalac destdir="${module.ccstm.test.classes.dir}">
             <classpath>
               <path refid="module.ccstm.classpath"/>
-              <pathelement dir="${module.ccstm.main.classes.dir}"/>
+              <pathelement location="${module.ccstm.main.classes.dir}"/>
             </classpath>
             <src path="${module.ccstm.src.test.scala.dir}"/>
         </scalac>

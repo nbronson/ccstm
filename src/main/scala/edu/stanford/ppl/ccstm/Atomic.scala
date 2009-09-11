@@ -50,7 +50,7 @@ abstract class Atomic {
       body
     }
     catch {
-      case x => txn.failure = x
+      case x => txn.fail(x)
     }
     _currentTxn = null
 
@@ -68,9 +68,9 @@ abstract class Atomic {
     var hist: List[Throwable] = Nil
     while (true) {
       val txn = attemptImpl(hist)
-      if (txn.completed) return
-      hist = txn.failure :: hist
-      if (txn.failure == Txn.ExplicitRetryError) {
+      if (txn.committed) return
+      hist = txn.rollbackCause :: hist
+      if (txn.rollbackCause == Txn.ExplicitRetryError) {
         // TODO: handle explicit retry more intelligently
       }
     }

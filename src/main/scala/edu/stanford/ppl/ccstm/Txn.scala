@@ -31,10 +31,17 @@ object Txn {
      */
     def mustRollBack = !mightCommit
 
-    /** True if for a transaction with this status, all user code and callbacks
-     *  have been executed.
+    /** True if, for a transaction with this status, the transaction can no
+     *  longer intefere with the execution of other transactions.  All locks
+     *  will have been released, but after-commit or after-rollback callbacks
+     *  may still be in progress.
      */
     def completed: Boolean
+
+    /** If <code>mustRollBack</code>, then this method will return an exception
+     *  that describes the reason for rollback, otherwise it will return null.
+     */
+    def rollbackCause: Throwable
   }
 
   /** The <code>Status</code> for a <code>Txn</code> that may commit, but for
@@ -44,13 +51,15 @@ object Txn {
     def mightCommit = true
     def mustCommit = false
     def completed = false
+    def rollbackCause = null
   }
 
   /** The <code>Status</code> for a <code>Txn</code> that will not commit, but
    *  for which completion has not yet been requested.
-   *  @see edu.stanford.ppl.ccstm.AbstractTxn#failure
    */
-  case object MarkedRollback extends Status {
+  case class MarkedRollback(val rollbackCause: Throwable) extends Status {
+    { if (rollbackCause == null) throw new NullPointerException }
+
     def mightCommit = false
     def mustCommit = false
     def completed = false
@@ -64,6 +73,7 @@ object Txn {
     def mightCommit = true
     def mustCommit = false
     def completed = false
+    def rollbackCause = null
   }
 
   /** The <code>Status</code> for a <code>Txn</code> that is guaranteed to
@@ -73,6 +83,7 @@ object Txn {
     def mightCommit = true
     def mustCommit = true
     def completed = false
+    def rollbackCause = null
   }
 
   /** The <code>Status</code> for a <code>Txn</code> that has successfully
@@ -82,13 +93,15 @@ object Txn {
     def mightCommit = true
     def mustCommit = true
     def completed = true
+    def rollbackCause = null
   }
 
   /** The <code>Status</code> for a <code>Txn</code> that will definitely roll
    *  back, but that has not yet released all of its resources.
-   *  @see edu.stanford.ppl.ccstm.AbstractTxn#failure
    */
-  case object RollingBack extends Status {
+  case class RollingBack(val rollbackCause: Throwable) extends Status {
+    { if (rollbackCause == null) throw new NullPointerException }
+
     def mightCommit = false
     def mustCommit = false
     def completed = false
@@ -96,9 +109,10 @@ object Txn {
 
   /** The <code>Status</code> for a <code>Txn</code> that has been completely
    *  rolled back.
-   *  @see edu.stanford.ppl.ccstm.AbstractTxn#failure
    */
-  case object Rolledback extends Status {
+  case class Rolledback(val rollbackCause: Throwable) extends Status {
+    { if (rollbackCause == null) throw new NullPointerException }
+
     def mightCommit = false
     def mustCommit = false
     def completed = true
@@ -113,7 +127,7 @@ object Txn {
   object ExplicitRetryError extends RollbackError with Stackless
 
   /** The base class of all exceptions that indicate that a transaction was
-   *  rolled back because of a failure of optimistic concurrency control.
+   *  rolled back because of a rollbackCause of optimistic concurrency control.
    */
   abstract class OptimisticFailureError(invalidObj0: AnyRef, extraInfo0: Any) extends RollbackError {
     /** Returns the object for which the value read is no longer current. */
@@ -144,13 +158,13 @@ object Txn {
    *  which defines a "virtual snapshot".  When a value is encountered that may
    *  have been changed since the virtual snapshot was taken (since the read
    *  version was assigned), the read version is advanced and
-   *  <code>ReadResource.validate</code> is invoked for all read resources.
+   *  <code>ReadResource.valid</code> is invoked for all read resources.
    *  <p>
    *  Both read-only and updating transactions may be able to commit without
    *  advancing their virtual snapshot, in which case they won't invoke
-   *  <code>validate</code>.  To help avoid race conditions, the most
+   *  <code>valid</code>.  To help avoid race conditions, the most
    *  straightforward mechanism for adding a read resource will automatically
-   *  invoke <code>validate</code>.
+   *  invoke <code>valid</code>.
    *  @see edu.stanford.ppl.ccstm.AbstractTxn#addReadResource
    */
   trait ReadResource {
@@ -162,7 +176,7 @@ object Txn {
      *  @return true if <code>txn</code> is still valid, false if
      *      <code>txn</code> should be rolled back immediately.
      */
-    def validate(txn: Txn): Boolean    
+    def valid(txn: Txn): Boolean
   }
 
   /** <code>WriteResource</code>s participate in a two-phase commit.  Each
@@ -196,20 +210,200 @@ object Txn {
   private[ccstm] val EmptyPrioCallbackMap = Map.empty[Int,List[Txn => Unit]]
 }
 
-/** @see edu.stanford.ppl.ccstm.AbstractTxn
+/** An instance representing a single execution attempt for a single atomic
+ *  block.  Most users will use the <code>Atomic</code> class to code atomic
+ *  blocks, benefiting from automatic retry and a concise syntax.
+ *  @see edu.stanford.ppl.ccstm.Atomic
+ *
+ *  @author Nathan Bronson
  */
-sealed class Txn(failureHistory0: List[Throwable]) extends STM.TxnImpl(failureHistory0)
-
-abstract class AbstractTxn(private[ccstm] val failureHistory: List[Throwable]) {
-  this: Txn =>
-
+sealed class Txn(failureHistory: List[Throwable]) extends STM.TxnImpl(failureHistory) {
   import Txn._
 
+  def this() = this(Nil)
+
+  // This inheritence hierarchy is a bit strange.  Method signatures and the
+  // scaladoc are in AbstractTxn, but all of the code is in Txn.  The
+  // STM-specific transaction implementation is a subclass of AbstractTxn and
+  // a *superclass* of Txn.  This allows the end-user to create Txn instances
+  // directly without requiring Txn to be a type alias, which would prevent it
+  // from appearing properly in the scaladoc.  The STM-specific transaction
+  // class can make use of all of the Txn methods (via abstract methods in
+  // AbstractTxn), but there are no overloads required.  The last bit of
+  // indirection is that the methods actually implemented in an STM-specific
+  // manner are xxxImpl-s, forwarded to from the real methods so that none of
+  // the useful Txn functionality is not directly visible in the Txn class.
+  
   private var _beforeCommit = EmptyPrioCallbackMap
   private var _readResources: List[ReadResource] = Nil
   private var _writeResources: List[WriteResource] = Nil
   private var _afterCommit = EmptyPrioCallbackMap
   private var _afterRollback = EmptyPrioCallbackMap
+
+  def status: Status = statusImpl
+
+  def rollbackCause: Throwable = status.rollbackCause
+
+  def fail(cause: Throwable) { failImpl(cause) }
+
+  def commit(): Status = commitImpl()
+
+  private[ccstm] def commitAndRethrow() {
+    val s = commit()
+    if (s == Rolledback && !s.rollbackCause.isInstanceOf[RollbackError]) throw s.rollbackCause
+  }
+
+  private[ccstm] def requireActive {
+    val s = status
+    if (s != Active) {
+      if (s == MarkedRollback) {
+        throw s.rollbackCause
+      } else {
+        throw new IllegalStateException("txn.status is " + s)
+      }
+    }
+  }
+
+  def completed: Boolean = status.completed
+
+  def mustCommit: Boolean = status.mustCommit
+
+  def committed: Boolean = status == Committed
+
+  def explicitlyValidateReads() { explicitlyValidateReadsImpl() }
+
+
+  def beforeCommit(callback: Txn => Unit, prio: Int) {
+    requireActive
+    _beforeCommit = _beforeCommit.update(prio, callback :: _beforeCommit.getOrElse(prio, Nil))
+  }
+
+  private[ccstm] def callBeforeCommit() {
+    if (!_beforeCommit.isEmpty) {
+      // no need to catch exceptions, because if there is an exception we want
+      // to break out of the loop anyway
+      for ((_,cbs) <- _beforeCommit; cb <- cbs) cb(this)
+    }
+  }
+
+  def beforeCommit(callback: Txn => Unit) { beforeCommit(callback, 0) }
+
+  def addReadResource(readResource: ReadResource) {
+    addReadResource(readResource, true)
+  }
+
+  def addReadResource(readResource: ReadResource, checkAfterRegister: Boolean) {
+    requireActive
+    _readResources = readResource :: _readResources
+    if (checkAfterRegister) {
+      val failure = (try {
+        if (readResource.valid(this)) {
+          null
+        } else {
+          new Txn.InvalidReadError(readResource, null)
+        }
+      } catch {
+        case x => x
+      })
+      if (failure != null) fail(failure)
+    }
+  }
+
+  private[ccstm] def readResourcesValid: Boolean = {
+    // TODO: fix
+    _readResources.isEmpty || !_readResources.exists(r => !r.valid(this))
+  }
+
+  def addWriteResource(writeResource: WriteResource) {
+    requireActive
+    _writeResources = writeResource :: _writeResources
+  }
+
+  private[ccstm] def writeResourcesPrepare(): Boolean = {
+    _writeResources.isEmpty || !_writeResources.exists(r => !r.prepare(this))
+  }
+
+  private[ccstm] def writeResourcesPerformCommit(): Throwable = {
+    if (_writeResources.isEmpty) {
+      null
+    } else {
+      var failure: Throwable = null
+      for (r <- _writeResources) {
+        try {
+          r.performCommit(this)
+        }
+        catch {
+          case x => failure = x
+        }
+      }
+      failure
+    }
+  }
+
+  private[ccstm] def writeResourcesPerformRollback(): Throwable = {
+    if (_writeResources.isEmpty) {
+      null
+    } else {
+      var failure: Throwable = null
+      for (r <- _writeResources) {
+        try {
+          r.performRollback(this)
+        }
+        catch {
+          case x => failure = x
+        }
+      }
+      failure
+    }
+  }
+
+  def afterCommit(callback: Txn => Unit, prio: Int) {
+    // TODO: requireActive?
+    _afterCommit = _afterCommit.update(prio, callback :: _afterCommit.getOrElse(prio, Nil))
+  }
+
+  def afterCommit(callback: Txn => Unit) { afterCommit(callback, 0) }
+
+  def afterRollback(callback: Txn => Unit, prio: Int) {
+    // TODO: what status is okay here?
+    _afterRollback = _afterRollback.update(prio, callback :: _afterRollback.getOrElse(prio, Nil))
+  }
+
+  def afterRollback(callback: Txn => Unit) { afterRollback(callback, 0) }
+
+  private[ccstm] def callAfter(): Exception = {
+    val callbacks = if (status == Rolledback) _afterRollback else _afterCommit
+    if (callbacks.isEmpty) {
+      null
+    }
+    else {
+      var failure: Exception = null
+      for ((_,cbs) <- callbacks; cb <- cbs) {
+        try {
+          cb(this)
+        }
+        catch {
+          case x: Exception => failure = x
+        }
+      }
+      failure
+    }
+  }
+}
+
+private[ccstm] abstract class AbstractTxn {
+  this: Txn =>
+
+  import Txn._
+
+  //////////////// Functions to be implemented in an STM-specific manner
+
+  private[ccstm] def statusImpl: Status
+  private[ccstm] def failImpl(cause: Throwable)
+  private[ccstm] def commitImpl(): Status
+  private[ccstm] def explicitlyValidateReadsImpl()
+
+  //////////////// Functions implemented in Txn, but available to the STM-specific base class
 
   /** Returns the transaction's current status, as of the most recent
    *  operation.
@@ -217,60 +411,49 @@ abstract class AbstractTxn(private[ccstm] val failureHistory: List[Throwable]) {
   def status: Status
 
   /** If <code>status.mustRollBack</code> is true, then this returns the
-   *  exception that is responsible for the rollback.
-   *  @see edu.stanford.ppl.ccstm.RollbackError
-   *  @see edu.stanford.ppl.ccstm.AbstractSTM.ExplicitRetryError
-   *  @see edu.stanford.ppl.ccstm.AbstractSTM.InvalidReadError
-   *  @see edu.stanford.ppl.ccstm.AbstractSTM.WriteConflictError
+   *  exception that is responsible for the rollback, otherwise it returns
+   *  null.  This is a convenience method that is equivalent to
+   *  <code>status.rollbackCause</code>.
+   *  @see edu.stanford.ppl.ccstm.Status#rollbackCause
    */
-  def failure: Throwable
+  def rollbackCause: Throwable
 
-  // TODO: should this be public?
-  /** Forces this transaction to roll back, with the specified cause. */
-  private[ccstm] def failure_=(v: Throwable)
+  /** Causes this transaction to fail with the specified cause.
+   *  @throws IllegalStateException if <code>status.mustCommit</code>.
+   */
+  def fail(cause: Throwable)
 
   /** Completes the transaction, committing if possible.  Returns the final
    *  status.
    */
-  private[ccstm] def commit(): Status
+  def commit(): Status
 
-  /** Calls <code>commit</code>, then rethrows <code>failure</code> if the
+  /** Calls <code>commit</code>, then rethrows <code>rollbackCause</code> if the
    *  transaction rolled back and should not be retried.
    */
-  private[ccstm] def commitAndRethrow() {
-    if (commit() == Rolledback && !failure.isInstanceOf[RollbackError]) throw failure
-  }
+  private[ccstm] def commitAndRethrow()
 
-  /** Throws the <code>failure</code> exception if the transaction is marked
+  /** Throws the <code>rollbackCause</code> exception if the transaction is marked
    *  for rollback, otherwise throws an <code>IllegalStateException</code> if
    *  the transaction is not active.
    *  @see edu.stanford.ppl.ccstm.Txn.Active
    *  @see edu.stanford.ppl.ccstm.Txn.MarkedRollback
    */
-  private[ccstm] def requireActive {
-    val s = status
-    if (s != Active) {
-      if (s == MarkedRollback) {
-        throw failure
-      } else {
-        throw new IllegalStateException("txn.status is " + s)
-      }
-    }
-  }
+  private[ccstm] def requireActive
 
   /** A convenience function, equivalent to <code>status.completed</code>.
-   *  @see edu.stanford.ppl.ccstm.Txn.Status#completed 
+   *  @see edu.stanford.ppl.ccstm.Txn.Status#completed
    */
-  def completed: Boolean = status.completed
+  def completed: Boolean
 
   /** A convenience function, equivalent to <code>status.mustCommit</code>.
    *  @see edu.stanford.ppl.ccstm.Txn.Status#mustCommit
    */
-  def mustCommit: Boolean = status.mustCommit
+  def mustCommit: Boolean
 
   /** A convenience function, equivalent to <code>status == Committed</code>.
    */
-  def committed: Boolean = status == Committed
+  def committed: Boolean
 
   /** Validates that the transaction is consistent with all other committed
    *  transactions and completed non-transactional accesses, immediately
@@ -293,28 +476,19 @@ abstract class AbstractTxn(private[ccstm] val failureHistory: List[Throwable]) {
    *  executed first.
    *  @throws IllegalStateException if this transaction is not active.
    */
-  def beforeCommit(callback: Txn => Unit, prio: Int) {
-    requireActive
-    _beforeCommit = _beforeCommit.update(prio, callback :: _beforeCommit.getOrElse(prio, Nil))
-  }
+  def beforeCommit(callback: Txn => Unit, prio: Int)
 
   /** Calls all callbacks registered via <code>beforeCommit</code>. */
-  private[ccstm] def callBeforeCommit {
-    if (!_beforeCommit.isEmpty) {
-      // no need to catch exceptions, because if there is an exception we want
-      // to break out of the loop anyway
-      for ((_,cbs) <- _beforeCommit; cb <- cbs) cb(this)
-    }
-  }
+  private[ccstm] def callBeforeCommit()
 
   /** Enqueues a before-commit callback with the default priority of 0.
    *  @see edu.stanford.ppl.ccstm.AbstractTxn#beforeCommit(Function1[Txn,Unit],Int)
    */
-  def beforeCommit(callback: Txn => Unit) { beforeCommit(callback, 0) }
+  def beforeCommit(callback: Txn => Unit)
 
   /** Adds a read resource to the transaction, which will participate in
    *  validation, and then immediately calls
-   *  <code>readResource.validate</code>.  This register/validate pair
+   *  <code>readResource.valid</code>.  This register/validate pair
    *  corresponds to the most common use case for read resources.  If the
    *  caller takes responsibility for validating the read resource then they
    *  may use the two-argument form of this method.  If the validation fails
@@ -322,75 +496,44 @@ abstract class AbstractTxn(private[ccstm] val failureHistory: List[Throwable]) {
    *  not return.
    *  @throws IllegalStateException if this transaction is not active.
    */
-  def addReadResource(readResource: ReadResource) {
-    addReadResource(readResource, true)
-  }
+  def addReadResource(readResource: ReadResource)
 
   /** Adds a read resource to the transaction like the single argument form of
    *  this method, but skips the subsequent call to
-   *  <code>readResource.validate</code> if <code>checkAfterRegister</code> is
+   *  <code>readResource.valid</code> if <code>checkAfterRegister</code> is
    *  false.
    *  @throws IllegalStateException if this transaction is not active.
    *  @see edu.stanford.ppl.ccstm.AbstractTxn#addReadResource(edu.stanford.ppl.ccstm.Txn.ReadResource)
    */
-  def addReadResource(readResource: ReadResource, checkAfterRegister: Boolean) {
-    requireActive
-    _readResources = readResource :: _readResources
-    if (checkAfterRegister) {
-      try {
-        if (!readResource.validate(this)) {
+  def addReadResource(readResource: ReadResource, checkAfterRegister: Boolean)
 
-        }
-      } catch {
-        case x =>
-      }
-    }
-  }
-
-  /** Calls <code>ReadResource.validate(this)</code> until a resource that
+  /** Calls <code>ReadResource.valid(this)</code> until a resource that
    *  fails validation is found, returning false, or returns true if all read
    *  resources are valid.  No attempt is made to capture exceptions.
    */
-  private[ccstm] def resourceValidate: Boolean = {
-    _readResources.isEmpty || !_readResources.exists(r => !r.validate(this))
-  }
+  private[ccstm] def readResourcesValid: Boolean
 
   /** Adds a write resource to the transaction, which will participate in the
    *  two-phase commit protocol.
    *  @throws IllegalStateException if this transaction is not active.
    */
-  def addWriteResource(writeResource: WriteResource) {
-    requireActive
-    _writeResources = writeResource :: _writeResources
-  }
+  def addWriteResource(writeResource: WriteResource)
 
   /** Calls <code>WriteResource.prepare(this)</code> until a resource that is
    *  not ready to commit is found, returning false, or returns true if all
    *  write resources are prepared.  No exceptions capture is performed.
    */
-  private[ccstm] def resourcePrepare: Boolean = {
-    _writeResources.isEmpty || !_writeResources.exists(r => !r.prepare(this))
-  }
+  private[ccstm] def writeResourcesPrepare(): Boolean
 
   /** Calls <code>WriteResource.performCommit(this)</code>, returning the last
    *  exception thrown, or null if no exception occurred.
    */
-  private[ccstm] def resourcePerformCommit: Throwable = {
-    if (_writeResources.isEmpty) {
-      null
-    } else {
-      var failure: Throwable = null
-      for (r <- _writeResources) {
-        try {
-          r.performCommit(this)
-        }
-        catch {
-          case x => failure = x
-        }
-      }
-      failure
-    }
-  }
+  private[ccstm] def writeResourcesPerformCommit(): Throwable
+
+  /** Calls <code>WriteResource.performRollback(this)</code>, returning the last
+   *  exception thrown, or null if no exception occurred.
+   */
+  private[ccstm] def writeResourcesPerformRollback(): Throwable
 
   /** Arranges for <code>callback</code> to be executed after transaction
    *  completion, if this transaction commits.  An exception thrown from an
@@ -398,14 +541,10 @@ abstract class AbstractTxn(private[ccstm] val failureHistory: List[Throwable]) {
    *  callbacks are invoked.  If two callbacks have different priorities then
    *  the one with the smaller priority will be executed first.
    */
-  def afterCommit(callback: Txn => Unit, prio: Int) {
-    // TODO: requireActive?
-    // TODO: fix the definition of completion
-    _afterCommit = _afterCommit.update(prio, callback :: _afterCommit.getOrElse(prio, Nil))
-  }
+  def afterCommit(callback: Txn => Unit, prio: Int)
 
   /** Enqueues an after-commit callback with the default priority of 0. */
-  def afterCommit(callback: Txn => Unit) { afterCommit(callback, 0) }
+  def afterCommit(callback: Txn => Unit)
 
   /** Arranges for <code>callback</code> to be executed after transaction
    *  completion, if this transaction rolls back.  An exception thrown from an
@@ -413,35 +552,14 @@ abstract class AbstractTxn(private[ccstm] val failureHistory: List[Throwable]) {
    *  callbacks are invoked.  If two callbacks have different priorities then
    *  the one with the smaller priority will be executed first.
    */
-  def afterRollback(callback: Txn => Unit, prio: Int) {
-    // TODO: what status is okay here?
-    // TODO: homogenize with definition of status.completed
-    _afterRollback = _afterRollback.update(prio, callback :: _afterRollback.getOrElse(prio, Nil))    
-  }
+  def afterRollback(callback: Txn => Unit, prio: Int)
 
   /** Enqueues an after-rollback callback with the default priority of 0. */
-  def afterRollback(callback: Txn => Unit) { afterRollback(callback, 0) }
+  def afterRollback(callback: Txn => Unit)
 
   /** Calls the handlers registered with either <code>afterCommit</code> or
    *  <code>afterRollback</code>, as appropriate, returning the last caught
    *  exception or returning null if no callbacks threw an exception.
    */
-  private[ccstm] def callAfter: Exception = {
-    val callbacks = if (status == Rolledback) _afterRollback else _afterCommit
-    if (callbacks.isEmpty) {
-      null
-    }
-    else {
-      var failure: Exception = null
-      for ((_,cbs) <- callbacks; cb <- cbs) {
-        try {
-          cb(this)
-        }
-        catch {
-          case x: Exception => failure = x
-        }
-      }
-      failure
-    }
-  }
+  private[ccstm] def callAfter(): Exception
 }
