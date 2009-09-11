@@ -38,6 +38,9 @@ private[impls] object IndirectEagerTL2 {
     def isAcquirable: Boolean
     def isLockedBy(txn: IndirectEagerTL2Txn): Boolean
 
+    /** Only handles self-reads, does not check if a TxnLocked is present for
+     *  a commmitted transaction.
+     */
     def txnRead(txn: IndirectEagerTL2Txn): T
   }
 
@@ -67,6 +70,16 @@ private[impls] object IndirectEagerTL2 {
                      version0: Version,
                      var specValue: T,
                      val owner: IndirectEagerTL2Txn) extends Wrapped[T](value0, version0) {
+
+    // Owner's commit point is the one where status becomes mustCommit.  We
+    // define the linearization point of this operation to be when we check the
+    // status.  Note that if mustCommit is true, then a transaction must
+    // compare owner.commitVersion against self.readVersion, but
+    // owner.commitVersion may not yet have been obtained.  This means that,
+    // perhaps unintuitively, committing transactions obstruct other reading
+    // transactions (that access changing data) but cannot obstruct
+    // non-transactional reads.
+
     def nonTxnRead = if (owner.mustCommit) specValue else value
     def nonTxnVersion = if (owner.mustCommit) owner.commitVersion else version
     def nonTxnSnapshot = if (owner.mustCommit) new Unlocked(specValue, owner.commitVersion) else this
@@ -77,7 +90,21 @@ private[impls] object IndirectEagerTL2 {
     def txnRead(txn: IndirectEagerTL2Txn) = (if (isLockedBy(txn)) specValue else value)
   }
 
-  val globalVersion = new AtomicLong
+  /** The global timestamp.  We use TL2's GV6 scheme to avoid the need to
+   *  increment this during every transactional commit.  Non-transactional
+   *  writes are even more conservative, incrementing the global version only
+   *  when absolutely required. 
+   */
+  val globalVersion = new AtomicLong(1)
+
+  /** The approximate ratio of the number of commits to the number of
+   *  increments of <code>globalVersion</code>, as in TL2's GV6 scheme.  If
+   *  greater than one, the actual choice to commit or not is made with a
+   *  random number generator.
+   */
+  val silentCommitRatio = Runtime.getRuntime.availableProcessors max 16
+  
+  val silentCommitRand = new FastPoorRandom
 
   /** Guarantees that <code>globalVersion</code> is greater than
    *  or equal to <code>prevVersion</code>, and returns a value greater than
@@ -96,6 +123,10 @@ private[impls] object IndirectEagerTL2 {
       1 + prevVersion
     }
   }
+
+  val statusUpdater = {
+
+  }
 }
 
 /** @see edu.stanford.ppl.ccstm.IndirectEagerTL2
@@ -109,6 +140,39 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Throwable]) extends Abst
   import Txn._
 
   //////////////// State
+
+  // _status and _statusCAS come from AbstractTxn
+
+  /** The read version of this transaction.  It is guaranteed that all values
+   *  read by this transaction have a version number less than or equal to this
+   *  value, and that any transaction whose writes conflict with this
+   *  transaction will label those writes with a version number greater than
+   *  this value.  The read version must never be greater than
+   *  <code>globalVersion.get</code>, must never decrease, and each time it is
+   *  changed the read set must be revalidated.
+   */
+  private[impls] var _readVersion: Version = globalVersion.get
+
+  /** The version number with which this transaction's writes are labelled, or
+   *  zero if this transaction has not yet decided on commit or is in the
+   *  <code>Committing</code> state but has not yet had time to query the
+   *  global version.
+   *  <p>
+   *  Other transactions that encounter a TxnLocked owned by this transaction
+   *  must wait for _commitVersion to be non-zero if they observe our status as
+   *  Committing, because linearize after us.  We choose not to make this field
+   *  volatile, however, because our status will eventually become Committed,
+   *  which will guarantee the visibility of _commitVersion to any transaction
+   *  that needs it.
+   */
+  private[impls] var _commitVersion: Version = 0
+
+  /** True if all reads should be performed as writes. */
+  private[impls] val barging: Boolean = {
+    // barge if we have already had 3 failures
+    // TODO: ignore explicit retries
+    failureHistory.lengthCompare(3) >= 0
+  }
 
   private[impls] var _readCount = 0
   private[impls] var _reads = new Array[IndirectEagerTL2TxnAccessor[_]](8)
@@ -133,19 +197,6 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Throwable]) extends Abst
     z
   }
 
-  //////////////// Private interface
-
-  /** Returns the read version of this transaction.  It is guaranteed that all
-   *  values read by this transaction have a version number less than or equal
-   *  to this value, and that any transaction whose writes conflict with this
-   *  transaction will label those writes with a version number greater than
-   *  this value.
-   */
-  private[impls] val readVersion: Version = 0
-
-  /** True if all reads should be performed as writes. */
-  private[impls] val barging: Boolean = false
-
   /** Returns true if this txn has released all of its locks or if the locks
    *  are eligible to be stolen.
    */
@@ -154,12 +205,28 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Throwable]) extends Abst
     (s == Committed || s.mustRollBack)
   }
 
-  /** The version number with which this transaction's writes are labelled. */
-  private[impls] def commitVersion: Version = 0
+  //////////////// Implementation
 
-  /** */
+  /** On return, the read version will have been the global version at some
+   *  point during the call, the read version will be &ge; minReadVersion, and
+   *  all reads will have been validated against the new read version.
+   */
   private[impls] def revalidate(minReadVersion: Version) {
-    // TODO: implement
+    _readVersion = freshReadVersion(minReadVersion)
+    var i = 0
+    while (i < _readCount) {
+      val w: Wrapped[_] = _reads(i)._readVersion
+      // TODO: my head hurts
+    }
+  }
+
+  private def freshReadVersion(min: Version): Version = {
+    while (true) {
+      val g = globalVersion.get
+      if (g >= minReadVersion) return g
+      if (globalVersion.compareAndSet(g, minReadVersion)) return minReadVersion
+      // retry
+    }
   }
 
   /** Returns true if the caller should wait for the txn to complete, false if
@@ -172,15 +239,14 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Throwable]) extends Abst
 
   //////////////// Public interface
 
-  private[ccstm] def statusImpl: Status = Active
-
   private[ccstm] def commitImpl(): Status = {
     // TODO: implement
     null
   }
 
+  private[ccstm] def failImpl(cause: Throwable) {
 
-  private[ccstm] def failImpl(cause: Throwable) {}
+  }
 
   private[ccstm] def explicitlyValidateReadsImpl() {
     revalidate(0)

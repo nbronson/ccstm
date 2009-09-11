@@ -450,6 +450,8 @@ class TVar[T](initialValue: T) extends STM.MetadataHolder with TVar.Source[T] wi
   @volatile private[ccstm] var _data: AnyRef = STM.initialData(initialValue)
 
   private[ccstm] def newDataUpdater = {
+    // this must be a member of TVar, because all Scala variables are private
+    // under the covers
     AtomicReferenceFieldUpdater.newUpdater(classOf[TVar[_]], classOf[Object], "_data")
   }
 

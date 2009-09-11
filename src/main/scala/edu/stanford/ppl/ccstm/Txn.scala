@@ -5,6 +5,8 @@
 package edu.stanford.ppl.ccstm
 
 
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater
+
 object Txn {
 
   //////////////// Status
@@ -240,7 +242,7 @@ sealed class Txn(failureHistory: List[Throwable]) extends STM.TxnImpl(failureHis
   private var _afterCommit = EmptyPrioCallbackMap
   private var _afterRollback = EmptyPrioCallbackMap
 
-  def status: Status = statusImpl
+  def status: Status = _status
 
   def rollbackCause: Throwable = status.rollbackCause
 
@@ -391,14 +393,32 @@ sealed class Txn(failureHistory: List[Throwable]) extends STM.TxnImpl(failureHis
   }
 }
 
-private[ccstm] abstract class AbstractTxn {
+private[ccstm] object StatusHolder {
+  val statusUpdater = new StatusHolder.newStatusUpdater
+}
+
+private[ccstm] class StatusHolder {
+
+  @volatile private[ccstm] var _status: Txn.Status = Active
+
+  private[ccstm] def _statusCAS(before: Txn.Status, after: Txn.Status): Boolean = {
+    StatusHolder.statusUpdater.compareAndSet(before, after)
+  }
+
+  private[ccstm] def newStatusUpdater = {
+    // we have to create the updater from a method of StatusHolder, because
+    // all Scala variables are private under the covers
+    AtomicReferenceFieldUpdater.newUpdater(classOf[StatusHolder], classOf[Object], "_status")
+  }
+}
+
+private[ccstm] abstract class AbstractTxn extends StatusHolder {
   this: Txn =>
 
   import Txn._
 
   //////////////// Functions to be implemented in an STM-specific manner
 
-  private[ccstm] def statusImpl: Status
   private[ccstm] def failImpl(cause: Throwable)
   private[ccstm] def commitImpl(): Status
   private[ccstm] def explicitlyValidateReadsImpl()
