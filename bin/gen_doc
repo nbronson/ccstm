@@ -4,10 +4,14 @@ X=`dirname $0`
 BASE=`cd $X/.. ; pwd`
 
 SRC=src/main/scala
-DST=out/apidoc
+APIDST=out/apidoc
+
+MDSRC=doc
+MDDST=out/doc
 
 cd $BASE
-mkdir -p $DST
+mkdir -p $APIDST
+mkdir -p $MDDST
 
 if [ "x`uname -s`" = "xLinux" ]; then
   WRAPPER='/usr/bin/time -f \n%Usec --quiet'
@@ -15,7 +19,16 @@ else
   WRAPPER=''
 fi
 
+echo "ScalaDoc"
+echo ""
 $WRAPPER bin/proj_scala scala.tools.nsc.ScalaDoc \
     -windowtitle 'CCSTM API Specification' \
     -doctitle 'CCSTM API Specification' \
-    -d $DST -sourcepath $SRC `find $SRC -name '*.scala'`
+    -d $APIDST -sourcepath $SRC `find $SRC -name '*.scala'`
+
+echo ""
+echo "Markdown"
+echo ""
+for f in $MDSRC/*.md; do
+  maruku --html -o $MDDST/`basename $f .md`.html $f
+done

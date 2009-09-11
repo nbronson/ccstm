@@ -60,15 +60,15 @@ by Dice, Shalev, and Shavit.
 ## Comparison to MVCC
 
 MVCC provides snapshot isolation, which means that the transaction
-observes a consistent state of the world, but not necessarily the
-most recent state.  Only values that are written (or explicitly marked
-with something like `SELECT FOR UPDATE` or Clojure's `(ensure ref)`)
-are guaranteed to be current.  This allows for more concurrency than
-a linearizable transaction, but it requires the user to have a deeper
-understanding of the application's semantics.  By default, reads
+observes a consistent state of the world, but not necessarily the most
+recent state.  MVCC only guarantees that values that are written (or
+explicitly marked with something like `SELECT FOR UPDATE` or Clojure's
+`(ensure ref)`) are current at commit.  This allows for more concurrency
+than a linearizable transaction, but it requires the user to have a
+deeper understanding of the application's semantics.  By default, reads
 in CCSTM are guaranteed to reflect the current state at commit time.
 CCSTM provides `Ref.unrecordedRead` for relaxed semantics, where required
-for adequate concurrency.
+to improve concurrency.
 
 Unlike multi-version concurrency control, CCSTM does not keep more than
 one committed version of data.  This means that if a write is committed,
