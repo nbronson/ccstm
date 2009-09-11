@@ -219,6 +219,12 @@ object Txn {
 /** An instance representing a single execution attempt for a single atomic
  *  block.  Most users will use the <code>Atomic</code> class to code atomic
  *  blocks, benefiting from automatic retry and a concise syntax.
+ *  <p>
+ *  The underlying STM will use the <code>failureHistory</code> in an
+ *  implementation specific way to avoid starvation and livelock.
+ *  @param failureHistory a list of the <code>Status.rollbackCause</code>s from
+ *      earlier executions of the atomic block that this transaction will be
+ *      used to execute, with the most recent first. 
  *  @see edu.stanford.ppl.ccstm.Atomic
  *
  *  @author Nathan Bronson
@@ -226,6 +232,7 @@ object Txn {
 sealed class Txn(failureHistory: List[Throwable]) extends STM.TxnImpl(failureHistory) {
   import Txn._
 
+  /** Constructs a <code>Txn</code> with an empty failure history. */
   def this() = this(Nil)
 
   // This inheritence hierarchy is a bit strange.  Method signatures and the
@@ -250,7 +257,12 @@ sealed class Txn(failureHistory: List[Throwable]) extends STM.TxnImpl(failureHis
 
   def rollbackCause: Throwable = status.rollbackCause
 
-  def fail(cause: Throwable) { failImpl(cause) }
+  def fail(cause: Throwable) {
+    if (!attemptRemoteFail(cause)) throw new IllegalStateException
+    throw rollbackCause
+  }
+
+  def attemptRemoteFail(cause: Throwable) = attemptRemoteFailImpl(cause)
 
   def commit(): Status = commitImpl()
 
@@ -423,14 +435,14 @@ private[ccstm] abstract class AbstractTxn extends StatusHolder {
 
   //////////////// Functions to be implemented in an STM-specific manner
 
-  private[ccstm] def failImpl(cause: Throwable)
+  private[ccstm] def attemptRemoteFailImpl(cause: Throwable): Boolean
   private[ccstm] def commitImpl(): Status
   private[ccstm] def explicitlyValidateReadsImpl()
 
   //////////////// Functions implemented in Txn, but available to the STM-specific base class
 
-  /** Returns the transaction's current status, as of the most recent
-   *  operation.
+  /** Returns the transaction's current status.  The status may change at any
+   *  time.
    */
   def status: Status
 
@@ -442,17 +454,31 @@ private[ccstm] abstract class AbstractTxn extends StatusHolder {
    */
   def rollbackCause: Throwable
 
-  /** Causes this transaction to fail with the specified cause.
+  /** Causes this transaction to fail with the specified cause, then throws an
+   *  exception (possibly <code>cause</code>) to cause the non-local flow of
+   *  control needed to roll back.  If the transaction is already doomed
+   *  (<code>status.mustRollback</code>) then <code>cause</code> will be
+   *  discarded.  This method may be only be called from inside the transaction
+   *  (this may not be checked); use <code>attemptRemoteFail</code> if you wish
+   *  to doom a transaction running on another thread.
    *  @throws IllegalStateException if <code>status.mustCommit</code>.
    */
   def fail(cause: Throwable)
+
+  /** Attempts to doom the transaction, returning true if the transaction will
+   *  definitely roll back, false if the transaction will definitely commit.
+   *  This method may return true if rollback occurs for a reason other than
+   *  <code>cause</code>.  Unlike <code>fail(cause)</code>, this method may be
+   *  called from any thread, and does not throw an exception.
+   */
+  def attemptRemoteFail(cause: Throwable): Boolean
 
   /** Completes the transaction, committing if possible.  Returns the final
    *  status.
    */
   def commit(): Status
 
-  /** Calls <code>commit</code>, then rethrows <code>rollbackCause</code> if the
+  /** Calls <code>commit</code>, then throws <code>rollbackCause</code> if the
    *  transaction rolled back and should not be retried.
    */
   private[ccstm] def commitAndRethrow()
@@ -505,9 +531,7 @@ private[ccstm] abstract class AbstractTxn extends StatusHolder {
   /** Calls all callbacks registered via <code>beforeCommit</code>. */
   private[ccstm] def callBeforeCommit()
 
-  /** Enqueues a before-commit callback with the default priority of 0.
-   *  @see edu.stanford.ppl.ccstm.AbstractTxn#beforeCommit(Function1[Txn,Unit],Int)
-   */
+  /** Enqueues a before-commit callback with the default priority of 0. */
   def beforeCommit(callback: Txn => Unit)
 
   /** Adds a read resource to the transaction, which will participate in
@@ -527,7 +551,6 @@ private[ccstm] abstract class AbstractTxn extends StatusHolder {
    *  <code>readResource.valid</code> if <code>checkAfterRegister</code> is
    *  false.
    *  @throws IllegalStateException if this transaction is not active.
-   *  @see edu.stanford.ppl.ccstm.AbstractTxn#addReadResource(edu.stanford.ppl.ccstm.Txn.ReadResource)
    */
   def addReadResource(readResource: ReadResource, checkAfterRegister: Boolean)
 

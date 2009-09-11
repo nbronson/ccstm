@@ -286,8 +286,15 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Throwable]) extends Abst
     null
   }
 
-  private[ccstm] def failImpl(cause: Throwable) {
-    // TODO: should we throw the cause?
+  private[ccstm] def attemptRemoteFailImpl(cause: Throwable): Boolean = {
+    while (true) {
+      val s = _status
+      if (s.mustCommit) return false
+      if (s.mustRollBack) return true
+      assert(s == Active)
+      if (_statusCAS(s, MarkedRollback(cause))) return true
+    }
+    throw new Error("unreachable")
   }
 
   private[ccstm] def explicitlyValidateReadsImpl() { revalidate(0) }
