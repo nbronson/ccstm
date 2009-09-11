@@ -65,9 +65,9 @@ private[impls] object IndirectEagerTL2 {
                      version0: Version,
                      var specValue: T,
                      val owner: IndirectEagerTL2Txn) extends Wrapped[T](value0, version0) {
-    def nonTxnRead = if (owner.decidedCommit) specValue else value
-    def nonTxnVersion = if (owner.decidedCommit) owner.commitVersion else version
-    def nonTxnSnapshot = if (owner.decidedCommit) new Unlocked(specValue, owner.commitVersion) else this
+    def nonTxnRead = if (owner.mustCommit) specValue else value
+    def nonTxnVersion = if (owner.mustCommit) owner.commitVersion else version
+    def nonTxnSnapshot = if (owner.mustCommit) new Unlocked(specValue, owner.commitVersion) else this
 
     def isAcquirable = owner.status.mustRollBack
     def isLockedBy(txn: IndirectEagerTL2Txn) = (owner == txn)
@@ -96,7 +96,7 @@ private[impls] object IndirectEagerTL2 {
   }
 }
 
-abstract class IndirectEagerTL2Txn extends AbstractTxn {
+abstract class IndirectEagerTL2Txn(failureHistory0: List[Throwable]) extends AbstractTxn(failureHistory0) {
   this: Txn =>
 
   import IndirectEagerTL2._
@@ -135,10 +135,10 @@ abstract class IndirectEagerTL2Txn extends AbstractTxn {
    *  transaction will label those writes with a version number greater than
    *  this value.
    */
-  private[impls] val readVersion: Version
+  private[impls] val readVersion: Version = 0
 
   /** True if all reads should be performed as writes. */
-  private[impls] val barging: Boolean
+  private[impls] val barging: Boolean = false
 
   /** Returns true if this txn has released all of its locks or if the locks
    *  are eligible to be stolen.
@@ -160,19 +160,26 @@ abstract class IndirectEagerTL2Txn extends AbstractTxn {
    *  the reader should proceed with the old value, hoping to commit before
    *  <code>currentOwner</code>.  May also choose to doom either txn.
    */
-  private[impls] def shouldWaitForRead(currentOwner: IndirectEagerTL2Txn): Boolean
+  private[impls] def shouldWaitForRead(currentOwner: IndirectEagerTL2Txn): Boolean = false
   
-  private[impls] def resolveWriteWriteConflict(currentOwner: IndirectEagerTL2Txn)
+  private[impls] def resolveWriteWriteConflict(currentOwner: IndirectEagerTL2Txn) {}
 
   //////////////// Public interface
 
-  def status: Status = new Rolledback(true, null)
-  def validatedStatus: Status = new Rolledback(true, null)
+  def status: Status = Rolledback
 
-  private[ccstm] def attemptCommit: Boolean = {
+  private[ccstm] def commit: Status = {
     // TODO: implement
-    false
+    null
   }
+
+
+
+  private[ccstm] def failure_=(v: Throwable) {}
+
+  def failure: Throwable = null
+
+  def explicitlyValidateReads() {}
 }
 
 abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
@@ -180,9 +187,9 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
 
   //////////////// Abstract methods
 
-  def data: Any
-  def data_=(v: Any)
-  def dataCAS(before: Any, after: Any): Boolean
+  def data: AnyRef
+  def data_=(v: AnyRef)
+  def dataCAS(before: AnyRef, after: AnyRef): Boolean
 
   def fieldIndex: Int
   val txn: IndirectEagerTL2Txn
@@ -352,11 +359,12 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
             // immediately.  We can: doom the other txn and steal the lock,
             // block the current txn, or roll back the current txn.  If the
             // contention manager in resolveWWConflict wants to roll back the
-            // current txn it will throw RollbackException itself.  If it
+            // current txn it will throw RollbackError itself.  If it
             // wants to doom tl.owner it will also do that directly.
             t.resolveWriteWriteConflict(tl.owner)
             w = waitForTxn(tl)
           }
+          case u: Unlocked[_] => throw new IllegalStateException
         }
       }
     }
@@ -426,9 +434,9 @@ abstract class IndirectEagerTL2NonTxnAccessor[T] extends TVar.Bound[T] {
 
   //////////////// Abstract methods
 
-  def data: Any
-  def data_=(v: Any)
-  def dataCAS(before: Any, after: Any): Boolean
+  def data: AnyRef
+  def data_=(v: AnyRef)
+  def dataCAS(before: AnyRef, after: AnyRef): Boolean
 
   //////////////// Implementation
 

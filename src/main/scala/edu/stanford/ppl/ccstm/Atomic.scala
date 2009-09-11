@@ -36,37 +36,43 @@ abstract class Atomic {
 
   /** Runs the body of this atomic block in a transaction, returning true if it
    *  was successfully committed, false if it was rolled back.  If the body
-   *  threw an exception and the transaction is valid, the exception will be
-   *  rethrown from this method.  If the body threw an exception but the
-   *  transaction was not valid, the exception will be discarded and this
-   *  method will return false.
-   *
-   *  TODO: reevaluate whether we should roll back on exception, at least a few times
+   *  threw an exception the transaction will roll back and then the exception
+   *  will be rethrown from this method.
    */
-  def attempt(): Boolean = {
+  def attempt(): Boolean = attemptImpl(Nil).committed
+
+  private def attemptImpl(failureHistory: List[Throwable]): Txn = {
     assert(_currentTxn == null)
-    _currentTxn = new Txn
+
+    val txn = new Txn(failureHistory)
+    _currentTxn = txn
     try {
       body
-      _currentTxn.attemptCommit
     }
     catch {
-      case RollbackException => false
-      case xx => if (_currentTxn.attemptCommit) throw xx else false
+      case x => txn.failure = x
     }
-    finally {
-      assert(_currentTxn.completed)
-      _currentTxn = null
-    }
+    _currentTxn = null
+
+    txn.commitAndRethrow()
+    txn
   }
 
   /** Repeatedly calls <code>attempt()</code> until a transaction can be
    *  successfully committed, possibly raising the priority of subsequent
    *  attempts in an implementation-specific manner.  If the body throws an
-   *  exception and the transaction is valid, the exception will be rethrown
-   *  from this method.
+   *  exception, the transaction will be rolled back and the exception will be
+   *  rethrown from this method without retrying the body.
    */
   def run() {
-    while (!attempt()) {} // TODO: something more sophisticated
+    var hist: List[Throwable] = Nil
+    while (true) {
+      val txn = attemptImpl(hist)
+      if (txn.completed) return
+      hist = txn.failure :: hist
+      if (txn.failure == Txn.ExplicitRetryError) {
+        // TODO: handle explicit retry more intelligently
+      }
+    }
   }
 }

@@ -16,7 +16,7 @@ private[ccstm] object Stackless {
  *  @author Nathan Bronson
  */
 trait Stackless {
-  this: Exception =>
+  this: Throwable =>
 
   {
     setStackTrace(Stackless.EmptyStackTrace)
