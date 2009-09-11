@@ -15,4 +15,7 @@ else
   WRAPPER=''
 fi
 
-$WRAPPER bin/proj_scala scala.tools.nsc.ScalaDoc -d $DST -sourcepath $SRC `find $SRC -name '*.scala'`
+$WRAPPER bin/proj_scala scala.tools.nsc.ScalaDoc \
+    -windowtitle 'CCSTM API Specification' \
+    -doctitle 'CCSTM API Specification' \
+    -d $DST -sourcepath $SRC `find $SRC -name '*.scala'`

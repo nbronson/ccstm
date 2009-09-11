@@ -94,11 +94,13 @@ object Txn {
   }
 
 
-  object ExplicitRetryException extends Exception with Stackless
+  class RollbackError extends Error with Stackless
 
-  abstract class OptimisticFailureException(val target: Any) extends Exception with Stackless
-  class InvalidReadException(target0: Any) extends OptimisticFailureException(target0)
-  class WriteConflictException(target0: Any) extends OptimisticFailureException(target0)
+  object ExplicitRetryError extends RollbackError
+
+  abstract class OptimisticFailureError(val target: Any) extends RollbackError
+  class InvalidReadError(target0: Any) extends OptimisticFailureError(target0)
+  class WriteConflictError(target0: Any) extends OptimisticFailureError(target0)
 
   //////////////// Resources participate in a two-phase commit
 
