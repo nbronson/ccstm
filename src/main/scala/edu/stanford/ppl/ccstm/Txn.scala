@@ -142,7 +142,9 @@ object Txn {
   /** An exception that indicates that a transaction was rolled back because a
    *  previous read is no longer valid.
    */
-  class InvalidReadError(invalidObj0: AnyRef, extraInfo0: Any) extends OptimisticFailureError(invalidObj0, extraInfo0)
+  class InvalidReadError(invalidObj0: AnyRef, extraInfo0: Any) extends OptimisticFailureError(invalidObj0, extraInfo0) {
+    def this(invalidObj0: AnyRef) = this(invalidObj0, null)
+  }
 
   /** An exception that indicates that a transaction was rolled back because it
    *  needed write access to an object also being written by another
@@ -150,7 +152,9 @@ object Txn {
    *  have been the first or second to request write access; the contention
    *  management policy may choose which transaction to roll back.
    */
-  class WriteConflictError(invalidObj0: AnyRef, extraInfo0: Any) extends OptimisticFailureError(invalidObj0, extraInfo0)
+  class WriteConflictError(invalidObj0: AnyRef, extraInfo0: Any) extends OptimisticFailureError(invalidObj0, extraInfo0) {
+    def this(invalidObj0: AnyRef) = this(invalidObj0, null)
+  }
 
   //////////////// Resources participate in a two-phase commit
 
@@ -311,9 +315,11 @@ sealed class Txn(failureHistory: List[Throwable]) extends STM.TxnImpl(failureHis
     }
   }
 
-  private[ccstm] def readResourcesValid: Boolean = {
+  private[ccstm] def readResourcesValidate() {
     // TODO: fix
-    _readResources.isEmpty || !_readResources.exists(r => !r.valid(this))
+    if (!(_readResources.isEmpty || !_readResources.exists(r => !r.valid(this)))) {
+      fail(null)
+    }
   }
 
   def addWriteResource(writeResource: WriteResource) {
@@ -394,15 +400,15 @@ sealed class Txn(failureHistory: List[Throwable]) extends STM.TxnImpl(failureHis
 }
 
 private[ccstm] object StatusHolder {
-  val statusUpdater = new StatusHolder.newStatusUpdater
+  val statusUpdater = (new StatusHolder).newStatusUpdater
 }
 
 private[ccstm] class StatusHolder {
 
-  @volatile private[ccstm] var _status: Txn.Status = Active
+  @volatile private[ccstm] var _status: Txn.Status = Txn.Active
 
   private[ccstm] def _statusCAS(before: Txn.Status, after: Txn.Status): Boolean = {
-    StatusHolder.statusUpdater.compareAndSet(before, after)
+    StatusHolder.statusUpdater.compareAndSet(this, before, after)
   }
 
   private[ccstm] def newStatusUpdater = {
@@ -413,8 +419,6 @@ private[ccstm] class StatusHolder {
 }
 
 private[ccstm] abstract class AbstractTxn extends StatusHolder {
-  this: Txn =>
-
   import Txn._
 
   //////////////// Functions to be implemented in an STM-specific manner
@@ -528,10 +532,9 @@ private[ccstm] abstract class AbstractTxn extends StatusHolder {
   def addReadResource(readResource: ReadResource, checkAfterRegister: Boolean)
 
   /** Calls <code>ReadResource.valid(this)</code> until a resource that
-   *  fails validation is found, returning false, or returns true if all read
-   *  resources are valid.  No attempt is made to capture exceptions.
+   *  fails validation is found.  Throws an exception if invalid.
    */
-  private[ccstm] def readResourcesValid: Boolean
+  private[ccstm] def readResourcesValidate()
 
   /** Adds a write resource to the transaction, which will participate in the
    *  two-phase commit protocol.

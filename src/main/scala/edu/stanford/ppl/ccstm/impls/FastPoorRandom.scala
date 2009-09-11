@@ -24,8 +24,8 @@ private[impls] class FastPoorRandom {
 
     val s = states(id)
     
-    val m_z = s.asInstanceOf[Int]
-    val m_w = (s >> 32).asInstanceOf[Int]
+    var m_z = s.asInstanceOf[Int]
+    var m_w = (s >> 32).asInstanceOf[Int]
 
     m_z = 36969 * (m_z & 65535) + (m_z >> 16)
     m_w = 18000 * (m_w & 65535) + (m_w >> 16)

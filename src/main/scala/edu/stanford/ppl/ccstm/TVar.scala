@@ -411,9 +411,9 @@ object TVar {
     def metadata = instance._metadata
     def metadata_=(v: STM.Metadata) { instance._metadata = v }
     def metadataCAS(before: STM.Metadata, after: STM.Metadata) = instance._metadataCAS(before, after)
-    def data: AnyRef = instance._data
-    def data_=(v: AnyRef) { instance._data = v }
-    def dataCAS(before: AnyRef, after: AnyRef) = {
+    def data: STM.Data[T] = instance._data
+    def data_=(v: STM.Data[T]) { instance._data = v }
+    def dataCAS(before: STM.Data[T], after: STM.Data[T]) = {
       TVar.dataUpdater.compareAndSet(instance, before, after)
     }
   }
@@ -447,12 +447,12 @@ private class TVarTxnAccessor[T](val txn: Txn, val instance: TVar[T]) extends ST
  */
 class TVar[T](initialValue: T) extends STM.MetadataHolder with TVar.Source[T] with TVar.Sink[T] {
 
-  @volatile private[ccstm] var _data: AnyRef = STM.initialData(initialValue)
+  @volatile private[ccstm] var _data: STM.Data[T] = STM.initialData(initialValue)
 
   private[ccstm] def newDataUpdater = {
     // this must be a member of TVar, because all Scala variables are private
     // under the covers
-    AtomicReferenceFieldUpdater.newUpdater(classOf[TVar[_]], classOf[Object], "_data")
+    AtomicReferenceFieldUpdater.newUpdater(classOf[TVar[_]], classOf[STM.Data[_]], "_data")
   }
 
   // implicit access to readForWrite is omitted to discourage its use 
