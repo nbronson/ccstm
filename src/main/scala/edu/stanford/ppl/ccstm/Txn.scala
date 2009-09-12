@@ -33,6 +33,11 @@ object Txn {
      */
     def mustRollBack = !mightCommit
 
+    /** True if, for a transaction with this status, the outcome is certain.
+     *  Equal to <code>(mustCommit || mustRollback)</code>.
+     */
+    def decided: Boolean
+
     /** True if, for a transaction with this status, the transaction can no
      *  longer intefere with the execution of other transactions.  All locks
      *  will have been released, but after-commit or after-rollback callbacks
@@ -53,6 +58,7 @@ object Txn {
   case object Active extends Status {
     def mightCommit = true
     def mustCommit = false
+    def decided = false
     def completed = false
     def rollbackCause = null
   }
@@ -65,6 +71,7 @@ object Txn {
 
     def mightCommit = false
     def mustCommit = false
+    def decided = true
     def completed = false
   }
 
@@ -75,6 +82,7 @@ object Txn {
   case object Preparing extends Status {
     def mightCommit = true
     def mustCommit = false
+    def decided = false
     def completed = false
     def rollbackCause = null
   }
@@ -85,6 +93,7 @@ object Txn {
   case object Committing extends Status {
     def mightCommit = true
     def mustCommit = true
+    def decided = true
     def completed = false
     def rollbackCause = null
   }
@@ -95,6 +104,7 @@ object Txn {
   case object Committed extends Status {
     def mightCommit = true
     def mustCommit = true
+    def decided = true
     def completed = true
     def rollbackCause = null
   }
@@ -107,6 +117,7 @@ object Txn {
 
     def mightCommit = false
     def mustCommit = false
+    def decided = true
     def completed = false
   }
 
@@ -118,6 +129,7 @@ object Txn {
 
     def mightCommit = false
     def mustCommit = false
+    def decided = true
     def completed = true
   }
 
@@ -428,6 +440,8 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends STM.TxnImpl(fa
     _writeResources = writeResource :: _writeResources
   }
 
+  private[ccstm] def writeResourcesPresent = !_writeResources.isEmpty
+
   private[ccstm] def writeResourcesPrepare(): Boolean = {
     if (!_writeResources.isEmpty) {
       for (res <- _writeResources) {
@@ -667,6 +681,9 @@ private[ccstm] abstract class AbstractTxn extends StatusHolder {
    *  @throws IllegalStateException if this transaction is not active.
    */
   def addWriteResource(writeResource: WriteResource)
+
+  /** Returns true if there are write resources, false otherwise. */
+  private[ccstm] def writeResourcesPresent: Boolean
 
   /** Calls <code>WriteResource.prepare(this)</code> for all write resources,
    *  unless rollback is required.  Returns true if commit is still possible.

@@ -77,23 +77,14 @@ object IndirectEagerTL2 {
 
     // Owner's commit point is the one where status becomes mustCommit.  We
     // define the linearization point of this operation to be when we check the
-    // status.  Note that if mustCommit is true, then a transaction must
-    // compare owner.commitVersion against self.readVersion, but
-    // owner.commitVersion may not yet have been obtained.  This means that,
-    // perhaps unintuitively, committing transactions obstruct other reading
-    // transactions (that access changing data) but cannot obstruct
-    // non-transactional reads.  They _do_ obstruct unrecorded
-    // non-transactional reads, which are actually more "recorded" than the
-    // regular kind.
+    // status.  Since txn._commitVersion is always assigned before commit is
+    // decided, committing transactions cannot obstruct either a nonTxnRead or
+    // a nonTxnSnapshot (used for unrecorded read).
 
     def nonTxnRead = if (owner.mustCommit) specValue else value
-    def nonTxnSnapshot = if (owner.mustCommit) new Unlocked(specValue, owner.blockingCommitVersion) else this
+    def nonTxnSnapshot = if (owner.mustCommit) new Unlocked(specValue, owner._commitVersion) else this
 
     def stillValid(v: Version) = {
-      // We don't have to call blockingCommitVersion, because if the owner's
-      // commit version has not yet been assigned, then v must definitely
-      // correspond to an older version.  The default value of _commitVersion
-      // is zero, which is != any valid version.
       v == (if (owner.mustCommit) owner._commitVersion else version)
     }
 
@@ -101,6 +92,9 @@ object IndirectEagerTL2 {
     def isLockedBy(txn: IndirectEagerTL2Txn) = (owner == txn)
 
     def txnRead(txn: IndirectEagerTL2Txn) = (if (isLockedBy(txn)) specValue else value)
+
+    def reverted = new Unlocked(value, version)
+    def committed(commitVersion: Version) = new Unlocked(commitVersion, specValue)
   }
 
   /** The global timestamp.  We use TL2's GV6 scheme to avoid the need to
@@ -108,16 +102,25 @@ object IndirectEagerTL2 {
    *  writes are even more conservative, incrementing the global version only
    *  when absolutely required. 
    */
-  val globalVersion = new AtomicLong(1)
+  private val globalVersion = new AtomicLong(1)
 
   /** The approximate ratio of the number of commits to the number of
    *  increments of <code>globalVersion</code>, as in TL2's GV6 scheme.  If
    *  greater than one, the actual choice to commit or not is made with a
    *  random number generator.
    */
-  val silentCommitRatio = Runtime.getRuntime.availableProcessors max 16
-  
-  val silentCommitRand = new FastPoorRandom
+  private val silentCommitRatio = Runtime.getRuntime.availableProcessors max 16
+
+  /** If <i>x</i> is a signed integer evenly chosen from a uniform distribution
+   *  between Integer.MIN_VALUE and Integer.MAX_VALUE, then the test
+   *  <code>(x <= silentCommitCutoff)</code> will succeed approximately
+   *  <code>1.0 / silentCommitRatio</code> of the time.
+   */
+  private val silentCommitCutoff = {
+    ((1 << 31) + ((1L << 32) / silentCommitRatio) - 1).asInstanceOf[Int]
+  }
+
+  private val silentCommitRand = new FastPoorRandom
 
   /** Guarantees that <code>globalVersion</code> is greater than
    *  or equal to <code>prevVersion</code>, and returns a value greater than
@@ -137,8 +140,34 @@ object IndirectEagerTL2 {
     }
   }
 
-  val statusUpdater = {
+  /** Returns a read version for use in a new transaction. */
+  def freshReadVersion: Version = globalVersion.get
 
+  /** Guarantees that <code>globalVersion</code> is &ge; <code>minRV</code>,
+   *  and returns a <code>globalVersion.get</code>.
+   */
+  def freshReadVersion(minRV: Version): Version = {
+    var g = globalVersion.get
+    while (g < minRV) {
+      if (globalVersion.compareAndSet(g, minRV)) {
+        // succeeded, we're done
+        return minRV
+      }
+      // failed, retry
+      g = globalVersion.get
+    }
+    return g
+  }
+
+  /** Returns a value that is greater than the <code>globalVersion</code> on
+   *  entry, possibly incrementing <code>globalVersion</code>.
+   */
+  def freshCommitVersion: Version = {
+    val g = globalVersion.get
+    if (silentCommitRatio <= 1 || silentCommitRand.nextInt <= silentCommitCutoff) {
+      globalVersion.compareAndSet(g, g + 1)
+    }
+    g + 1
   }
 }
 
@@ -164,6 +193,18 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
    *  changed the read set must be revalidated.
    */
   private[impls] var _readVersion: Version = globalVersion.get
+
+  /** If true, then other transactions may not use the old value from
+   *  <code>TxnLocked</code> instances owned by this transaction.  This does
+   *  not necessarily mean this transaction will commit, but it means that the
+   *  <code>_commitVersion</code> has already been assigned and hence other
+   *  transactions may have <code>_readVersion</code>s larger than the eventual
+   *  new version of the data element.
+   *  <p>
+   *  Transactions may use the <code>TxnLocked.specValue</code> only if
+   *  <code>_status.mustCommit</code>.
+   */
+  @volatile private[impls] var _writesPreventRead = false 
 
   /** The version number with which this transaction's writes are labelled, or
    *  zero if this transaction has not yet decided on commit or is in the
@@ -264,41 +305,107 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
     return readResourcesValidate()
   }
 
-  private def freshReadVersion(minRV: Version): Version = {
-    var g = globalVersion.get
-    while (g < minRV) {
-      if (globalVersion.compareAndSet(g, minRV)) {
-        // succeeded, we're done
-        return minRV
-      }
-      // failed, retry
-      g = globalVersion.get
-    }
-    return g
-  }
-
   /** Returns true if the caller should wait for the txn to complete, false if
    *  the reader should proceed with the old value, hoping to commit before
-   *  <code>currentOwner</code>.  May also choose to doom either txn.
+   *  <code>currentOwner</code>.  May also choose to doom either txn, in which
+   *  case <code>RollbackError</code> will be thrown.  At least one of the
+   *  following will be true on normal return:<pre>
+   *    -  the return value
+   *    -  !currentOwner._writesPreventRead
+   *    -  currentOwner.decided
+   *  </pre>
    */
   private[impls] def shouldWaitForRead(currentOwner: IndirectEagerTL2Txn): Boolean = {
-    // TODO
-    false
+    // TODO: something more sophisticated
+    
+    // this method must take care to avoid deadlock cycles, via the other txn
+    // waiting on a read, or a block inside resolveWriteWriteConflict
+
+    currentOwner._writesPreventRead && !currentOwner.decided
   }
 
   /** After this method returns, either the current transaction will have been
    *  rolled back or <code>currentOwner</code> will allow the write resource to
    *  be acquired.
    */
-  private[impls] def resolveWriteWriteConflict(currentOwner: IndirectEagerTL2Txn) {
-    // TODO
+  private[impls] def resolveWriteWriteConflict(currentOwner: IndirectEagerTL2Txn, contended: AnyRef) {
+    val cause = WriteConflictCause(contended, null)
+
+    // this test is _almost_ symmetric
+    if (this.hashCode <= currentOwner.hashCode) {
+      forceRollback(cause)
+      throw RollbackError
+    } else {
+      currentOwner.requestRollback(cause)
+    }
   }
 
-  //////////////// Public interface
-
+  
   private[ccstm] def commitImpl(): Status = {
+    assert(status == Active || status.isInstanceOf[MarkedRollback])
+
+    if (status.mustRollBack || !callBeforeCommit) {
+      // no need to prepare
+      _status = RollingBack(rollbackCause)
+      rollbackWrites
+      writeResourcesPerformRollback
+      _status = Rolledback(rollbackCause)
+      callAfter
+      return _status
+    }
+
+    if (_writeCount == 0 && !writeResourcesPresent) {
+      // read-only transactions are easy to commit, because all of the reads
+      // are already guaranteed to be consistent
+      if (!_statusCAS(Active, Committed)) {
+        // remote fail
+        assert(_status.isInstanceOf[MarkedRollback])
+        _status = Rolledback(rollbackCause)
+      }
+      callAfter
+      return _status
+    }
+
+    if (!_statusCAS(Active, Preparing) || !writeResourcesPrepare()) {
+      // roll back
+    }
+
+    // prevent any transactions that begin or revalidate after this point from
+    // reading any of the old values
+    _writesPreventRead = true
+
+    
+
     // TODO: implement
     null
+  }
+
+  private def rollbackWrites() {
+    var i = 0
+    while (i < _writeCount) {
+      val acc = _writes(i)
+
+      // we must use CAS, to account for stealing, but we don't need to retry
+      // because we can only fail if there was a thief
+      acc.data match {
+        case tl: TxnLocked[_] => acc.dataCAS(tl, tl.reverted)
+      }
+
+      i += 1
+    }
+  }
+
+  private def commitWrites(cv: Version) {
+    var i = 0
+    while (i < _writeCount) {
+      val acc = _writes(i)
+
+      // we don't need to use CAS, because stealing can only occur from doomed
+      // transactions
+      acc.data = acc.data.asInstanceOf[TxnLocked[_]].committed(cv)
+
+      i += 1
+    }
   }
 
   private[ccstm] def requestRollbackImpl(cause: RollbackCause): Boolean = {
@@ -351,6 +458,12 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
   private[impls] def readImpl(t: IndirectEagerTL2Txn, w0: Wrapped[T], unrecorded: Boolean): Wrapped[T] = {
     var w: Wrapped[T] = w0
 
+    if (_readSnapshot != null) {
+      // Repeat previous read that used this accessor.  This helps performance
+      // when using the bind(txn) API.
+      return _readSnapshot
+    }
+
     // is this txn desperate?
     if (t.barging) {
       return readForWriteImpl(t, w0)
@@ -368,7 +481,8 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
           // operations that fail to succeed with a weakCompareAndSet on their
           // first try.  Although it would be correct to try to use the old
           // value and see if we can commit first, it seems unlikely that this
-          // will be profitable in practice.
+          // will be profitable in practice (this would also require changing
+          // the non-txn code).
           w = waitForNonTxn(nl)
         }
         case tl: TxnLocked[_] => {
@@ -376,10 +490,18 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
           // conflict.  We can either wait, or we can use the old value and
           // hope we commit before them.  To avoid deadlock cycles, we impose a
           // partial ordering on transactions and only wait for those that are
-          // less than the current one.
+          // less than the current one.  shouldWaitForRead will honor the
+          // _writesPreventRead flag.
           if (t.shouldWaitForRead(tl.owner)) {
-            w = waitForTxn(tl)
+            w = waitForTxnReadPermission(tl)
           } else {
+            // If commit is inevitable, we can (should) use the new value.  If
+            // commit is not inevitable, then we are allowed to use the old
+            // value (owner is not yet committing) or we must use the old value
+            // (owner has decided to roll back).
+            if (tl.owner.mustCommit) {
+              w = new Unlocked(tl.specValue, tl.owner._commitVersion)
+            }
             okay = true
           }
         }
@@ -390,7 +512,8 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
     if (w.version > t._readVersion) t.revalidate(w.version)
 
     // read is stable and consistent
-    if (!unrecorded && _readSnapshot == null) {
+    
+    if (!unrecorded) {
       _readSnapshot = w
       t.addToReadSet(this)
     }
@@ -408,7 +531,15 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
     d
   }
 
-  private def waitForTxn(tl: TxnLocked[_]): Wrapped[T] = {
+  private def waitForTxnReadPermission(tl: TxnLocked[_]): Wrapped[T] = {
+    // TODO: park after some spins
+    while (!tl.owner.decided) {
+      Thread.`yield`
+    }
+    data
+  }
+
+  private def waitForTxnWritePermission(tl: TxnLocked[_]): Wrapped[T] = {
     // TODO: park after some spins
     while (!tl.owner.completedOrDoomed) {
       Thread.`yield`
@@ -435,9 +566,13 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
         def value = w.value
         val recorded = (_readSnapshot != null)
         def stillValid = {
-          // have to handle write-after-read
+          // The version number should match, and we should still have
+          // permission to read (!owner._writesPreventRead)
+          
+          // have to handle write-after-read, as well as Unlocked instances
+          // that have the write version but a different identity
           val cur = data
-          (w eq cur) || (cur.isLockedBy(t) && (w.version == cur.version))
+          (w eq cur) || (w.version == cur.version) (cur.isLockedBy(t) && (w.version == cur.version))
         }
       }
     }
@@ -495,9 +630,10 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
             // block the current txn, or roll back the current txn.  If the
             // contention manager in resolveWWConflict wants to roll back the
             // current txn it will throw RollbackError itself.  If it
-            // wants to doom tl.owner it will also do that directly.
-            t.resolveWriteWriteConflict(tl.owner)
-            w = waitForTxn(tl)
+            // wants to doom tl.owner it will also do that directly.  Once the
+            // other transaction has decided, we can proceed.
+            t.resolveWriteWriteConflict(tl.owner, this)
+            w = waitForTxnWritePermission(tl)
           }
           case u: Unlocked[_] => throw new IllegalStateException
         }
@@ -623,8 +759,8 @@ abstract class IndirectEagerTL2NonTxnAccessor[T] extends TVar.Bound[T] {
   }
 
   def tryWrite(v: T): Boolean = {
-    val d = data
-    d.isInstanceOf[Unlocked[_]] && dataCAS(d, new Unlocked(v, nonTxnWriteVersion(d.asInstanceOf[Unlocked[T]].version)))
+    val w = data
+    w.isInstanceOf[Unlocked[_]] && dataCAS(w, new Unlocked(v, nonTxnWriteVersion(w.version)))
   }
 
   override def compareAndSet(before: T, after: T): Boolean = {
