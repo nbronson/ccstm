@@ -40,10 +40,11 @@ object Txn {
      */
     def completed: Boolean
 
-    /** If <code>mustRollBack</code>, then this method will return an exception
-     *  that describes the reason for rollback, otherwise it will return null.
+    /** If <code>mustRollBack</code>, then the returned value describes the
+     *  reason why rollback is inevitable, otherwise the returned value will be
+     *  null.
      */
-    def rollbackCause: Throwable
+    def rollbackCause: RollbackCause
   }
 
   /** The <code>Status</code> for a <code>Txn</code> that may commit, but for
@@ -59,7 +60,7 @@ object Txn {
   /** The <code>Status</code> for a <code>Txn</code> that will not commit, but
    *  for which completion has not yet been requested.
    */
-  case class MarkedRollback(val rollbackCause: Throwable) extends Status {
+  case class MarkedRollback(val rollbackCause: RollbackCause) extends Status {
     { if (rollbackCause == null) throw new NullPointerException }
 
     def mightCommit = false
@@ -101,7 +102,7 @@ object Txn {
   /** The <code>Status</code> for a <code>Txn</code> that will definitely roll
    *  back, but that has not yet released all of its resources.
    */
-  case class RollingBack(val rollbackCause: Throwable) extends Status {
+  case class RollingBack(val rollbackCause: RollbackCause) extends Status {
     { if (rollbackCause == null) throw new NullPointerException }
 
     def mightCommit = false
@@ -112,7 +113,7 @@ object Txn {
   /** The <code>Status</code> for a <code>Txn</code> that has been completely
    *  rolled back.
    */
-  case class Rolledback(val rollbackCause: Throwable) extends Status {
+  case class Rolledback(val rollbackCause: RollbackCause) extends Status {
     { if (rollbackCause == null) throw new NullPointerException }
 
     def mightCommit = false
@@ -121,40 +122,75 @@ object Txn {
   }
 
 
-  /** A reusable (stackless) exception used to initiate rollback when the user
-   *  has performed an explicit <code>Txn.retry</code>.  Rather than
-   *  propagating this instance, user code should either rethrow or avoid
-   *  catching all instances of <code>RollbackError</code>.
-   */
-  object ExplicitRetryError extends RollbackError with Stackless
+  //////////////// Rollback cause
 
-  /** The base class of all exceptions that indicate that a transaction was
-   *  rolled back because of a rollbackCause of optimistic concurrency control.
+  /** Instances of <code>RollbackCause</code> encode the reason for a
+   *  particular <code>Txn</code>'s rollback.
    */
-  abstract class OptimisticFailureError(invalidObj0: AnyRef, extraInfo0: Any) extends RollbackError {
+  sealed abstract class RollbackCause
+
+  /** The base class of all <code>RollbackCause</code>s that indicate that a
+   *  transaction was rolled back due to optimistic concurrency control, and
+   *  hence should be automatically retried.
+   */
+  sealed abstract class OptimisticFailureCause extends RollbackCause {
     /** Returns the object for which the value read is no longer current. */
-    val invalidObject = invalidObj0
+    val invalidObject: AnyRef
 
-    /** Returns additional information about what portion of <code>txnalObj</code> */
-    val extraInfo = extraInfo0
+    /** Returns additional information about what portion of
+     *  <code>invalidObject</code> caused the optimistic failure.
+     */
+    val extraInfo: Any
   }
+
+  /** The <code>RollbackCause</code> recorded for an explicit
+   *  <code>Txn.retry</code>.  If an API that performs automatic retry is in
+   *  use (like <code>Atomic.run</code>) the atomic block will be retried under
+   *  a new <code>Txn</code> after it is likely that it can succeed.
+   */
+  case object ExplicitRetryCause extends RollbackCause
+
+  /** The <code>RollbackCause</code> recorded for an atomic block that threw an
+   *  exception and was rolled back to provide failure atomicity.  The atomic
+   *  block will not be automatically retried.
+   */
+  case class UserExceptionCause(cause: Throwable) extends RollbackCause
+
+  /** The <code>RollbackCause</code> recorded for a rollback that occurred
+   *  because a callback or resource threw an exception.  The atomic block will
+   *  not be automatically retried.
+   */
+  case class CallbackExceptionCause(callback: AnyRef, cause: Throwable) extends RollbackCause
 
   /** An exception that indicates that a transaction was rolled back because a
    *  previous read is no longer valid.
    */
-  class InvalidReadError(invalidObj0: AnyRef, extraInfo0: Any) extends OptimisticFailureError(invalidObj0, extraInfo0) {
-    def this(invalidObj0: AnyRef) = this(invalidObj0, null)
+  case class InvalidReadCause(invalidObject: AnyRef, extraInfo: Any) extends OptimisticFailureCause
+
+  /** An exception that indicates that a transaction was rolled back because a
+   *  <code>ReadResource</code> was not valid.
+   */
+  case class InvalidReadResourceCause(resource: ReadResource) extends OptimisticFailureCause {
+    val invalidObject = resource
+    val extraInfo = null
   }
 
   /** An exception that indicates that a transaction was rolled back because it
    *  needed write access to an object also being written by another
    *  transaction.  The transaction that is rolled back with this exception may
    *  have been the first or second to request write access; the contention
-   *  management policy may choose which transaction to roll back.
+   *  management policy may choose either transaction to roll back.
    */
-  class WriteConflictError(invalidObj0: AnyRef, extraInfo0: Any) extends OptimisticFailureError(invalidObj0, extraInfo0) {
-    def this(invalidObj0: AnyRef) = this(invalidObj0, null)
+  case class WriteConflictCause(invalidObject: AnyRef, extraInfo: Any) extends OptimisticFailureCause
+
+  /** An exception that indicates that a transaction was rolled back because a
+   *  <code>WriteResource</code> voted to roll back.
+   */
+  case class VetoingWriteResourceCause(resource: WriteResource) extends OptimisticFailureCause {
+    val invalidObject = resource
+    val extraInfo = null
   }
+  
 
   //////////////// Resources participate in a two-phase commit
 
@@ -179,6 +215,14 @@ object Txn {
      *  during the <code>Preparing</code> state may be skipped if no other
      *  transactions have committed since the last validation, or if no
      *  <code>WriteResource</code>s have been registered.
+     *  <p>
+     *  The read resource may call <code>txn.forceRollback</code> instead of
+     *  returning false, if that is more convenient.
+     *  <p>
+     *  If this method throws an exception, the transaction will be rolled back
+     *  with a <code>CallbackExceptionCause</code>, which will not result in
+     *  automatic retry, and which will cause the exception to be rethrown
+     *  after rollback is complete.
      *  @return true if <code>txn</code> is still valid, false if
      *      <code>txn</code> should be rolled back immediately.
      */
@@ -201,6 +245,14 @@ object Txn {
      *  this method must return false.  The consensus decision will be
      *  delivered via a subsequent call to <code>performCommit</code> or
      *  <code>performRollback</code>.
+     *  <p>
+     *  The read resource may call <code>txn.forceRollback</code> instead of
+     *  returning false, if that is more convenient.
+     *  <p>
+     *  If this method throws an exception, the transaction will be rolled back
+     *  with a <code>CallbackExceptionCause</code>, which will not result in
+     *  automatic retry, and which will cause the exception to be rethrown
+     *  after rollback is complete.
      *  @return true if this resource can definitely succeed, false if
      *      <code>txn</code> must be rolled back. 
      */
@@ -211,6 +263,18 @@ object Txn {
 
     /** Called during the <code>RollingBack</code> state. */
     def performRollback(txn: Txn)
+  }
+
+  /** This function will be invoked with any exceptions that are thrown from
+   *  <code>WriteResource.performCommit</code>, from
+   *  <code>WriteResource.performRollback</code>, or from a callback function
+   *  registered via <code>Txn.afterCommit</code> or
+   *  <code>Txn.afterRollback</code>.  The default implementation prints the
+   *  transaction status and exception stack trace to <code>Console.err</code>.
+   */
+  @volatile var handlePostDecisionException = (txn: Txn, callback: AnyRef, exc: Throwable) => {
+    Console.err.println("discarding exception from txn callback, status is " + txn.status)
+    exc.printStackTrace(Console.err)
   }
 
   private[ccstm] val EmptyPrioCallbackMap = Map.empty[Int,List[Txn => Unit]]
@@ -229,7 +293,7 @@ object Txn {
  *
  *  @author Nathan Bronson
  */
-sealed class Txn(failureHistory: List[Throwable]) extends STM.TxnImpl(failureHistory) {
+sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends STM.TxnImpl(failureHistory) {
   import Txn._
 
   /** Constructs a <code>Txn</code> with an empty failure history. */
@@ -255,30 +319,40 @@ sealed class Txn(failureHistory: List[Throwable]) extends STM.TxnImpl(failureHis
 
   def status: Status = _status
 
-  def rollbackCause: Throwable = status.rollbackCause
+  def rollbackCause: RollbackCause = status.rollbackCause
 
-  def fail(cause: Throwable) {
-    if (!attemptRemoteFail(cause)) throw new IllegalStateException
-    throw rollbackCause
+  def forceRollback(cause: RollbackCause) {
+    if (!requestRollback(cause)) throw new IllegalStateException
   }
 
-  def attemptRemoteFail(cause: Throwable) = attemptRemoteFailImpl(cause)
+  def requestRollback(cause: RollbackCause) = requestRollbackImpl(cause)
 
   def commit(): Status = commitImpl()
 
   private[ccstm] def commitAndRethrow() {
     val s = commit()
-    if (s == Rolledback && !s.rollbackCause.isInstanceOf[RollbackError]) throw s.rollbackCause
+    s.rollbackCause match {
+      case UserExceptionCause(x) => throw x
+      case CallbackExceptionCause(_, x) => throw x
+      case _ =>
+    }
   }
 
   private[ccstm] def requireActive {
     val s = status
     if (s != Active) {
       if (s == MarkedRollback) {
-        throw s.rollbackCause
+        throw RollbackError
       } else {
         throw new IllegalStateException("txn.status is " + s)
       }
+    }
+  }
+
+  private[ccstm] def requireNotCompleted {
+    val s = status
+    if (!s.completed) {
+      throw new IllegalStateException("txn.status is " + s)
     }
   }
 
@@ -296,15 +370,23 @@ sealed class Txn(failureHistory: List[Throwable]) extends STM.TxnImpl(failureHis
     _beforeCommit = _beforeCommit.update(prio, callback :: _beforeCommit.getOrElse(prio, Nil))
   }
 
-  private[ccstm] def callBeforeCommit() {
-    if (!_beforeCommit.isEmpty) {
-      // no need to catch exceptions, because if there is an exception we want
-      // to break out of the loop anyway
-      for ((_,cbs) <- _beforeCommit; cb <- cbs) cb(this)
-    }
-  }
-
   def beforeCommit(callback: Txn => Unit) { beforeCommit(callback, 0) }
+
+  private[ccstm] def callBeforeCommit(): Boolean = {
+    if (!_beforeCommit.isEmpty) {
+      for ((_,cbs) <- _beforeCommit; cb <- cbs) {
+        try {
+          cb(this)
+        } catch {
+          case x => {
+            forceRollback(CallbackExceptionCause(cb, x))
+          }
+        }
+        if (status != Active) return false
+      }
+    }
+    return true
+  }
 
   def addReadResource(readResource: ReadResource) {
     addReadResource(readResource, true)
@@ -314,24 +396,31 @@ sealed class Txn(failureHistory: List[Throwable]) extends STM.TxnImpl(failureHis
     requireActive
     _readResources = readResource :: _readResources
     if (checkAfterRegister) {
-      val failure = (try {
-        if (readResource.valid(this)) {
-          null
-        } else {
-          new Txn.InvalidReadError(readResource, null)
-        }
-      } catch {
-        case x => x
-      })
-      if (failure != null) fail(failure)
+      validateNoThrow(readResource)
+      if (status != Active) throw RollbackError
     }
   }
 
-  private[ccstm] def readResourcesValidate() {
-    // TODO: fix
-    if (!(_readResources.isEmpty || !_readResources.exists(r => !r.valid(this)))) {
-      fail(null)
+  private def validateNoThrow(res: ReadResource) {
+    try {
+      if (!res.valid(this)) {
+        forceRollback(InvalidReadResourceCause(res))
+      }
+    } catch {
+      case x => {
+        forceRollback(CallbackExceptionCause(res, x))
+      }
     }
+  }
+
+  private[ccstm] def readResourcesValidate(): Boolean = {
+    if (!_readResources.isEmpty) {
+      for (res <- _readResources) {
+        validateNoThrow(res)
+        if (status != Active) return false
+      }
+    }
+    return true
   }
 
   def addWriteResource(writeResource: WriteResource) {
@@ -340,73 +429,74 @@ sealed class Txn(failureHistory: List[Throwable]) extends STM.TxnImpl(failureHis
   }
 
   private[ccstm] def writeResourcesPrepare(): Boolean = {
-    _writeResources.isEmpty || !_writeResources.exists(r => !r.prepare(this))
+    if (!_writeResources.isEmpty) {
+      for (res <- _writeResources) {
+        try {
+          if (!res.prepare(this)) {
+            forceRollback(VetoingWriteResourceCause(res))
+          }
+        } catch {
+          case x => {
+            forceRollback(CallbackExceptionCause(res, x))
+          }
+        }
+        if (status != Active) return false
+      }
+    }
+    return true
   }
 
-  private[ccstm] def writeResourcesPerformCommit(): Throwable = {
-    if (_writeResources.isEmpty) {
-      null
-    } else {
-      var failure: Throwable = null
-      for (r <- _writeResources) {
+  private[ccstm] def writeResourcesPerformCommit() {
+    if (!_writeResources.isEmpty) {
+      for (res <- _writeResources) {
         try {
-          r.performCommit(this)
+          res.performCommit(this)
         }
         catch {
-          case x => failure = x
+          case x => handlePostDecisionException(this, res, x)
         }
       }
-      failure
     }
   }
 
-  private[ccstm] def writeResourcesPerformRollback(): Throwable = {
-    if (_writeResources.isEmpty) {
-      null
-    } else {
-      var failure: Throwable = null
-      for (r <- _writeResources) {
+  private[ccstm] def writeResourcesPerformRollback() {
+    if (!_writeResources.isEmpty) {
+      for (res <- _writeResources) {
         try {
-          r.performRollback(this)
+          res.performRollback(this)
         }
         catch {
-          case x => failure = x
+          case x => handlePostDecisionException(this, res, x)
         }
       }
-      failure
     }
   }
 
   def afterCommit(callback: Txn => Unit, prio: Int) {
-    // TODO: requireActive?
+    requireNotCompleted
     _afterCommit = _afterCommit.update(prio, callback :: _afterCommit.getOrElse(prio, Nil))
   }
 
   def afterCommit(callback: Txn => Unit) { afterCommit(callback, 0) }
 
   def afterRollback(callback: Txn => Unit, prio: Int) {
-    // TODO: what status is okay here?
+    requireNotCompleted
     _afterRollback = _afterRollback.update(prio, callback :: _afterRollback.getOrElse(prio, Nil))
   }
 
   def afterRollback(callback: Txn => Unit) { afterRollback(callback, 0) }
 
-  private[ccstm] def callAfter(): Exception = {
+  private[ccstm] def callAfter() {
     val callbacks = if (status == Rolledback) _afterRollback else _afterCommit
-    if (callbacks.isEmpty) {
-      null
-    }
-    else {
-      var failure: Exception = null
+    if (!callbacks.isEmpty) {
       for ((_,cbs) <- callbacks; cb <- cbs) {
         try {
           cb(this)
         }
         catch {
-          case x: Exception => failure = x
+          case x => handlePostDecisionException(this, cb, x)
         }
       }
-      failure
     }
   }
 }
@@ -435,7 +525,7 @@ private[ccstm] abstract class AbstractTxn extends StatusHolder {
 
   //////////////// Functions to be implemented in an STM-specific manner
 
-  private[ccstm] def attemptRemoteFailImpl(cause: Throwable): Boolean
+  private[ccstm] def requestRollbackImpl(cause: RollbackCause): Boolean
   private[ccstm] def commitImpl(): Status
   private[ccstm] def explicitlyValidateReadsImpl()
 
@@ -452,44 +542,53 @@ private[ccstm] abstract class AbstractTxn extends StatusHolder {
    *  <code>status.rollbackCause</code>.
    *  @see edu.stanford.ppl.ccstm.Status#rollbackCause
    */
-  def rollbackCause: Throwable
-
-  /** Causes this transaction to fail with the specified cause, then throws an
-   *  exception (possibly <code>cause</code>) to cause the non-local flow of
-   *  control needed to roll back.  If the transaction is already doomed
-   *  (<code>status.mustRollback</code>) then <code>cause</code> will be
-   *  discarded.  This method may be only be called from inside the transaction
-   *  (this may not be checked); use <code>attemptRemoteFail</code> if you wish
-   *  to doom a transaction running on another thread.
+  def rollbackCause: RollbackCause
+  
+  /** Causes this transaction to fail with the specified cause.  If the
+   *  transaction is already doomed (<code>status.mustRollBack</code>) then
+   *  this method does nothing.  Throws an exception if it cannot be arranged
+   *  that this transaction roll back.
+   *  <p>
+   *  This method does not throw <code>RollbackError</code>, but in most places
+   *  where it would be called it is probably correct to immediately do this.
+   *  This method may only be called from the thread executing the transaction
+   *  (probably not checked); use <code>requestRollback</code> if you wish to
+   *  doom a transaction running on another thread.
    *  @throws IllegalStateException if <code>status.mustCommit</code>.
    */
-  def fail(cause: Throwable)
+  def forceRollback(cause: RollbackCause)
 
   /** Attempts to doom the transaction, returning true if the transaction will
    *  definitely roll back, false if the transaction will definitely commit.
    *  This method may return true if rollback occurs for a reason other than
-   *  <code>cause</code>.  Unlike <code>fail(cause)</code>, this method may be
-   *  called from any thread, and does not throw an exception.
+   *  <code>cause</code>.  Unlike <code>forceRollback(cause)</code>, this
+   *  method may be called from any thread, and never throws an exception.
    */
-  def attemptRemoteFail(cause: Throwable): Boolean
+  def requestRollback(cause: RollbackCause): Boolean
 
   /** Completes the transaction, committing if possible.  Returns the final
    *  status.
    */
   def commit(): Status
 
-  /** Calls <code>commit</code>, then throws <code>rollbackCause</code> if the
-   *  transaction rolled back and should not be retried.
+  /** Calls <code>commit</code>, then throws the exception that caused rollback
+   *  if the cause was either <code>UserExceptionCause</code> or
+   *  <code>CallbackExceptionCause</code>.
    */
   private[ccstm] def commitAndRethrow()
 
-  /** Throws the <code>rollbackCause</code> exception if the transaction is marked
-   *  for rollback, otherwise throws an <code>IllegalStateException</code> if
-   *  the transaction is not active.
+  /** Throws <code>RollbackError</code> if the transaction is marked for
+   *  rollback, otherwise throws an <code>IllegalStateException</code> if the
+   *  transaction is not active.
    *  @see edu.stanford.ppl.ccstm.Txn.Active
    *  @see edu.stanford.ppl.ccstm.Txn.MarkedRollback
    */
   private[ccstm] def requireActive
+
+  /** Throws an <code>IllegalStateException</code> if the transaction is
+   *  completed.
+   */
+  private[ccstm] def requireNotCompleted
 
   /** A convenience function, equivalent to <code>status.completed</code>.
    *  @see edu.stanford.ppl.ccstm.Txn.Status#completed
@@ -528,11 +627,14 @@ private[ccstm] abstract class AbstractTxn extends StatusHolder {
    */
   def beforeCommit(callback: Txn => Unit, prio: Int)
 
-  /** Calls all callbacks registered via <code>beforeCommit</code>. */
-  private[ccstm] def callBeforeCommit()
-
   /** Enqueues a before-commit callback with the default priority of 0. */
   def beforeCommit(callback: Txn => Unit)
+
+  /** Calls all callbacks registered via <code>beforeCommit</code>,
+   *  unless rollback is required.  Returns true if commit is still possible.
+   *  Captures and handles exceptions.
+   */
+  private[ccstm] def callBeforeCommit(): Boolean
 
   /** Adds a read resource to the transaction, which will participate in
    *  validation, and then immediately calls
@@ -554,10 +656,11 @@ private[ccstm] abstract class AbstractTxn extends StatusHolder {
    */
   def addReadResource(readResource: ReadResource, checkAfterRegister: Boolean)
 
-  /** Calls <code>ReadResource.valid(this)</code> until a resource that
-   *  fails validation is found.  Throws an exception if invalid.
+  /** Calls <code>ReadResource.valid(this)</code> for all read resources,
+   *  unless rollback is required.  Returns true if commit is still possible.
+   *  Captures and handles exceptions.
    */
-  private[ccstm] def readResourcesValidate()
+  private[ccstm] def readResourcesValidate(): Boolean
 
   /** Adds a write resource to the transaction, which will participate in the
    *  two-phase commit protocol.
@@ -565,27 +668,28 @@ private[ccstm] abstract class AbstractTxn extends StatusHolder {
    */
   def addWriteResource(writeResource: WriteResource)
 
-  /** Calls <code>WriteResource.prepare(this)</code> until a resource that is
-   *  not ready to commit is found, returning false, or returns true if all
-   *  write resources are prepared.  No exceptions capture is performed.
+  /** Calls <code>WriteResource.prepare(this)</code> for all write resources,
+   *  unless rollback is required.  Returns true if commit is still possible.
+   *  Captures and handles exceptions.
    */
   private[ccstm] def writeResourcesPrepare(): Boolean
 
-  /** Calls <code>WriteResource.performCommit(this)</code>, returning the last
-   *  exception thrown, or null if no exception occurred.
+  /** Calls <code>WriteResource.performCommit(this)</code>, handling
+   *  exceptions.
    */
-  private[ccstm] def writeResourcesPerformCommit(): Throwable
+  private[ccstm] def writeResourcesPerformCommit()
 
-  /** Calls <code>WriteResource.performRollback(this)</code>, returning the last
-   *  exception thrown, or null if no exception occurred.
+  /** Calls <code>WriteResource.performRollback(this)</code>, handling
+   *  exceptions.
    */
-  private[ccstm] def writeResourcesPerformRollback(): Throwable
+  private[ccstm] def writeResourcesPerformRollback()
 
   /** Arranges for <code>callback</code> to be executed after transaction
    *  completion, if this transaction commits.  An exception thrown from an
    *  after-commit callback will be rethrown after the rest of the after-commit
    *  callbacks are invoked.  If two callbacks have different priorities then
    *  the one with the smaller priority will be executed first.
+   *  @throws IllegalStateException if the transaction is already completed.
    */
   def afterCommit(callback: Txn => Unit, prio: Int)
 
@@ -597,6 +701,7 @@ private[ccstm] abstract class AbstractTxn extends StatusHolder {
    *  after-commit callback will be rethrown after the rest of the after-commit
    *  callbacks are invoked.  If two callbacks have different priorities then
    *  the one with the smaller priority will be executed first.
+   *  @throws IllegalStateException if the transaction is already completed.
    */
   def afterRollback(callback: Txn => Unit, prio: Int)
 
@@ -604,8 +709,7 @@ private[ccstm] abstract class AbstractTxn extends StatusHolder {
   def afterRollback(callback: Txn => Unit)
 
   /** Calls the handlers registered with either <code>afterCommit</code> or
-   *  <code>afterRollback</code>, as appropriate, returning the last caught
-   *  exception or returning null if no callbacks threw an exception.
+   *  <code>afterRollback</code>, as appropriate, handling any exceptions.
    */
-  private[ccstm] def callAfter(): Exception
+  private[ccstm] def callAfter()
 }

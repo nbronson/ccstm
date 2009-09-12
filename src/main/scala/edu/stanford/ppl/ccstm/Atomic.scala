@@ -41,7 +41,7 @@ abstract class Atomic {
    */
   def attempt(): Boolean = attemptImpl(Nil).committed
 
-  private def attemptImpl(failureHistory: List[Throwable]): Txn = {
+  private def attemptImpl(failureHistory: List[Txn.RollbackCause]): Txn = {
     assert(_currentTxn == null)
 
     val txn = new Txn(failureHistory)
@@ -50,7 +50,8 @@ abstract class Atomic {
       body
     }
     catch {
-      case x => txn.fail(x)
+      case RollbackError => {}
+      case x => txn.forceRollback(Txn.UserExceptionCause(x))
     }
     _currentTxn = null
 
@@ -65,12 +66,12 @@ abstract class Atomic {
    *  rethrown from this method without retrying the body.
    */
   def run() {
-    var hist: List[Throwable] = Nil
+    var hist: List[Txn.RollbackCause] = Nil
     while (true) {
       val txn = attemptImpl(hist)
       if (txn.committed) return
       hist = txn.rollbackCause :: hist
-      if (txn.rollbackCause == Txn.ExplicitRetryError) {
+      if (txn.rollbackCause == Txn.ExplicitRetryCause) {
         // TODO: handle explicit retry more intelligently
       }
     }

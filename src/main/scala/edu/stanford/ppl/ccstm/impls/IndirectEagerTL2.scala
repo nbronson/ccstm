@@ -146,7 +146,7 @@ object IndirectEagerTL2 {
  *
  *  @author Nathan Bronson
  */
-abstract class IndirectEagerTL2Txn(failureHistory: List[Throwable]) extends AbstractTxn {
+abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) extends AbstractTxn {
 
   import IndirectEagerTL2._
   import Txn._
@@ -240,22 +240,28 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Throwable]) extends Abst
 
   /** On return, the read version will have been the global version at some
    *  point during the call, the read version will be &ge; minReadVersion, and
-   *  all reads will have been validated against the new read version.
+   *  all reads will have been validated against the new read version.  Throws
+   *  <code>RollbackError</code> if invalid.
    */
   private[impls] def revalidate(minReadVersion: Version) {
+    if (!revalidateNoThrow(minReadVersion)) throw RollbackError
+  }
+
+  private[impls] def revalidateNoThrow(minReadVersion: Version): Boolean = {
     _readVersion = freshReadVersion(minReadVersion)
     var i = 0
     while (i < _readCount) {
       val r = _reads(i)
       val cur = r.data
       if (!cur.stillValid(r._readSnapshot.version)) {
-        fail(new InvalidReadError(r))
+        forceRollback(InvalidReadCause(r, null))
+        return false
       }
       i += 1
     }
     // STM managed reads were okay, what about explicitly registered read-only
     // resources?
-    readResourcesValidate()
+    return readResourcesValidate()
   }
 
   private def freshReadVersion(minRV: Version): Version = {
@@ -275,9 +281,18 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Throwable]) extends Abst
    *  the reader should proceed with the old value, hoping to commit before
    *  <code>currentOwner</code>.  May also choose to doom either txn.
    */
-  private[impls] def shouldWaitForRead(currentOwner: IndirectEagerTL2Txn): Boolean = false
-  
-  private[impls] def resolveWriteWriteConflict(currentOwner: IndirectEagerTL2Txn) {}
+  private[impls] def shouldWaitForRead(currentOwner: IndirectEagerTL2Txn): Boolean = {
+    // TODO
+    false
+  }
+
+  /** After this method returns, either the current transaction will have been
+   *  rolled back or <code>currentOwner</code> will allow the write resource to
+   *  be acquired.
+   */
+  private[impls] def resolveWriteWriteConflict(currentOwner: IndirectEagerTL2Txn) {
+    // TODO
+  }
 
   //////////////// Public interface
 
@@ -286,7 +301,7 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Throwable]) extends Abst
     null
   }
 
-  private[ccstm] def attemptRemoteFailImpl(cause: Throwable): Boolean = {
+  private[ccstm] def requestRollbackImpl(cause: RollbackCause): Boolean = {
     while (true) {
       val s = _status
       if (s.mustCommit) return false
@@ -297,7 +312,9 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Throwable]) extends Abst
     throw new Error("unreachable")
   }
 
-  private[ccstm] def explicitlyValidateReadsImpl() { revalidate(0) }
+  private[ccstm] def explicitlyValidateReadsImpl() {
+    revalidate(0)
+  }
 }
 
 abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
