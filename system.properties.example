@@ -1,10 +1,11 @@
-# Copy this file to system.properties, and modify the following
-# to refer to the correct paths on the local machine.  They are used
-# by ant build.xml, and by the bin/proj_scala script.  Shell back-ticks
-# may be used in the java.cmd or jdk.home, but not in scala.home.
+# Copy this file to system.properties, and modify the following to
+# refer to the correct paths on the local machine.  They are used by ant
+# build.xml, and by the bin/proj_scala script.  Shell back-ticks may be
+# used in the java.cmd or jdk.home, but not in the other properties.
 
 # Set either jdk.home or java.cmd, but not both
 jdk.home=/home/nbronson/java/default
 #java.cmd=/home/nbronson/java/jdk1.6.0_16_`uname -m`/bin/java
 
 scala.home=/home/nbronson/scala/default
+scalatest.jar=/home/nbronson/scala/lib/scalatest-0.9.5/scalatest-0.9.5.jar

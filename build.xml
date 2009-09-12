@@ -61,6 +61,7 @@
             <classpath>
               <path refid="module.ccstm.classpath"/>
               <pathelement location="${module.ccstm.main.classes.dir}"/>
+              <pathelement location="${scalatest.jar}"/>
             </classpath>
             <src path="${module.ccstm.src.test.scala.dir}"/>
         </scalac>

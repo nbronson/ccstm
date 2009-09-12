@@ -54,9 +54,15 @@ if [ "x$SCALA_HOME" = "x" ]; then
   exit 1
 fi
 
+SCALATEST_JAR=`awk -F= '$1=="scalatest.jar" {print $2}' $PROPS`
+if [ "x$SCALATEST_JAR" = "x" ]; then
+  echo "Unable to load scalatest.jar from properties file $PROPS" 1>&2
+  exit 1
+fi
+
 
 L="$SCALA_HOME/lib"
-CP="$CLASSPATH:$CCSTM_BASE/out/main/classes:$CCSTM_BASE/out/test/classes"
+CP="$CLASSPATH:$SCALATEST_JAR:$CCSTM_BASE/out/main/classes:$CCSTM_BASE/out/test/classes"
 for i in scala-compiler scala-library; do
   CP="${CP}:$L/${i}.jar"
 done
