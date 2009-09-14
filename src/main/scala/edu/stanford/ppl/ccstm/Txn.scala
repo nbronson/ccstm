@@ -536,7 +536,7 @@ private[ccstm] class StatusHolder {
   private[ccstm] def newStatusUpdater = {
     // we have to create the updater from a method of StatusHolder, because
     // all Scala variables are private under the covers
-    AtomicReferenceFieldUpdater.newUpdater(classOf[StatusHolder], classOf[Object], "_status")
+    AtomicReferenceFieldUpdater.newUpdater(classOf[StatusHolder], classOf[Txn.Status], "_status")
   }
 }
 

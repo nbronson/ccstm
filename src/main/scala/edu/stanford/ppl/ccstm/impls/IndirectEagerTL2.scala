@@ -54,7 +54,7 @@ object IndirectEagerTL2 {
 
     def nonTxnStillValid(v: Version) = (v == version)
 
-    def isAcquirable = false
+    def isAcquirable = true
     def isLockedBy(txn: IndirectEagerTL2Txn) = false
 
     def txnRead(txn: IndirectEagerTL2Txn) = value
@@ -68,7 +68,7 @@ object IndirectEagerTL2 {
 
     def nonTxnStillValid(v: Version) = (v == version)
 
-    def isAcquirable = true
+    def isAcquirable = false
     def isLockedBy(txn: IndirectEagerTL2Txn) = false
 
     def txnRead(txn: IndirectEagerTL2Txn) = value
