@@ -60,14 +60,14 @@ trait UnrecordedRead[+T] {
 
   /** Returns true if the unrecorded read was performed in a transaction, and
    *  the source of this read is known to be in the transaction's read or write
-   *  set, in which case <code>stillValid</code> will definitely be true at the
+   *  set, in which case <code>nonTxnStillValid</code> will definitely be true at the
    *  transaction's commit (linearization) point if the transaction commits.
    *  Returns false for non-transactional unrecorded reads.  This method is for
    *  optimization purposes only, a false result does not guarantee that the
    *  read is not in the transaction's read or write set.  If this method
    *  returns true for an <code>UnrecordedRead</code> instance it will always
    *  return true.
-   *  @return true if the caller may assume that <code>stillValid</code> will
+   *  @return true if the caller may assume that <code>nonTxnStillValid</code> will
    *      be true for this <code>UnrecordedRead</code> if the bound transaction
    *      is successfully committed.
    */

@@ -334,10 +334,16 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends STM.TxnImpl(fa
   def rollbackCause: RollbackCause = status.rollbackCause
 
   def forceRollback(cause: RollbackCause) {
+    // TODO: think about the semantics of this in the face of remote requestRollback()
     if (!requestRollback(cause)) throw new IllegalStateException
   }
 
   def requestRollback(cause: RollbackCause) = requestRollbackImpl(cause)
+
+  def retry() {
+    forceRollback(ExplicitRetryCause)
+    throw RollbackError
+  }
 
   def commit(): Status = commitImpl()
 
@@ -579,6 +585,13 @@ private[ccstm] abstract class AbstractTxn extends StatusHolder {
    *  method may be called from any thread, and never throws an exception.
    */
   def requestRollback(cause: RollbackCause): Boolean
+
+  /** Rolls the transaction back, indicating that it should be retried after
+   *  one or more of the values read during the transaction have changed.
+   *  @throws IllegalStateException if the transaction is not active.
+   *  @see edu.stanford.ppl.ccstm.Atomic#orElse
+   */
+  def retry()
 
   /** Completes the transaction, committing if possible.  Returns the final
    *  status.

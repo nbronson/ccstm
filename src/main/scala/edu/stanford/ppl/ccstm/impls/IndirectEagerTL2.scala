@@ -34,7 +34,7 @@ object IndirectEagerTL2 {
     def nonTxnRead: T
     def nonTxnSnapshot: Wrapped[T]
 
-    def stillValid(v: Version): Boolean
+    def nonTxnStillValid(v: Version): Boolean
 
     /** True iff a CAS may be used to obtain write permission. */
     def isAcquirable: Boolean
@@ -44,30 +44,36 @@ object IndirectEagerTL2 {
      *  a commmitted transaction.
      */
     def txnRead(txn: IndirectEagerTL2Txn): T
+
+    def txnStillValid(txn: IndirectEagerTL2Txn, v: Version): Boolean
   }
 
   class Unlocked[T](value0: T, version0: Version) extends Wrapped[T](value0, version0) {
     def nonTxnRead = value
     def nonTxnSnapshot = this
 
-    def stillValid(v: Version) = (v == version)
+    def nonTxnStillValid(v: Version) = (v == version)
 
     def isAcquirable = false
     def isLockedBy(txn: IndirectEagerTL2Txn) = false
 
     def txnRead(txn: IndirectEagerTL2Txn) = value
+
+    def txnStillValid(txn: IndirectEagerTL2Txn, v: Version): Boolean = (v == version)
   }
 
   class NonTxnLocked[T](val unlocked: Unlocked[T]) extends Wrapped[T](unlocked.value, unlocked.version) {
     def nonTxnRead = value
     def nonTxnSnapshot = this
 
-    def stillValid(v: Version) = (v == version)
+    def nonTxnStillValid(v: Version) = (v == version)
 
     def isAcquirable = true
     def isLockedBy(txn: IndirectEagerTL2Txn) = false
 
     def txnRead(txn: IndirectEagerTL2Txn) = value
+
+    def txnStillValid(txn: IndirectEagerTL2Txn, v: Version): Boolean = (v == version)
   }
 
   class TxnLocked[T](value0: T,
@@ -84,7 +90,7 @@ object IndirectEagerTL2 {
     def nonTxnRead = if (owner.mustCommit) specValue else value
     def nonTxnSnapshot = if (owner.mustCommit) new Unlocked(specValue, owner._commitVersion) else this
 
-    def stillValid(v: Version) = {
+    def nonTxnStillValid(v: Version) = {
       v == (if (owner.mustCommit) owner._commitVersion else version)
     }
 
@@ -93,8 +99,19 @@ object IndirectEagerTL2 {
 
     def txnRead(txn: IndirectEagerTL2Txn) = (if (isLockedBy(txn)) specValue else value)
 
-    def reverted = new Unlocked(value, version)
-    def committed(commitVersion: Version) = new Unlocked(commitVersion, specValue)
+    def txnStillValid(txn: IndirectEagerTL2Txn, v: Version): Boolean = {
+      if (txn == owner || !owner._writesPreventRead || owner._status.mustRollBack) {
+        // read of old version is okay
+        (v == version)
+      } else {
+        // it is possible that this unrecorded read will become true again if
+        // owner rolls back
+        false
+      }
+    }
+
+    def reverted = new Unlocked[T](value, version)
+    def committed(commitVersion: Version) = new Unlocked[T](specValue, commitVersion)
   }
 
   /** The global timestamp.  We use TL2's GV6 scheme to avoid the need to
@@ -102,7 +119,7 @@ object IndirectEagerTL2 {
    *  writes are even more conservative, incrementing the global version only
    *  when absolutely required. 
    */
-  private val globalVersion = new AtomicLong(1)
+  private[impls] val globalVersion = new AtomicLong(1)
 
   /** The approximate ratio of the number of commits to the number of
    *  increments of <code>globalVersion</code>, as in TL2's GV6 scheme.  If
@@ -166,6 +183,7 @@ object IndirectEagerTL2 {
     val g = globalVersion.get
     if (silentCommitRatio <= 1 || silentCommitRand.nextInt <= silentCommitCutoff) {
       globalVersion.compareAndSet(g, g + 1)
+      // no need to retry on failure, because somebody else succeeded
     }
     g + 1
   }
@@ -238,27 +256,6 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
     (s == Committed || s.mustRollBack)
   }
 
-  /** Returns a non-zero _commitVersion, blocking if necessary. */
-  private[impls] def blockingCommitVersion: Version = {
-    val v = _commitVersion
-    if (v != 0) v else blockingCommitVersionImpl
-  }
-
-  private def blockingCommitVersionImpl: Version = {
-    assert(_status.mustCommit)
-
-    // The window between entering the Committing state and assigning a
-    // commit version is pretty small, so we use a simple spin loop.
-    var tries = 0
-    var v = _commitVersion
-    while (v == 0) {
-      tries += 1
-      if (tries > 50) Thread.`yield`
-      v = _commitVersion
-    }
-    v
-  }
-
   private[impls] def addToReadSet(w: IndirectEagerTL2TxnAccessor[_]) {
     if (_readCount == _reads.length) _reads = grow(_reads)
     _reads(_readCount) = w
@@ -285,16 +282,17 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
    *  <code>RollbackError</code> if invalid.
    */
   private[impls] def revalidate(minReadVersion: Version) {
-    if (!revalidateNoThrow(minReadVersion)) throw RollbackError
+    _readVersion = freshReadVersion(minReadVersion)
+    if (!revalidateImpl()) throw RollbackError
   }
 
-  private[impls] def revalidateNoThrow(minReadVersion: Version): Boolean = {
-    _readVersion = freshReadVersion(minReadVersion)
+  /** Returns true if valid. */
+  private[impls] def revalidateImpl(): Boolean = {
     var i = 0
     while (i < _readCount) {
       val r = _reads(i)
       val cur = r.data
-      if (!cur.stillValid(r._readSnapshot.version)) {
+      if (!cur.txnStillValid(this, r._readSnapshot.version)) {
         forceRollback(InvalidReadCause(r, null))
         return false
       }
@@ -321,7 +319,7 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
     // this method must take care to avoid deadlock cycles, via the other txn
     // waiting on a read, or a block inside resolveWriteWriteConflict
 
-    currentOwner._writesPreventRead && !currentOwner.decided
+    currentOwner._writesPreventRead && !currentOwner._status.decided
   }
 
   /** After this method returns, either the current transaction will have been
@@ -344,66 +342,70 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
   private[ccstm] def commitImpl(): Status = {
     assert(status == Active || status.isInstanceOf[MarkedRollback])
 
-    if (status.mustRollBack || !callBeforeCommit) {
+    if (status.mustRollBack || !callBeforeCommit()) {
       // no need to prepare
+      assert(_status.isInstanceOf[MarkedRollback])
       _status = RollingBack(rollbackCause)
-      rollbackWrites
-      writeResourcesPerformRollback
-      _status = Rolledback(rollbackCause)
-      callAfter
-      return _status
+      return completeRollback()
     }
 
     if (_writeCount == 0 && !writeResourcesPresent) {
       // read-only transactions are easy to commit, because all of the reads
       // are already guaranteed to be consistent
       if (!_statusCAS(Active, Committed)) {
-        // remote fail
+        // remote requestRollback()
         assert(_status.isInstanceOf[MarkedRollback])
         _status = Rolledback(rollbackCause)
       }
-      callAfter
+      callAfter()
       return _status
     }
 
-    if (!_statusCAS(Active, Preparing) || !writeResourcesPrepare()) {
-      // roll back
-    }
+    if (!_statusCAS(Active, Preparing) || !writeResourcesPrepare()) return completeRollback()
 
     // prevent any transactions that begin or revalidate after this point from
     // reading any of the old values
     _writesPreventRead = true
 
-    
+    // this is our linearization point
+    _commitVersion = freshCommitVersion
 
-    // TODO: implement
-    null
+    // if the reads are still valid, then they were valid at the linearization
+    // point
+    if (!revalidateImpl()) return completeRollback()
+
+    // attempt to decide commit
+    if (!_statusCAS(Preparing, Committing)) return completeRollback()
+
+    commitWrites()
+    writeResourcesPerformCommit()
+    _status = Committed
+    callAfter
+    return Committed
+  }
+
+  private def completeRollback(): Status = {
+    assert(_status.isInstanceOf[RollingBack])
+    rollbackWrites
+    writeResourcesPerformRollback
+    _status = Rolledback(rollbackCause)
+    callAfter
+    return _status
   }
 
   private def rollbackWrites() {
     var i = 0
     while (i < _writeCount) {
-      val acc = _writes(i)
-
-      // we must use CAS, to account for stealing, but we don't need to retry
-      // because we can only fail if there was a thief
-      acc.data match {
-        case tl: TxnLocked[_] => acc.dataCAS(tl, tl.reverted)
-      }
-
+      _writes(i).rollback()
       i += 1
     }
   }
 
-  private def commitWrites(cv: Version) {
+  private def commitWrites() {
+    val cv = _commitVersion
     var i = 0
     while (i < _writeCount) {
-      val acc = _writes(i)
-
-      // we don't need to use CAS, because stealing can only occur from doomed
-      // transactions
-      acc.data = acc.data.asInstanceOf[TxnLocked[_]].committed(cv)
-
+      _writes(i).commit(cv)
       i += 1
     }
   }
@@ -411,10 +413,16 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
   private[ccstm] def requestRollbackImpl(cause: RollbackCause): Boolean = {
     while (true) {
       val s = _status
-      if (s.mustCommit) return false
-      if (s.mustRollBack) return true
-      assert(s == Active)
-      if (_statusCAS(s, MarkedRollback(cause))) return true
+      if (s.mustCommit) {
+        return false
+      } else if (s.mustRollBack) {
+        return true
+      } else if (s == Active) {
+        if (_statusCAS(s, MarkedRollback(cause))) return true
+      } else {
+        assert(s == Preparing)
+        if (_statusCAS(s, RollingBack(cause))) return true
+      }
     }
     throw new Error("unreachable")
   }
@@ -533,7 +541,7 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
 
   private def waitForTxnReadPermission(tl: TxnLocked[_]): Wrapped[T] = {
     // TODO: park after some spins
-    while (!tl.owner.decided) {
+    while (!tl.owner._status.decided) {
       Thread.`yield`
     }
     data
@@ -565,15 +573,7 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
         def context = IndirectEagerTL2TxnAccessor.this.context
         def value = w.value
         val recorded = (_readSnapshot != null)
-        def stillValid = {
-          // The version number should match, and we should still have
-          // permission to read (!owner._writesPreventRead)
-          
-          // have to handle write-after-read, as well as Unlocked instances
-          // that have the write version but a different identity
-          val cur = data
-          (w eq cur) || (w.version == cur.version) (cur.isLockedBy(t) && (w.version == cur.version))
-        }
+        def stillValid = data.txnStillValid(t, w.version)
       }
     }
   }
@@ -698,6 +698,23 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
       false
     }
   }
+
+  //////////////// Local use only
+
+  private[impls] def commit(cv: Version) {
+    // we don't need to use CAS, because stealing can only occur from doomed
+    // transactions
+    data = data.asInstanceOf[TxnLocked[T]].committed(cv)
+  }
+
+  private[impls] def rollback() {
+    // we must use CAS, to account for stealing, but we don't need to retry
+    // because we can only fail if there was a thief
+    data match {
+      case tl: TxnLocked[_] => dataCAS(tl, tl.reverted)
+      case _ => {}
+    }
+  }
 }
 
 abstract class IndirectEagerTL2NonTxnAccessor[T] extends TVar.Bound[T] {
@@ -721,7 +738,7 @@ abstract class IndirectEagerTL2NonTxnAccessor[T] extends TVar.Bound[T] {
 
       def context = None
       def value: T = _snapshot.value
-      def stillValid: Boolean = data.stillValid(_snapshot.version)
+      def stillValid: Boolean = data.nonTxnStillValid(_snapshot.version)
       def recorded: Boolean = false
     }
   }
