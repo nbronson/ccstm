@@ -20,7 +20,8 @@ class FastPoorRandomSuite extends FunSuite {
     var bigEndEmpty = 64
     val smallEndBuckets = new Array[Boolean](64)
     var smallEndEmpty = 64
-    
+
+    var tries = 0
     while (bigEndEmpty > 0 || smallEndEmpty > 0) {
       val z = rand.nextInt
       val b = (z >> (32 - 6)) & 63
@@ -32,6 +33,12 @@ class FastPoorRandomSuite extends FunSuite {
       if (!smallEndBuckets(s)) {
         smallEndBuckets(s) = true
         smallEndEmpty -= 1
+      }
+      tries += 1
+      if (tries == 10000000) {
+        println(smallEndBuckets.map(if (_) "1" else "0").mkString)
+        println(bigEndBuckets.map(if (_) "1" else "0").mkString)
+        fail
       }
     }
   }
