@@ -20,7 +20,7 @@ class TxnSingleThreadedSuite extends FunSuite {
     new Atomic { def body {
       assert(!x == 1)
       x := !x + 1
-      assert(!x == 2)
+      assert(!x == 2, "self read")
     }}.run
     assert(x.nonTxn.elem == 2)
   }
