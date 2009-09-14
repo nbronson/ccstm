@@ -2,32 +2,41 @@
 
 # This is a wrapper for use of Scala in the CCSTM (concurrent collections
 # STM) project.  It reads ../system.properties to locate a Scala
-# installation and a JVM, setting up the appropriate classpath.
+# installation and a JVM, setting up the appropriate classpath.  Unlike
+# the Scala wrapper, all JVM options may be configured as arguments.
+# Options will also be taken from the JAVA_OPTS and CLASSPATH environment
+# variables.  The wrapper adds short-forms for a few JVM settings that
+# are normally quite verbose.
 #
-# To pass options to the JVM use the JAVA_OPTS environment variable or
-# the CLASSPATH variable.
-#
-# The command line options --gc=throughput, --gc=latency, and --gc=g1
-# are recognized in the first parameter position, and expanded into
-# options valid for a late-model 1.6 JVM.  The command line option
-# --esc is recognized in the first (remaining) parameter position and
-# is expanded into the options required to perform escape analysis.
+# The command line options --gc=throughput, --gc=latency, and --gc=g1 are
+# recognized and expanded into options valid for a late-model 1.6 JVM.
+# The command line option --esc is recognized and is expanded into the
+# options required to perform escape analysis.  The command line option
+# --coop enables compressed OOPs.
 
-if [ "x$1" = "x--gc=throughput" ]; then
-  JAVA_OPTS="$JAVA_OPTS -XX:+UseParallelGC -XX:+UseParallelOldGC"
+while [ $# -gt 0 ]; do
+  DONE=no
+  case "$1" in
+    --gc=throughput) JAVA_OPTS="$JAVA_OPTS -XX:+UseParallelGC -XX:+UseParallelOldGC" ;;
+    --gc=latency) JAVA_OPTS="$JAVA_OPTS -XX:+UseConcMarkSweepGC" ;;
+    --gc=g1) JAVA_OPTS="$JAVA_OPTS -XX:+UnlockExperimentalVMOptions -XX:+UseG1GC" ;;
+    --esc) JAVA_OPTS="$JAVA_OPTS -XX:+UnlockExperimentalVMOptions -XX:+DoEscapeAnalysis" ;;
+    --coop) JAVA_OPTS="$JAVA_OPTS -XX:+UnlockExperimentalVMOptions -XX:+UseCompressedOops" ;;
+    -cp|-classpath)
+        if [ "x$CLASSPATH" != "x" ]; then
+          CLASSPATH="${CLASSPATH}:"
+        fi
+        CLASSPATH="${CLASSPATH}$2" 
+        shift 
+        ;;
+    -*) JAVA_OPTS="$JAVA_OPTS $1" ;;
+    *) DONE=yes
+  esac
+  if [ $DONE = yes ]; then
+    break
+  fi
   shift
-elif [ "x$1" = "x--gc=latency" ]; then
-  JAVA_OPTS="$JAVA_OPTS -XX:+UseConcMarkSweepGC"
-  shift
-elif [ "x$1" = "x--gc=g1" ]; then
-  JAVA_OPTS="$JAVA_OPTS -XX:+UnlockExperimentalVMOptions -XX:+UseG1GC"
-  shift
-fi
-
-if [ "x$1" = "x--esc" ]; then
-  JAVA_OPTS="$JAVA_OPTS -XX:+UnlockExperimentalVMOptions -XX:+DoEscapeAnalysis"
-  shift
-fi
+done
 
 CCSTM_BASE=`dirname $0`/..
 PROPS=$CCSTM_BASE/system.properties
@@ -62,9 +71,12 @@ fi
 
 
 L="$SCALA_HOME/lib"
-CP="$CLASSPATH:$SCALATEST_JAR:$CCSTM_BASE/out/main/classes:$CCSTM_BASE/out/test/classes"
+if [ "x$CLASSPATH" != "x" ]; then
+  CLASSPATH="${CLASSPATH}:"
+fi
+CLASSPATH="${CLASSPATH}$SCALATEST_JAR:$CCSTM_BASE/out/main/classes:$CCSTM_BASE/out/test/classes"
 for i in scala-compiler scala-library; do
-  CP="${CP}:$L/${i}.jar"
+  CLASSPATH="${CLASSPATH}:$L/${i}.jar"
 done
 
 SCALA_MAIN=""
@@ -74,5 +86,5 @@ fi
 
 "$JAVA_CMD" \
     $JAVA_OPTS \
-    -cp "$CP" \
+    -cp "$CLASSPATH" \
     -Dscala.home="$SCALA_HOME" $SCALA_MAIN "$@"
