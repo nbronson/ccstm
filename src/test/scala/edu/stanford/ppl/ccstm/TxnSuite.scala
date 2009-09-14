@@ -19,16 +19,29 @@ class TxnSuite extends FunSuite {
     val x = TVar(1)
     new Atomic { def body {
       val b1 = x.bind
-      assert(b1.elem == 1)
+      assert(b1.elem === 1)
       val b2 = x.bind
-      assert(b2.elem == 1)
+      assert(b2.elem === 1)
       b1.elem = 2
-      assert(b1.elem == 2)
-      assert(b2.elem == 2)
+      assert(b1.elem === 2)
+      assert(b2.elem === 2)
       b2.elem = 3
-      assert(b1.elem == 3)
-      assert(b2.elem == 3)
+      assert(b1.elem === 3)
+      assert(b2.elem === 3)
     }}.run
-    assert(x.nonTxn.elem == 3)
+    assert(x.nonTxn.elem === 3)
+  }
+
+  class UserException extends Exception
+
+  test("Failure atomicity") {
+    val x = TVar(1)
+    intercept[UserException] {
+      new Atomic { def body {
+        x := 2
+        throw new UserException
+      }}.run
+    }
+    assert(x.nonTxn.elem === 1)
   }
 }
