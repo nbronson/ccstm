@@ -138,7 +138,7 @@ object IndirectEagerTL2 {
    *  greater than one, the actual choice to commit or not is made with a
    *  random number generator.
    */
-  private val silentCommitRatio = ((Runtime.getRuntime.availableProcessors + 1) / 2) max 16
+  private val silentCommitRatio = ((Runtime.getRuntime.availableProcessors + 1) / 2) min 16
 
   /** If <i>x</i> is a signed integer evenly chosen from a uniform distribution
    *  between Integer.MIN_VALUE and Integer.MAX_VALUE, then the test
@@ -405,7 +405,7 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
   }
 
   private def completeRollback(): Status = {
-    assert(_status.isInstanceOf[RollingBack])
+    if (_status.isInstanceOf[MarkedRollback]) _status = RollingBack(rollbackCause)
     rollbackWrites
     writeResourcesPerformRollback
     _status = Rolledback(rollbackCause)
@@ -414,6 +414,7 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
   }
 
   private def rollbackWrites() {
+    assert(_status.isInstanceOf[RollingBack])
     var i = 0
     while (i < _writeCount) {
       _writes(i).rollback(this)

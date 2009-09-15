@@ -479,6 +479,7 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends STM.TxnImpl(fa
   }
 
   private[ccstm] def writeResourcesPerformRollback() {
+    assert(status.isInstanceOf[RollingBack])
     if (!_writeResources.isEmpty) {
       for (res <- _writeResources) {
         try {
