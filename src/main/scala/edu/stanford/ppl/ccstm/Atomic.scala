@@ -47,6 +47,11 @@ abstract class Atomic {
   /** Performs the work of this atomic block. */
   def body
 
+  /** Calls <code>Txn.retry</code> on the current transaction.
+   *  @see edu.stanford.ppl.ccstm.Txn#retry 
+   */
+  def retry = _currentTxn.retry
+
 //  /** Returns an atomic block that when run will perform either the actions of
 //   *  this block or the actions of <code>alternative</code>, but not both.
 //   */
