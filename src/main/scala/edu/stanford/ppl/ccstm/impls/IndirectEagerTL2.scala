@@ -84,10 +84,9 @@ object IndirectEagerTL2 {
     }
   }
 
-  class TxnLocked[T](value0: T,
-                     version0: Version,
+  class TxnLocked[T](val unlocked: Unlocked[T],
                      var specValue: T,
-                     val owner: IndirectEagerTL2Txn) extends Wrapped[T](value0, version0) {
+                     val owner: IndirectEagerTL2Txn) extends Wrapped[T](unlocked.value, unlocked.version) {
 
     // Owner's commit point is the one where status becomes mustCommit.  We
     // define the linearization point of this operation to be when we check the
@@ -118,7 +117,6 @@ object IndirectEagerTL2 {
       }
     }
 
-    def reverted = new Unlocked[T](value, version)
     def committed(commitVersion: Version) = new Unlocked[T](specValue, commitVersion)
 
     override def toString = {
@@ -623,33 +621,47 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
     var w = w0
     var result: TxnLocked[T] = null
     while (result == null) {
-      if (w.isAcquirable) {
-        // Unlocked, or locked by a doomed txn
+      w match {
+        case u: Unlocked[_] => {
+          // Not locked
 
-        // Validate previous version
-        if (w.version > t._readVersion) t.revalidate(w.version)
+          // Validate previous version
+          if (u.version > t._readVersion) t.revalidate(u.version)
 
-        // Acquire write permission, possibly stealing the slot from a doomed
-        // txn that has not yet completely rolled back.
-        val v = w.value
-        val after = new TxnLocked(v, w.version, v, t)
-        if (dataCAS(w, after)) {
-          // success!
-          t.addToWriteSet(this)
-          result = after
-        } else {
-          // failed, try again with new value
-          w = data
-        }
-      }
-      else {
-        // Locked by somebody
-        w match {
-          case nl: NonTxnLocked[_] => {
-            // We never doom a non-txn update.
-            w = waitForNonTxn(nl)
+          // Acquire write permission
+          val after = new TxnLocked(u, u.value, t)
+          if (dataCAS(u, after)) {
+            // success!
+            t.addToWriteSet(this)
+            result = after
+          } else {
+            // failed, try again with new value
+            w = data
           }
-          case tl: TxnLocked[_] => {
+        }
+        case nl: NonTxnLocked[_] => {
+          // Nothing to do but wait.
+          w = waitForNonTxn(nl)
+        }
+        case tl: TxnLocked[_] => {
+          if (tl.isAcquirable) {
+            // Locked by a doomed txn
+
+            // Validate previous version
+            if (tl.version > t._readVersion) t.revalidate(tl.version)
+
+            // Acquire write permission by stealing the slot, reusing the
+            // Unlocked instance that is the previous value.
+            val after = new TxnLocked(tl.unlocked, tl.value, t)
+            if (dataCAS(tl, after)) {
+              // success!
+              t.addToWriteSet(this)
+              result = after
+            } else {
+              // failed, try again with new value
+              w = data
+            }
+          } else {
             // Since we can't buffer multiple speculative versions for this
             // data type in this STM, write-write conflicts must be handled
             // immediately.  We can: doom the other txn and steal the lock,
@@ -661,7 +673,6 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
             t.resolveWriteWriteConflict(tl.owner, this)
             w = waitForTxnWritePermission(tl)
           }
-          case u: Unlocked[_] => throw new IllegalStateException
         }
       }
     }
@@ -693,7 +704,11 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
 
     // Attempt to acquire write permission, possibly stealing the slot from a
     // doomed txn that has not yet completely rolled back.
-    val after = new TxnLocked(w0.value, w0.version, v, t)
+    val after = w0 match {
+      case u: Unlocked[_] => new TxnLocked(u.asInstanceOf[Unlocked[T]], v, t)
+      case tl: TxnLocked[_] => new TxnLocked(tl.unlocked.asInstanceOf[Unlocked[T]], v, t)
+      case _ => throw new Error
+    }
     if (dataCAS(w0, after)) {
       // success!
       t.addToWriteSet(this)
@@ -738,7 +753,7 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
     // we must use CAS, to account for stealing, but we don't need to retry
     // because we can only fail if there was a thief
     data match {
-      case tl: TxnLocked[_] => if (tl.owner == failingTxn) dataCAS(tl, tl.reverted)
+      case tl: TxnLocked[_] => if (tl.owner == failingTxn) dataCAS(tl, tl.unlocked)
       case _ => {}
     }
   }
