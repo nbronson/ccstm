@@ -334,7 +334,6 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends STM.TxnImpl(fa
   def rollbackCause: RollbackCause = status.rollbackCause
 
   def forceRollback(cause: RollbackCause) {
-    // TODO: think about the semantics of this in the face of remote requestRollback()
     if (!requestRollback(cause)) throw new IllegalStateException
   }
 

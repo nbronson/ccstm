@@ -60,6 +60,10 @@ object IndirectEagerTL2 {
     def txnRead(txn: IndirectEagerTL2Txn) = value
 
     def txnStillValid(txn: IndirectEagerTL2Txn, v: Version): Boolean = (v == version)
+
+    override def toString = {
+      "Unlocked@" + Integer.toHexString(hashCode()) + "(" + value + ", " + version + ")"
+    }
   }
 
   class NonTxnLocked[T](val unlocked: Unlocked[T]) extends Wrapped[T](unlocked.value, unlocked.version) {
@@ -74,6 +78,10 @@ object IndirectEagerTL2 {
     def txnRead(txn: IndirectEagerTL2Txn) = value
 
     def txnStillValid(txn: IndirectEagerTL2Txn, v: Version): Boolean = (v == version)
+
+    override def toString = {
+      "NonTxnLocked@" + Integer.toHexString(hashCode()) + "(" + unlocked + ")"
+    }
   }
 
   class TxnLocked[T](value0: T,
@@ -112,6 +120,10 @@ object IndirectEagerTL2 {
 
     def reverted = new Unlocked[T](value, version)
     def committed(commitVersion: Version) = new Unlocked[T](specValue, commitVersion)
+
+    override def toString = {
+      "TxnLocked@" + Integer.toHexString(hashCode()) + "(" + value + ", " + version + " -> " + specValue + ", " + owner + ")"
+    }
   }
 
   /** The global timestamp.  We use TL2's GV6 scheme to avoid the need to
@@ -126,7 +138,7 @@ object IndirectEagerTL2 {
    *  greater than one, the actual choice to commit or not is made with a
    *  random number generator.
    */
-  private val silentCommitRatio = Runtime.getRuntime.availableProcessors max 16
+  private val silentCommitRatio = ((Runtime.getRuntime.availableProcessors + 1) / 2) max 16
 
   /** If <i>x</i> is a signed integer evenly chosen from a uniform distribution
    *  between Integer.MIN_VALUE and Integer.MAX_VALUE, then the test
@@ -248,6 +260,15 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
   private[impls] var _writes = new Array[IndirectEagerTL2TxnAccessor[_]](4)
 
 
+  override def toString = {
+    ("Txn@" + Integer.toHexString(hashCode) + "(" + status +
+            ", readCount=" + _readCount +
+            ", writeCount=" + _writeCount +
+            ", commitVersion=" + _commitVersion +
+            (if (barging) ", barging" else "") + ")")
+  }
+
+
   /** Returns true if this txn has released all of its locks or if the locks
    *  are eligible to be stolen.
    */
@@ -338,7 +359,6 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
     }
   }
 
-  
   private[ccstm] def commitImpl(): Status = {
     assert(status == Active || status.isInstanceOf[MarkedRollback])
 
@@ -396,7 +416,7 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
   private def rollbackWrites() {
     var i = 0
     while (i < _writeCount) {
-      _writes(i).rollback()
+      _writes(i).rollback(this)
       i += 1
     }
   }
@@ -452,6 +472,8 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
 
   def elem: T = {
     val t = txn
+
+    // TODO: figure out how to remove this check for the fast path
     t.requireActive
 
     val w0 = data
@@ -614,6 +636,9 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
           // success!
           t.addToWriteSet(this)
           result = after
+        } else {
+          // failed, try again with new value
+          w = data
         }
       }
       else {
@@ -704,14 +729,15 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
   private[impls] def commit(cv: Version) {
     // we don't need to use CAS, because stealing can only occur from doomed
     // transactions
+    // TODO: mfence is almost as expensive as CAS, so maybe we should use CAS here
     data = data.asInstanceOf[TxnLocked[T]].committed(cv)
   }
 
-  private[impls] def rollback() {
+  private[impls] def rollback(failingTxn: IndirectEagerTL2Txn) {
     // we must use CAS, to account for stealing, but we don't need to retry
     // because we can only fail if there was a thief
     data match {
-      case tl: TxnLocked[_] => dataCAS(tl, tl.reverted)
+      case tl: TxnLocked[_] => if (tl.owner == failingTxn) dataCAS(tl, tl.reverted)
       case _ => {}
     }
   }

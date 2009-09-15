@@ -494,4 +494,8 @@ class TVar[T](initialValue: T) extends STM.MetadataHolder with TVar.Source[T] wi
    *      each operation as if in its own transaction.
    */
   def nonTxn: TVar.Bound[T] = new TVarNonTxnAccessor(this)
+
+  override def toString = {
+    "TVar@" + Integer.toHexString(hashCode)
+  }
 }

@@ -31,8 +31,38 @@ abstract class Atomic {
    */
   implicit def currentTxn: Txn = _currentTxn
 
+  /** Allows access to a <code>TVar[T]</code> without using the
+   *  <code>elem</code> or <code>!</code> methods if used in a context that can
+   *  accept a <code>T</code> but cannot accept a <code>TVar</code>.
+   *  <p>
+   *  TODO: Reevaluate if this is a good idea.
+   *  <p>
+   *  Pros: less clutter when implicit conversion is applicable.  Cons: caller
+   *  must consider whether or not the implicit conversion does the right
+   *  thing.  This can be considered a tradeoff between syntactic and semantic
+   *  complexity.  Pay special attempt to <code>constant == tvar</code>.  
+   */
+  implicit def implicitRead[T](v: TVar[T]): T = v.elem
+
   /** Performs the work of this atomic block. */
   def body
+
+//  /** Returns an atomic block that when run will perform either the actions of
+//   *  this block or the actions of <code>alternative</code>, but not both.
+//   */
+//  def orElse(alternative: Atomic): Atomic = {
+//    val first = this
+//    new Atomic {
+//      def body { throw new Exception("body of joined atomic block should not be executed") }
+//      override def attemptImpl(failureHistory: List[Txn.RollbackCause]): Txn = {
+//        val a = first.attemptImpl(failureHistory)
+//        if (a.committed) return a
+//        val b = alternative.attemptImpl(failureHistory)
+//        if (b.committed) return b
+//        // merge retry sets, if explicit retry
+//      }
+//    }
+//  }
 
   /** Runs the body of this atomic block in a transaction, returning true if it
    *  was successfully committed, false if it was rolled back.  If the body
