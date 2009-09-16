@@ -856,8 +856,9 @@ abstract class IndirectEagerTL2NonTxnAccessor[T] extends TVar.Bound[T] {
     // spin failed, put ourself to sleep
     val h = Thread.currentThread.hashCode
     while (true) {
-      val w = data
-      if (pred(w.nonTxnRead)) return
+      val w1 = data
+      if (!(w1 eq w) && pred(w1.nonTxnRead)) return
+      w = w1
       w.unlocked.addPendingWakeup(h)
       val e = wakeupChannel(h).subscribe
       if (w eq data) e.await
