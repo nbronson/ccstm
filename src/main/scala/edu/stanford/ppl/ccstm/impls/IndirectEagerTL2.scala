@@ -358,6 +358,7 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
    *  Transactions may use the <code>TxnLocked.specValue</code> only if
    *  <code>_status.mustCommit</code>.
    */
+  // TODO: get rid of this, it is just _status==Validating
   @volatile private[impls] var _writesPreventRead = false 
 
   /** The version number with which this transaction's writes are labelled, or
@@ -489,12 +490,9 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
   }
 
   private[ccstm] def commitImpl(): Status = {
-    assert(status == Active || status.isInstanceOf[MarkedRollback])
+    assert(status == Active || status.isInstanceOf[RollingBack])
 
-    if (status.mustRollBack || !callBeforeCommit()) {
-      // no need to prepare
-      assert(_status.isInstanceOf[MarkedRollback])
-      _status = RollingBack(rollbackCause)
+    if (status.mustRollBack || !writeLikeResourcesPrepare()) {
       return completeRollback()
     }
 
@@ -503,14 +501,14 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
       // are already guaranteed to be consistent
       if (!_statusCAS(Active, Committed)) {
         // remote requestRollback()
-        assert(_status.isInstanceOf[MarkedRollback])
+        assert(_status.isInstanceOf[RollingBack])
         _status = Rolledback(rollbackCause)
       }
       callAfter()
       return _status
     }
 
-    if (!_statusCAS(Active, Preparing) || !writeResourcesPrepare()) return completeRollback()
+    if (!_statusCAS(Active, Validating)) return completeRollback()
 
     // prevent any transactions that begin or revalidate after this point from
     // reading any of the old values
@@ -524,7 +522,7 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
     if (!revalidateImpl()) return completeRollback()
 
     // attempt to decide commit
-    if (!_statusCAS(Preparing, Committing)) return completeRollback()
+    if (!_statusCAS(Validating, Committing)) return completeRollback()
 
     commitWrites()
     writeResourcesPerformCommit()
@@ -534,7 +532,6 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
   }
 
   private def completeRollback(): Status = {
-    if (_status.isInstanceOf[MarkedRollback]) _status = RollingBack(rollbackCause)
     rollbackWrites
     writeResourcesPerformRollback
     _status = Rolledback(rollbackCause)
@@ -569,10 +566,8 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
         return false
       } else if (s.mustRollBack) {
         return true
-      } else if (s == Active) {
-        if (_statusCAS(s, MarkedRollback(cause))) return true
       } else {
-        assert(s == Preparing)
+        assert(s == Active || s == Validating)
         if (_statusCAS(s, RollingBack(cause))) return true
       }
     }

@@ -188,7 +188,7 @@ object TVar {
             // moving its virtual snapshot forward.  This means that the
             // unrecorded read that initialized u is consistent with all of the
             // reads performed so far.
-            txn.addReadResource(callback, false)
+            txn.addReadResource(callback, 0, false)
           }
 
           result
@@ -198,13 +198,12 @@ object TVar {
 
     /** Blocks until <code>pred(elem)</code> is true, in a manner consistent
      *  with the current context.  If called from a transactional context this
-     *  method performs a conditional retry of the transaction of the predicate
+     *  method performs a conditional retry of the transaction if the predicate
      *  is not true.  If called from a non-transactional context this method
      *  blocks until the predicate holds.  Requires that the predicate be safe
      *  to reevaluate, and that <code>pred(x) == pred(x)</code>.
      *  @param pred an idempotent predicate.
      *  @see edu.stanford.ppl.ccstm.Txn#retry
-     *  @see edu.stanford.ppl.ccstm.TVar.BoundSource#elem
      */
     def await(pred: T => Boolean)
 

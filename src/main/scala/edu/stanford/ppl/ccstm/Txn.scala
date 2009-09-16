@@ -52,8 +52,8 @@ object Txn {
     def rollbackCause: RollbackCause
   }
 
-  /** The <code>Status</code> for a <code>Txn</code> that may commit, but for
-   *  which completion has not yet been requested.
+  /** The <code>Status</code> for a <code>Txn</code> for which reads and writes
+   *  may still be performed and callbacks may still be registered.
    */
   case object Active extends Status {
     def mightCommit = true
@@ -63,23 +63,12 @@ object Txn {
     def rollbackCause = null
   }
 
-  /** The <code>Status</code> for a <code>Txn</code> that will not commit, but
-   *  for which completion has not yet been requested.
+  /** The <code>Status</code> for a <code>Txn</code> that is undergoing final
+   *  validation.  Validating transactions may commit or roll back.  No more
+   *  reads or writes may be performed, and only after-commit and
+   *  after-rollback callbacks may be registered.
    */
-  case class MarkedRollback(val rollbackCause: RollbackCause) extends Status {
-    { if (rollbackCause == null) throw new NullPointerException }
-
-    def mightCommit = false
-    def mustCommit = false
-    def decided = true
-    def completed = false
-  }
-
-  /** The <code>Status</code> for a <code>Txn</code> that may commit and whose
-   *  completion has been requested, but that has not yet acquired the
-   *  resources required to guarantee that commit is possible.
-   */
-  case object Preparing extends Status {
+  case object Validating extends Status {
     def mightCommit = true
     def mustCommit = false
     def decided = false
@@ -99,7 +88,8 @@ object Txn {
   }
 
   /** The <code>Status</code> for a <code>Txn</code> that has successfully
-   *  committed, applying all of its changes.
+   *  committed, applying all of its changes and releasing all of the resources
+   *  it had acquired.
    */
   case object Committed extends Status {
     def mightCommit = true
@@ -122,7 +112,7 @@ object Txn {
   }
 
   /** The <code>Status</code> for a <code>Txn</code> that has been completely
-   *  rolled back.
+   *  rolled back, releasing all of the resources it had acquired.
    */
   case class Rolledback(val rollbackCause: RollbackCause) extends Status {
     { if (rollbackCause == null) throw new NullPointerException }
@@ -224,21 +214,23 @@ object Txn {
    *  @see edu.stanford.ppl.ccstm.AbstractTxn#addReadResource
    */
   trait ReadResource {
-    /** Called during the <code>Active</code> and/or <code>Prepared</code>
-     *  states, returns true iff <code>txn</code> is still valid.  Validation
-     *  during the <code>Preparing</code> state may be skipped if no other
-     *  transactions have committed since the last validation, or if no
-     *  <code>WriteResource</code>s have been registered.
+    /** Should return true iff <code>txn</code> is still valid.  May be invoked
+     *  during the <code>Active</code> and/or the <code>Validating</code>
+     *  states.  Validation during the <code>Validating</code> state may be
+     *  skipped by the STM if no other transactions have committed since the
+     *  last validation, or if no <code>WriteResource</code>s have been
+     *  registered.
      *  <p>
      *  The read resource may call <code>txn.forceRollback</code> instead of
      *  returning false, if that is more convenient.
      *  <p>
-     *  If this method throws an exception, the transaction will be rolled back
-     *  with a <code>CallbackExceptionCause</code>, which will not result in
-     *  automatic retry, and which will cause the exception to be rethrown
+     *  If this method throws an exception and the transaction has not
+     *  previously been marked for rollback, the transaction will be rolled
+     *  back with a <code>CallbackExceptionCause</code>, which will not result
+     *  in automatic retry, and which will cause the exception to be rethrown
      *  after rollback is complete.
      *  @return true if <code>txn</code> is still valid, false if
-     *      <code>txn</code> should be rolled back immediately.
+     *      <code>txn</code> should be rolled back as soon as possible.
      */
     def valid(txn: Txn): Boolean
   }
@@ -253,7 +245,7 @@ object Txn {
    *  @see edu.stanford.ppl.ccstm.AbstractTxn#addWriteResource
    */
   trait WriteResource {
-    /** Called during the <code>Preparing</code> state, returns true if this
+    /** Called during the <code>Validating</code> state, returns true if this
      *  resource agrees to commit.  All locks or other resources required to
      *  complete the commit must be acquired during this callback, or else
      *  this method must return false.  The consensus decision will be
@@ -290,8 +282,6 @@ object Txn {
     Console.err.println("discarding exception from txn callback, status is " + txn.status)
     exc.printStackTrace(Console.err)
   }
-
-  private[ccstm] val EmptyPrioCallbackMap = Map.empty[Int,List[Txn => Unit]]
 
 
   /** Blocks the current thread until some value contained in one of the read
@@ -332,11 +322,13 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends STM.TxnImpl(fa
   // manner are xxxImpl-s, forwarded to from the real methods so that none of
   // the useful Txn functionality is not directly visible in the Txn class.
   
-  private var _beforeCommit = EmptyPrioCallbackMap
-  private var _readResources: List[ReadResource] = Nil
-  private var _writeResources: List[WriteResource] = Nil
-  private var _afterCommit = EmptyPrioCallbackMap
-  private var _afterRollback = EmptyPrioCallbackMap
+  private var _readResources: CallbackList[ReadResource] = null
+
+  /** Includes WriteResource-s and beforeCommit callbacks. */
+  private var _writeLikeResources: CallbackList[WriteResource] = null
+  private var _writeResourcesPresent = false
+  private var _afterCommit: CallbackList[Txn => Unit] = null
+  private var _afterRollback: CallbackList[Txn => Unit] = null
 
   def status: Status = _status
 
@@ -364,7 +356,7 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends STM.TxnImpl(fa
   private[ccstm] def requireActive {
     val s = status
     if (s != Active) {
-      if (s == MarkedRollback) {
+      if (s.isInstanceOf[RollingBack]) {
         throw RollbackError
       } else {
         throw new IllegalStateException("txn.status is " + s)
@@ -390,37 +382,31 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends STM.TxnImpl(fa
 
   def beforeCommit(callback: Txn => Unit, prio: Int) {
     requireActive
-    _beforeCommit = _beforeCommit.update(prio, callback :: _beforeCommit.getOrElse(prio, Nil))
+    if (_writeLikeResources == null) _writeLikeResources = new CallbackList[WriteResource]
+    _writeLikeResources.add(new WriteResource {
+      def prepare(txn: Txn): Boolean = { callback(txn); true }
+      def performCommit(txn: Txn) {}
+      def performRollback(txn: Txn) {}
+    }, prio)
   }
 
   def beforeCommit(callback: Txn => Unit) { beforeCommit(callback, 0) }
 
-  private[ccstm] def callBeforeCommit(): Boolean = {
-    if (!_beforeCommit.isEmpty) {
-      for ((_,cbs) <- _beforeCommit; cb <- cbs) {
-        try {
-          cb(this)
-        } catch {
-          case x => {
-            forceRollback(CallbackExceptionCause(cb, x))
-          }
-        }
-        if (status != Active) return false
-      }
-    }
-    return true
-  }
-
   def addReadResource(readResource: ReadResource) {
-    addReadResource(readResource, true)
+    addReadResource(readResource, 0)
   }
 
-  def addReadResource(readResource: ReadResource, checkAfterRegister: Boolean) {
+  def addReadResource(readResource: ReadResource, prio: Int) {
+    addReadResource(readResource, prio, true)
+  }
+
+  def addReadResource(readResource: ReadResource, prio: Int, checkAfterRegister: Boolean) {
     requireActive
-    _readResources = readResource :: _readResources
+    if (_readResources == null) _readResources = new CallbackList[ReadResource]
+    _readResources.add(readResource, prio)
     if (checkAfterRegister) {
       validateNoThrow(readResource)
-      if (status != Active) throw RollbackError
+      requireActive
     }
   }
 
@@ -437,7 +423,7 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends STM.TxnImpl(fa
   }
 
   private[ccstm] def readResourcesValidate(): Boolean = {
-    if (!_readResources.isEmpty) {
+    if (_readResources != null) {
       for (res <- _readResources) {
         validateNoThrow(res)
         if (status != Active) return false
@@ -447,15 +433,21 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends STM.TxnImpl(fa
   }
 
   def addWriteResource(writeResource: WriteResource) {
-    requireActive
-    _writeResources = writeResource :: _writeResources
+    addWriteResource(writeResource, 100)
   }
 
-  private[ccstm] def writeResourcesPresent = !_writeResources.isEmpty
+  def addWriteResource(writeResource: WriteResource, prio: Int) {
+    requireActive
+    if (_writeLikeResources == null) _writeLikeResources = new CallbackList[WriteResource]
+    _writeResourcesPresent = true
+    _writeLikeResources.add(writeResource, prio)
+  }
 
-  private[ccstm] def writeResourcesPrepare(): Boolean = {
-    if (!_writeResources.isEmpty) {
-      for (res <- _writeResources) {
+  private[ccstm] def writeResourcesPresent = _writeResourcesPresent
+
+  private[ccstm] def writeLikeResourcesPrepare(): Boolean = {
+    if (_writeLikeResources != null) {
+      for (res <- _writeLikeResources) {
         try {
           if (!res.prepare(this)) {
             forceRollback(VetoingWriteResourceCause(res))
@@ -472,8 +464,8 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends STM.TxnImpl(fa
   }
 
   private[ccstm] def writeResourcesPerformCommit() {
-    if (!_writeResources.isEmpty) {
-      for (res <- _writeResources) {
+    if (_writeLikeResources != null) {
+      for (res <- _writeLikeResources) {
         try {
           res.performCommit(this)
         }
@@ -486,8 +478,8 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends STM.TxnImpl(fa
 
   private[ccstm] def writeResourcesPerformRollback() {
     assert(status.isInstanceOf[RollingBack])
-    if (!_writeResources.isEmpty) {
-      for (res <- _writeResources) {
+    if (_writeLikeResources != null) {
+      for (res <- _writeLikeResources) {
         try {
           res.performRollback(this)
         }
@@ -500,22 +492,24 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends STM.TxnImpl(fa
 
   def afterCommit(callback: Txn => Unit, prio: Int) {
     requireNotCompleted
-    _afterCommit = _afterCommit.update(prio, callback :: _afterCommit.getOrElse(prio, Nil))
+    if (_afterCommit == null) _afterCommit = new CallbackList[Txn => Unit]
+    _afterCommit.add(callback, prio)
   }
 
   def afterCommit(callback: Txn => Unit) { afterCommit(callback, 0) }
 
   def afterRollback(callback: Txn => Unit, prio: Int) {
     requireNotCompleted
-    _afterRollback = _afterRollback.update(prio, callback :: _afterRollback.getOrElse(prio, Nil))
+    if (_afterRollback == null) _afterRollback = new CallbackList[Txn => Unit]
+    _afterRollback.add(callback, prio)
   }
 
   def afterRollback(callback: Txn => Unit) { afterRollback(callback, 0) }
 
   private[ccstm] def callAfter() {
     val callbacks = if (status == Rolledback) _afterRollback else _afterCommit
-    if (!callbacks.isEmpty) {
-      for ((_,cbs) <- callbacks; cb <- cbs) {
+    if (callbacks != null) {
+      for (cb <- callbacks) {
         try {
           cb(this)
         }
@@ -611,11 +605,9 @@ private[ccstm] abstract class AbstractTxn extends StatusHolder {
    */
   private[ccstm] def commitAndRethrow()
 
-  /** Throws <code>RollbackError</code> if the transaction is marked for
-   *  rollback, otherwise throws an <code>IllegalStateException</code> if the
+  /** Throws <code>RollbackError</code> if the transaction will definitely roll
+   *  back, otherwise throws an <code>IllegalStateException</code> if the
    *  transaction is not active.
-   *  @see edu.stanford.ppl.ccstm.Txn.Active
-   *  @see edu.stanford.ppl.ccstm.Txn.MarkedRollback
    */
   private[ccstm] def requireActive
 
@@ -664,12 +656,6 @@ private[ccstm] abstract class AbstractTxn extends StatusHolder {
   /** Enqueues a before-commit callback with the default priority of 0. */
   def beforeCommit(callback: Txn => Unit)
 
-  /** Calls all callbacks registered via <code>beforeCommit</code>,
-   *  unless rollback is required.  Returns true if commit is still possible.
-   *  Captures and handles exceptions.
-   */
-  private[ccstm] def callBeforeCommit(): Boolean
-
   /** Adds a read resource to the transaction, which will participate in
    *  validation, and then immediately calls
    *  <code>readResource.valid</code>.  This register/validate pair
@@ -677,18 +663,22 @@ private[ccstm] abstract class AbstractTxn extends StatusHolder {
    *  caller takes responsibility for validating the read resource then they
    *  may use the two-argument form of this method.  If the validation fails
    *  then the transaction will be immediately rolled back and this method will
-   *  not return.
+   *  not return.  If two read resources have different priorities then the one
+   *  with the smaller priority will be validated first.
    *  @throws IllegalStateException if this transaction is not active.
    */
+  def addReadResource(readResource: ReadResource, prio: Int)
+
+  /** Adds a read resource with the default priority of 0. */
   def addReadResource(readResource: ReadResource)
 
-  /** Adds a read resource to the transaction like the single argument form of
+  /** Adds a read resource to the transaction like the two-argument form of
    *  this method, but skips the subsequent call to
    *  <code>readResource.valid</code> if <code>checkAfterRegister</code> is
    *  false.
    *  @throws IllegalStateException if this transaction is not active.
    */
-  def addReadResource(readResource: ReadResource, checkAfterRegister: Boolean)
+  def addReadResource(readResource: ReadResource, prio: Int, checkAfterRegister: Boolean)
 
   /** Calls <code>ReadResource.valid(this)</code> for all read resources,
    *  unless rollback is required.  Returns true if commit is still possible.
@@ -697,19 +687,26 @@ private[ccstm] abstract class AbstractTxn extends StatusHolder {
   private[ccstm] def readResourcesValidate(): Boolean
 
   /** Adds a write resource to the transaction, which will participate in the
-   *  two-phase commit protocol.
+   *  two-phase commit protocol.  If two write resources have different
+   *  priorities then the one with the smaller priority will be validated first.
    *  @throws IllegalStateException if this transaction is not active.
    */
+  def addWriteResource(writeResource: WriteResource, prio: Int)
+
+  /** Adds a write resource with the default priority of <em>100</em>. */
   def addWriteResource(writeResource: WriteResource)
 
-  /** Returns true if there are write resources, false otherwise. */
+  /** Returns true if there are actual write resources (as opposed to
+   *  write-like resources), false otherwise.
+   */
   private[ccstm] def writeResourcesPresent: Boolean
 
   /** Calls <code>WriteResource.prepare(this)</code> for all write resources,
    *  unless rollback is required.  Returns true if commit is still possible.
-   *  Captures and handles exceptions.
+   *  Captures and handles exceptions.  This also has the effect of invoking
+   *  all of the callbacks registered with <code>beforeCommit</code>.
    */
-  private[ccstm] def writeResourcesPrepare(): Boolean
+  private[ccstm] def writeLikeResourcesPrepare(): Boolean
 
   /** Calls <code>WriteResource.performCommit(this)</code>, handling
    *  exceptions.
