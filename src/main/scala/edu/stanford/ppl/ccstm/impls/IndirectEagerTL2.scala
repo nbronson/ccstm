@@ -828,7 +828,7 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
     // If we are acquiring an unlocked slot, then w.unlocked is just the
     // slot itself.  If we are stealing a locked slot from a doomed txn,
     // then w.unlocked is the most recent unlocked version of the slot.
-    val after = new TxnLocked(w0.unlocked, w0.value, t)
+    val after = new TxnLocked(w0.unlocked, v, t)
     if (dataCAS(w0, after)) {
       // success!
       t.addToWriteSet(this)
