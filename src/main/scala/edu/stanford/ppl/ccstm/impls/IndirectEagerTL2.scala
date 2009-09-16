@@ -4,9 +4,9 @@
 
 package edu.stanford.ppl.ccstm.impls
 
-import java.util.concurrent.atomic.AtomicLong
 import edu.stanford.ppl.ccstm.TVar
 import edu.stanford.ppl.ccstm.UnrecordedRead
+import java.util.concurrent.atomic.{AtomicLongFieldUpdater, AtomicLong}
 
 /** An STM implementation that uses a TL2-style timestamp system, but that
  *  performs eager acquisition of write locks and that revalidates the
@@ -29,8 +29,11 @@ trait IndirectEagerTL2 {
 object IndirectEagerTL2 {
 
   type Version = Long
+  type WakeupMask = Long
 
   sealed abstract class Wrapped[T](val value: T, val version: Version) {
+    def unlocked: Unlocked[T]
+
     def nonTxnRead: T
     def nonTxnSnapshot: Wrapped[T]
 
@@ -48,7 +51,24 @@ object IndirectEagerTL2 {
     def txnStillValid(txn: IndirectEagerTL2Txn, v: Version): Boolean
   }
 
+  private val unlockedPendingWakeupsUpdater = (new Unlocked[AnyRef](null, 0)).newPendingWakeupUpdater  
+
   class Unlocked[T](value0: T, version0: Version) extends Wrapped[T](value0, version0) {
+    @volatile private var _pendingWakeups: WakeupMask = 0
+
+    private[IndirectEagerTL2] def newPendingWakeupUpdater = AtomicLongFieldUpdater.newUpdater(classOf[Unlocked[_]], "_pendingWakeups")
+
+    def addPendingWakeup(hash: Int) {
+      while (true) {
+        val before = _pendingWakeups
+        val after = before | (1L << hash)
+        if (before == after || unlockedPendingWakeupsUpdater.compareAndSet(this, before, after)) return
+      }
+    }
+    def pendingWakeups = _pendingWakeups
+
+    def unlocked = this
+
     def nonTxnRead = value
     def nonTxnSnapshot = this
 
@@ -124,6 +144,8 @@ object IndirectEagerTL2 {
     }
   }
 
+  //////////////// Version number stuff
+
   /** The global timestamp.  We use TL2's GV6 scheme to avoid the need to
    *  increment this during every transactional commit.  Non-transactional
    *  writes are even more conservative, incrementing the global version only
@@ -196,6 +218,54 @@ object IndirectEagerTL2 {
       // no need to retry on failure, because somebody else succeeded
     }
     g + 1
+  }
+
+  //////////////// Conditional retry stuff
+
+  class WakeupChannel {
+    @volatile private var _currentEvent = new WakeupEvent
+
+    def subscribe = _currentEvent
+
+    def trigger {
+      while (true) {
+        val e = _currentEvent
+        e.synchronized {
+          if (!e._triggered) {
+            _currentEvent = new WakeupEvent
+            e._triggered = true
+            e.notifyAll
+            return
+          }
+        }
+      }
+    }
+  }
+
+  class WakeupEvent {
+    var _triggered = false
+
+    def await {
+      synchronized {
+        while (!_triggered) wait
+      }
+    }
+  }
+
+  private val wakeupChannels = Array.fromFunction(i => new WakeupChannel)(64)
+
+  /** Returns a wakeup channel for use during conditional retry. */
+  def wakeupChannel(hash: Int) = wakeupChannels(hash & 63)
+
+  /** Triggers all wakeup channels implied by <code>mask</code>. */
+  def triggerWakeups(mask: WakeupMask) {
+    var i = 0
+    var m = mask
+    while (m != 0) {
+      if ((m & 1) != 0) wakeupChannels(i).trigger
+      i += 1
+      m >>>= 1
+    }
   }
 }
 
@@ -423,10 +493,12 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
   private def commitWrites() {
     val cv = _commitVersion
     var i = 0
+    var mask: WakeupMask = 0
     while (i < _writeCount) {
-      _writes(i).commit(cv)
+      mask |= _writes(i).commit(cv)
       i += 1
     }
+    triggerWakeups(mask)
   }
 
   private[ccstm] def requestRollbackImpl(cause: RollbackCause): Boolean = {
@@ -620,48 +692,33 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
   private[impls] def readForWriteImpl(t: IndirectEagerTL2Txn, w0: Wrapped[T]): TxnLocked[T] = {
     var w = w0
     var result: TxnLocked[T] = null
-    while (result == null) {
-      w match {
-        case u: Unlocked[_] => {
-          // Not locked
+    do {
+      if (w.isAcquirable) {
+        // Locked by a doomed txn, or unlocked
 
-          // Validate previous version
-          if (u.version > t._readVersion) t.revalidate(u.version)
+        // Validate previous version
+        if (w.version > t._readVersion) t.revalidate(w.version)
 
-          // Acquire write permission
-          val after = new TxnLocked(u, u.value, t)
-          if (dataCAS(u, after)) {
-            // success!
-            t.addToWriteSet(this)
-            result = after
-          } else {
-            // failed, try again with new value
-            w = data
+        // If we are acquiring an unlocked slot, then w.unlocked is just the
+        // slot itself.  If we are stealing a locked slot from a doomed txn,
+        // then w.unlocked is the most recent unlocked version of the slot.
+        val after = new TxnLocked(w.unlocked, w.value, t)
+        if (dataCAS(w, after)) {
+          // success!
+          t.addToWriteSet(this)
+          result = after
+        } else {
+          // failed, try again with new value
+          w = data
+        }
+      } else {
+        // Locked, we must wait
+        w match {
+          case nl: NonTxnLocked[_] => {
+            // Nothing to do but wait.
+            w = waitForNonTxn(nl)
           }
-        }
-        case nl: NonTxnLocked[_] => {
-          // Nothing to do but wait.
-          w = waitForNonTxn(nl)
-        }
-        case tl: TxnLocked[_] => {
-          if (tl.isAcquirable) {
-            // Locked by a doomed txn
-
-            // Validate previous version
-            if (tl.version > t._readVersion) t.revalidate(tl.version)
-
-            // Acquire write permission by stealing the slot, reusing the
-            // Unlocked instance that is the previous value.
-            val after = new TxnLocked(tl.unlocked, tl.value, t)
-            if (dataCAS(tl, after)) {
-              // success!
-              t.addToWriteSet(this)
-              result = after
-            } else {
-              // failed, try again with new value
-              w = data
-            }
-          } else {
+          case tl: TxnLocked[_] => {
             // Since we can't buffer multiple speculative versions for this
             // data type in this STM, write-write conflicts must be handled
             // immediately.  We can: doom the other txn and steal the lock,
@@ -673,9 +730,10 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
             t.resolveWriteWriteConflict(tl.owner, this)
             w = waitForTxnWritePermission(tl)
           }
+          case u: Unlocked[_] => throw new Error("shouldn't get here")
         }
       }
-    }
+    } while (result == null)
 
     return result
   }
@@ -702,13 +760,10 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
     // Validate previous version
     if (w0.version > t._readVersion) t.revalidate(w0.version)
 
-    // Attempt to acquire write permission, possibly stealing the slot from a
-    // doomed txn that has not yet completely rolled back.
-    val after = w0 match {
-      case u: Unlocked[_] => new TxnLocked(u.asInstanceOf[Unlocked[T]], v, t)
-      case tl: TxnLocked[_] => new TxnLocked(tl.unlocked.asInstanceOf[Unlocked[T]], v, t)
-      case _ => throw new Error
-    }
+    // If we are acquiring an unlocked slot, then w.unlocked is just the
+    // slot itself.  If we are stealing a locked slot from a doomed txn,
+    // then w.unlocked is the most recent unlocked version of the slot.
+    val after = new TxnLocked(w0.unlocked, w0.value, t)
     if (dataCAS(w0, after)) {
       // success!
       t.addToWriteSet(this)
@@ -742,11 +797,13 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
 
   //////////////// Local use only
 
-  private[impls] def commit(cv: Version) {
+  private[impls] def commit(cv: Version): WakeupMask = {
     // we don't need to use CAS, because stealing can only occur from doomed
     // transactions
     // TODO: mfence is almost as expensive as CAS, so maybe we should use CAS here
-    data = data.asInstanceOf[TxnLocked[T]].committed(cv)
+    val before = data.asInstanceOf[TxnLocked[T]]
+    data = before.committed(cv)
+    before.unlocked.pendingWakeups
   }
 
   private[impls] def rollback(failingTxn: IndirectEagerTL2Txn) {
@@ -806,8 +863,8 @@ abstract class IndirectEagerTL2NonTxnAccessor[T] extends TVar.Bound[T] {
   }
 
   private def releaseLock(before: NonTxnLocked[T], after: Unlocked[T]) = {
-    // TODO: maybe some notify logic?
     data = after
+    triggerWakeups(before.unlocked.pendingWakeups)
   }
 
   def elem_=(v: T) {
@@ -815,11 +872,17 @@ abstract class IndirectEagerTL2NonTxnAccessor[T] extends TVar.Bound[T] {
     do {
       u = awaitUnlock
     } while (!dataCAS(u, new Unlocked(v, nonTxnWriteVersion(u.version))))
+    triggerWakeups(u.pendingWakeups)
   }
 
   def tryWrite(v: T): Boolean = {
     val w = data
-    w.isInstanceOf[Unlocked[_]] && dataCAS(w, new Unlocked(v, nonTxnWriteVersion(w.version)))
+    if (w.isInstanceOf[Unlocked[_]] && dataCAS(w, new Unlocked(v, nonTxnWriteVersion(w.version)))) {
+      triggerWakeups(w.asInstanceOf[Unlocked[T]].pendingWakeups)
+      true
+    } else {
+      false
+    }
   }
 
   override def compareAndSet(before: T, after: T): Boolean = {
@@ -828,6 +891,7 @@ abstract class IndirectEagerTL2NonTxnAccessor[T] extends TVar.Bound[T] {
       u = awaitUnlock
       if (!(before == u.value)) return false
     } while (!dataCAS(u, new Unlocked(after, nonTxnWriteVersion(u.version))))
+    triggerWakeups(u.pendingWakeups)
     return true
   }
 
@@ -837,13 +901,19 @@ abstract class IndirectEagerTL2NonTxnAccessor[T] extends TVar.Bound[T] {
       u = awaitUnlock
       if (!(before eq u.value.asInstanceOf[AnyRef])) return false
     } while (!dataCAS(u, new Unlocked(after, nonTxnWriteVersion(u.version))))
+    triggerWakeups(u.pendingWakeups)
     return true
   }
 
   override def weakCompareAndSet(before: T, after: T): Boolean = {
     data match {
       case u: Unlocked[_] =>
-        before == u.value && dataCAS(u, new Unlocked(after, nonTxnWriteVersion(u.version)))
+        if (before == u.value && dataCAS(u, new Unlocked(after, nonTxnWriteVersion(u.version)))) {
+          triggerWakeups(u.pendingWakeups)
+          true
+        } else {
+          false
+        }
       case _ =>
         false
     }
@@ -852,7 +922,12 @@ abstract class IndirectEagerTL2NonTxnAccessor[T] extends TVar.Bound[T] {
   override def weakCompareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = {
     data match {
       case u: Unlocked[_] =>
-        (before eq u.value.asInstanceOf[AnyRef]) && dataCAS(u, new Unlocked(after, nonTxnWriteVersion(u.version)))
+        if ((before eq u.value.asInstanceOf[AnyRef]) && dataCAS(u, new Unlocked(after, nonTxnWriteVersion(u.version)))) {
+          triggerWakeups(u.pendingWakeups)
+          true
+        } else {
+          false
+        }
       case _ =>
         false
     }
