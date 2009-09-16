@@ -278,6 +278,17 @@ object IndirectEagerTL2 {
   }
 
   private[impls] def awaitRetry(explicitRetries: Txn.ExplicitRetryCause*) {
+    // Spin a few times
+    var spinLeft = 200
+    while (spinLeft > 0) {
+      for (er <- explicitRetries) {
+        val rs = er.readSet.asInstanceOf[ReadSet]
+        if (!readSetStillValid(rs)) return
+        spinLeft -= rs.readCount
+      }
+      Thread.`yield`
+    }
+    
     // Picking the hash using the thread means that there is a possibility that
     // we will get repeated interference with another thread in a per-VM way,
     // but it minimizes saturation of the pendingWakeup field, which is quite
@@ -290,16 +301,27 @@ object IndirectEagerTL2 {
         var i = 0
         while (i < rs.readCount) {
           val r = rs.reads(i)
-          val observed = r._readSnapshot
-          val current = r.data
-          if (current.version != observed.version) return
-          current.unlocked.addPendingWakeup(hash)
-          if (!(current eq r.data)) return
+          var w: Wrapped[_] = null
+          do {
+            w = r.data
+            if (w.version != r._readSnapshot.version) return
+            w.unlocked.addPendingWakeup(hash)
+          } while (!(w eq r.data))
           i += 1
         }
       }
       event.await
     }
+  }
+
+  private def readSetStillValid(rs: ReadSet): Boolean = {
+    var i = 0
+    while (i < rs.readCount) {
+      val r = rs.reads(i)
+      if (r.data.version != r._readSnapshot.version) return false
+      i += 1
+    }
+    return true
   }
 }
 
@@ -883,9 +905,9 @@ abstract class IndirectEagerTL2NonTxnAccessor[T] extends TVar.Bound[T] {
     // spin a bit
     var w = w0
     var spins = 0
-    while (spins < 100) {
+    while (spins < 200) {
       spins += 1
-      if (spins > 90) Thread.`yield`
+      if (spins > 100) Thread.`yield`
       
       val w1 = data
       if (!(w1 eq w) && pred(w1.nonTxnRead)) return
