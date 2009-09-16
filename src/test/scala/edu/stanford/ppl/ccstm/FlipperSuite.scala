@@ -10,7 +10,7 @@ import org.scalatest.FunSuite
 
 class FlipperSuite extends FunSuite {
   val DEFAULT_SYNC_COUNT = 3
-  val DEFAULT_TRANS_COUNT = 10
+  val DEFAULT_TRANS_COUNT = 100
   val DEFAULT_INSTR_COUNT = 100
   val DEFAULT_THREAD_COUNT = 4
   val DEFAULT_WORD_COUNT = 4096
@@ -27,8 +27,8 @@ class FlipperSuite extends FunSuite {
       0).runTest
   }
 
-  test("10 random flipper tests") {
-    for (i <- 0 until 10) {
+  test("4 random flipper tests") {
+    for (i <- 0 until 4) {
       Config(
         DEFAULT_SYNC_COUNT,
         DEFAULT_TRANS_COUNT,
@@ -105,7 +105,7 @@ class FlipperSuite extends FunSuite {
               assert(read(P(i)) === p)
             }
             if (config.F(i)) {
-              // do some work to increase probability of a conflict
+              // do some work before storing to A, to increase probability of a conflict
               var h = a
               for (j <- 0 until 10000) {
                 h |= 1+((h >>> 1)^(h*13))
@@ -115,7 +115,7 @@ class FlipperSuite extends FunSuite {
             }
           }
         }
-        //System.out.println("thread "+_id+" transaction "+t+" completed");
+        //println("thread " + id + " transaction " + trans + " completed (" + computeP + ")")
       }
     }
   }
@@ -124,11 +124,11 @@ class FlipperSuite extends FunSuite {
     val A = Array.fromFunction(i => TVar(0))(config.wordCount)
     for (sync <- 0 until config.syncCount) {
       for (thread <- 0 until config.threadCount) {
-        new FlipperTask(config, A, P, true, thread, sync) {
+        (new FlipperTask(config, A, P, true, thread, sync) {
           def read[T](ref: TVar[T]): T = ref.nonTxn.elem
           def write[T](ref: TVar[T], v: T) { ref.nonTxn.elem = v }
           def doWork(task: => Unit) { task }
-        }
+        })()
       }
     }
     A
@@ -159,13 +159,19 @@ class FlipperSuite extends FunSuite {
 
   private def parallelRun(tasks: Collection[() => Unit]) {
     val barrier = new CyclicBarrier(tasks.size)
-    val threads = for (task <- tasks) yield new Thread {
+    var failure: Throwable = null
+    val threads = for (task <- tasks.toList) yield new Thread {
       override def run {
         barrier.await
-        task()
+        try {
+          task()
+        } catch {
+          case x => failure = x
+        }
       }
     }
     for (t <- threads) t.start
     for (t <- threads) t.join
+    if (failure != null) throw failure
   }
 }
