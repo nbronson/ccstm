@@ -6,8 +6,7 @@ package edu.stanford.ppl.ccstm.impls
 
 import edu.stanford.ppl.ccstm.TVar
 import edu.stanford.ppl.ccstm.UnrecordedRead
-import java.util.concurrent.atomic.{AtomicLongFieldUpdater, AtomicLong}
-
+import java.util.concurrent.atomic.{AtomicReference, AtomicLongFieldUpdater, AtomicLong}
 /** An STM implementation that uses a TL2-style timestamp system, but that
  *  performs eager acquisition of write locks and that revalidates the
  *  transaction to extend the read version, rather than rolling back.  Version
@@ -227,22 +226,25 @@ object IndirectEagerTL2 {
   //////////////// Conditional retry stuff
 
   private[impls] class WakeupChannel {
-    // TODO: create the WakeupEvent lazily, so that we can skip triggering if nobody has subscribed
+    private val currentEvent = new AtomicReference[WakeupEvent]
 
-    @volatile private var _currentEvent = new WakeupEvent
-
-    def subscribe = _currentEvent
-
-    def trigger {
+    def subscribe: WakeupEvent = {
       while (true) {
-        val e = _currentEvent
+        val existing = currentEvent.get
+        if (existing != null) return existing
+        val fresh = new WakeupEvent
+        if (currentEvent.compareAndSet(null, fresh)) return fresh
+      }
+      throw new Error("unreachable")
+    }
+
+    def lazyTrigger {
+      val e = currentEvent.get
+      if (e != null && currentEvent.compareAndSet(e, null)) {
         e.synchronized {
-          if (!e._triggered) {
-            _currentEvent = new WakeupEvent
-            e._triggered = true
-            e.notifyAll
-            return
-          }
+          assert(!e._triggered)
+          e._triggered = true
+          e.notifyAll
         }
       }
     }
@@ -274,7 +276,7 @@ object IndirectEagerTL2 {
     var i = 0
     var m = mask
     while (m != 0) {
-      if ((m & 1) != 0) wakeupChannels(i).trigger
+      if ((m & 1) != 0) wakeupChannels(i).lazyTrigger
       i += 1
       m >>>= 1
     }
@@ -364,9 +366,14 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
 
   /** True if all reads should be performed as writes. */
   private[impls] val barging: Boolean = {
-    // barge if we have already had 3 failures
-    // TODO: ignore explicit retries
-    failureHistory.lengthCompare(3) >= 0
+    // barge if we have already had 3 failures since the last explicit retry
+    var cur = failureHistory
+    var count = 0
+    while (count < 3 && !cur.isEmpty && !cur.head.isInstanceOf[ExplicitRetryCause]) {
+      cur = cur.tail
+      count += 1
+    }
+    (count == 3)
   }
 
   private[impls] var _readCount = 0
@@ -446,7 +453,7 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
    *  if currentOwner.status == Validating.
    */
   private[impls] def shouldWaitForRead(currentOwner: IndirectEagerTL2Txn): Boolean = {
-    // TODO: something more sophisticated
+    // TODO: something more sophisticated?
 
     // This method must take care to avoid deadlock cycles, via the other txn
     // waiting on a read, or a block inside resolveWriteWriteConflict.  We
@@ -584,7 +591,6 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
   def elem: T = {
     val t = txn
 
-    // TODO: figure out how to remove this check for the fast path
     t.requireActive
 
     val w0 = data
@@ -663,9 +669,9 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
   }
 
   private def waitForNonTxn(nl: NonTxnLocked[_]): Wrapped[T] = {
-    // TODO: park after some spins
+    // TODO: park after some spins, revalidate during spin?
     var d = data
-    while (d.asInstanceOf[AnyRef] eq nl) {
+    while (d eq nl) {
       Thread.`yield`
       d = data
     }
@@ -673,7 +679,7 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
   }
 
   private def waitForTxnReadPermission(tl: TxnLocked[_]): Wrapped[T] = {
-    // TODO: park after some spins
+    // TODO: park after some spins, revalidate during spin?
     while (!tl.owner._status.decided) {
       Thread.`yield`
     }
@@ -681,7 +687,7 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
   }
 
   private def waitForTxnWritePermission(tl: TxnLocked[_]): Wrapped[T] = {
-    // TODO: park after some spins
+    // TODO: park after some spins, revalidate during spin?
     while (!tl.owner.completedOrDoomed) {
       Thread.`yield`
     }
@@ -823,13 +829,11 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
   }
 
   override def transform(f: T => T) {
-    // TODO: a better implementation
     val tl = readForWriteImpl
     tl.specValue = f(tl.specValue)
   }
 
   def transformIfDefined(pf: PartialFunction[T,T]): Boolean = {
-    // TODO: a better implementation
     if (elemMap(v => pf.isDefinedAt(v))) {
       val tl = readForWriteImpl
       tl.specValue = pf(tl.specValue)
@@ -844,7 +848,6 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
   private[impls] def commit(cv: Version): WakeupMask = {
     // we don't need to use CAS, because stealing can only occur from doomed
     // transactions
-    // TODO: mfence is almost as expensive as CAS, so maybe we should use CAS here
     val before = data.asInstanceOf[TxnLocked[T]]
     data = before.committed(cv)
     before.unlocked.pendingWakeups
@@ -917,7 +920,7 @@ abstract class IndirectEagerTL2NonTxnAccessor[T] extends TVar.Bound[T] {
   }
 
   private def awaitUnlock: Unlocked[T] = {
-    // TODO improve
+    // TODO: park after some spins
     var d = data
     while (!d.isInstanceOf[Unlocked[_]]) {
       Thread.`yield`
