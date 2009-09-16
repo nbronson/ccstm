@@ -255,7 +255,7 @@ object IndirectEagerTL2 {
   private val wakeupChannels = Array.fromFunction(i => new WakeupChannel)(64)
 
   /** Returns a wakeup channel for use during conditional retry. */
-  def wakeupChannel(hash: Int) = wakeupChannels(hash & 63)
+  def wakeupChannel(hash: Int): WakeupChannel = wakeupChannels(hash & 63)
 
   /** Triggers all wakeup channels implied by <code>mask</code>. */
   def triggerWakeups(mask: WakeupMask) {
@@ -648,6 +648,10 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
     data
   }
 
+  def await(pred: T => Boolean) {
+    if (!pred(elem)) txn.retry
+  }
+
   def unrecordedRead: UnrecordedRead[T] = {
     val t = txn
     t.requireActive
@@ -830,6 +834,35 @@ abstract class IndirectEagerTL2NonTxnAccessor[T] extends TVar.Bound[T] {
   def context: Option[Txn] = None
 
   def elem: T = data.nonTxnRead
+
+  def await(pred: T => Boolean) {
+    val w0 = data
+    if (!pred(w0.nonTxnRead)) awaitImpl(pred, w0)
+  }
+
+  private def awaitImpl(pred: T => Boolean, w0: Wrapped[T]) {
+    // spin a bit
+    var w = w0
+    var spins = 0
+    while (spins < 100) {
+      spins += 1
+      if (spins > 90) Thread.`yield`
+      
+      val w1 = data
+      if (!(w1 eq w) && pred(w1.nonTxnRead)) return
+      w = w1
+    }
+
+    // spin failed, put ourself to sleep
+    val h = Thread.currentThread.hashCode
+    while (true) {
+      val w = data
+      if (pred(w.nonTxnRead)) return
+      w.unlocked.addPendingWakeup(h)
+      val e = wakeupChannel(h).subscribe
+      if (w eq data) e.await
+    }
+  }
 
   def unrecordedRead: UnrecordedRead[T] = {
     new UnrecordedRead[T] {

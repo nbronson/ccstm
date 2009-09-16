@@ -13,11 +13,11 @@ import org.scalatest.FunSuite
  *  separate <code>TVar</code> is used for each handoff.
  */
 class TokenRingSuite extends FunSuite {
-  test("ping-pong") { tokenRing(2, 1000000) }
-  test("three-some") { tokenRing(3, 1000000) }
-  test("large ring") { tokenRing(32, 100000) }
+  test("non-txn ping-pong") { tokenRing(2, 1000000, false) }
+  test("non-txn three-some") { tokenRing(3, 1000000, false) }
+  test("non-txn large ring") { tokenRing(32, 100000, false) }
 
-  def tokenRing(ringSize: Int, handoffsPerThread: Int) {
+  def tokenRing(ringSize: Int, handoffsPerThread: Int, useTxns: Boolean) {
     val ready = Array.fromFunction(i => TVar(i == 0))(ringSize)
     val threads = new Array[Thread](ringSize - 1)
     val barrier = new CyclicBarrier(ringSize, new Runnable {
@@ -29,7 +29,7 @@ class TokenRingSuite extends FunSuite {
         } else {
           val elapsed = now - start
           val handoffs = handoffsPerThread * ringSize
-          println("tokenRing(" + ringSize + "," + handoffs +
+          println("tokenRing(" + ringSize + "," + handoffsPerThread + "," + useTxns +
             ")  total_elapsed=" + elapsed + " msec,  throughput=" +
             (handoffs * 1000L) / elapsed + " handoffs/sec,  latency=" +
             (elapsed * 1000000L) / handoffs + " nanos/handoff")
@@ -43,11 +43,17 @@ class TokenRingSuite extends FunSuite {
           val next = (index + 1) % ringSize
           barrier.await
           for (h <- 0 until handoffsPerThread) {
-            new Atomic { def body {
-              if (ready(index).elem == false) retry
-              ready(index) := false
-              ready(next) := true
-            }}.run
+            if (!useTxns) {
+              ready(index).nonTxn.await(f => f)
+              ready(index).nonTxn.elem = false
+              ready(next).nonTxn.elem = true
+            } else {
+              new Atomic { def body {
+                if (ready(index).elem == false) retry
+                ready(index) := false
+                ready(next) := true
+              }}.run
+            }
           }
           barrier.await
         }

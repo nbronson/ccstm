@@ -44,6 +44,12 @@ object TVar {
      */
     def elemMap[Z](f: T => Z)(implicit txn: Txn) = bind(txn).elemMap(f)
 
+    /** Equivalent to <code>bind(txn).await(pred)</code>.
+     *  @see edu.stanford.ppl.ccstm.TVar.Source#bind
+     *  @see edu.stanford.ppl.ccstm.TVar.BoundSource#await
+     */
+    def await(pred: T => Boolean)(implicit txn: Txn) = bind(txn).await(pred)
+
     /** Returns a view on this <code>TVar.Source</code> that can be used to read
      *  the cell's value as part of a transaction <code>txn</code>.  A transaction
      *  may be bound regardless of its state, but reads (and writes) are only
@@ -189,6 +195,18 @@ object TVar {
         }
       }
     }
+
+    /** Blocks until <code>pred(elem)</code> is true, in a manner consistent
+     *  with the current context.  If called from a transactional context this
+     *  method performs a conditional retry of the transaction of the predicate
+     *  is not true.  If called from a non-transactional context this method
+     *  blocks until the predicate holds.  Requires that the predicate be safe
+     *  to reevaluate, and that <code>pred(x) == pred(x)</code>.
+     *  @param pred an idempotent predicate.
+     *  @see edu.stanford.ppl.ccstm.Txn#retry
+     *  @see edu.stanford.ppl.ccstm.TVar.BoundSource#elem
+     */
+    def await(pred: T => Boolean)
 
     /** Returns an <code>UnrecordedRead</code> instance that wraps the value as
      *  that would be returned from <code>elem</code>, but if this source is
