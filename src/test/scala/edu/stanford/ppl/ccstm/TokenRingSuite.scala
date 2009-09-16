@@ -14,8 +14,11 @@ import org.scalatest.FunSuite
  */
 class TokenRingSuite extends FunSuite {
   test("non-txn ping-pong") { tokenRing(2, 1000000, false) }
-  test("non-txn three-some") { tokenRing(3, 1000000, false) }
-  test("non-txn large ring") { tokenRing(32, 100000, false) }
+  test("non-txn threesome") { tokenRing(3, 1000000, false) }
+  test("non-txn large ring") { tokenRing(32, 10000, false) }
+  test("txn ping-pong") { tokenRing(2, 100000, true) }
+  test("txn threesome") { tokenRing(3, 100000, true) }
+  test("txn large ring") { tokenRing(32, 10000, true) }
 
   def tokenRing(ringSize: Int, handoffsPerThread: Int, useTxns: Boolean) {
     val ready = Array.fromFunction(i => TVar(i == 0))(ringSize)

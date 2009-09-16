@@ -24,6 +24,7 @@ trait IndirectEagerTL2 {
   type TxnAccessor[T] = IndirectEagerTL2TxnAccessor[T]
   type NonTxnAccessor[T] = IndirectEagerTL2NonTxnAccessor[T]
   type TxnImpl = IndirectEagerTL2Txn
+  def awaitRetry(explicitRetries: Txn.ExplicitRetryCause*) = IndirectEagerTL2.awaitRetry(explicitRetries:_*)
 }
 
 object IndirectEagerTL2 {
@@ -176,7 +177,7 @@ object IndirectEagerTL2 {
    *  the value of <code>globalVersion</code> present on entry and greater
    *  than <code>prevVersion</code>.
    */
-  def nonTxnWriteVersion(prevVersion: Version): Version = {
+  private[impls] def nonTxnWriteVersion(prevVersion: Version): Version = {
     val g0 = globalVersion.get
     if (g0 >= prevVersion) {
       1 + g0
@@ -190,12 +191,12 @@ object IndirectEagerTL2 {
   }
 
   /** Returns a read version for use in a new transaction. */
-  def freshReadVersion: Version = globalVersion.get
+  private[impls] def freshReadVersion: Version = globalVersion.get
 
   /** Guarantees that <code>globalVersion</code> is &ge; <code>minRV</code>,
    *  and returns a <code>globalVersion.get</code>.
    */
-  def freshReadVersion(minRV: Version): Version = {
+  private[impls] def freshReadVersion(minRV: Version): Version = {
     var g = globalVersion.get
     while (g < minRV) {
       if (globalVersion.compareAndSet(g, minRV)) {
@@ -211,7 +212,7 @@ object IndirectEagerTL2 {
   /** Returns a value that is greater than the <code>globalVersion</code> on
    *  entry, possibly incrementing <code>globalVersion</code>.
    */
-  def freshCommitVersion: Version = {
+  private[impls] def freshCommitVersion: Version = {
     val g = globalVersion.get
     if (silentCommitRatio <= 1 || silentCommitRand.nextInt <= silentCommitCutoff) {
       globalVersion.compareAndSet(g, g + 1)
@@ -222,7 +223,9 @@ object IndirectEagerTL2 {
 
   //////////////// Conditional retry stuff
 
-  class WakeupChannel {
+  private[impls] class WakeupChannel {
+    // TODO: create the WakeupEvent lazily, so that we can skip triggering if nobody has subscribed
+
     @volatile private var _currentEvent = new WakeupEvent
 
     def subscribe = _currentEvent
@@ -242,7 +245,7 @@ object IndirectEagerTL2 {
     }
   }
 
-  class WakeupEvent {
+  private[impls] class WakeupEvent {
     var _triggered = false
 
     def await {
@@ -252,19 +255,50 @@ object IndirectEagerTL2 {
     }
   }
 
+  private[impls] class ReadSet(val readCount: Int, val reads: Array[IndirectEagerTL2TxnAccessor[_]]) {
+    override def toString = {
+      "ReadSet(size=" + readCount + ")"
+    }
+  }
+
   private val wakeupChannels = Array.fromFunction(i => new WakeupChannel)(64)
 
-  /** Returns a wakeup channel for use during conditional retry. */
-  def wakeupChannel(hash: Int): WakeupChannel = wakeupChannels(hash & 63)
+  /** Returns a wakeup event for use during conditional retry. */
+  private[impls] def subscribeToWakeup(hash: Int) = wakeupChannels(hash & 63).subscribe
 
   /** Triggers all wakeup channels implied by <code>mask</code>. */
-  def triggerWakeups(mask: WakeupMask) {
+  private[impls] def triggerWakeups(mask: WakeupMask) {
     var i = 0
     var m = mask
     while (m != 0) {
       if ((m & 1) != 0) wakeupChannels(i).trigger
       i += 1
       m >>>= 1
+    }
+  }
+
+  private[impls] def awaitRetry(explicitRetries: Txn.ExplicitRetryCause*) {
+    // Picking the hash using the thread means that there is a possibility that
+    // we will get repeated interference with another thread in a per-VM way,
+    // but it minimizes saturation of the pendingWakeup field, which is quite
+    // important.
+    val hash = Thread.currentThread.hashCode
+    while (true) {
+      val event = subscribeToWakeup(hash)
+      for (er <- explicitRetries) {
+        val rs = er.readSet.asInstanceOf[ReadSet]
+        var i = 0
+        while (i < rs.readCount) {
+          val r = rs.reads(i)
+          val observed = r._readSnapshot
+          val current = r.data
+          if (current.version != observed.version) return
+          current.unlocked.addPendingWakeup(hash)
+          if (!(current eq r.data)) return
+          i += 1
+        }
+      }
+      event.await
     }
   }
 }
@@ -425,6 +459,11 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
     } else {
       currentOwner.requestRollback(cause)
     }
+  }
+
+  private[ccstm] def retryImpl() {
+    forceRollback(new ExplicitRetryCause(new ReadSet(_readCount, _reads)))
+    throw RollbackError
   }
 
   private[ccstm] def commitImpl(): Status = {
@@ -860,7 +899,7 @@ abstract class IndirectEagerTL2NonTxnAccessor[T] extends TVar.Bound[T] {
       if (!(w1 eq w) && pred(w1.nonTxnRead)) return
       w = w1
       w.unlocked.addPendingWakeup(h)
-      val e = wakeupChannel(h).subscribe
+      val e = subscribeToWakeup(h)
       if (w eq data) e.await
     }
   }

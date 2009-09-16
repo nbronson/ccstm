@@ -158,9 +158,11 @@ object Txn {
   /** The <code>RollbackCause</code> recorded for an explicit
    *  <code>Txn.retry</code>.  If an API that performs automatic retry is in
    *  use (like <code>Atomic.run</code>) the atomic block will be retried under
-   *  a new <code>Txn</code> after it is likely that it can succeed.
+   *  a new <code>Txn</code> after it is likely that it can succeed.  The
+   *  <code>readSet</code> is an opaque object used to block until the retry
+   *  may succeed.
    */
-  case object ExplicitRetryCause extends RollbackCause
+  case class ExplicitRetryCause(readSet: AnyRef) extends RollbackCause
 
   /** The <code>RollbackCause</code> recorded for an atomic block that threw an
    *  exception and was rolled back to provide failure atomicity.  The atomic
@@ -290,6 +292,13 @@ object Txn {
   }
 
   private[ccstm] val EmptyPrioCallbackMap = Map.empty[Int,List[Txn => Unit]]
+
+
+  /** Blocks the current thread until some value contained in one of the read
+   *  sets of one of the elements of <code>explicitRetries</code> might have
+   *  changed.
+   */
+  def awaitRetry(explicitRetries: ExplicitRetryCause*) = STM.awaitRetry(explicitRetries:_*)
 }
 
 /** An instance representing a single execution attempt for a single atomic
@@ -339,10 +348,7 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends STM.TxnImpl(fa
 
   def requestRollback(cause: RollbackCause) = requestRollbackImpl(cause)
 
-  def retry() {
-    forceRollback(ExplicitRetryCause)
-    throw RollbackError
-  }
+  def retry() { retryImpl() }
 
   def commit(): Status = commitImpl()
 
@@ -546,6 +552,7 @@ private[ccstm] abstract class AbstractTxn extends StatusHolder {
   //////////////// Functions to be implemented in an STM-specific manner
 
   private[ccstm] def requestRollbackImpl(cause: RollbackCause): Boolean
+  private[ccstm] def retryImpl()
   private[ccstm] def commitImpl(): Status
   private[ccstm] def explicitlyValidateReadsImpl()
 

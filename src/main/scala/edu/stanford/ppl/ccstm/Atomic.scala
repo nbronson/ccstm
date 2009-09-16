@@ -106,8 +106,11 @@ abstract class Atomic {
       val txn = attemptImpl(hist)
       if (txn.committed) return
       hist = txn.rollbackCause :: hist
-      if (txn.rollbackCause == Txn.ExplicitRetryCause) {
-        // TODO: handle explicit retry more intelligently
+      txn.rollbackCause match {
+        case x: Txn.ExplicitRetryCause => {
+          Txn.awaitRetry(x)
+        }
+        case _ => {}
       }
     }
   }
