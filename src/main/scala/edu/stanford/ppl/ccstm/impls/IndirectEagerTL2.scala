@@ -128,8 +128,11 @@ object IndirectEagerTL2 {
     def txnRead(txn: IndirectEagerTL2Txn) = (if (isLockedBy(txn)) specValue else value)
 
     def txnStillValid(txn: IndirectEagerTL2Txn, v: Version): Boolean = {
-      if (txn == owner || !owner._writesPreventRead || owner._status.mustRollBack) {
-        // read of old version is okay
+      if (txn == owner || owner._status != Txn.Validating) {
+        // Read of old version is okay.  The prohibition from reading from a
+        // validating transaction is because our read version might be >= its
+        // commit version, so its okay if the status _becomes_ Validating any
+        // time after the actual slot read that yielded v.
         (v == version)
       } else {
         // it is possible that this unrecorded read will become true again if
@@ -348,19 +351,6 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
    */
   private[impls] var _readVersion: Version = globalVersion.get
 
-  /** If true, then other transactions may not use the old value from
-   *  <code>TxnLocked</code> instances owned by this transaction.  This does
-   *  not necessarily mean this transaction will commit, but it means that the
-   *  <code>_commitVersion</code> has already been assigned and hence other
-   *  transactions may have <code>_readVersion</code>s larger than the eventual
-   *  new version of the data element.
-   *  <p>
-   *  Transactions may use the <code>TxnLocked.specValue</code> only if
-   *  <code>_status.mustCommit</code>.
-   */
-  // TODO: get rid of this, it is just _status==Validating
-  @volatile private[impls] var _writesPreventRead = false 
-
   /** The version number with which this transaction's writes are labelled, or
    *  zero if this transaction has not yet decided on commit or is in the
    *  <code>Committing</code> state but has not yet had time to query the
@@ -452,20 +442,18 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
   /** Returns true if the caller should wait for the txn to complete, false if
    *  the reader should proceed with the old value, hoping to commit before
    *  <code>currentOwner</code>.  May also choose to doom either txn, in which
-   *  case <code>RollbackError</code> will be thrown.  At least one of the
-   *  following will be true on normal return:<pre>
-   *    -  the return value
-   *    -  !currentOwner._writesPreventRead
-   *    -  currentOwner.decided
-   *  </pre>
+   *  case <code>RollbackError</code> will be thrown.  Will never return false
+   *  if currentOwner.status == Validating.
    */
   private[impls] def shouldWaitForRead(currentOwner: IndirectEagerTL2Txn): Boolean = {
     // TODO: something more sophisticated
-    
-    // this method must take care to avoid deadlock cycles, via the other txn
-    // waiting on a read, or a block inside resolveWriteWriteConflict
 
-    currentOwner._writesPreventRead && !currentOwner._status.decided
+    // This method must take care to avoid deadlock cycles, via the other txn
+    // waiting on a read, or a block inside resolveWriteWriteConflict.  We
+    // choose to never wait on a txn that is still performing reads or writes,
+    // which makes is simple.
+
+    currentOwner._status == Validating
   }
 
   /** After this method returns, either the current transaction will have been
@@ -509,10 +497,6 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
     }
 
     if (!_statusCAS(Active, Validating)) return completeRollback()
-
-    // prevent any transactions that begin or revalidate after this point from
-    // reading any of the old values
-    _writesPreventRead = true
 
     // this is our linearization point
     _commitVersion = freshCommitVersion
