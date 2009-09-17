@@ -5,9 +5,6 @@
 package edu.stanford.ppl.ccstm
 
 
-object atomic {
-}
-
 /** An abstract class that allows a relatively compact syntax for transactions
  *  under current Scala rules.  The trait performs its magic by declaring an
  *  implicit function that returns a <code>Txn</code>, which means that

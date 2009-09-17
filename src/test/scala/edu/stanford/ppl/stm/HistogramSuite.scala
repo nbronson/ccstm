@@ -2,11 +2,12 @@
 
 // HistogramSuite
 
-package edu.stanford.ppl.ccstm
+package edu.stanford.ppl.stm
 
-
+import edu.stanford.ppl.ccstm._
 import java.util.concurrent.CyclicBarrier
 import org.scalatest.FunSuite
+
 
 class HistogramSuite extends FunSuite {
 

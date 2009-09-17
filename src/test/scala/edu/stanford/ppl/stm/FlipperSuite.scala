@@ -2,11 +2,12 @@
 
 // FlipperSuite
 
-package edu.stanford.ppl.ccstm
+package edu.stanford.ppl.stm
 
-
+import ccstm.{Atomic, Txn, Ref}
 import java.util.concurrent.CyclicBarrier
 import org.scalatest.FunSuite
+
 
 class FlipperSuite extends FunSuite {
   val DEFAULT_SYNC_COUNT = 3

@@ -2,10 +2,11 @@
 
 // TxnSuite
 
-package edu.stanford.ppl.ccstm
+package edu.stanford.ppl.stm
 
-
+import edu.stanford.ppl.ccstm._
 import org.scalatest.FunSuite
+
 
 class TxnSuite extends FunSuite {
 

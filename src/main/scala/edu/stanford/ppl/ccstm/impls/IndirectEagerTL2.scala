@@ -14,48 +14,77 @@ import java.util.concurrent.atomic.{AtomicReference, AtomicLongFieldUpdater, Ato
  *  transaction to extend the read version, rather than rolling back.  Version
  *  metadata is associated with each value via an immutable wrapper, so there
  *  is no need to store metadata in the holding object.
+ *  <p>
+ *  CCSTM's currently active STM is configured at compile-time by altering the
+ *  superclass of <code>STMImpl</code>.
  *
  *  @author Nathan Bronson
  */
 trait IndirectEagerTL2 {
+  /** The type that should be declared for a field in an atomic object that
+   *  holds a value of type T.
+   */
   type Data[T] = IndirectEagerTL2.Wrapped[T]
+
+  /** The initial value that should be defined for a field in an atomic object
+   *  that holds a value of type T.
+   */
   def initialData[T](initialValue: T): Data[T] = new IndirectEagerTL2.Unlocked(initialValue, 0L)
+
+  /** The type used for per-object metadata.  For all <code>Metadata</code>
+   *  types except <code>Unit</code>, atomic objects must have methods with the
+   *  following type signatures:<pre>
+   *    def _metadata: Metadata
+   *    def _metadata_=(v: Metadata)
+   *    def _metadataCAS(before: Metadata, after: Metadata): Boolean
+   *  </pre>
+   *  <p>
+   *  For <code>IndirectEagerTL2</code>, <code>type Metadata = Unit</code>.
+   */
   type Metadata = Unit
+
+  /** A class that a user class may extend to get the appropriate metadata field
+   *  declarations.  The advantage of extending this class is that when no
+   *  metadata is required (if <code>Metadata = Unit</code>) no space will be
+   *  wasted on a boxed <code>Unit</code> instance.  The disadvantage is that
+   *  the atomic class must extend a class, which is not always feasible.
+   */
   type MetadataHolder = UnitMetadataHolder
-  type TxnAccessor[T] = IndirectEagerTL2TxnAccessor[T]
-  type NonTxnAccessor[T] = IndirectEagerTL2NonTxnAccessor[T]
-  type TxnImpl = IndirectEagerTL2Txn
-  def awaitRetry(explicitRetries: Txn.ExplicitRetryCause*) = IndirectEagerTL2.awaitRetry(explicitRetries:_*)
+
+  private[ccstm] type TxnAccessor[T] = IndirectEagerTL2TxnAccessor[T]
+  private[ccstm] type NonTxnAccessor[T] = IndirectEagerTL2NonTxnAccessor[T]
+  private[ccstm] type TxnImpl = IndirectEagerTL2Txn
+  private[ccstm] def awaitRetry(explicitRetries: Txn.ExplicitRetryCause*) = IndirectEagerTL2.awaitRetry(explicitRetries:_*)
 }
 
-object IndirectEagerTL2 {
+private[ccstm] object IndirectEagerTL2 {
 
   type Version = Long
   type WakeupMask = Long
 
   sealed abstract class Wrapped[T](val value: T, val version: Version) {
-    def unlocked: Unlocked[T]
+    private[impls] def unlocked: Unlocked[T]
 
-    def nonTxnRead: T
-    def nonTxnSnapshot: Wrapped[T]
+    private[impls] def nonTxnRead: T
+    private[impls] def nonTxnSnapshot: Wrapped[T]
 
-    def nonTxnStillValid(v: Version): Boolean
+    private[impls] def nonTxnStillValid(v: Version): Boolean
 
     /** True iff a CAS may be used to obtain write permission. */
-    def isAcquirable: Boolean
-    def isLockedBy(txn: IndirectEagerTL2Txn): Boolean
+    private[impls] def isAcquirable: Boolean
+    private[impls] def isLockedBy(txn: IndirectEagerTL2Txn): Boolean
 
     /** Only handles self-reads, does not check if a TxnLocked is present for
      *  a commmitted transaction.
      */
-    def txnRead(txn: IndirectEagerTL2Txn): T
+    private[impls] def txnRead(txn: IndirectEagerTL2Txn): T
 
-    def txnStillValid(txn: IndirectEagerTL2Txn, v: Version): Boolean
+    private[impls] def txnStillValid(txn: IndirectEagerTL2Txn, v: Version): Boolean
   }
 
   private val unlockedPendingWakeupsUpdater = (new Unlocked[AnyRef](null, 0)).newPendingWakeupUpdater  
 
-  class Unlocked[T](value0: T, version0: Version) extends Wrapped[T](value0, version0) {
+  private[impls] class Unlocked[T](value0: T, version0: Version) extends Wrapped[T](value0, version0) {
     @volatile private var _pendingWakeups: WakeupMask = 0
 
     private[IndirectEagerTL2] def newPendingWakeupUpdater = AtomicLongFieldUpdater.newUpdater(classOf[Unlocked[_]], "_pendingWakeups")
@@ -88,7 +117,7 @@ object IndirectEagerTL2 {
     }
   }
 
-  class NonTxnLocked[T](val unlocked: Unlocked[T]) extends Wrapped[T](unlocked.value, unlocked.version) {
+  private[impls] class NonTxnLocked[T](val unlocked: Unlocked[T]) extends Wrapped[T](unlocked.value, unlocked.version) {
     def nonTxnRead = value
     def nonTxnSnapshot = this
 
@@ -106,9 +135,9 @@ object IndirectEagerTL2 {
     }
   }
 
-  class TxnLocked[T](val unlocked: Unlocked[T],
-                     var specValue: T,
-                     val owner: IndirectEagerTL2Txn) extends Wrapped[T](unlocked.value, unlocked.version) {
+  private[impls] class TxnLocked[T](val unlocked: Unlocked[T],
+                                    var specValue: T,
+                                    val owner: IndirectEagerTL2Txn) extends Wrapped[T](unlocked.value, unlocked.version) {
 
     // Owner's commit point is the one where status becomes mustCommit.  We
     // define the linearization point of this operation to be when we check the
@@ -362,7 +391,7 @@ object IndirectEagerTL2 {
  *
  *  @author Nathan Bronson
  */
-abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) extends AbstractTxn {
+private[ccstm] abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) extends AbstractTxn {
 
   import IndirectEagerTL2._
   import Txn._
@@ -590,7 +619,7 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
   }
 }
 
-abstract class IndirectEagerTL2TxnAccessor[T] extends Ref.Bound[T] {
+private[ccstm] abstract class IndirectEagerTL2TxnAccessor[T] extends Ref.Bound[T] {
   import IndirectEagerTL2._
 
   //////////////// Abstract methods
@@ -604,7 +633,7 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends Ref.Bound[T] {
 
   //////////////// Implementation
 
-  var _readSnapshot: Wrapped[T] = null
+  private[impls] var _readSnapshot: Wrapped[T] = null
 
   def context: Option[Txn] = Some(txn.asInstanceOf[Txn])
 
@@ -935,7 +964,7 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends Ref.Bound[T] {
   }
 }
 
-abstract class IndirectEagerTL2NonTxnAccessor[T] extends Ref.Bound[T] {
+private[ccstm] abstract class IndirectEagerTL2NonTxnAccessor[T] extends Ref.Bound[T] {
   import IndirectEagerTL2._
 
   //////////////// Abstract methods

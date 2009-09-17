@@ -11,10 +11,10 @@ private object LongMetadataHolder {
   val _metadataUpdater = (new LongMetadataHolder {}).newMetadataUpdater
 }
 
-abstract class LongMetadataHolder {
-  @volatile private[ccstm] var _metadata: Long = 0L
+private[ccstm] abstract class LongMetadataHolder {
+  @volatile var _metadata: Long = 0L
 
-  private[ccstm] def _metadataCAS(before: Long, after: Long) = {
+  def _metadataCAS(before: Long, after: Long) = {
     LongMetadataHolder._metadataUpdater.compareAndSet(this, before, after)
   }
 

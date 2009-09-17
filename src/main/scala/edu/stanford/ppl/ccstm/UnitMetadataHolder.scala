@@ -5,8 +5,8 @@
 package edu.stanford.ppl.ccstm
 
 
-abstract class UnitMetadataHolder {
-  private[ccstm] def _metadata: Unit = {}
-  private[ccstm] def _metadata_=(v: Unit) {}
-  private[ccstm] def _metadataCAS(before: Unit, after: Unit): Boolean = true
+private[ccstm] abstract class UnitMetadataHolder {
+  def _metadata: Unit = {}
+  def _metadata_=(v: Unit) {}
+  def _metadataCAS(before: Unit, after: Unit): Boolean = true
 }

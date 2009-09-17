@@ -2,11 +2,12 @@
 
 // TokenRingSuite
 
-package edu.stanford.ppl.ccstm
+package edu.stanford.ppl.stm
 
-
+import edu.stanford.ppl.ccstm._
 import java.util.concurrent.CyclicBarrier
 import org.scalatest.FunSuite
+
 
 /** This test uses the transactional retry mechanism to pass a token around a
  *  ring of threads.  When there are two threads this is a ping-pong test.  A

@@ -2,11 +2,13 @@
 
 // TxnSuite
 
-package edu.stanford.ppl.ccstm
+package edu.stanford.ppl.stm
 
-
+import edu.stanford.ppl.ccstm._
 import collection.jcl.IdentityHashMap
 import org.scalatest.{Group, FunSuite}
+
+
 /** Performs single-threaded tests of <code>Ref</code>.  Since there is no
  *  outside interference, the tests cover non-transactional and transactional
  *  accesses, with various types and levels of bound view reuse.   
