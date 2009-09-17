@@ -158,43 +158,7 @@ object Ref {
      *      view.
      *  @see edu.stanford.ppl.ccstm.Ref.BoundSource#elem
      */
-    def map[Z](f: T => Z): Z = {
-      context match {
-        case None => {
-          // non-transactional, no semantic conflict detection
-          f(elem)
-        }
-        case Some(txn) => {
-          val u = unrecordedRead
-          val result = f(u.value)
-          if (!u.recorded) {
-            val callback = new Txn.ReadResource {
-              var _latestRead = u
-
-              def valid(txn: Txn) = {
-                if (!_latestRead.stillValid) {
-                  // reread, and see if that changes the result
-                  _latestRead = unrecordedRead
-                  val reapply = f(_latestRead.value)
-                  result == reapply
-                } else {
-                  true
-                }
-              }
-            }
-
-            // It is safe to skip calling callback.valid() here, because we
-            // have made no calls into the txn that might have resulted in it
-            // moving its virtual snapshot forward.  This means that the
-            // unrecorded read that initialized u is consistent with all of the
-            // reads performed so far.
-            txn.addReadResource(callback, 0, false)
-          }
-
-          result
-        }
-      }
-    }
+    def map[Z](f: T => Z): Z
 
     /** Blocks until <code>pred(elem)</code> is true, in a manner consistent
      *  with the current context.  If called from a transactional context this
@@ -306,21 +270,7 @@ object Ref {
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
      */
-    def readForWrite: T = {
-      // a more efficient implementation may be provided by the STM
-      context match {
-        case None => {
-          // non-transactional, no difference from a normal read
-          elem
-        }
-        case Some(txn) => {
-          // transactional
-          val z = elem
-          elem = z
-          z
-        }
-      }
-    }
+    def readForWrite: T
 
     /** Equivalent to atomically executing <code>(if (elem == before) { elem =
      *  after; true } else false)</code>, but may be more efficient.
@@ -334,13 +284,7 @@ object Ref {
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
      */
-    def compareAndSet(before: T, after: T): Boolean = {
-      // a more efficient implementation may be provided by the STM
-      transformIfDefined(new PartialFunction[T,T] {
-        def isDefinedAt(v: T): Boolean = before == v
-        def apply(v: T): T = after
-      })
-    }
+    def compareAndSet(before: T, after: T): Boolean
 
     /** Equivalent to atomically executing <code>(if (elem eq before) { elem =
      *  after; true } else false)</code>, but may be more efficient.
@@ -356,13 +300,7 @@ object Ref {
      *      that is not active.
      *  @see edu.stanford.ppl.ccstm.Ref.Bound#compareAndSet
      */
-    def compareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = {
-      // a more efficient implementation may be provided by the STM
-      transformIfDefined(new PartialFunction[T,T] {
-        def isDefinedAt(v: T): Boolean = (before eq v.asInstanceOf[AnyRef])
-        def apply(v: T): T = after
-      })
-    }
+    def compareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean
 
     /** Works like <code>compareAndSet</code>, but allows spurious failures.  A
      *  false return from this method does not necessarily mean that the
@@ -370,10 +308,7 @@ object Ref {
      *  <code>before</code>.
      *  @see edu.stanford.ppl.ccstm.Ref.Bound#compareAndSet
      */
-    def weakCompareAndSet(before: T, after: T): Boolean = {
-      // a more efficient implementation may be provided by the STM
-      compareAndSet(before, after)
-    }
+    def weakCompareAndSet(before: T, after: T): Boolean
 
     /** Works like <code>compareAndSetIdentity</code>, but allows spurious
      *  failures.  A false return from this method does not necessarily mean
@@ -381,10 +316,7 @@ object Ref {
      *  reference identity than <code>before</code>.
      *  @see edu.stanford.ppl.ccstm.Ref.Bound#compareAndSetIdentity
      */
-    def weakCompareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = {
-      // a more efficient implementation may be provided by the STM
-      compareAndSetIdentity(before, after)
-    }
+    def weakCompareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean
 
     /** Atomically replaces the value <i>v</i> stored in the <code>Ref</code>
      *  with <code>f</code>(<i>v</i>), possibly deferring execution of
@@ -394,13 +326,7 @@ object Ref {
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
      */
-    def transform(f: T => T) {
-      // a more efficient implementation may be provided by the STM
-      transformIfDefined(new PartialFunction[T,T] {
-        def isDefinedAt(v: T): Boolean = true
-        def apply(v: T): T = f(v)
-      })
-    }
+    def transform(f: T => T)
 
     /** Atomically replaces the value <i>v</i> stored in the <code>Ref</code>
      *  with <code>pf</code>(<i>v</i>) if <code>pf.isDefinedAt</code>(<i>v</i>),
@@ -467,8 +393,8 @@ class Ref[T](initialValue: T) extends STM.MetadataHolder with Ref.Source[T] with
   @volatile private[ccstm] var _data: STM.Data[T] = STM.initialData(initialValue)
 
   private[ccstm] def newDataUpdater = {
-    // this must be a member of Ref, because all Scala variables are private
-    // under the covers
+    // this method must be a member of Ref, because all Scala variables are
+    // private under the covers
     AtomicReferenceFieldUpdater.newUpdater(classOf[Ref[_]], classOf[STM.Data[_]], "_data")
   }
 

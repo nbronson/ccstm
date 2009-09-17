@@ -621,6 +621,36 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends Ref.Bound[T] {
     }
   }
 
+  def map[Z](f: T => Z): Z = {
+    val u = unrecordedRead
+    val result = f(u.value)
+    if (!u.recorded) {
+      val callback = new Txn.ReadResource {
+        var _latestRead = u
+
+        def valid(t: Txn) = {
+          if (!_latestRead.stillValid) {
+            // reread, and see if that changes the result
+            _latestRead = unrecordedRead
+            val reapply = f(_latestRead.value)
+            result == reapply
+          } else {
+            true
+          }
+        }
+      }
+
+      // It is safe to skip calling callback.valid() here, because we
+      // have made no calls into the txn that might have resulted in it
+      // moving its virtual snapshot forward.  This means that the
+      // unrecorded read that initialized u is consistent with all of the
+      // reads performed so far.
+      txn.addReadResource(callback, 0, false)
+    }
+
+    result
+  }
+
   // does not check for read-after-write
   private[impls] def readImpl(t: IndirectEagerTL2Txn, w0: Wrapped[T], unrecorded: Boolean): Wrapped[T] = {
     var w: Wrapped[T] = w0
@@ -820,22 +850,68 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends Ref.Bound[T] {
     }
   }
 
-  override def readForWrite: T = {
+  def readForWrite: T = {
     readForWriteImpl.specValue
   }
 
-  override def transform(f: T => T) {
+  def compareAndSet(before: T, after: T): Boolean = {
+    transformIfDefined(new PartialFunction[T,T] {
+      def isDefinedAt(v: T): Boolean = before == v
+      def apply(v: T): T = after
+    })
+  }
+
+  def compareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = {
+    transformIfDefined(new PartialFunction[T,T] {
+      def isDefinedAt(v: T): Boolean = (before eq v.asInstanceOf[AnyRef])
+      def apply(v: T): T = after
+    })
+  }
+
+  def weakCompareAndSet(before: T, after: T): Boolean = {
+    compareAndSet(before, after)
+  }
+
+  def weakCompareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = {
+    compareAndSetIdentity(before, after)
+  }
+
+  def transform(f: T => T) {
     val tl = readForWriteImpl
     tl.specValue = f(tl.specValue)
   }
 
   def transformIfDefined(pf: PartialFunction[T,T]): Boolean = {
-    if (map(v => pf.isDefinedAt(v))) {
-      val tl = readForWriteImpl
-      tl.specValue = pf(tl.specValue)
-      true
-    } else {
+    val u = unrecordedRead
+    if (!pf.isDefinedAt(u.value)) {
+      // make sure it stays undefined
+      if (!u.recorded) {
+        val callback = new Txn.ReadResource {
+          var _latestRead = u
+
+          def valid(t: Txn) = {
+            if (!_latestRead.stillValid) {
+              // if defined after reread then return false==invalid
+              _latestRead = unrecordedRead
+              !pf.isDefinedAt(_latestRead.value)
+            } else {
+              true
+            }
+          }
+        }
+        txn.addReadResource(callback, 0, false)
+      }
       false
+    } else {
+      val tl = readForWriteImpl
+      if (!pf.isDefinedAt(tl.specValue)) {
+        // value changed after unrecordedRead
+        false
+      } else {
+        // still defined, do the actual transform
+        tl.specValue = pf(tl.specValue)
+        true
+      }
     }
   }
 
@@ -873,6 +949,8 @@ abstract class IndirectEagerTL2NonTxnAccessor[T] extends Ref.Bound[T] {
   def context: Option[Txn] = None
 
   def elem: T = data.nonTxnRead
+
+  def map[Z](f: T => Z) = f(elem)
 
   def await(pred: T => Boolean) {
     val w0 = data
@@ -968,7 +1046,13 @@ abstract class IndirectEagerTL2NonTxnAccessor[T] extends Ref.Bound[T] {
     }
   }
 
-  override def compareAndSet(before: T, after: T): Boolean = {
+  def readForWrite: T = {
+    // no sensible way to grab a write-lock in a non-txn context, just fall
+    // back to a normal read
+    elem
+  }
+
+  def compareAndSet(before: T, after: T): Boolean = {
     var u: Unlocked[T] = null
     do {
       u = awaitUnlock
@@ -978,7 +1062,7 @@ abstract class IndirectEagerTL2NonTxnAccessor[T] extends Ref.Bound[T] {
     return true
   }
 
-  override def compareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = {
+  def compareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = {
     var u: Unlocked[T] = null
     do {
       u = awaitUnlock
@@ -988,7 +1072,7 @@ abstract class IndirectEagerTL2NonTxnAccessor[T] extends Ref.Bound[T] {
     return true
   }
 
-  override def weakCompareAndSet(before: T, after: T): Boolean = {
+  def weakCompareAndSet(before: T, after: T): Boolean = {
     data match {
       case u: Unlocked[_] =>
         if (before == u.value && dataCAS(u, new Unlocked(after, nonTxnWriteVersion(u.version)))) {
@@ -1002,7 +1086,7 @@ abstract class IndirectEagerTL2NonTxnAccessor[T] extends Ref.Bound[T] {
     }
   }
 
-  override def weakCompareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = {
+  def weakCompareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = {
     data match {
       case u: Unlocked[_] =>
         if ((before eq u.value.asInstanceOf[AnyRef]) && dataCAS(u, new Unlocked(after, nonTxnWriteVersion(u.version)))) {
@@ -1016,7 +1100,7 @@ abstract class IndirectEagerTL2NonTxnAccessor[T] extends Ref.Bound[T] {
     }
   }
 
-  override def transform(f: T => T) {
+  def transform(f: T => T) {
     val v = elem
     if (!weakCompareAndSet(v, f(v))) lockedTransform(f)
   }
