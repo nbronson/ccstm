@@ -280,7 +280,7 @@ object Txn {
    *  sets of one of the elements of <code>explicitRetries</code> might have
    *  changed.
    */
-  def awaitRetry(explicitRetries: ExplicitRetryCause*) = STM.awaitRetry(explicitRetries:_*)
+  def awaitRetry(explicitRetries: ExplicitRetryCause*) = STMImpl.awaitRetry(explicitRetries:_*)
 }
 
 /** An instance representing a single execution attempt for a single atomic
@@ -296,7 +296,7 @@ object Txn {
  *
  *  @author Nathan Bronson
  */
-sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends STM.TxnImpl(failureHistory) {
+sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends STMImpl.TxnImpl(failureHistory) {
   import Txn._
 
   /** Constructs a <code>Txn</code> with an empty failure history. */
@@ -323,8 +323,6 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends STM.TxnImpl(fa
   private var _afterRollback: CallbackList[Txn => Unit] = null
 
   def status: Status = _status
-
-  def rollbackCause: RollbackCause = status.rollbackCause
 
   def forceRollback(cause: RollbackCause) {
     if (!requestRollback(cause)) throw new IllegalStateException

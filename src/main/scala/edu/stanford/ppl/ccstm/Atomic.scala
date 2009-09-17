@@ -5,6 +5,9 @@
 package edu.stanford.ppl.ccstm
 
 
+object atomic {
+}
+
 /** An abstract class that allows a relatively compact syntax for transactions
  *  under current Scala rules.  The trait performs its magic by declaring an
  *  implicit function that returns a <code>Txn</code>, which means that
@@ -23,8 +26,21 @@ package edu.stanford.ppl.ccstm
  *
  *  @author Nathan Bronson
  */
-abstract class Atomic {
+abstract class Atomic extends (Txn => Unit) {
   private var _currentTxn: Txn = null
+
+  /** Calls <code>body</code> while providing implicit access to
+   *  <code>txn</code>.
+   */
+  def apply(txn: Txn) {
+    assert(_currentTxn == null)
+    _currentTxn = txn
+    try {
+      body
+    } finally {
+      _currentTxn = null
+    }
+  }
 
   /** Returns the transaction currently being attempted by this atomic block,
    *  or null if none.
@@ -47,8 +63,10 @@ abstract class Atomic {
   /** Performs the work of this atomic block. */
   def body
 
-  /** Calls <code>Txn.retry</code> on the current transaction.
-   *  @see edu.stanford.ppl.ccstm.Txn#retry 
+  /** Rolls the transaction back, indicating that it should be retried after
+   *  one or more of the values read during the transaction have changed.
+   *  @throws IllegalStateException if the transaction is not active.
+   *  @see edu.stanford.ppl.ccstm.Txn#retry
    */
   def retry = _currentTxn.retry
 
@@ -69,49 +87,17 @@ abstract class Atomic {
 //    }
 //  }
 
-  /** Runs the body of this atomic block in a transaction, returning true if it
-   *  was successfully committed, false if it was rolled back.  If the body
-   *  threw an exception the transaction will roll back and then the exception
-   *  will be rethrown from this method.
+  /** Performs a single attempt to execute this atomic block in a transaction.
+   *  @see edu.stanford.ppl.ccstm.Atomic#attemptAtomic
    */
-  def attempt(): Boolean = attemptImpl(Nil).status == Txn.Committed
+  def attempt(): Boolean = STM.attemptAtomic(this)
 
-  private def attemptImpl(failureHistory: List[Txn.RollbackCause]): Txn = {
-    assert(_currentTxn == null)
-
-    val txn = new Txn(failureHistory)
-    _currentTxn = txn
-    try {
-      body
-    }
-    catch {
-      case RollbackError => {}
-      case x => txn.forceRollback(Txn.UserExceptionCause(x))
-    }
-    _currentTxn = null
-
-    txn.commitAndRethrow()
-    txn
-  }
-
-  /** Repeatedly calls <code>attempt()</code> until a transaction can be
-   *  successfully committed, possibly raising the priority of subsequent
-   *  attempts in an implementation-specific manner.  If the body throws an
-   *  exception, the transaction will be rolled back and the exception will be
-   *  rethrown from this method without retrying the body.
+  /** Repeatedly attempts to perform the work of <code>body</code> in a
+   *  transaction, until an attempt is successfully committed or an exception is
+   *  thrown by <code>block</code> or a callback registered during the body's
+   *  execution.  On successful commit this method returns.  If the body
+   *  throws an exception, the transaction will be rolled back and the
+   *  exception will be rethrown from this method without further retries.
    */
-  def run() {
-    var hist: List[Txn.RollbackCause] = Nil
-    while (true) {
-      val txn = attemptImpl(hist)
-      if (txn.status == Txn.Committed) return
-      hist = txn.rollbackCause :: hist
-      txn.rollbackCause match {
-        case x: Txn.ExplicitRetryCause => {
-          Txn.awaitRetry(x)
-        }
-        case _ => {}
-      }
-    }
-  }
+  def run() { STM.atomic(this) }
 }

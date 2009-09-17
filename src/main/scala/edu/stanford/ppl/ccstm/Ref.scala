@@ -352,19 +352,19 @@ object Ref {
     val instance: Ref[T]
     def fieldIndex = 0
     def metadata = instance._metadata
-    def metadata_=(v: STM.Metadata) { instance._metadata = v }
-    def metadataCAS(before: STM.Metadata, after: STM.Metadata) = instance._metadataCAS(before, after)
-    def data: STM.Data[T] = instance._data
-    def data_=(v: STM.Data[T]) { instance._data = v }
-    def dataCAS(before: STM.Data[T], after: STM.Data[T]) = {
+    def metadata_=(v: STMImpl.Metadata) { instance._metadata = v }
+    def metadataCAS(before: STMImpl.Metadata, after: STMImpl.Metadata) = instance._metadataCAS(before, after)
+    def data: STMImpl.Data[T] = instance._data
+    def data_=(v: STMImpl.Data[T]) { instance._data = v }
+    def dataCAS(before: STMImpl.Data[T], after: STMImpl.Data[T]) = {
       Ref.dataUpdater.compareAndSet(instance, before, after)
     }
   }
 }
 
-private class RefNonTxnAccessor[T](val instance: Ref[T]) extends STM.NonTxnAccessor[T] with Ref.Accessor[T]
+private class RefNonTxnAccessor[T](val instance: Ref[T]) extends STMImpl.NonTxnAccessor[T] with Ref.Accessor[T]
 
-private class RefTxnAccessor[T](val txn: Txn, val instance: Ref[T]) extends STM.TxnAccessor[T] with Ref.Accessor[T]
+private class RefTxnAccessor[T](val txn: Txn, val instance: Ref[T]) extends STMImpl.TxnAccessor[T] with Ref.Accessor[T]
 
 /** Holds a single element of type <i>T</i>, providing optimistic concurrency
  *  control using software transactional memory.  Reads and writes performed
@@ -388,14 +388,14 @@ private class RefTxnAccessor[T](val txn: Txn, val instance: Ref[T]) extends STM.
  *
  *  @author Nathan Bronson
  */
-class Ref[T](initialValue: T) extends STM.MetadataHolder with Ref.Source[T] with Ref.Sink[T] {
+class Ref[T](initialValue: T) extends STMImpl.MetadataHolder with Ref.Source[T] with Ref.Sink[T] {
 
-  @volatile private[ccstm] var _data: STM.Data[T] = STM.initialData(initialValue)
+  @volatile private[ccstm] var _data: STMImpl.Data[T] = STMImpl.initialData(initialValue)
 
   private[ccstm] def newDataUpdater = {
     // this method must be a member of Ref, because all Scala variables are
     // private under the covers
-    AtomicReferenceFieldUpdater.newUpdater(classOf[Ref[_]], classOf[STM.Data[_]], "_data")
+    AtomicReferenceFieldUpdater.newUpdater(classOf[Ref[_]], classOf[STMImpl.Data[_]], "_data")
   }
 
   // implicit access to readForWrite is omitted to discourage its use 
