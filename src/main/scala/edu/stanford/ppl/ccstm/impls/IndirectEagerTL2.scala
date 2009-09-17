@@ -7,6 +7,8 @@ package edu.stanford.ppl.ccstm.impls
 import edu.stanford.ppl.ccstm.TVar
 import edu.stanford.ppl.ccstm.UnrecordedRead
 import java.util.concurrent.atomic.{AtomicReference, AtomicLongFieldUpdater, AtomicLong}
+
+
 /** An STM implementation that uses a TL2-style timestamp system, but that
  *  performs eager acquisition of write locks and that revalidates the
  *  transaction to extend the read version, rather than rolling back.  Version
@@ -391,14 +393,6 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
   }
 
 
-  /** Returns true if this txn has released all of its locks or if the locks
-   *  are eligible to be stolen.
-   */
-  private[impls] def completedOrDoomed: Boolean = {
-    val s = status
-    (s == Committed || s.mustRollBack)
-  }
-
   private[impls] def addToReadSet(w: IndirectEagerTL2TxnAccessor[_]) {
     if (_readCount == _reads.length) _reads = grow(_reads)
     _reads(_readCount) = w
@@ -669,28 +663,58 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
   }
 
   private def waitForNonTxn(nl: NonTxnLocked[_]): Wrapped[T] = {
-    // TODO: park after some spins, revalidate during spin?
-    var d = data
-    while (d eq nl) {
-      Thread.`yield`
-      d = data
+    // spin a bit
+    var spins = 0
+    while (spins < 200) {
+      spins += 1
+      if (spins > 100) Thread.`yield`
+
+      val w = data
+      if (!(w eq nl)) return w
     }
-    d
+
+    // spin failed, put ourself to sleep
+    val h = Thread.currentThread.hashCode
+    nl.unlocked.addPendingWakeup(h)
+    val e = subscribeToWakeup(h)
+    val w = data
+    if (!(w eq nl)) return w
+    e.await
+
+    val w1 = data
+    assert(!(w1 eq nl))
+    w1
   }
 
   private def waitForTxnReadPermission(tl: TxnLocked[_]): Wrapped[T] = {
-    // TODO: park after some spins, revalidate during spin?
-    while (!tl.owner._status.decided) {
-      Thread.`yield`
+    // spin a bit
+    var spins = 0
+    while (spins < 200) {
+      spins += 1
+      if (spins > 100) Thread.`yield`
+
+      if (tl.owner._status.decided) return data
     }
+
+    // spin failed, put ourself to sleep
+    tl.owner.awaitDecided()
+
     data
   }
 
   private def waitForTxnWritePermission(tl: TxnLocked[_]): Wrapped[T] = {
-    // TODO: park after some spins, revalidate during spin?
-    while (!tl.owner.completedOrDoomed) {
-      Thread.`yield`
+    // spin a bit
+    var spins = 0
+    while (spins < 200) {
+      spins += 1
+      if (spins > 100) Thread.`yield`
+
+      if (tl.owner.completedOrDoomed) return data
     }
+
+    // spin failed, put ourself to sleep
+    tl.owner.awaitCompletedOrDoomed()
+
     data
   }
 
