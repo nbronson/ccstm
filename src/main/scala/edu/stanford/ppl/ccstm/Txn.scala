@@ -557,20 +557,36 @@ private[ccstm] class StatusHolder {
   }
 
   private[ccstm] def awaitDecided() {
-    if (!_status.decided) {
-      _anyAwaitingDecided = true
-      this.synchronized {
-        while (!_status.decided) { this.wait }
-      }
+    // spin a bit
+    var spins = 0
+    while (spins < 200) {
+      spins += 1
+      if (spins > 100) Thread.`yield`
+
+      if (_status.decided) return
+    }
+
+    // spin failed, put ourself to sleep
+    _anyAwaitingDecided = true
+    this.synchronized {
+      while (!_status.decided) { this.wait }
     }
   }
 
   private[ccstm] def awaitCompletedOrDoomed() {
-    if (!completedOrDoomed) {
-      _anyAwaitingCompletedOrDoomed = true
-      this.synchronized {
-        while (!completedOrDoomed) { this.wait }
-      }
+    // spin a bit
+    var spins = 0
+    while (spins < 200) {
+      spins += 1
+      if (spins > 100) Thread.`yield`
+
+      if (completedOrDoomed) return
+    }
+
+    // spin failed, put ourself to sleep
+    _anyAwaitingCompletedOrDoomed = true
+    this.synchronized {
+      while (!completedOrDoomed) { this.wait }
     }
   }
 

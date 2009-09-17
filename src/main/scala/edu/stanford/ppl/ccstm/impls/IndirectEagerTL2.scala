@@ -330,6 +330,32 @@ object IndirectEagerTL2 {
     }
     return true
   }
+
+  //////////////// Internal per-slot blocking
+
+  private[impls] def awaitNonTxnUnlock[T](data: () => Wrapped[T], nl: NonTxnLocked[_]): Wrapped[T] = {
+    // spin a bit
+    var spins = 0
+    while (spins < 200) {
+      spins += 1
+      if (spins > 100) Thread.`yield`
+
+      val w = data()
+      if (!(w eq nl)) return w
+    }
+
+    // spin failed, put ourself to sleep
+    val h = Thread.currentThread.hashCode
+    nl.unlocked.addPendingWakeup(h)
+    val e = subscribeToWakeup(h)
+    val w = data()
+    if (!(w eq nl)) return w
+    e.await
+
+    val w1 = data()
+    assert(!(w1 eq nl))
+    w1
+  }
 }
 
 /** @see edu.stanford.ppl.ccstm.IndirectEagerTL2
@@ -624,7 +650,7 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
           // value and see if we can commit first, it seems unlikely that this
           // will be profitable in practice (this would also require changing
           // the non-txn code).
-          w = waitForNonTxn(nl)
+          w = awaitNonTxnUnlock(() => data, nl)
         }
         case tl: TxnLocked[_] => {
           // We checked for read-after-write earlier, so this is a true
@@ -634,7 +660,8 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
           // less than the current one.  shouldWaitForRead will honor the
           // _writesPreventRead flag.
           if (t.shouldWaitForRead(tl.owner)) {
-            w = waitForTxnReadPermission(tl)
+            tl.owner.awaitDecided
+            w = data
           } else {
             // If commit is inevitable, we can (should) use the new value.  If
             // commit is not inevitable, then we are allowed to use the old
@@ -660,62 +687,6 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
     }
 
     return w
-  }
-
-  private def waitForNonTxn(nl: NonTxnLocked[_]): Wrapped[T] = {
-    // spin a bit
-    var spins = 0
-    while (spins < 200) {
-      spins += 1
-      if (spins > 100) Thread.`yield`
-
-      val w = data
-      if (!(w eq nl)) return w
-    }
-
-    // spin failed, put ourself to sleep
-    val h = Thread.currentThread.hashCode
-    nl.unlocked.addPendingWakeup(h)
-    val e = subscribeToWakeup(h)
-    val w = data
-    if (!(w eq nl)) return w
-    e.await
-
-    val w1 = data
-    assert(!(w1 eq nl))
-    w1
-  }
-
-  private def waitForTxnReadPermission(tl: TxnLocked[_]): Wrapped[T] = {
-    // spin a bit
-    var spins = 0
-    while (spins < 200) {
-      spins += 1
-      if (spins > 100) Thread.`yield`
-
-      if (tl.owner._status.decided) return data
-    }
-
-    // spin failed, put ourself to sleep
-    tl.owner.awaitDecided()
-
-    data
-  }
-
-  private def waitForTxnWritePermission(tl: TxnLocked[_]): Wrapped[T] = {
-    // spin a bit
-    var spins = 0
-    while (spins < 200) {
-      spins += 1
-      if (spins > 100) Thread.`yield`
-
-      if (tl.owner.completedOrDoomed) return data
-    }
-
-    // spin failed, put ourself to sleep
-    tl.owner.awaitCompletedOrDoomed()
-
-    data
   }
 
   def await(pred: T => Boolean) {
@@ -790,7 +761,7 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
         w match {
           case nl: NonTxnLocked[_] => {
             // Nothing to do but wait.
-            w = waitForNonTxn(nl)
+            w = awaitNonTxnUnlock(() => data, nl)
           }
           case tl: TxnLocked[_] => {
             // Since we can't buffer multiple speculative versions for this
@@ -802,7 +773,8 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
             // wants to doom tl.owner it will also do that directly.  Once the
             // other transaction has decided, we can proceed.
             t.resolveWriteWriteConflict(tl.owner, this)
-            w = waitForTxnWritePermission(tl)
+            tl.owner.awaitCompletedOrDoomed()
+            w = data
           }
           case u: Unlocked[_] => throw new Error("shouldn't get here")
         }
@@ -944,13 +916,23 @@ abstract class IndirectEagerTL2NonTxnAccessor[T] extends TVar.Bound[T] {
   }
 
   private def awaitUnlock: Unlocked[T] = {
-    // TODO: park after some spins
     var d = data
-    while (!d.isInstanceOf[Unlocked[_]]) {
-      Thread.`yield`
-      d = data
+    var result: Unlocked[T] = null
+    while (result == null) {
+      d match {
+        case u: Unlocked[_] => {
+          result = u.asInstanceOf[Unlocked[T]]
+        }
+        case nl: NonTxnLocked[_] => {
+          d = awaitNonTxnUnlock(() => data, nl)
+        }
+        case tl: TxnLocked[_] => {
+          tl.owner.awaitCompletedOrDoomed
+          d = data
+        }
+      }
     }
-    d.asInstanceOf[Unlocked[T]]
+    result
   }
 
   private def acquireLock: NonTxnLocked[T] = {
