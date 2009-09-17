@@ -74,7 +74,7 @@ abstract class Atomic {
    *  threw an exception the transaction will roll back and then the exception
    *  will be rethrown from this method.
    */
-  def attempt(): Boolean = attemptImpl(Nil).committed
+  def attempt(): Boolean = attemptImpl(Nil).status == Txn.Committed
 
   private def attemptImpl(failureHistory: List[Txn.RollbackCause]): Txn = {
     assert(_currentTxn == null)
@@ -104,7 +104,7 @@ abstract class Atomic {
     var hist: List[Txn.RollbackCause] = Nil
     while (true) {
       val txn = attemptImpl(hist)
-      if (txn.committed) return
+      if (txn.status == Txn.Committed) return
       hist = txn.rollbackCause :: hist
       txn.rollbackCause match {
         case x: Txn.ExplicitRetryCause => {

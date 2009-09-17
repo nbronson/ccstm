@@ -22,14 +22,6 @@ private[ccstm] abstract class AbstractTxn extends StatusHolder {
    */
   def status: Status
 
-  /** If <code>status.mustRollBack</code> is true, then this returns the
-   *  exception that is responsible for the rollback, otherwise it returns
-   *  null.  This is a convenience method that is equivalent to
-   *  <code>status.rollbackCause</code>.
-   *  @see edu.stanford.ppl.ccstm.Status#rollbackCause
-   */
-  def rollbackCause: RollbackCause
-  
   /** Causes this transaction to fail with the specified cause.  If the
    *  transaction is already doomed (<code>status.mustRollBack</code>) then
    *  this method does nothing.  Throws an exception if it cannot be arranged
@@ -41,6 +33,7 @@ private[ccstm] abstract class AbstractTxn extends StatusHolder {
    *  (probably not checked); use <code>requestRollback</code> if you wish to
    *  doom a transaction running on another thread.
    *  @throws IllegalStateException if <code>status.mustCommit</code>.
+   *  @see edu.stanford.ppl.ccstm.Txn#requestRollback
    */
   def forceRollback(cause: RollbackCause)
 
@@ -49,6 +42,7 @@ private[ccstm] abstract class AbstractTxn extends StatusHolder {
    *  This method may return true if rollback occurs for a reason other than
    *  <code>cause</code>.  Unlike <code>forceRollback(cause)</code>, this
    *  method may be called from any thread, and never throws an exception.
+   *  @see edu.stanford.ppl.ccstm.Txn#forceRollback
    */
   def requestRollback(cause: RollbackCause): Boolean
 
@@ -69,31 +63,6 @@ private[ccstm] abstract class AbstractTxn extends StatusHolder {
    *  <code>CallbackExceptionCause</code>.
    */
   private[ccstm] def commitAndRethrow()
-
-  /** Throws <code>RollbackError</code> if the transaction will definitely roll
-   *  back, otherwise throws an <code>IllegalStateException</code> if the
-   *  transaction is not active.
-   */
-  private[ccstm] def requireActive
-
-  /** Throws an <code>IllegalStateException</code> if the transaction is
-   *  completed.
-   */
-  private[ccstm] def requireNotCompleted
-
-  /** A convenience function, equivalent to <code>status.completed</code>.
-   *  @see edu.stanford.ppl.ccstm.Txn.Status#completed
-   */
-  def completed: Boolean
-
-  /** A convenience function, equivalent to <code>status.mustCommit</code>.
-   *  @see edu.stanford.ppl.ccstm.Txn.Status#mustCommit
-   */
-  def mustCommit: Boolean
-
-  /** A convenience function, equivalent to <code>status == Committed</code>.
-   */
-  def committed: Boolean
 
   /** Validates that the transaction is consistent with all other committed
    *  transactions and completed non-transactional accesses, immediately

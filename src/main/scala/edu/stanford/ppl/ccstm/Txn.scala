@@ -34,7 +34,7 @@ object Txn {
     /** True if, for a transaction with this status, the outcome is certain.
      *  Equal to <code>(mustCommit || mustRollback)</code>.
      */
-    def decided: Boolean
+    def decided = mustCommit || mustRollBack
 
     /** True if, for a transaction with this status, the transaction can no
      *  longer intefere with the execution of other transactions.  All locks
@@ -56,7 +56,6 @@ object Txn {
   case object Active extends Status {
     def mightCommit = true
     def mustCommit = false
-    def decided = false
     def completed = false
     def rollbackCause = null
   }
@@ -69,7 +68,6 @@ object Txn {
   case object Validating extends Status {
     def mightCommit = true
     def mustCommit = false
-    def decided = false
     def completed = false
     def rollbackCause = null
   }
@@ -80,7 +78,6 @@ object Txn {
   case object Committing extends Status {
     def mightCommit = true
     def mustCommit = true
-    def decided = true
     def completed = false
     def rollbackCause = null
   }
@@ -92,7 +89,6 @@ object Txn {
   case object Committed extends Status {
     def mightCommit = true
     def mustCommit = true
-    def decided = true
     def completed = true
     def rollbackCause = null
   }
@@ -105,7 +101,6 @@ object Txn {
 
     def mightCommit = false
     def mustCommit = false
-    def decided = true
     def completed = false
   }
 
@@ -117,7 +112,6 @@ object Txn {
 
     def mightCommit = false
     def mustCommit = false
-    def decided = true
     def completed = true
   }
 
@@ -350,30 +344,6 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends STM.TxnImpl(fa
       case _ =>
     }
   }
-
-  private[ccstm] def requireActive {
-    val s = status
-    if (s != Active) {
-      if (s.isInstanceOf[RollingBack]) {
-        throw RollbackError
-      } else {
-        throw new IllegalStateException("txn.status is " + s)
-      }
-    }
-  }
-
-  private[ccstm] def requireNotCompleted {
-    val s = status
-    if (!s.completed) {
-      throw new IllegalStateException("txn.status is " + s)
-    }
-  }
-
-  def completed: Boolean = status.completed
-
-  def mustCommit: Boolean = status.mustCommit
-
-  def committed: Boolean = status == Committed
 
   def explicitlyValidateReads() { explicitlyValidateReadsImpl() }
 

@@ -116,11 +116,11 @@ object IndirectEagerTL2 {
     // decided, committing transactions cannot obstruct either a nonTxnRead or
     // a nonTxnSnapshot (used for unrecorded read).
 
-    def nonTxnRead = if (owner.mustCommit) specValue else value
-    def nonTxnSnapshot = if (owner.mustCommit) new Unlocked(specValue, owner._commitVersion) else this
+    def nonTxnRead = if (owner.status.mustCommit) specValue else value
+    def nonTxnSnapshot = if (owner.status.mustCommit) new Unlocked(specValue, owner._commitVersion) else this
 
     def nonTxnStillValid(v: Version) = {
-      v == (if (owner.mustCommit) owner._commitVersion else version)
+      v == (if (owner.status.mustCommit) owner._commitVersion else version)
     }
 
     def isAcquirable = owner.status.mustRollBack
@@ -517,7 +517,7 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
       if (!_statusCAS(Active, Committed)) {
         // remote requestRollback()
         assert(_status.isInstanceOf[RollingBack])
-        _status = Rolledback(rollbackCause)
+        _status = Rolledback(status.rollbackCause)
       }
       callAfter()
       return _status
@@ -545,7 +545,7 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
   private def completeRollback(): Status = {
     rollbackWrites
     writeResourcesPerformRollback
-    _status = Rolledback(rollbackCause)
+    _status = Rolledback(status.rollbackCause)
     callAfter
     return _status
   }
@@ -697,7 +697,7 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends Ref.Bound[T] {
             // commit is not inevitable, then we are allowed to use the old
             // value (owner is not yet committing) or we must use the old value
             // (owner has decided to roll back).
-            if (tl.owner.mustCommit) {
+            if (tl.owner.status.mustCommit) {
               w = new Unlocked(tl.specValue, tl.owner._commitVersion)
             }
             okay = true

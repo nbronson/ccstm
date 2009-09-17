@@ -17,6 +17,14 @@ private[ccstm] class StatusHolder {
   @volatile private var _anyAwaitingDecided = false
   @volatile private var _anyAwaitingCompletedOrDoomed = false
 
+  private[ccstm] def newStatusUpdater = {
+    // we have to create the updater from a method of StatusHolder, because
+    // all Scala variables are private under the covers
+    AtomicReferenceFieldUpdater.newUpdater(classOf[StatusHolder], classOf[Txn.Status], "__status")
+  }
+
+  //////////////// Access to the status, as _status
+
   private[ccstm] def _status = __status
   private[ccstm] def _status_=(after: Txn.Status) {
     val before = __status
@@ -41,6 +49,41 @@ private[ccstm] class StatusHolder {
       }
     }
   }
+
+  //////////////// Assertions about the current status
+
+  /** Throws <code>RollbackError</code> is the status is
+   *  <code>RollingBack</code>, otherwise throws an
+   *  <code>IllegalStateException</code> if the status is something other than
+   *  <code>Active</code>.
+   */
+  private[ccstm] def requireActive {
+    val s = _status
+    if (s != Txn.Active) {
+      if (s.isInstanceOf[Txn.RollingBack]) {
+        throw RollbackError
+      } else {
+        throw new IllegalStateException("txn.status is " + s)
+      }
+    }
+  }
+
+  /** Throws <code>RollbackError</code> is the status is 
+   *  <code>RollingBack</code>, throws an <code>IllegalStateException</code> if
+   *  the status is <code>Committed</code> or <code>RolledBack</code>.
+   */
+  private[ccstm] def requireNotCompleted {
+    val s = _status
+    if (s != Txn.Active) {
+      if (s.isInstanceOf[Txn.RollingBack]) {
+        throw RollbackError
+      } else if (s.completed) {
+        throw new IllegalStateException("txn.status is " + s)
+      }
+    }
+  }
+
+  //////////////// Status change waiting
 
   private[ccstm] def awaitDecided() {
     // spin a bit
@@ -76,14 +119,8 @@ private[ccstm] class StatusHolder {
     }
   }
 
-  private[ccstm] def completedOrDoomed = {
+  private def completedOrDoomed = {
     val s = _status
     s.completed || s.mustRollBack
-  }
-
-  private[ccstm] def newStatusUpdater = {
-    // we have to create the updater from a method of StatusHolder, because
-    // all Scala variables are private under the covers
-    AtomicReferenceFieldUpdater.newUpdater(classOf[StatusHolder], classOf[Txn.Status], "__status")
   }
 }
