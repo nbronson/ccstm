@@ -37,7 +37,7 @@ class HistogramSuite extends FunSuite {
                 nonTxnPct: Int,
                 samplesPerTxn: Int) {
 
-    val buckets = Array.fromFunction(i => TVar(0))(bucketCount)
+    val buckets = Array.fromFunction(i => Ref(0))(bucketCount)
     val threads = new Array[Thread](workerCount)
     val barrier = new CyclicBarrier(workerCount, new Runnable {
       var start = 0L

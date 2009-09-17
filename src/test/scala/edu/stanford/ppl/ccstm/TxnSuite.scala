@@ -16,7 +16,7 @@ class TxnSuite extends FunSuite {
   }
 
   test("Duplicate binding with old access") {
-    val x = TVar(1)
+    val x = Ref(1)
     new Atomic { def body {
       val b1 = x.bind
       assert(b1.elem === 1)
@@ -35,7 +35,7 @@ class TxnSuite extends FunSuite {
   class UserException extends Exception
 
   test("Failure atomicity") {
-    val x = TVar(1)
+    val x = Ref(1)
     intercept[UserException] {
       new Atomic { def body {
         x := 2

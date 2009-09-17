@@ -13,8 +13,8 @@ package edu.stanford.ppl.ccstm
  *  to be marked implicit, this class will probably become obsolete.
  *  <p>
  *  Typical usage:<pre>
- *    val tx: TVar[Int] = ..
- *    val ty: TVar[Int] = ..
+ *    val tx: Ref[Int] = ..
+ *    val ty: Ref[Int] = ..
  *
  *    new Atomic { def body {
  *      if (tx.elem &gt; 10) ty.elem = 20
@@ -31,9 +31,9 @@ abstract class Atomic {
    */
   implicit def currentTxn: Txn = _currentTxn
 
-  /** Allows access to a <code>TVar[T]</code> without using the
+  /** Allows access to a <code>Ref[T]</code> without using the
    *  <code>elem</code> or <code>!</code> methods if used in a context that can
-   *  accept a <code>T</code> but cannot accept a <code>TVar</code>.
+   *  accept a <code>T</code> but cannot accept a <code>Ref</code>.
    *  <p>
    *  TODO: Reevaluate if this is a good idea.
    *  <p>
@@ -42,7 +42,7 @@ abstract class Atomic {
    *  thing.  This can be considered a tradeoff between syntactic and semantic
    *  complexity.  Pay special attempt to <code>constant == tvar</code>.  
    */
-  implicit def implicitRead[T](v: TVar[T]): T = v.elem
+  implicit def implicitRead[T](v: Ref[T]): T = v.elem
 
   /** Performs the work of this atomic block. */
   def body

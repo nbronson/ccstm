@@ -63,7 +63,7 @@ class FlipperSuite extends FunSuite {
       print("computing sequentially...")
       Console.flush
 
-      val P = Array.fromFunction(i => TVar(false))(len)
+      val P = Array.fromFunction(i => Ref(false))(len)
       val expected = computeSequential(this, P)
 
       print("\ncomputing in parallel with transactions...")
@@ -79,15 +79,15 @@ class FlipperSuite extends FunSuite {
   }
 
   abstract class FlipperTask(val config: Config,
-                             val A: Array[TVar[Int]],
-                             val P: Array[TVar[Boolean]],
+                             val A: Array[Ref[Int]],
+                             val P: Array[Ref[Boolean]],
                              val computeP: Boolean,
                              val id: Int,
                              val sync: Int) extends (() => Unit) {
     def doWork(task: => Unit)
 
-    def read[T](ref: TVar[T]): T
-    def write[T](ref: TVar[T], v: T)
+    def read[T](ref: Ref[T]): T
+    def write[T](ref: Ref[T], v: T)
 
     def apply() {
       val mask = 1 << id
@@ -120,13 +120,13 @@ class FlipperSuite extends FunSuite {
     }
   }
 
-  def computeSequential(config: Config, P: Array[TVar[Boolean]]): Array[TVar[Int]] = {
-    val A = Array.fromFunction(i => TVar(0))(config.wordCount)
+  def computeSequential(config: Config, P: Array[Ref[Boolean]]): Array[Ref[Int]] = {
+    val A = Array.fromFunction(i => Ref(0))(config.wordCount)
     for (sync <- 0 until config.syncCount) {
       for (thread <- 0 until config.threadCount) {
         (new FlipperTask(config, A, P, true, thread, sync) {
-          def read[T](ref: TVar[T]): T = ref.nonTxn.elem
-          def write[T](ref: TVar[T], v: T) { ref.nonTxn.elem = v }
+          def read[T](ref: Ref[T]): T = ref.nonTxn.elem
+          def write[T](ref: Ref[T], v: T) { ref.nonTxn.elem = v }
           def doWork(task: => Unit) { task }
         })()
       }
@@ -134,15 +134,15 @@ class FlipperSuite extends FunSuite {
     A
   }
 
-  def computeParallelTxn(config: Config, P: Array[TVar[Boolean]]): Array[TVar[Int]] = {
-    val A = Array.fromFunction(i => TVar(0))(config.wordCount)
+  def computeParallelTxn(config: Config, P: Array[Ref[Boolean]]): Array[Ref[Int]] = {
+    val A = Array.fromFunction(i => Ref(0))(config.wordCount)
     for (sync <- 0 until config.syncCount) {
       val tasks = (for (thread <- 0 until config.threadCount) yield {
         new FlipperTask(config, A, P, false, thread, sync) {
           implicit var txn: Txn = null
 
-          def read[T](ref: TVar[T]): T = !ref
-          def write[T](ref: TVar[T], v: T) { ref := v }
+          def read[T](ref: Ref[T]): T = !ref
+          def write[T](ref: Ref[T], v: T) { ref := v }
           def doWork(task: => Unit) {
             new Atomic { def body {
               txn = currentTxn

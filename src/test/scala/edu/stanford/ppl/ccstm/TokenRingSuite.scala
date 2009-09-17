@@ -10,7 +10,7 @@ import org.scalatest.FunSuite
 
 /** This test uses the transactional retry mechanism to pass a token around a
  *  ring of threads.  When there are two threads this is a ping-pong test.  A
- *  separate <code>TVar</code> is used for each handoff.
+ *  separate <code>Ref</code> is used for each handoff.
  */
 class TokenRingSuite extends FunSuite {
   test("non-txn ping-pong") { tokenRing(2, 1000000, false) }
@@ -21,7 +21,7 @@ class TokenRingSuite extends FunSuite {
   test("txn large ring") { tokenRing(32, 10000, true) }
 
   def tokenRing(ringSize: Int, handoffsPerThread: Int, useTxns: Boolean) {
-    val ready = Array.fromFunction(i => TVar(i == 0))(ringSize)
+    val ready = Array.fromFunction(i => Ref(i == 0))(ringSize)
     val threads = new Array[Thread](ringSize - 1)
     val barrier = new CyclicBarrier(ringSize, new Runnable {
       var start = 0L

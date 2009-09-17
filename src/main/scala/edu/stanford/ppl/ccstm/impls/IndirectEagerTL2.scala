@@ -4,7 +4,7 @@
 
 package edu.stanford.ppl.ccstm.impls
 
-import edu.stanford.ppl.ccstm.TVar
+import edu.stanford.ppl.ccstm.Ref
 import edu.stanford.ppl.ccstm.UnrecordedRead
 import java.util.concurrent.atomic.{AtomicReference, AtomicLongFieldUpdater, AtomicLong}
 
@@ -590,7 +590,7 @@ abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.RollbackCause]) exte
   }
 }
 
-abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
+abstract class IndirectEagerTL2TxnAccessor[T] extends Ref.Bound[T] {
   import IndirectEagerTL2._
 
   //////////////// Abstract methods
@@ -830,7 +830,7 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
   }
 
   def transformIfDefined(pf: PartialFunction[T,T]): Boolean = {
-    if (elemMap(v => pf.isDefinedAt(v))) {
+    if (map(v => pf.isDefinedAt(v))) {
       val tl = readForWriteImpl
       tl.specValue = pf(tl.specValue)
       true
@@ -859,7 +859,7 @@ abstract class IndirectEagerTL2TxnAccessor[T] extends TVar.Bound[T] {
   }
 }
 
-abstract class IndirectEagerTL2NonTxnAccessor[T] extends TVar.Bound[T] {
+abstract class IndirectEagerTL2NonTxnAccessor[T] extends Ref.Bound[T] {
   import IndirectEagerTL2._
 
   //////////////// Abstract methods
