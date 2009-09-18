@@ -648,7 +648,7 @@ private[ccstm] abstract class IndirectEagerTL2TxnAccessor[T] extends Ref.Bound[T
   def dataCAS(before: Wrapped[T], after: Wrapped[T]): Boolean
 
   def fieldIndex: Int
-  val txn: IndirectEagerTL2Txn
+  def txn: IndirectEagerTL2Txn
 
   //////////////// Implementation
 
@@ -656,7 +656,7 @@ private[ccstm] abstract class IndirectEagerTL2TxnAccessor[T] extends Ref.Bound[T
 
   def context: Option[Txn] = Some(txn.asInstanceOf[Txn])
 
-  def elem: T = {
+  def get: T = {
     val t = txn
 
     t.requireActive
@@ -768,7 +768,7 @@ private[ccstm] abstract class IndirectEagerTL2TxnAccessor[T] extends Ref.Bound[T
   }
 
   def await(pred: T => Boolean) {
-    if (!pred(elem)) txn.retry
+    if (!pred(get)) txn.retry
   }
 
   def unrecordedRead: UnrecordedRead[T] = {
@@ -794,8 +794,7 @@ private[ccstm] abstract class IndirectEagerTL2TxnAccessor[T] extends Ref.Bound[T
     }
   }
 
-  // write barrier
-  def elem_=(v: T) {
+  def set(v: T) {
     readForWriteImpl(false).specValue = v
   }
 
@@ -1002,9 +1001,9 @@ private[ccstm] abstract class IndirectEagerTL2NonTxnAccessor[T] extends Ref.Boun
 
   def context: Option[Txn] = None
 
-  def elem: T = data.nonTxnRead
+  def get: T = data.nonTxnRead
 
-  def map[Z](f: T => Z) = f(elem)
+  def map[Z](f: T => Z) = f(get)
 
   def await(pred: T => Boolean) {
     val w0 = data
@@ -1082,7 +1081,7 @@ private[ccstm] abstract class IndirectEagerTL2NonTxnAccessor[T] extends Ref.Boun
     triggerWakeups(before.unlocked.pendingWakeups)
   }
 
-  def elem_=(v: T) {
+  def set(v: T) {
     var u: Unlocked[T] = null
     do {
       u = awaitUnlock
@@ -1103,7 +1102,7 @@ private[ccstm] abstract class IndirectEagerTL2NonTxnAccessor[T] extends Ref.Boun
   def readForWrite: T = {
     // no sensible way to grab a write-lock in a non-txn context, just fall
     // back to a normal read
-    elem
+    get
   }
 
   def compareAndSet(before: T, after: T): Boolean = {
@@ -1155,7 +1154,7 @@ private[ccstm] abstract class IndirectEagerTL2NonTxnAccessor[T] extends Ref.Boun
   }
 
   def transform(f: T => T) {
-    val v = elem
+    val v = get
     if (!weakCompareAndSet(v, f(v))) lockedTransform(f)
   }
 
@@ -1165,7 +1164,7 @@ private[ccstm] abstract class IndirectEagerTL2NonTxnAccessor[T] extends Ref.Boun
   }
 
   def transformIfDefined(pf: PartialFunction[T,T]): Boolean = {
-    val v = elem
+    val v = get
     if (!pf.isDefinedAt(v)) {
       false
     } else if (weakCompareAndSet(v, pf(v))) {

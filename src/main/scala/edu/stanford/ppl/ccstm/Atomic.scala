@@ -17,7 +17,7 @@ package edu.stanford.ppl.ccstm
  *    val ty: Ref[Int] = ..
  *
  *    new Atomic { def body {
- *      if (tx.elem &gt; 10) ty.elem = 20
+ *      if (!tx &gt; 10) ty := 20
  *    }}.run
  *  </pre>
  *
@@ -44,18 +44,19 @@ abstract class Atomic extends (Txn => Unit) {
    */
   implicit def currentTxn: Txn = _currentTxn
 
-  /** Allows access to a <code>Ref[T]</code> without using the
-   *  <code>elem</code> or <code>!</code> methods if used in a context that can
-   *  accept a <code>T</code> but cannot accept a <code>Ref</code>.
+  // TODO: reevaluate
+  /** Allows access to a <code>Ref[T]</code> in a transaction without using the
+   *  <code>get</code> or <code>unary_!</code> methods, if used in a context
+   *  that can accept a <code>T</code> but cannot accept a <code>Ref</code>.
    *  <p>
-   *  TODO: Reevaluate if this is a good idea.
+   *  <em>This feature is still under consideration.</em>
    *  <p>
    *  Pros: less clutter when implicit conversion is applicable.  Cons: caller
    *  must consider whether or not the implicit conversion does the right
    *  thing.  This can be considered a tradeoff between syntactic and semantic
-   *  complexity.  Pay special attempt to <code>constant == tvar</code>.  
+   *  complexity.  Pay special attempt to <code>constant == tvar</code>.
    */
-  implicit def implicitRead[T](v: Ref[T]): T = v.elem
+  implicit def implicitRead[T](v: Ref[T]): T = v.get
 
   /** Performs the work of this atomic block. */
   def body

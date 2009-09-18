@@ -93,7 +93,7 @@ class HistogramSuite extends FunSuite {
 
     for (worker <- 0 until workerCount - 1) threads(worker).join
 
-    val sum = buckets.map(_.nonTxn.elem).reduceLeft(_+_)
+    val sum = buckets.map(_.nonTxn.get).reduceLeft(_+_)
     assert(samplesPerWorker * workerCount === sum)
   }
 

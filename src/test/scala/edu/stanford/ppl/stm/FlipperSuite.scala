@@ -74,7 +74,7 @@ class FlipperSuite extends FunSuite {
 
       println()      
       for (i <- 0 until expected.length) {
-        assert(expected(i).nonTxn.elem === actual(i).nonTxn.elem)
+        assert(expected(i).nonTxn.get === actual(i).nonTxn.get)
       }
     }
   }
@@ -126,8 +126,8 @@ class FlipperSuite extends FunSuite {
     for (sync <- 0 until config.syncCount) {
       for (thread <- 0 until config.threadCount) {
         (new FlipperTask(config, A, P, true, thread, sync) {
-          def read[T](ref: Ref[T]): T = ref.nonTxn.elem
-          def write[T](ref: Ref[T], v: T) { ref.nonTxn.elem = v }
+          def read[T](ref: Ref[T]): T = ref.nonTxn.get
+          def write[T](ref: Ref[T], v: T) { ref.nonTxn := v }
           def doWork(task: => Unit) { task }
         })()
       }

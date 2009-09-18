@@ -77,9 +77,9 @@ class IsolatedRefSuite extends FunSuite {
 
     test(binder + ": counter") {
       val x = Ref(1)
-      val r = binder(x).elem + 1
-      binder(x).elem = r
-      assert(binder(x).elem === 2)
+      val r = binder(x).get + 1
+      binder(x) := r
+      assert(binder(x).get === 2)
     }
 
     test(binder + ": counter increment should be fast") {
@@ -88,13 +88,13 @@ class IsolatedRefSuite extends FunSuite {
       for (pass <- 0 until 100000) {
         val begin = System.nanoTime
         for (i <- 0 until 10) {
-          val r = binder(x).elem + 1
-          binder(x).elem = r
+          val r = binder(x).get + 1
+          binder(x) := r
         }
         val elapsed = System.nanoTime - begin
         best = best min elapsed
       }
-      assert(binder(x).elem === 1000001)
+      assert(binder(x).get === 1000001)
       println("best was " + (best / 10.0) + " nanos/call")
   
       // We should be able to get less than 5000 nanos, even on a Niagara.
@@ -110,21 +110,21 @@ class IsolatedRefSuite extends FunSuite {
     test(binder + ": transform") {
       val x = Ref(1)
       binder(x).transform(_ + 1)
-      assert(binder(x).elem === 2)
+      assert(binder(x).get === 2)
     }
   
     test(binder + ": successful compareAndSet") {
       val x = Ref(1)
       val f = binder(x).compareAndSet(1, 2)
       assert(f)
-      assert(binder(x).elem === 2)
+      assert(binder(x).get === 2)
     }
   
     test(binder + ": failing compareAndSet") {
       val x = Ref(1)
       val f = binder(x).compareAndSet(2, 3)
       assert(!f)
-      assert(binder(x).elem === 1)
+      assert(binder(x).get === 1)
     }
   
     test(binder + ": successful compareAndSetIdentity") {
@@ -133,7 +133,7 @@ class IsolatedRefSuite extends FunSuite {
       val x = Ref(ref1)
       val f = binder(x).compareAndSetIdentity(ref1, ref2)
       assert(f)
-      assert(binder(x).elem eq ref2)
+      assert(binder(x).get eq ref2)
     }
   
     test(binder + ": failing compareAndSetIdentity") {
@@ -143,7 +143,7 @@ class IsolatedRefSuite extends FunSuite {
       val x = Ref(ref1)
       val f = binder(x).compareAndSetIdentity(ref2, ref3)
       assert(!f)
-      assert(binder(x).elem eq ref1)
+      assert(binder(x).get eq ref1)
     }
   
     test(binder + ": applicable transformIfDefined") {
@@ -154,7 +154,7 @@ class IsolatedRefSuite extends FunSuite {
       }
       val f = binder(x).transformIfDefined(pf)
       assert(f)
-      assert(binder(x).elem === 4)
+      assert(binder(x).get === 4)
     }
   
     test(binder + ": inapplicable transformIfDefined") {
@@ -165,22 +165,22 @@ class IsolatedRefSuite extends FunSuite {
       }
       val f = binder(x).transformIfDefined(pf)
       assert(!f)
-      assert(binder(x).elem === 2)
+      assert(binder(x).get === 2)
     }
   
     test(binder + ": successful weakCompareAndSet") {
       val x = Ref(1)
       while (!binder(x).weakCompareAndSet(1, 2)) {
-        assert(binder(x).elem === 1)
+        assert(binder(x).get === 1)
       }
-      assert(binder(x).elem === 2)
+      assert(binder(x).get === 2)
     }
   
     test(binder + ": failing weakCompareAndSet") {
       val x = Ref(1)
       val f = binder(x).weakCompareAndSet(2, 3)
       assert(!f)
-      assert(binder(x).elem === 1)
+      assert(binder(x).get === 1)
     }
   
     test(binder + ": successful weakCompareAndSetIdentity") {
@@ -188,9 +188,9 @@ class IsolatedRefSuite extends FunSuite {
       val ref2 = new java.lang.Integer(4)
       val x = Ref(ref1)
       while (!binder(x).weakCompareAndSetIdentity(ref1, ref2)) {
-        assert(binder(x).elem eq ref1)
+        assert(binder(x).get eq ref1)
       }
-      assert(binder(x).elem eq ref2)
+      assert(binder(x).get eq ref2)
     }
   
     test(binder + ": failing weakCompareAndSetIdentity") {
@@ -200,7 +200,7 @@ class IsolatedRefSuite extends FunSuite {
       val x = Ref(ref1)
       val f = binder(x).weakCompareAndSetIdentity(ref2, ref3)
       assert(!f)
-      assert(binder(x).elem eq ref1)
+      assert(binder(x).get eq ref1)
     }
   
     test(binder + ": unrecordedRead immediate use") {
@@ -213,20 +213,20 @@ class IsolatedRefSuite extends FunSuite {
     test(binder + ": unrecordedRead ABA") {
       val x = Ref(1)
       val u = binder(x).unrecordedRead
-      for (i <- 0 until 1001) binder(x).elem = 2
-      for (i <- 0 until 1001) binder(x).elem = 1
+      for (i <- 0 until 1001) binder(x) := 2
+      for (i <- 0 until 1001) binder(x) := 1
       assert(u.value === 1)
-      assert(binder(x).elem === 1)
+      assert(binder(x).get === 1)
       assert(!u.stillValid)
     }
   
     test(binder + ": tryWrite") {
       val x = Ref(1)
-      assert(binder(x).elem === 1)
+      assert(binder(x).get === 1)
       while (!binder(x).tryWrite(2)) {
-        assert(binder(x).elem === 1)
+        assert(binder(x).get === 1)
       }
-      assert(binder(x).elem === 2)
+      assert(binder(x).get === 2)
     }
 
   }

@@ -27,8 +27,8 @@ import runtime.NonLocalReturnException
  *     atomic(performTransfer(a, b, 5)(_))
  *     //...
  *     def performTransfer(from: TVar[Int], to: TVar[Int], amount: Int)(implicit txn: Txn) {
- *       from := from - amount
- *       to := to + amount
+ *       from := !from - amount
+ *       to := !to + amount
  *     }
  *  </pre>
  *  or
@@ -39,8 +39,8 @@ import runtime.NonLocalReturnException
  *     val b = TVar(0)
  *     new Atomic { def body {
  *       val amount = 5
- *       a := a - amount
- *       b := b + amount
+ *       a := !a - amount
+ *       b := !b + amount
  *     }}.run
  *  </pre>
  *
@@ -117,16 +117,17 @@ object STM {
    */
   def retry()(implicit txn: Txn) { txn.retry() }
 
+  // TODO: reevaluate
   /** Allows access to a <code>Ref[T]</code> in a transaction without using the
-   *  <code>elem</code> or <code>!</code> methods, if used in a context that
-   *  can accept a <code>T</code> but cannot accept a <code>Ref</code>.
+   *  <code>get</code> or <code>unary_!</code> methods, if used in a context
+   *  that can accept a <code>T</code> but cannot accept a <code>Ref</code>.
    *  <p>
-   *  TODO: Reevaluate if this is a good idea.
+   *  <em>This feature is still under consideration.</em> 
    *  <p>
    *  Pros: less clutter when implicit conversion is applicable.  Cons: caller
    *  must consider whether or not the implicit conversion does the right
    *  thing.  This can be considered a tradeoff between syntactic and semantic
    *  complexity.  Pay special attempt to <code>constant == tvar</code>.
    */
-  implicit def implicitRead[T](v: Ref[T])(implicit txn: Txn): T = v.elem
+  implicit def implicitRead[T](v: Ref[T])(implicit txn: Txn): T = v.get
 }

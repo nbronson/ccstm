@@ -5,50 +5,53 @@
 package edu.stanford.ppl.ccstm
 
 
-import java.util.concurrent.atomic.AtomicReferenceFieldUpdater
-
-/** An object that provides a factory method for <code>Ref</code> instances.
+/** An object that provides factory methods for <code>Ref</code> instances.
  *  @see edu.stanford.ppl.ccstm.Ref
  *
  *  @author Nathan Bronson
  */
 object Ref {
-  
+
+  /** Returns a new <code>Ref</code> instance, initialized to the default value
+   *  for objects of type <code>T</code>.
+   */
+  def apply[T](): Ref[T] = new TCell(null.asInstanceOf[T])
+
   /** Returns a new <code>Ref</code> instance with the specified initial
    *  value.
    */
-  def apply[T](initialValue: T) = new Ref(initialValue)
+  def apply[T](initialValue: T): Ref[T] = new TCell(initialValue)
 
   
   /** <code>Source</code> defines the covariant read-only interface of a
    *  <code>Ref</code> instance.
    */
   trait Source[+T] {
-    /** Performs a transactional read.  Equivalent to <code>elem</code> or
-     *  <code>bind(txn).elem</code>.
+    /** Performs a transactional read.  Equivalent to <code>get</code> or
+     *  <code>bind.get</code>.
      *  @see edu.stanford.ppl.ccstm.Ref.Source#bind
-     *  @see edu.stanford.ppl.ccstm.Ref.BoundSource#elem
+     *  @see edu.stanford.ppl.ccstm.Ref.BoundSource#get
      */
-    def unary_! (implicit txn: Txn): T = elem(txn)
+    def unary_!(implicit txn: Txn): T = bind.get
 
-    /** Performs a transactional read.  Equivalent to
-     *  <code>bind(txn).elem</code>.
+    /** Performs a transactional read.  Equivalent to <code>unary_!</code> or
+     *  <code>bind.get</code>.
      *  @see edu.stanford.ppl.ccstm.Ref.Source#bind
-     *  @see edu.stanford.ppl.ccstm.Ref.BoundSource#elem
+     *  @see edu.stanford.ppl.ccstm.Ref.BoundSource#get
      */
-    def elem(implicit txn: Txn): T = bind(txn).elem
+    def get(implicit txn: Txn): T = bind.get
 
-    /** Equivalent to <code>bind(txn).map(f)</code>.
+    /** Equivalent to <code>bind.map(f)</code>.
      *  @see edu.stanford.ppl.ccstm.Ref.Source#bind
      *  @see edu.stanford.ppl.ccstm.Ref.BoundSource#map
      */
-    def map[Z](f: T => Z)(implicit txn: Txn) = bind(txn).map(f)
+    def map[Z](f: T => Z)(implicit txn: Txn) = bind.map(f)
 
-    /** Equivalent to <code>bind(txn).await(pred)</code>.
+    /** Equivalent to <code>bind.await(pred)</code>.
      *  @see edu.stanford.ppl.ccstm.Ref.Source#bind
      *  @see edu.stanford.ppl.ccstm.Ref.BoundSource#await
      */
-    def await(pred: T => Boolean)(implicit txn: Txn) = bind(txn).await(pred)
+    def await(pred: T => Boolean)(implicit txn: Txn) = bind.await(pred)
 
     /** Returns a view on this <code>Ref.Source</code> that can be used to read
      *  the cell's value as part of a transaction <code>txn</code>.  A transaction
@@ -76,23 +79,19 @@ object Ref {
    *  <code>Ref</code> instance.
    */
   trait Sink[-T] {
-    /** Performs a transactional write.  Equivalent to
-     *  <code>bind(txn).elem_=(v)</code>.
+    /** Performs a transactional write.  Equivalent to <code>set(v)</code> or
+     *  <code>bind.set(v)</code>.
      *  @see edu.stanford.ppl.ccstm.Ref.Sink#bind
-     *  @see edu.stanford.ppl.ccstm.Ref.BoundSink#elem_=
+     *  @see edu.stanford.ppl.ccstm.Ref.BoundSink#set
      */
-    def := (v: T)(implicit txn: Txn) { bind(txn).elem_=(v) }
+    def :=(v: T)(implicit txn: Txn) { bind.set(v) }
 
-    /** Performs a transactional write.  Equivalent to
-     *  <code>bind(txn).elem_=(v)</code>.
-     *  <p>
-     *  Note that Scala allows this method to be called without the underscore
-     *  (as a property setter) only if the corresponding property getter is
-     *  available from <code>Ref.Source</code>.
+    /** Performs a transactional write.  Equivalent to <code>:= v</code> or
+     *  <code>bind.set(v)</code>.
      *  @see edu.stanford.ppl.ccstm.Ref.Sink#bind
-     *  @see edu.stanford.ppl.ccstm.Ref.BoundSink#elem_=
+     *  @see edu.stanford.ppl.ccstm.Ref.BoundSink#set
      */
-    def elem_=(v: T)(implicit txn: Txn) { bind(txn).elem_=(v) }
+    def set(v: T)(implicit txn: Txn) { bind.set(v) }
 
     /** Returns a view on this <code>Ref.Source</code> that can be used to write
      *  the cell's value as part of a transaction <code>txn</code>.  A transaction
@@ -129,6 +128,11 @@ object Ref {
      */
     def context: Option[Txn]
 
+    /** Reads from the bound <code>Ref</code>, equivalent to <code>get</code>.
+     *  @see edu.stanford.ppl.ccstm.Ref.BoundSource#get
+     */
+    def unary_! : T = get
+
     /** Reads the element held by the bound <code>Ref</code>.  If this view
      *  was created by <code>Ref.bind(txn)</code> (or
      *  <code>Ref.Source.bind(txn)</code>) then this method will include the
@@ -147,20 +151,19 @@ object Ref {
      *  @see edu.stanford.ppl.ccstm.Ref#bind
      *  @see edu.stanford.ppl.ccstm.Ref#nonTxn
      */
-    def elem: T
+    def get: T
 
-    /** Returns <code>f(elem)</code>, possibly reevaluating <code>f</code> to
-     *  avoid rollback if a conflicting change is made to <code>elem</code> but
-     *  both the old and new values are equal after application of
-     *  <code>f</code>.  Requires that <code>f(x) == f(x)</code>.
+    /** Returns <code>f(get)</code>, possibly reevaluating <code>f</code> to
+     *  avoid rollback if a conflicting change is made but both the old and new
+     *  values are equal after application of <code>f</code>.  Requires that
+     *  <code>f(x) == f(x)</code>.
      *  @param f an idempotent function.
      *  @return the result of applying <code>f</code> to the value read by this
      *      view.
-     *  @see edu.stanford.ppl.ccstm.Ref.BoundSource#elem
      */
     def map[Z](f: T => Z): Z
 
-    /** Blocks until <code>pred(elem)</code> is true, in a manner consistent
+    /** Blocks until <code>pred(get)</code> is true, in a manner consistent
      *  with the current context.  If called from a transactional context this
      *  method performs a conditional retry of the transaction if the predicate
      *  is not true.  If called from a non-transactional context this method
@@ -172,7 +175,7 @@ object Ref {
     def await(pred: T => Boolean)
 
     /** Returns an <code>UnrecordedRead</code> instance that wraps the value as
-     *  that would be returned from <code>elem</code>, but if this source is
+     *  that would be returned from <code>get</code>, but if this source is
      *  bound to a transactional context does not add the <code>Ref</code> to
      *  the transaction's read set.  The caller is responsible for guaranteeing
      *  that the transaction's behavior is correct even if the
@@ -195,7 +198,7 @@ object Ref {
      *      and allows explicit revalidation.
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
-     *  @see edu.stanford.ppl.ccstm.Ref.BoundSource#elem
+     *  @see edu.stanford.ppl.ccstm.Ref.BoundSource#get
      */
     def unrecordedRead: UnrecordedRead[T]
   }
@@ -217,6 +220,11 @@ object Ref {
      */
     def context: Option[Txn]
 
+    /** Writes to the bound <code>Ref</code>, equivalent to <code>set</code>.
+     *  @see edu.stanford.ppl.ccstm.Ref.BoundSink#set
+     */
+    def :=(v: T) { set(v) }
+
     /** Updates the element held by the <code>Ref</code>.  If this view was
      *  created by <code>Ref.bind(txn)</code> (or
      *  <code>Ref.Sink.bind(txn)</code>) then the new value will not be
@@ -236,7 +244,7 @@ object Ref {
      *  @see edu.stanford.ppl.ccstm.Ref#bind
      *  @see edu.stanford.ppl.ccstm.Ref#nonTxn
      */
-    def elem_=(v: T)
+    def set(v: T)
 
     /** Updates the element held by the bound <code>Ref</code> without
      *  blocking and returns true, or does nothing and returns false.  For STM
@@ -244,14 +252,13 @@ object Ref {
      *  method will return false if the bound <code>Ref</code> is already
      *  locked by a different (non-parent) transaction.  For STMs that perform
      *  lazy detection of write-write conflicts this method may operate in an
-     *  identical fashion to <code>elem_=(v)</code>.  Regardless of the return
+     *  identical fashion to <code>set(v)</code>.  Regardless of the return
      *  value from this method the bound transaction (if any) will be
      *  validated.
      *  @param v a value to store in the <code>Ref</code>.
      *  @return true if the value was stored, false if nothing was done.
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
-     *  @see edu.stanford.ppl.ccstm.Ref#elem_=
      */
     def tryWrite(v: T): Boolean
   }
@@ -261,9 +268,9 @@ object Ref {
    *  a <code>Txn</code> or the non-transactional context.
    */
   trait Bound[T] extends BoundSource[T] with BoundSink[T] {
-    /** Returns the same value as <code>elem</code>, but adds the
+    /** Returns the same value as <code>get</code>, but adds the
      *  <code>Ref</code> to the write set of the bound transaction context,
-     *  if any.  Equivalent to <code>elem</code> when called from a
+     *  if any.  Equivalent to <code>get</code> when called from a
      *  non-transactional context.
      *  @return the current value of the bound <code>Ref</code> as observed by
      *      the binding context.
@@ -272,8 +279,9 @@ object Ref {
      */
     def readForWrite: T
 
-    /** Equivalent to atomically executing <code>(if (elem == before) { elem =
-     *  after; true } else false)</code>, but may be more efficient.
+    /** Equivalent to atomically executing
+     *  <code>(if (before == get) { set(after); true } else false)</code>, but
+     *  may be more efficient, especially in a non-transactional context.
      *  @param before a value to compare against the current <code>Ref</code>
      *      contents.
      *  @param after a value to store in the <code>Ref</code> if
@@ -286,8 +294,9 @@ object Ref {
      */
     def compareAndSet(before: T, after: T): Boolean
 
-    /** Equivalent to atomically executing <code>(if (elem eq before) { elem =
-     *  after; true } else false)</code>, but may be more efficient.
+    /** Equivalent to atomically executing
+     *  <code>(if (before eq get) { set(after); true } else false)</code>, but
+     *  may be more efficient, especially in a non-transactional context.
      *  @param before a reference whose identity will be compared against the
      *      current <code>Ref</code> contents.
      *  @param after a value to store in the <code>Ref</code> if
@@ -345,62 +354,44 @@ object Ref {
      */
     def transformIfDefined(pf: PartialFunction[T,T]): Boolean
   }
-
-  private[ccstm] val dataUpdater = (new Ref[Any](null)).newDataUpdater
-
-  private[ccstm] trait Accessor[T] {
-    val instance: Ref[T]
-    def fieldIndex = 0
-    def metadata = instance._metadata
-    def metadata_=(v: STMImpl.Metadata) { instance._metadata = v }
-    def metadataCAS(before: STMImpl.Metadata, after: STMImpl.Metadata) = instance._metadataCAS(before, after)
-    def data: STMImpl.Data[T] = instance._data
-    def data_=(v: STMImpl.Data[T]) { instance._data = v }
-    def dataCAS(before: STMImpl.Data[T], after: STMImpl.Data[T]) = {
-      Ref.dataUpdater.compareAndSet(instance, before, after)
-    }
-  }
 }
 
-private class RefNonTxnAccessor[T](val instance: Ref[T]) extends STMImpl.NonTxnAccessor[T] with Ref.Accessor[T]
-
-private class RefTxnAccessor[T](val txn: Txn, val instance: Ref[T]) extends STMImpl.TxnAccessor[T] with Ref.Accessor[T]
-
-/** Holds a single element of type <i>T</i>, providing optimistic concurrency
- *  control using software transactional memory.  Reads and writes performed
- *  by a successful <code>Txn</code> return the same values as if they were
- *  executed atomically at the transaction's commit (linearization) point.
- *  Reads and writes performed in a non-transactional manner have sequential
- *  consistency with regard to all accesses (transactional and
- *  non-transactional) for STM data types.
+/** Provides access to a single element of type <i>T</i>.  Accesses may be
+ *  performed as part of a <i>memory transaction<i>, composing an atomic block,
+ *  or they may be performed individually in a non-transactional manner.  The
+ *  software transactional memory performs concurrency control to make sure
+ *  that all committed transactions and all non-transactional accesses are
+ *  linearizable.  Reads and writes performed by a successful <code>Txn</code>
+ *  return the same values as if they were executed atomically at the
+ *  transaction's commit (linearization) point.  Reads and writes performed in
+ *  a non-transactional manner have sequential consistency with regard to all
+ *  accesses (transactional and non-transactional), for values managed by the
+ *  STM.
  *  <p>
- *  If an implicit <code>Txn</code> instance is available, transactional reads
- *  and writes can be performed as if for a property named <code>elem</code>.
- *  A <code>Ref.Bound</code> view on the <code>Ref</code> may also be created
- *  that does not require the <code>Txn</code> to be available, and that
- *  reduces overheads if multiple accesses are performed to a <code>Ref</code>
- *  instance in the same transaction.
+ *  In a transactional context (one in which an implicit <code>Txn</code> is
+ *  available), reads and writes are performed with either <code>get</code> and
+ *  <code>set</code>, or with the ML-inspired <code>unary_!</code> and
+ *  <code>:=</code>.  A <code>Txn</code> may be bound with a <code>Ref</code>,
+ *  the resulting <code>Ref.Bound</code> instance does not need access to the
+ *  implicit transaction, so it may be more convenient when passing refs to a
+ *  method.  The bound instance is only valid for the duration of the
+ *  transaction.
  *  <p>
- *  <code>Ref</code> allows subclassing to allow it to be opportunistically
- *  embedded in the internal node objects of collection classes, to reduce
- *  storage and indirection overheads.
+ *  Non-transactional access is obtained via the object returned from
+ *  <code>nonTxn</code>.  Each non-transactional access will be linearized with
+ *  all transactions that access this <code>Ref</code>, and with all
+ *  non-transactional accesses to this <code>Ref</code>.
+ *  <p>
+ *  Concrete <code>Ref</code> instances are obtained from the factory methods
+ *  in the <code>Ref</code> object.
  *  @see edu.stanford.ppl.ccstm.Txn
  *
  *  @author Nathan Bronson
  */
-class Ref[T](initialValue: T) extends STMImpl.MetadataHolder with Ref.Source[T] with Ref.Sink[T] {
+trait Ref[T] extends Ref.Source[T] with Ref.Sink[T] {
 
-  // TODO: should Ref be a trait?
-
-  @volatile private[ccstm] var _data: STMImpl.Data[T] = STMImpl.initialData(initialValue)
-
-  private[ccstm] def newDataUpdater = {
-    // this method must be a member of Ref, because all Scala variables are
-    // private under the covers
-    AtomicReferenceFieldUpdater.newUpdater(classOf[Ref[_]], classOf[STMImpl.Data[_]], "_data")
-  }
-
-  // implicit access to readForWrite is omitted to discourage its use 
+  // implicit access to readForWrite and some of the other methods is omitted
+  // to discourage their casual use
 
   /** Equivalent to <code>bind(txn).compareAndSet(before, after)</code>.
    *  @see edu.stanford.ppl.ccstm.Ref#bind
@@ -428,7 +419,7 @@ class Ref[T](initialValue: T) extends STMImpl.MetadataHolder with Ref.Source[T] 
    *  @return a view onto the value of a <code>Ref</code> under the context of
    *      <code>txn</code>.
    */
-  def bind(implicit txn: Txn): Ref.Bound[T] = new RefTxnAccessor(txn, this)
+  def bind(implicit txn: Txn): Ref.Bound[T]
 
   /** Returns a view of this <code>Ref.Sink</code> that can be used to perform
    *  individual (non-transactional) reads and writes of the cell's value. The
@@ -438,9 +429,5 @@ class Ref[T](initialValue: T) extends STMImpl.MetadataHolder with Ref.Source[T] 
    *  @return a view into the value of a <code>Ref</code>, that will perform
    *      each operation as if in its own transaction.
    */
-  def nonTxn: Ref.Bound[T] = new RefNonTxnAccessor(this)
-
-  override def toString = {
-    "Ref@" + Integer.toHexString(hashCode)
-  }
+  def nonTxn: Ref.Bound[T]
 }

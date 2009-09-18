@@ -49,11 +49,11 @@ class TokenRingSuite extends FunSuite {
           for (h <- 0 until handoffsPerThread) {
             if (!useTxns) {
               ready(index).nonTxn.await(f => f)
-              ready(index).nonTxn.elem = false
-              ready(next).nonTxn.elem = true
+              ready(index).nonTxn := false
+              ready(next).nonTxn := true
             } else {
               new Atomic { def body {
-                if (ready(index).elem == false) retry
+                if (ready(index).get == false) retry
                 ready(index) := false
                 ready(next) := true
               }}.run

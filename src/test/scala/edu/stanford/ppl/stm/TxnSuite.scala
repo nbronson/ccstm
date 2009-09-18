@@ -20,17 +20,17 @@ class TxnSuite extends FunSuite {
     val x = Ref(1)
     new Atomic { def body {
       val b1 = x.bind
-      assert(b1.elem === 1)
+      assert(b1.get === 1)
       val b2 = x.bind
-      assert(b2.elem === 1)
-      b1.elem = 2
-      assert(b1.elem === 2)
-      assert(b2.elem === 2)
-      b2.elem = 3
-      assert(b1.elem === 3)
-      assert(b2.elem === 3)
+      assert(b2.get === 1)
+      b1 := 2
+      assert(b1.get === 2)
+      assert(b2.get === 2)
+      b2 := 3
+      assert(b1.get === 3)
+      assert(b2.get === 3)
     }}.run
-    assert(x.nonTxn.elem === 3)
+    assert(x.nonTxn.get === 3)
   }
 
   class UserException extends Exception
@@ -43,13 +43,13 @@ class TxnSuite extends FunSuite {
         throw new UserException
       }}.run
     }
-    assert(x.nonTxn.elem === 1)
+    assert(x.nonTxn.get === 1)
   }
 
   test("non-local return") {
     val x = Ref(1)
     val y = nonLocalReturnHelper(x)
-    assert(x.nonTxn.elem === 2)
+    assert(x.nonTxn.get === 2)
     assert(y === 2)
   }
 
