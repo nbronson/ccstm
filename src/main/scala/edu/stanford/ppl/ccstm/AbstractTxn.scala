@@ -176,6 +176,17 @@ private[ccstm] abstract class AbstractTxn extends StatusHolder {
   /** Enqueues an after-rollback callback with the default priority of 0. */
   def afterRollback(callback: Txn => Unit)
 
+  /** Arranges for <code>callback</code> to be executed after transaction
+   *  completion, regardless of whether the transaction rolls back or commits.
+   *  Equivalent to passing <code>callback</code> to both
+   *  <code>afterCommit</code> and <code>afterRollback</code>.
+   *  @throws IllegalStateException if the transaction is already completed.
+   */
+  def afterCompletion(callback: Txn => Unit, prio: Int)
+
+  /** Enqueues an after-completionk callback with the default priority of 0. */
+  def afterCompletion(callback: Txn => Unit)
+
   /** Calls the handlers registered with either <code>afterCommit</code> or
    *  <code>afterRollback</code>, as appropriate, handling any exceptions.
    */

@@ -59,6 +59,9 @@ trait IndirectEagerTL2 {
 
 private[ccstm] object IndirectEagerTL2 {
 
+  val SpinCount = 100
+  val YieldCount = 100
+
   type Version = Long
   type WakeupMask = Long
 
@@ -158,16 +161,22 @@ private[ccstm] object IndirectEagerTL2 {
     def txnRead(txn: IndirectEagerTL2Txn) = (if (isLockedBy(txn)) specValue else value)
 
     def txnStillValid(txn: IndirectEagerTL2Txn, v: Version): Boolean = {
-      if (txn == owner || owner._status != Txn.Validating) {
-        // Read of old version is okay.  The prohibition from reading from a
-        // validating transaction is because our read version might be >= its
-        // commit version, so its okay if the status _becomes_ Validating any
-        // time after the actual slot read that yielded v.
+      if (txn == owner) {
         (v == version)
       } else {
-        // it is possible that this unrecorded read will become true again if
-        // owner rolls back
-        false
+        val s = owner._status
+        if (s == Txn.Validating) {
+          // May become true again later, but we can't guarantee that it is
+          // valid because we don't know which version to compare it with.
+          false
+        } else if (s.mustCommit) {
+          // Not yet unlocked, but txns are allowed to read from the new
+          // version.
+          (v == owner._commitVersion)
+        } else {
+          // All other reads come from the normal version
+          (v == version)
+        }
       }
     }
 
@@ -314,16 +323,18 @@ private[ccstm] object IndirectEagerTL2 {
   }
 
   private[impls] def awaitRetry(explicitRetries: Txn.ExplicitRetryCause*) {
+    assert(explicitRetries.exists(_.readSet.asInstanceOf[ReadSet].readCount > 0))
+
     // Spin a few times
-    var spinLeft = 200
-    while (spinLeft > 0) {
+    var spins = 0
+    while (spins < SpinCount + YieldCount) {
       for (er <- explicitRetries) {
         val rs = er.readSet.asInstanceOf[ReadSet]
         if (!readSetStillValid(rs)) return
-        spinLeft -= rs.readCount
+        spins += rs.readCount
       }
-      Thread.`yield`
-    }
+      if (spins > SpinCount) Thread.`yield`
+  }
     
     // Picking the hash using the thread means that there is a possibility that
     // we will get repeated interference with another thread in a per-VM way,
@@ -365,9 +376,9 @@ private[ccstm] object IndirectEagerTL2 {
   private[impls] def awaitNonTxnUnlock[T](data: () => Wrapped[T], nl: NonTxnLocked[_]): Wrapped[T] = {
     // spin a bit
     var spins = 0
-    while (spins < 200) {
+    while (spins < SpinCount + YieldCount) {
       spins += 1
-      if (spins > 100) Thread.`yield`
+      if (spins > SpinCount) Thread.`yield`
 
       val w = data()
       if (!(w eq nl)) return w
@@ -443,6 +454,7 @@ private[ccstm] abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.Rollb
     ("Txn@" + Integer.toHexString(hashCode) + "(" + status +
             ", readCount=" + _readCount +
             ", writeCount=" + _writeCount +
+            ", readVersion=" + _readVersion +
             ", commitVersion=" + _commitVersion +
             (if (barging) ", barging" else "") + ")")
   }
@@ -490,6 +502,7 @@ private[ccstm] abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.Rollb
       }
       i += 1
     }
+    
     // STM managed reads were okay, what about explicitly registered read-only
     // resources?
     return readResourcesValidate()
@@ -529,6 +542,10 @@ private[ccstm] abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.Rollb
   }
 
   private[ccstm] def retryImpl() {
+    if (_readCount == 0) {
+      throw new IllegalStateException("retry doesn't make sense with empty read set")
+    }
+
     forceRollback(new ExplicitRetryCause(new ReadSet(_readCount, _reads)))
     throw RollbackError
   }
@@ -568,6 +585,7 @@ private[ccstm] abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.Rollb
     writeResourcesPerformCommit()
     _status = Committed
     callAfter
+    
     return Committed
   }
 
@@ -692,7 +710,7 @@ private[ccstm] abstract class IndirectEagerTL2TxnAccessor[T] extends Ref.Bound[T
 
     // is this txn desperate?
     if (t.barging) {
-      return readForWriteImpl(t, w0)
+      return readForWriteImpl(t, w0, true)
     }
 
     var okay = false
@@ -777,10 +795,10 @@ private[ccstm] abstract class IndirectEagerTL2TxnAccessor[T] extends Ref.Bound[T
 
   // write barrier
   def elem_=(v: T) {
-    readForWriteImpl.specValue = v
+    readForWriteImpl(false).specValue = v
   }
 
-  private[impls] def readForWriteImpl: TxnLocked[T] = {
+  private[impls] def readForWriteImpl(addToRS: Boolean): TxnLocked[T] = {
     val t = txn
     t.requireActive
 
@@ -789,11 +807,11 @@ private[ccstm] abstract class IndirectEagerTL2TxnAccessor[T] extends Ref.Bound[T
       // easy
       w0.asInstanceOf[TxnLocked[T]]
     } else {
-      readForWriteImpl(t, w0)
+      readForWriteImpl(t, w0, addToRS)
     }
   }
 
-  private[impls] def readForWriteImpl(t: IndirectEagerTL2Txn, w0: Wrapped[T]): TxnLocked[T] = {
+  private[impls] def readForWriteImpl(t: IndirectEagerTL2Txn, w0: Wrapped[T], addToRS: Boolean): TxnLocked[T] = {
     var w = w0
     var result: TxnLocked[T] = null
     do {
@@ -808,7 +826,13 @@ private[ccstm] abstract class IndirectEagerTL2TxnAccessor[T] extends Ref.Bound[T
         // then w.unlocked is the most recent unlocked version of the slot.
         val after = new TxnLocked(w.unlocked, w.value, t)
         if (dataCAS(w, after)) {
-          // success!
+          // success!  we don't need to add to the read set for validation
+          // purposes, but we do need the snapshot value if we later want to do
+          // a conditional retry
+          if (addToRS && _readSnapshot == null) {
+            _readSnapshot = after.unlocked
+            t.addToReadSet(this)
+          }
           t.addToWriteSet(this)
           result = after
         } else {
@@ -880,7 +904,7 @@ private[ccstm] abstract class IndirectEagerTL2TxnAccessor[T] extends Ref.Bound[T
   }
 
   def readForWrite: T = {
-    readForWriteImpl.specValue
+    readForWriteImpl(true).specValue
   }
 
   def compareAndSet(before: T, after: T): Boolean = {
@@ -906,7 +930,7 @@ private[ccstm] abstract class IndirectEagerTL2TxnAccessor[T] extends Ref.Bound[T
   }
 
   def transform(f: T => T) {
-    val tl = readForWriteImpl
+    val tl = readForWriteImpl(true)
     tl.specValue = f(tl.specValue)
   }
 
@@ -932,7 +956,7 @@ private[ccstm] abstract class IndirectEagerTL2TxnAccessor[T] extends Ref.Bound[T
       }
       false
     } else {
-      val tl = readForWriteImpl
+      val tl = readForWriteImpl(true)
       if (!pf.isDefinedAt(tl.specValue)) {
         // value changed after unrecordedRead
         false
@@ -990,9 +1014,9 @@ private[ccstm] abstract class IndirectEagerTL2NonTxnAccessor[T] extends Ref.Boun
     // spin a bit
     var w = w0
     var spins = 0
-    while (spins < 200) {
+    while (spins < SpinCount + YieldCount) {
       spins += 1
-      if (spins > 100) Thread.`yield`
+      if (spins > SpinCount) Thread.`yield`
       
       val w1 = data
       if (!(w1 eq w) && pred(w1.nonTxnRead)) return

@@ -392,7 +392,7 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends STMImpl.TxnImp
     if (_readResources != null) {
       for (res <- _readResources) {
         validateNoThrow(res)
-        if (status != Active) return false
+        if (!status.mightCommit) return false
       }
     }
     return true
@@ -472,8 +472,15 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends STMImpl.TxnImp
 
   def afterRollback(callback: Txn => Unit) { afterRollback(callback, 0) }
 
+  def afterCompletion(callback: Txn => Unit) { afterCompletion(callback, 0) }
+
+  def afterCompletion(callback: Txn => Unit, prio: Int) {
+    afterCommit(callback, prio)
+    afterRollback(callback, prio)
+  }
+
   private[ccstm] def callAfter() {
-    val callbacks = if (status == Rolledback) _afterRollback else _afterCommit
+    val callbacks = if (status == Committed) _afterCommit else _afterRollback
     if (callbacks != null) {
       for (cb <- callbacks) {
         try {

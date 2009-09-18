@@ -10,13 +10,13 @@ import org.scalatest.FunSuite
 
 class TxnSuite extends FunSuite {
 
-  test("Empty transaction") {
+  test("empty transaction") {
     new Atomic { def body {
       // do nothing
     }}.run
   }
 
-  test("Duplicate binding with old access") {
+  test("duplicate binding with old access") {
     val x = Ref(1)
     new Atomic { def body {
       val b1 = x.bind
@@ -35,7 +35,7 @@ class TxnSuite extends FunSuite {
 
   class UserException extends Exception
 
-  test("Failure atomicity") {
+  test("failure atomicity") {
     val x = Ref(1)
     intercept[UserException] {
       new Atomic { def body {
@@ -44,5 +44,21 @@ class TxnSuite extends FunSuite {
       }}.run
     }
     assert(x.nonTxn.elem === 1)
+  }
+
+  test("non-local return") {
+    val x = Ref(1)
+    val y = nonLocalReturnHelper(x)
+    assert(x.nonTxn.elem === 2)
+    assert(y === 2)
+  }
+
+  def nonLocalReturnHelper(x: Ref[Int]): Int = {
+    STM.atomic((t: Txn) => {
+      implicit val txn = t
+      x := !x + 1
+      return !x
+    })
+    return -1
   }
 }

@@ -5,6 +5,8 @@
 package edu.stanford.ppl.ccstm
 
 
+import runtime.NonLocalReturnException
+
 /** <code>STM</code> controls execution of atomic blocks with software
  *  transactional memory transactions.  A convenient style of programming is
  *  obtained by importing <code>edu.stanford.ppl.ccstm.STM._</code>; this makes
@@ -90,14 +92,21 @@ object STM {
 
   private def attemptImpl(block: Txn => Unit, failureHistory: List[Txn.RollbackCause]): Txn = {
     val txn = new Txn(failureHistory)
+    var nonLocalReturn: NonLocalReturnException[_] = null
     try {
       block(txn)
     }
     catch {
       case RollbackError => {}
+      case x: NonLocalReturnException[_] => {
+        // This has the opposite behavior from other exception types.  We don't
+        // trigger rollback, and we rethrow only if the transaction _commits_.
+        nonLocalReturn = x
+      }
       case x => txn.forceRollback(Txn.UserExceptionCause(x))
     }
     txn.commitAndRethrow()
+    if (nonLocalReturn != null && txn.status == Txn.Committed) throw nonLocalReturn
     txn
   }
 
