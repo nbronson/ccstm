@@ -2,7 +2,7 @@
 
 // TCell
 
-package edu.stanford.ppl.ccstm
+package edu.stanford.ppl.ccstm.collection
 
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater
 

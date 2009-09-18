@@ -4,6 +4,8 @@
 
 package edu.stanford.ppl.ccstm
 
+import collection.TCell
+
 
 /** An object that provides factory methods for <code>Ref</code> instances.
  *  @see edu.stanford.ppl.ccstm.Ref

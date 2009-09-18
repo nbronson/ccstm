@@ -2,7 +2,7 @@
 
 // TMap.scala
 
-package edu.stanford.ppl.ccstm
+package edu.stanford.ppl.ccstm.collection
 
 
 object TMap {
