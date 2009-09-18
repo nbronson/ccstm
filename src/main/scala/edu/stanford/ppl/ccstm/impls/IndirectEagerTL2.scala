@@ -584,16 +584,17 @@ private[ccstm] abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.Rollb
     commitWrites()
     writeResourcesPerformCommit()
     _status = Committed
-    callAfter
+    callAfter()
     
     return Committed
   }
 
   private def completeRollback(): Status = {
-    rollbackWrites
-    writeResourcesPerformRollback
+    rollbackWrites()
+    writeResourcesPerformRollback()
     _status = Rolledback(status.rollbackCause)
-    callAfter
+    callAfter()
+
     return _status
   }
 

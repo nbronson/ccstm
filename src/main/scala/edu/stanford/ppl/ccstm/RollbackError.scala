@@ -11,4 +11,6 @@ package edu.stanford.ppl.ccstm
  *
  *  @author Nathan Bronson
  */
-object RollbackError extends Error with Stackless
+object RollbackError extends Error {
+  override def fillInStackTrace(): Throwable = this
+}

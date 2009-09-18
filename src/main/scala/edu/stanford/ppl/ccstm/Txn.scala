@@ -121,7 +121,9 @@ object Txn {
   /** Instances of <code>RollbackCause</code> encode the reason for a
    *  particular <code>Txn</code>'s rollback.
    */
-  sealed abstract class RollbackCause
+  sealed abstract class RollbackCause {
+    private[ccstm] def counter: Counter
+  }
 
   /** The base class of all <code>RollbackCause</code>s that indicate that a
    *  transaction was rolled back due to optimistic concurrency control, and
@@ -144,24 +146,32 @@ object Txn {
    *  <code>readSet</code> is an opaque object used to block until the retry
    *  may succeed.
    */
-  case class ExplicitRetryCause(readSet: AnyRef) extends RollbackCause
+  case class ExplicitRetryCause(readSet: AnyRef) extends RollbackCause {
+    private[ccstm] def counter = explicitRetryCounter
+  }
 
   /** The <code>RollbackCause</code> recorded for an atomic block that threw an
    *  exception and was rolled back to provide failure atomicity.  The atomic
    *  block will not be automatically retried.
    */
-  case class UserExceptionCause(cause: Throwable) extends RollbackCause
+  case class UserExceptionCause(cause: Throwable) extends RollbackCause {
+    private[ccstm] def counter = userExceptionCounter
+  }
 
   /** The <code>RollbackCause</code> recorded for a rollback that occurred
    *  because a callback or resource threw an exception.  The atomic block will
    *  not be automatically retried.
    */
-  case class CallbackExceptionCause(callback: AnyRef, cause: Throwable) extends RollbackCause
+  case class CallbackExceptionCause(callback: AnyRef, cause: Throwable) extends RollbackCause {
+    private[ccstm] def counter = callbackExceptionCounter
+  }
 
   /** An exception that indicates that a transaction was rolled back because a
    *  previous read is no longer valid.
    */
-  case class InvalidReadCause(invalidObject: AnyRef, extraInfo: Any) extends OptimisticFailureCause
+  case class InvalidReadCause(invalidObject: AnyRef, extraInfo: Any) extends OptimisticFailureCause {
+    private[ccstm] def counter = invalidReadCounter
+  }
 
   /** An exception that indicates that a transaction was rolled back because a
    *  <code>ReadResource</code> was not valid.
@@ -169,6 +179,7 @@ object Txn {
   case class InvalidReadResourceCause(resource: ReadResource) extends OptimisticFailureCause {
     val invalidObject = resource
     val extraInfo = null
+    private[ccstm] def counter = invalidReadResourceCounter
   }
 
   /** An exception that indicates that a transaction was rolled back because it
@@ -177,7 +188,9 @@ object Txn {
    *  have been the first or second to request write access; the contention
    *  management policy may choose either transaction to roll back.
    */
-  case class WriteConflictCause(invalidObject: AnyRef, extraInfo: Any) extends OptimisticFailureCause
+  case class WriteConflictCause(invalidObject: AnyRef, extraInfo: Any) extends OptimisticFailureCause {
+    private[ccstm] def counter = writeConflictCounter
+  }
 
   /** An exception that indicates that a transaction was rolled back because a
    *  <code>WriteResource</code> voted to roll back.
@@ -185,8 +198,91 @@ object Txn {
   case class VetoingWriteResourceCause(resource: WriteResource) extends OptimisticFailureCause {
     val invalidObject = resource
     val extraInfo = null
+    private[ccstm] def counter = vetoingWriteResourceCounter
   }
-  
+
+
+  //////////////// Statistics
+
+  private[ccstm] val commitCounter = new Counter  
+  private[ccstm] val explicitRetryCounter = new Counter
+  private[ccstm] val userExceptionCounter = new Counter
+  private[ccstm] val callbackExceptionCounter = new Counter
+  private[ccstm] val invalidReadCounter = new Counter
+  private[ccstm] val invalidReadResourceCounter = new Counter
+  private[ccstm] val writeConflictCounter = new Counter
+  private[ccstm] val vetoingWriteResourceCounter = new Counter
+
+  Runtime.getRuntime.addShutdownHook(new Thread("Txn shutdown hook") {
+    override def run {
+      val buf = new StringBuilder
+      for (m <- Txn.getClass.getMethods.toList.reverse) {
+        val n = m.getName
+        if (n.endsWith("Count")) {
+          buf ++= "\nCCSTM: " + n + (" " * (26-n.length)) + " = " + m.invoke(Txn)
+        }
+      }
+      println(buf)
+    }
+  })
+
+  /** Returns the number of transactions that have committed. */
+  def commitCount = commitCounter.get
+
+  /** Returns the number of transaction that rolled back for any reason,
+   *  including for an explicit retry.
+   */
+  def rollbackCount = (explicitRetryCount
+          + userExceptionCount
+          + callbackExceptionCount
+          + invalidReadCount
+          + invalidReadResourceCount
+          + writeConflictCount
+          + vetoingWriteResourceCount)
+
+  /** Returns the number of transactions that rolled back due to a concurrency
+   *  control failure, which includes invalid reads, invalid read resources,
+   *  write conflicts, and vetoing write resources.
+   */
+  def optimisticFailureCount = (invalidReadCount
+          + invalidReadResourceCount
+          + writeConflictCount
+          + vetoingWriteResourceCount)
+
+  /** Returns the number of transactions that rolled back with a
+   *  <code>ExplicitRetryCause</code> rollback cause.
+   */
+  def explicitRetryCount = explicitRetryCounter.get
+
+  /** Returns the number of transactions that rolled back with a
+   *  <code>UserExceptionCause</code> rollback cause.
+   */
+  def userExceptionCount = userExceptionCounter.get
+
+  /** Returns the number of transactions that rolled back with a
+   *  <code>CallbackExceptionCause</code> rollback cause.
+   */
+  def callbackExceptionCount = callbackExceptionCounter.get
+
+  /** Returns the number of transactions that rolled back with a
+   *  <code>InvalidReadCause</code> rollback cause.
+   */
+  def invalidReadCount = invalidReadCounter.get
+
+  /** Returns the number of transactions that rolled back with a
+   *  <code>InvalidReadResourceCause</code> rollback cause.
+   */
+  def invalidReadResourceCount = invalidReadResourceCounter.get
+
+  /** Returns the number of transactions that rolled back with a
+   *  <code>WriteConflictCause</code> rollback cause.
+   */
+  def writeConflictCount = writeConflictCounter.get
+
+  /** Returns the number of transactions that rolled back with a
+   *  <code>VetoingWriteResourceCause</code> rollback cause.
+   */
+  def vetoingWriteResourceCount = vetoingWriteResourceCounter.get
 
   //////////////// Resources participate in a two-phase commit
 
@@ -480,7 +576,14 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends STMImpl.TxnImp
   }
 
   private[ccstm] def callAfter() {
-    val callbacks = if (status == Committed) _afterCommit else _afterRollback
+    val s = status
+    val callbacks = (if (s == Committed) {
+      commitCounter += 1
+      _afterCommit
+    } else {
+      s.rollbackCause.counter += 1
+      _afterRollback
+    })
     if (callbacks != null) {
       for (cb <- callbacks) {
         try {

@@ -189,6 +189,7 @@ private[ccstm] abstract class AbstractTxn extends StatusHolder {
 
   /** Calls the handlers registered with either <code>afterCommit</code> or
    *  <code>afterRollback</code>, as appropriate, handling any exceptions.
+   *  Also adjusts the commit and rollback counters.
    */
   private[ccstm] def callAfter()
 }
