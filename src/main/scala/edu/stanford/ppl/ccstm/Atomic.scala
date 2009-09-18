@@ -29,7 +29,7 @@ abstract class Atomic extends (Txn => Unit) {
   /** Calls <code>body</code> while providing implicit access to
    *  <code>txn</code>.
    */
-  def apply(txn: Txn) {
+  def apply(txn: Txn): Unit = {
     assert(_currentTxn == null)
     _currentTxn = txn
     try {

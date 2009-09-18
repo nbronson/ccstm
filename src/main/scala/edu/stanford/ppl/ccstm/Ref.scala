@@ -390,6 +390,8 @@ private class RefTxnAccessor[T](val txn: Txn, val instance: Ref[T]) extends STMI
  */
 class Ref[T](initialValue: T) extends STMImpl.MetadataHolder with Ref.Source[T] with Ref.Sink[T] {
 
+  // TODO: should Ref be a trait?
+
   @volatile private[ccstm] var _data: STMImpl.Data[T] = STMImpl.initialData(initialValue)
 
   private[ccstm] def newDataUpdater = {

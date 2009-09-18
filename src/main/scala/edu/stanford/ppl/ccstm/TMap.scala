@@ -5,8 +5,36 @@
 package edu.stanford.ppl.ccstm
 
 
-class TMap {
+object TMap {
+  trait Bound[A,B] extends scala.collection.mutable.Map[A,B] {
+    //def unrecordedGet(k: A): UnrecordedRead[Option[B]]
+    //def await(k: A)
+    //def await(k: A, pred: (B => Boolean))
+    def context: Option[Txn]
 
+    def refs: Refs[A,B]
+  }
+
+  trait Refs[A,B] {
+    def apply(k: A): Ref.Bound[Option[B]]
+    def size: Ref.Bound[Int]
+  }
+}
+
+trait TMap[A,B] {
+  def size()(implicit txn: Txn): Int = bind.size
+  def get(k: A)(implicit txn: Txn): Option[B] = bind.get(k)
+  def put(k: A, v: B)(implicit txn: Txn): Option[B] = bind.put(k, v)
+  def transform(f: (A,B) => B)(implicit txn: Txn) = bind.transform(f)
+
+  def refs(implicit txn: Txn): TMap.Refs[A,B] = bind.refs
+
+  def bind(implicit txn: Txn): TMap.Bound[A,B]
+  def nonTxn: TMap.Bound[A,B]
+}
+
+//class TMap {
+//
 // The general implementation strategy for TMap is to start with a
 // concurrent map holding Ref[Option[V]], where each Ref is created
 // with an initial value of None.  Map entries holding Ref-s that are
@@ -29,5 +57,5 @@ class TMap {
 // and it may result in changes to the state of the tree independent of
 // its structure.  Cloning within a txn and then using that clone later
 // in the txn is especially tricky.  Hmm...
-
-}
+//
+//}
