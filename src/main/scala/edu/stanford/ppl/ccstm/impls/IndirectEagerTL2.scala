@@ -445,9 +445,9 @@ private[ccstm] abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.Rollb
   }
 
   private[impls] var _readCount = 0
-  private[impls] var _reads = new Array[IndirectEagerTL2TxnAccessor[_]](8)
+  private[impls] var _reads: Array[IndirectEagerTL2TxnAccessor[_]] = null
   private[impls] var _writeCount = 0
-  private[impls] var _writes = new Array[IndirectEagerTL2TxnAccessor[_]](4)
+  private[impls] var _writes: Array[IndirectEagerTL2TxnAccessor[_]] = null
 
 
   override def toString = {
@@ -461,13 +461,21 @@ private[ccstm] abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.Rollb
 
 
   private[impls] def addToReadSet(w: IndirectEagerTL2TxnAccessor[_]) {
-    if (_readCount == _reads.length) _reads = grow(_reads)
+    if (_readCount == 0) {
+      _reads = new Array[IndirectEagerTL2TxnAccessor[_]](8)
+    } else if (_readCount == _reads.length) {
+      _reads = grow(_reads)
+    }
     _reads(_readCount) = w
     _readCount += 1
   }
 
   private[impls] def addToWriteSet(w: IndirectEagerTL2TxnAccessor[_]) {
-    if (_writeCount == _writes.length) _writes = grow(_writes)
+    if (_writeCount == 0) {
+      _writes = new Array[IndirectEagerTL2TxnAccessor[_]](4)
+    } else if (_writeCount == _writes.length) {
+      _writes = grow(_writes)
+    }
     _writes(_writeCount) = w
     _writeCount += 1
   }
@@ -642,6 +650,8 @@ private[ccstm] abstract class IndirectEagerTL2TxnAccessor[T] extends Ref.Bound[T
   import IndirectEagerTL2._
 
   //////////////// Abstract methods
+
+  def instance: AnyRef
 
   def data: Wrapped[T]
   def data_=(v: Wrapped[T])
