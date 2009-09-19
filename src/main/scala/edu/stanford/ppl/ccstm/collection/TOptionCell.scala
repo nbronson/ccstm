@@ -19,16 +19,13 @@ private object TOptionCell {
  *  <code>Option</code> objects are discarded and recreated as needed), but a
  *  slightly higher runtime cost when accessing.
  */
-class TOptionCell[T](initialValue: Option[T]) extends STMImpl.MetadataHolder with Ref[Option[T]] {
+class TOptionCell[T](initialValue: Option[T]) extends Ref[Option[T]] {
   import TOptionCell._
 
   private trait Accessor {
     def unbind: Ref[AnyRef] = null
     def instance: TOptionCell[_]
     def fieldIndex = 0
-    def metadata = instance._metadata
-    def metadata_=(v: STMImpl.Metadata) { instance._metadata = v }
-    def metadataCAS(before: STMImpl.Metadata, after: STMImpl.Metadata) = instance._metadataCAS(before, after)
     def data: STMImpl.Data[AnyRef] = instance._data
     def data_=(v: STMImpl.Data[AnyRef]) { instance._data = v }
     def dataCAS(before: STMImpl.Data[AnyRef], after: STMImpl.Data[AnyRef]) = {

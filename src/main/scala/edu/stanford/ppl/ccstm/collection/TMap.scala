@@ -10,9 +10,10 @@ object TMap {
     //def unrecordedGet(k: A): UnrecordedRead[Option[B]]
     //def await(k: A)
     //def await(k: A, pred: (B => Boolean))
+    def unbind: TMap[A,B]
     def context: Option[Txn]
 
-    def refs: Refs[A,B]
+    def refs: (A => Ref.Bound[B])
   }
 
   trait Refs[A,B] {
@@ -22,12 +23,13 @@ object TMap {
 }
 
 trait TMap[A,B] {
-  def size()(implicit txn: Txn): Int = bind.size
+  def size(implicit txn: Txn): Int = bind.size
   def get(k: A)(implicit txn: Txn): Option[B] = bind.get(k)
   def put(k: A, v: B)(implicit txn: Txn): Option[B] = bind.put(k, v)
+  def removeKey(k: A)(implicit txn: Txn): Option[B] = bind.removeKey(k)
   def transform(f: (A,B) => B)(implicit txn: Txn) = bind.transform(f)
 
-  def refs(implicit txn: Txn): TMap.Refs[A,B] = bind.refs
+  def refs(implicit txn: Txn): (A => Ref[B])
 
   def bind(implicit txn: Txn): TMap.Bound[A,B]
   def nonTxn: TMap.Bound[A,B]

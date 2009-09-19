@@ -19,7 +19,7 @@ object TArray {
   }
 }
 
-class TArray[T](length0: Int) extends STMImpl.MetadataHolder {
+class TArray[T](length0: Int) {
   import TArray._
 
   def length = length0
@@ -79,9 +79,6 @@ class TArray[T](length0: Int) extends STMImpl.MetadataHolder {
     def index: Int
     def unbind: Ref[T] = instance.getRef(index)
 
-    def metadata = instance._metadata
-    def metadata_=(v: STMImpl.Metadata) { instance._metadata = v }
-    def metadataCAS(before: STMImpl.Metadata, after: STMImpl.Metadata) = instance._metadataCAS(before, after)
     def data: STMImpl.Data[T] = instance._data.get(index)
     def data_=(v: STMImpl.Data[T]) { instance._data.set(index, v) }
     def dataCAS(before: STMImpl.Data[T], after: STMImpl.Data[T]) = {

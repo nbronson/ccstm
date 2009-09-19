@@ -16,13 +16,10 @@ private object TCell {
  *  This class is not sealed, so it may be opportunistically subclassed to
  *  reduce a level of indirection and the associated storage overheads.
  */
-class TCell[T](initialValue: T) extends STMImpl.MetadataHolder with Ref[T] {
+class TCell[T](initialValue: T) extends Ref[T] {
 
   private trait Accessor[T] {
     def unbind: TCell[T]
-    def metadata = unbind._metadata
-    def metadata_=(v: STMImpl.Metadata) { unbind._metadata = v }
-    def metadataCAS(before: STMImpl.Metadata, after: STMImpl.Metadata) = unbind._metadataCAS(before, after)
     def data: STMImpl.Data[T] = unbind._data
     def data_=(v: STMImpl.Data[T]) { unbind._data = v }
     def dataCAS(before: STMImpl.Data[T], after: STMImpl.Data[T]) = {

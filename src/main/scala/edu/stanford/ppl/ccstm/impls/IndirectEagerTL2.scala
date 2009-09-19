@@ -37,26 +37,6 @@ trait IndirectEagerTL2 {
    */
   val isInitialDataReusable = true
 
-  /** The type used for per-object metadata.  For all <code>Metadata</code>
-   *  types except <code>Unit</code>, atomic objects must have methods with the
-   *  following type signatures:<pre>
-   *    def _metadata: Metadata
-   *    def _metadata_=(v: Metadata)
-   *    def _metadataCAS(before: Metadata, after: Metadata): Boolean
-   *  </pre>
-   *  <p>
-   *  For <code>IndirectEagerTL2</code>, <code>type Metadata = Unit</code>.
-   */
-  type Metadata = Unit
-
-  /** A class that a user class may extend to get the appropriate metadata field
-   *  declarations.  The advantage of extending this class is that when no
-   *  metadata is required (if <code>Metadata = Unit</code>) no space will be
-   *  wasted on a boxed <code>Unit</code> instance.  The disadvantage is that
-   *  the atomic class must extend a class, which is not always feasible.
-   */
-  type MetadataHolder = UnitMetadataHolder
-
   private[ccstm] type TxnAccessor[T] = IndirectEagerTL2TxnAccessor[T]
   private[ccstm] type NonTxnAccessor[T] = IndirectEagerTL2NonTxnAccessor[T]
   private[ccstm] type TxnImpl = IndirectEagerTL2Txn
