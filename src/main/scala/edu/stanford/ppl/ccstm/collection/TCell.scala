@@ -19,15 +19,14 @@ private object TCell {
 class TCell[T](initialValue: T) extends STMImpl.MetadataHolder with Ref[T] {
 
   private trait Accessor[T] {
-    def instance: TCell[T]
-    def fieldIndex = 0
-    def metadata = instance._metadata
-    def metadata_=(v: STMImpl.Metadata) { instance._metadata = v }
-    def metadataCAS(before: STMImpl.Metadata, after: STMImpl.Metadata) = instance._metadataCAS(before, after)
-    def data: STMImpl.Data[T] = instance._data
-    def data_=(v: STMImpl.Data[T]) { instance._data = v }
+    def unbind: TCell[T]
+    def metadata = unbind._metadata
+    def metadata_=(v: STMImpl.Metadata) { unbind._metadata = v }
+    def metadataCAS(before: STMImpl.Metadata, after: STMImpl.Metadata) = unbind._metadataCAS(before, after)
+    def data: STMImpl.Data[T] = unbind._data
+    def data_=(v: STMImpl.Data[T]) { unbind._data = v }
     def dataCAS(before: STMImpl.Data[T], after: STMImpl.Data[T]) = {
-      TCell.dataUpdater.compareAndSet(instance, before, after)
+      TCell.dataUpdater.compareAndSet(unbind, before, after)
     }
   }
 
@@ -42,12 +41,12 @@ class TCell[T](initialValue: T) extends STMImpl.MetadataHolder with Ref[T] {
   }
 
   def bind(implicit txn0: Txn): Ref.Bound[T] = new STMImpl.TxnAccessor[T] with Accessor[T] {
-    def instance = TCell.this
+    def unbind = TCell.this
     def txn = txn0
   }
 
   def nonTxn: Ref.Bound[T] = new STMImpl.NonTxnAccessor[T] with Accessor[T] {
-    def instance = TCell.this
+    def unbind = TCell.this
   }
 
   override def toString = {

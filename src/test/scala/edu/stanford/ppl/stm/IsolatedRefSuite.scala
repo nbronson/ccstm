@@ -5,7 +5,7 @@
 package edu.stanford.ppl.stm
 
 import edu.stanford.ppl.ccstm._
-import collection.jcl.IdentityHashMap
+import scala.collection.jcl.IdentityHashMap
 import org.scalatest.{Group, FunSuite}
 
 

@@ -23,6 +23,7 @@ class TOptionCell[T](initialValue: Option[T]) extends STMImpl.MetadataHolder wit
   import TOptionCell._
 
   private trait Accessor {
+    def unbind: Ref[AnyRef] = null
     def instance: TOptionCell[_]
     def fieldIndex = 0
     def metadata = instance._metadata
@@ -92,6 +93,7 @@ class TOptionCell[T](initialValue: Option[T]) extends STMImpl.MetadataHolder wit
 
   private class Wrapped(impl: Ref.Bound[AnyRef]) extends Ref.Bound[Option[T]] {
 
+    def unbind = TOptionCell.this
     def context = impl.context
 
     // BoundSink
@@ -130,6 +132,6 @@ class TOptionCell[T](initialValue: Option[T]) extends STMImpl.MetadataHolder wit
 
 
   override def toString = {
-    "TCell@" + Integer.toHexString(hashCode)
+    "TOptionCell@" + Integer.toHexString(hashCode)
   }
 }

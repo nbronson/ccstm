@@ -124,6 +124,12 @@ object Ref {
    *  @see edu.stanford.ppl.ccstm.Ref
    */
   trait BoundSource[+T] {
+    
+    /** Provides access to a <code>Ref.Source</code> that refers to the same
+     *  atomic data as that viewed by this <code>Ref.BoundSource</code>.
+     */ 
+    def unbind: Ref.Source[T]
+
     /** Returns <code>Some(txn)</code> if this view is bound to a transaction
      *  <code>txn</code>, <code>None</code> if it is bound to the
      *  non-transactional context.
@@ -216,6 +222,12 @@ object Ref {
    *  @see edu.stanford.ppl.ccstm.Ref
    */
   trait BoundSink[-T] {
+
+    /** Provides access to a <code>Ref.Sink</code> that refers to the same
+     *  atomic data as that viewed by this <code>Ref.BoundSink</code>.
+     */
+    def unbind: Ref.Sink[T]
+
     /** Returns <code>Some(txn)</code> if this view is bound to a transaction
      *  <code>txn</code>, <code>None</code> if it is bound to the
      *  non-transactional context.
@@ -270,6 +282,12 @@ object Ref {
    *  a <code>Txn</code> or the non-transactional context.
    */
   trait Bound[T] extends BoundSource[T] with BoundSink[T] {
+
+    /** Provides access to a <code>Ref</code> that refers to the same atomic
+     *  data as that viewed by this <code>Ref.Bound</code>.
+     */
+    def unbind: Ref[T]
+
     /** Returns the same value as <code>get</code>, but adds the
      *  <code>Ref</code> to the write set of the bound transaction context,
      *  if any.  Equivalent to <code>get</code> when called from a

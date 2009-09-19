@@ -5,7 +5,7 @@
 package edu.stanford.ppl.ccstm
 
 
-import collection.mutable.ListBuffer
+import scala.collection.mutable.ListBuffer
 import org.scalatest.FunSuite
 
 class CallbackListSuite extends FunSuite {

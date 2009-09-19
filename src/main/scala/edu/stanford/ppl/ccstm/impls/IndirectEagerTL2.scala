@@ -31,6 +31,12 @@ trait IndirectEagerTL2 {
    */
   def initialData[T](initialValue: T): Data[T] = new IndirectEagerTL2.Unlocked(initialValue, 0L)
 
+  /** True if values returned from <code>initialData</code> may be used for
+   *  more than one slot, false if a new call to <code>initialData</code> is
+   *  needed for each stored value.
+   */
+  val isInitialDataReusable = true
+
   /** The type used for per-object metadata.  For all <code>Metadata</code>
    *  types except <code>Unit</code>, atomic objects must have methods with the
    *  following type signatures:<pre>
@@ -651,13 +657,9 @@ private[ccstm] abstract class IndirectEagerTL2TxnAccessor[T] extends Ref.Bound[T
 
   //////////////// Abstract methods
 
-  def instance: AnyRef
-
   def data: Wrapped[T]
   def data_=(v: Wrapped[T])
   def dataCAS(before: Wrapped[T], after: Wrapped[T]): Boolean
-
-  def fieldIndex: Int
   def txn: IndirectEagerTL2Txn
 
   //////////////// Implementation
