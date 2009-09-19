@@ -4,6 +4,7 @@
 
 package edu.stanford.ppl.stm
 
+import edu.stanford.ppl.ccstm.collection.TArray
 import edu.stanford.ppl.ccstm._
 import java.util.concurrent.CyclicBarrier
 import org.scalatest.FunSuite
@@ -11,20 +12,24 @@ import org.scalatest.FunSuite
 
 class HistogramSuite extends FunSuite {
 
-  val OpsPerTest = 10000000
+  val OpsPerTest = 1000000
 
   for (buckets <- List(1, 30, 10000)) {
     for (threads <- List(1, 2, 4, 8, 16, 32, 64, 128, 256, 512) if (threads <= 4*Runtime.getRuntime.availableProcessors)) {
-      addTest("non-txn, " + buckets + " buckets, " + threads + " threads") {
-        histogram(buckets, threads, OpsPerTest / threads, 100, 1)
-      }
-
-      for (accesses <- List(1, 2, 10, 1000)) {
-        addTest("txn, " + buckets + " buckets, " + threads + " threads, " + accesses + " incr per txn") {
-          histogram(buckets, threads, 10000000 / threads, 0, accesses)
+      for (useTArray <- List(false, true)) {
+        val str = ("" + buckets + " buckets, " + threads + " threads, " +
+                (if (useTArray) "TArray[Int]" else "Array[Ref[Int]]"))
+        addTest("non-txn, " + str) {
+          histogram(buckets, threads, OpsPerTest / threads, useTArray, 100, 1)
         }
-        addTest("mix, " + buckets + " buckets, " + threads + " threads, " + accesses + " incr per txn") {
-          histogram(buckets, threads, 10000000 / threads, 50, accesses)
+
+        for (accesses <- List(1, 2, 10, 1000)) {
+          addTest("txn, " + str + ", " + accesses + " incr per txn") {
+            histogram(buckets, threads, OpsPerTest / threads, useTArray, 0, accesses)
+          }
+          addTest("mix, " + str + ", " + accesses + " incr per txn") {
+            histogram(buckets, threads, OpsPerTest / threads, useTArray, 50, accesses)
+          }
         }
       }
     }
@@ -35,10 +40,15 @@ class HistogramSuite extends FunSuite {
   def histogram(bucketCount: Int,
                 workerCount: Int,
                 samplesPerWorker: Int,
+                useTArray: Boolean,
                 nonTxnPct: Int,
                 samplesPerTxn: Int) {
 
-    val buckets = Array.fromFunction(i => Ref(0))(bucketCount)
+    val buckets: Seq[Ref[Int]] = (if (useTArray) {
+      new TArray[Int](bucketCount).refs
+    } else {
+      Array.fromFunction(i => Ref(0))(bucketCount)
+    })
     val threads = new Array[Thread](workerCount)
     val barrier = new CyclicBarrier(workerCount, new Runnable {
       var start = 0L
@@ -48,7 +58,8 @@ class HistogramSuite extends FunSuite {
           start = now
         } else {
           val elapsed = now - start
-          println("hist(" + bucketCount + "," + workerCount + "," + samplesPerWorker + "," + nonTxnPct +
+          println("hist(" + bucketCount + "," + workerCount + "," + samplesPerWorker + "," +
+            useTArray + "," + nonTxnPct +
             "," + samplesPerTxn + ")  total_elapsed=" + elapsed + " msec,  throughput=" +
             (samplesPerWorker * workerCount * 1000L) / elapsed + " ops/sec,  per_thread_latency=" +
             (elapsed * 1000000L) / samplesPerWorker + " nanos/op,  avg_arrival=" +
