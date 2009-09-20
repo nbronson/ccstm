@@ -9,6 +9,8 @@ package edu.stanford.ppl.ccstm
  *  priorities.  It supports insertion during traversal, with a guarantee that
  *  elements inserted during traversal will be visited by that traversal.
  *  Recursive traversal is not supported.
+ *
+ *  @author Nathan Bronson
  */
 private[ccstm] class CallbackList[T] {
   private val _slotsByPrio = new java.util.TreeMap[Int,CallbackPrioSlot[T]]

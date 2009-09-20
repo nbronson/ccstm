@@ -9,7 +9,7 @@ import org.scalatest.FunSuite
 
 
 class TransactionalFieldUpdaterSuite extends FunSuite {
-  class Obj extends STMImpl.MetadataHolder {
+  class Obj {
     var field: STMImpl.Data[Int] = STMImpl.initialData(0)
   }
 

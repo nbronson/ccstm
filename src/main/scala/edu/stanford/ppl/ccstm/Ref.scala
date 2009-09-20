@@ -4,8 +4,8 @@
 
 package edu.stanford.ppl.ccstm
 
-import collection.TCell
 
+import collection.{ConstantRef, TRef}
 
 /** An object that provides factory methods for <code>Ref</code> instances.
  *  @see edu.stanford.ppl.ccstm.Ref
@@ -17,14 +17,32 @@ object Ref {
   /** Returns a new <code>Ref</code> instance, initialized to the default value
    *  for objects of type <code>T</code>.
    */
-  def apply[T](): Ref[T] = new TCell(null.asInstanceOf[T])
+  def apply[T](): Ref[T] = apply(null.asInstanceOf[T])
 
   /** Returns a new <code>Ref</code> instance with the specified initial
    *  value.
    */
-  def apply[T](initialValue: T): Ref[T] = new TCell(initialValue)
+  def apply[T](initialValue: T): Ref[T] = new TRef(initialValue)
 
+  /** Returns a new constant <code>Ref</code> instance with the specified
+   *  value.  Reads of the ref will always return the same value, and any
+   *  attempt to change the value will result in an exception.  This may be
+   *  used as an optimization when it can be dynamically determined at
+   *  construction time that a reference will never need to be changed.
+   *  <p>
+   *  If possible, consider using <code>source</code> instead, as it leads to
+   *  greater type-safety.
+   */ 
+  def constant[T](value: T): Ref[T] = new ConstantRef(value)
   
+  /** Returns a new constant <code>Ref.Source</code> instance with the
+   *  specified value.  Reads of the source will always return the same value.
+   *  This may be used as an optimization when it can be dynamically
+   *  determined at construction time that a reference will never be changed by
+   *  an outside party.
+   */
+  def source[T](value: T): Ref.Source[T] = constant(value)
+
   /** <code>Source</code> defines the covariant read-only interface of a
    *  <code>Ref</code> instance.
    */

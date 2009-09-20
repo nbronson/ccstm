@@ -1,35 +1,37 @@
 /* CCSTM - (c) 2009 Stanford University - PPL */
 
-// TCell
+// TRef
 
 package edu.stanford.ppl.ccstm.collection
 
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater
 
 
-private object TOptionCell {
-  private[TOptionCell] val SOME_NULL = new AnyRef
-  private[TOptionCell] val dataUpdater = (new TOptionCell[Any](None)).newDataUpdater
+private object TOptionRef {
+  private[TOptionRef] val SOME_NULL = new AnyRef
+  private[TOptionRef] val dataUpdater = (new TOptionRef[Any](None)).newDataUpdater
 }
 
 /** A <code>Ref</code> implementation that holds only non-null
  *  <code>Option</code> instances.  When compared to
- *  <code>TCell[Option[T]]</code> instances, instances of
- *  <code>TOptionCell</code> have lower storage overhead (the wrapping
+ *  <code>TRef[Option[T]]</code> instances, instances of
+ *  <code>TOptionRef</code> have lower storage overhead (the wrapping
  *  <code>Option</code> objects are discarded and recreated as needed), but a
  *  slightly higher runtime cost when accessing.
+ *
+ *  @author Nathan Bronson
  */
-class TOptionCell[T](initialValue: Option[T]) extends Ref[Option[T]] {
-  import TOptionCell._
+class TOptionRef[T](initialValue: Option[T]) extends Ref[Option[T]] {
+  import TOptionRef._
 
   private trait Accessor {
     def unbind: Ref[AnyRef] = null
-    def instance: TOptionCell[_]
+    def instance: TOptionRef[_]
     def fieldIndex = 0
     def data: STMImpl.Data[AnyRef] = instance._data
     def data_=(v: STMImpl.Data[AnyRef]) { instance._data = v }
     def dataCAS(before: STMImpl.Data[AnyRef], after: STMImpl.Data[AnyRef]) = {
-      TOptionCell.dataUpdater.compareAndSet(instance, before, after)
+      TOptionRef.dataUpdater.compareAndSet(instance, before, after)
     }
   }
 
@@ -44,8 +46,8 @@ class TOptionCell[T](initialValue: Option[T]) extends Ref[Option[T]] {
 
   @volatile private[ccstm] var _data: STMImpl.Data[AnyRef] = STMImpl.initialData(pack(initialValue))
 
-  private[TOptionCell] def newDataUpdater: AtomicReferenceFieldUpdater[TOptionCell[_],STMImpl.Data[_]] = {
-    AtomicReferenceFieldUpdater.newUpdater(classOf[TOptionCell[_]], classOf[STMImpl.Data[_]], "_data")
+  private[TOptionRef] def newDataUpdater: AtomicReferenceFieldUpdater[TOptionRef[_],STMImpl.Data[_]] = {
+    AtomicReferenceFieldUpdater.newUpdater(classOf[TOptionRef[_]], classOf[STMImpl.Data[_]], "_data")
   }
 
   private def unpack(v: AnyRef): Option[T] = {
@@ -58,7 +60,7 @@ class TOptionCell[T](initialValue: Option[T]) extends Ref[Option[T]] {
 
   private def pack(o: Option[T]): AnyRef = {
     o match {
-      case null => throw new NullPointerException("TOptionCell does not allow null Option references")
+      case null => throw new NullPointerException("TOptionRef does not allow null Option references")
       case None => null
       case Some(v) => if (v == null) SOME_NULL else v.asInstanceOf[AnyRef]
     }
@@ -80,17 +82,17 @@ class TOptionCell[T](initialValue: Option[T]) extends Ref[Option[T]] {
   }
 
   def bind(implicit txn0: Txn): Ref.Bound[Option[T]] = new Wrapped(new STMImpl.TxnAccessor[AnyRef] with Accessor {
-    def instance = TOptionCell.this
+    def instance = TOptionRef.this
     def txn = txn0
   })
 
   def nonTxn: Ref.Bound[Option[T]] = new Wrapped(new STMImpl.NonTxnAccessor[AnyRef] with Accessor {
-    def instance = TOptionCell.this
+    def instance = TOptionRef.this
   })
 
   private class Wrapped(impl: Ref.Bound[AnyRef]) extends Ref.Bound[Option[T]] {
 
-    def unbind = TOptionCell.this
+    def unbind = TOptionRef.this
     def context = impl.context
 
     // BoundSink
@@ -129,6 +131,6 @@ class TOptionCell[T](initialValue: Option[T]) extends Ref[Option[T]] {
 
 
   override def toString = {
-    "TOptionCell@" + Integer.toHexString(hashCode)
+    "TOptionRef@" + Integer.toHexString(hashCode)
   }
 }
