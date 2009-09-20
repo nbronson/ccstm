@@ -113,6 +113,11 @@ object Ref {
      */
     def set(v: T)(implicit txn: Txn) { bind.set(v) }
 
+    /** Prohibits future value changes to this <code>Ref</code>.  Equivalent to
+     *  <code>bind.freeze()</code>.
+     */
+    def freeze()(implicit txn: Txn) { bind.freeze() }
+
     /** Returns a view on this <code>Ref.Source</code> that can be used to write
      *  the cell's value as part of a transaction <code>txn</code>.  A transaction
      *  may be bound regardless of its state, but writes (and reads) are only
@@ -293,6 +298,16 @@ object Ref {
      *      that is not active.
      */
     def tryWrite(v: T): Boolean
+
+    /** Prohibits future changes to the value managed by the bound
+     *  <code>Ref</code>.  If this method is called from within a transaction,
+     *  subsequent changes within the transaction are not allowed, but the
+     *  freeze will only be applied to other contexts if the transaction
+     *  commits.
+     */
+    def freeze() {
+      // TODO implement, plus describe checking semantics
+    }
   }
 
   /** A <code>Ref</code> view that supports reads and writes.  Reads and writes
