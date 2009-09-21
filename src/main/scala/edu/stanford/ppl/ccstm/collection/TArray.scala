@@ -86,11 +86,25 @@ class TArray[T](length0: Int) {
     }
   }
 
-  private def getRef(index0: Int): Ref[T] = new Ref[T] {
+  private trait IndexedRef[T] extends Ref[T] {
+    def instance: TArray[T]
+    def index: Int
+  }
+
+  private def getRef(index0: Int): Ref[T] = new IndexedRef[T] {
+    def instance = TArray.this
+    def index = index0
+
     def bind(implicit txn0: Txn) = getBoundRef(index0, txn0)
     def nonTxn = getNonTxnRef(index0)
+
+    override def equals(rhs: Any) = rhs match {
+      case x: IndexedRef[_] => (index0 == x.index) && (instance eq x.instance)
+      case _ => false
+    }
+    override def hashCode = System.identityHashCode(instance) * 31 ^ index0
     override def toString = {
-      "TArray@" + Integer.toHexString(System.identityHashCode(TArray.this)) + "(" + index0 + ")"
+      "TArray@" + Integer.toHexString(System.identityHashCode(instance)) + "(" + index0 + ")"
     }
   }
 

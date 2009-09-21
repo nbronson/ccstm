@@ -50,6 +50,9 @@ class ConstantRef[T](value0: T) extends Ref[T] {
     override def toString: String = "ConstantRef.Bound(" + value0 + ")"
   }
 
+  override def get(implicit txn: Txn): T = value0
+  override def map[Z](f: (T) => Z)(implicit txn: Txn) = f(value0)
+
   def bind(implicit txn: Txn): Ref.Bound[T] = new Bnd { def context = Some(txn) }
 
   def nonTxn: Ref.Bound[T] = new Bnd { def context = None }
