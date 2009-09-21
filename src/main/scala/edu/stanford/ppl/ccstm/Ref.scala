@@ -34,7 +34,7 @@ object Ref {
    *  <code>source</code> will provide better type-checking for constant
    *  references.
    *  @see edu.stanford.ppl.ccstm.Ref#source
-   *  @see edu.stanford.ppl.ccstm.Ref#freeze
+   *  @see edu.stanford.ppl.ccstm.Ref.Bound#freeze
    */
   def constant[T](value: T): Ref[T] = new collection.ConstantRef(value)
   
@@ -119,17 +119,6 @@ object Ref {
      */
     def set(v: T)(implicit txn: Txn) { bind.set(v) }
 
-    // TODO
-    /** If <code>txn</code> commits, guarantees that the returned value will prevents Prohibits future writes to this reference.  Future writes by 
-     *  <code>txn</code> are prevented, and if <code>txn</code>
-     *  commits, changes to the value referenced by the bound
-     *  <code>Ref</code>.  If this method is called from within a transaction,
-     *  subsequent changes within the transaction are not allowed, but the
-     *  freeze will only be applied to other contexts if the transaction
-     *  commits.
-     */
-    def freeze()(implicit txn: Txn) { bind.freeze() }
-
     /** @see edu.stanford.ppl.ccstm.Ref#bind */
     def bind(implicit txn: Txn): BoundSink[T]
 
@@ -143,7 +132,6 @@ object Ref {
    *  the same values as if they were executed at the transaction's commit
    *  (linearization) point, or the non-transactional context, which guarantees
    *  that each read will be linearized with all writes to the cell.
-   *  @see edu.stanford.ppl.ccstm.Ref
    */
   trait BoundSource[+T] {
     
@@ -235,7 +223,6 @@ object Ref {
    *  context, which guarantees that each write will be linearized (and a
    *  happens-before relationship established) with all other reads and writes
    *  to an equal reference.
-   *  @see edu.stanford.ppl.ccstm.Ref
    */
   trait BoundSink[-T] {
 
@@ -280,20 +267,26 @@ object Ref {
     def tryWrite(v: T): Boolean
 
     /** Prohibits future changes to the value referenced by the bound
-     *  <code>Ref</code>.  If this method is called from within a transaction,
-     *  subsequent changes within the transaction are not allowed, but the
-     *  freeze will only be applied to other contexts if the transaction
-     *  commits.
+     *  <code>Ref</code>.  If this method is called from a transactional
+     *  context the prohibition will be removed if the transaction rolls back.
+     *  Future calls to <code>set</code> will cause an
+     *  <code>IllegalStateException</code> to be thrown.  Future calls to a
+     *  conditional update function such as <code>compareAndSet</code> or
+     *  <code>transformIfDefined</code> will be allowed only if the condition
+     *  for update does not hold (they must return false).  Future calls to
+     *  <code>readForWrite</code> are allowed.
+     *  @throws IllegalStateException if this view is bound to a transaction
+     *      that is not active.
      */
-    def freeze() {
-      // TODO implement, plus describe checking semantics
-    }
+    def freeze()
   }
 
-  // TODO
   /** A <code>Ref</code> view that supports reads and writes.  Reads and writes
    *  are performed from the perspective of the bound context, which is either
-   *  a <code>Txn</code> or the non-transactional context.
+   *  a <code>Txn</code> or the non-transactional context.  Reading operations
+   *  are defined in <code>BoundSource</code>, writing operations defined in
+   *  <code>BoundSink</code>, and operations that both read and write are
+   *  defined in this trait.
    */
   trait Bound[T] extends BoundSource[T] with BoundSink[T] {
 

@@ -32,20 +32,34 @@ class ConstantRef[T](value0: T) extends Ref[T] {
 
     def readForWrite: T = value0
 
+    def freeze() {}
+
     //////////// mutating operations
 
     private def failure(op: String) = new IllegalStateException(op + ": not allowed for ConstantRef")
 
-    // TODO: should failing compare-and-set be allowed?
-
     def set(v: T) = throw failure("set")
     def tryWrite(v: T): Boolean = throw failure("tryWrite")
-    def compareAndSet(before: T, after: T): Boolean = throw failure("compareAndSet")
-    def compareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = throw failure("compareAndSetIdentity")
-    def weakCompareAndSet(before: T, after: T): Boolean = throw failure("weakCompareAndSet")
-    def weakCompareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = throw failure("weakCompareAndSetIdentity")
     def transform(f: T => T) = throw failure("transform")
-    def transformIfDefined(pf: PartialFunction[T,T]): Boolean = throw failure("transformIfDefined")
+
+    def compareAndSet(before: T, after: T): Boolean = {
+      if (before == value0) throw failure("successful compareAndSet")
+      false
+    }
+    def compareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = {
+      if (before eq value0.asInstanceOf[AnyRef]) throw failure("successful compareAndSetIdentity")
+      false
+    }
+    def weakCompareAndSet(before: T, after: T): Boolean = {
+      compareAndSet(before, after)
+    }
+    def weakCompareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = {
+      compareAndSetIdentity(before, after)
+    }
+    def transformIfDefined(pf: PartialFunction[T,T]): Boolean = {
+      if (pf.isDefinedAt(value0)) throw failure("successful transformIfDefined")
+      false
+    }
 
     override def toString: String = "ConstantRef.Bound(" + value0 + ")"
   }

@@ -895,6 +895,12 @@ private[ccstm] abstract class IndirectEagerTL2TxnAccessor[T] extends Ref.Bound[T
     }
   }
 
+  def freeze() {
+    // TODO: implement
+    // TODO: implement
+    // TODO: implement
+  }
+
   def readForWrite: T = {
     readForWriteImpl(true).specValue
   }
@@ -1089,6 +1095,12 @@ private[ccstm] abstract class IndirectEagerTL2NonTxnAccessor[T] extends Ref.Boun
     } else {
       false
     }
+  }
+
+  def freeze() {
+    // TODO: implement
+    // TODO: implement
+    // TODO: implement
   }
 
   def readForWrite: T = {

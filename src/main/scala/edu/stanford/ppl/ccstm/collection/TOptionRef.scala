@@ -113,6 +113,7 @@ class TOptionRef[T](initialValue: Option[T]) extends Ref[Option[T]] {
 
     def set(v: Option[T]) { impl.set(pack(v)) }
     def tryWrite(v: Option[T]) = impl.tryWrite(pack(v))
+    def freeze() { impl.freeze() }
 
     // Bound
 
