@@ -85,16 +85,13 @@ object Ref {
      */
     def map[Z](f: T => Z)(implicit txn: Txn) = bind.map(f)
 
-    /** @see edu.stanford.ppl.ccstm.Ref#bind */
+    /** The restriction of <code>Ref.bind</code> to <code>Ref.Source</code>.
+     *  @see edu.stanford.ppl.ccstm.Ref#bind
+     */
     def bind(implicit txn: Txn): BoundSource[T]
 
-    /** Returns a view of this <code>Ref.Source</code> that can be used to
-     *  perform individual (non-transactional) reads of the references's value.
-     *  The returned view acts as if each method call is performed in its own
-     *  transaction.  The returned view is valid for the lifetime of the
-     *  program.
-     *  @return a read-only view of this instance, that performs all accesses
-     *      as if in a fresh single-operation transaction.
+    /** The restriction of <code>Ref.nonTxn</code> to <code>Ref.Source</code>.
+     *  @see edu.stanford.ppl.ccstm.Ref#nonTxn
      */
     def nonTxn: BoundSource[T]
 
@@ -119,14 +116,18 @@ object Ref {
      */
     def set(v: T)(implicit txn: Txn) { bind.set(v) }
 
-    /** @see edu.stanford.ppl.ccstm.Ref#bind */
+    /** The restriction of <code>Ref.bind</code> to <code>Ref.Sink</code>.
+     *  @see edu.stanford.ppl.ccstm.Ref#bind
+     */
     def bind(implicit txn: Txn): BoundSink[T]
 
-    /** @see edu.stanford.ppl.ccstm.Ref#nonTxn */
+    /** The restriction of <code>Ref.nonTxn</code> to <code>Ref.Sink</code>.
+     *  @see edu.stanford.ppl.ccstm.Ref#nonTxn
+     */
     def nonTxn: BoundSink[T]
   }
 
-  /** <code>BoundSource</code> defines the covariant read-only view of a
+  /** <code>Ref.BoundSource</code> defines the covariant read-only view of a
    *  <code>Ref</code> bound to a particular context.  The context may be
    *  either a <code>Txn</code>, which guarantees that all reads will observe
    *  the same values as if they were executed at the transaction's commit
@@ -135,7 +136,10 @@ object Ref {
    */
   trait BoundSource[+T] {
     
-    /** @see edu.stanford.ppl.ccstm.Ref.Bound#unbind */
+    /** The restriction of <code>Ref.Bound.unbind</code> to
+     *  <code>Ref.BoundSource</code>.
+     *  @see edu.stanford.ppl.ccstm.Bound#unbind
+     */
     def unbind: Ref.Source[T]
 
     /** Returns <code>Some(txn)</code> if this view is bound to a transaction
@@ -226,7 +230,10 @@ object Ref {
    */
   trait BoundSink[-T] {
 
-    /** @see edu.stanford.ppl.ccstm.Ref.Bound#unbind */
+    /** The restriction of <code>Ref.Bound.unbind</code> to
+     *  <code>Ref.BoundSink</code>.
+     *  @see edu.stanford.ppl.ccstm.Bound#unbind
+     */
     def unbind: Ref.Sink[T]
 
     /** Returns <code>Some(txn)</code> if this view is bound to a transaction
@@ -291,7 +298,7 @@ object Ref {
   trait Bound[T] extends BoundSource[T] with BoundSink[T] {
 
     /** Provides access to a <code>Ref</code> that refers to the same value as
-     *  the one that was bound to produce this <code>Bound</code> instance.
+     *  the one that was bound to produce this <code>Ref.Bound</code> instance.
      *  The returned <code>Ref</code> might be a new instance, but it is always
      *  true that <code>ref.bind.unbind == ref</code>.
      *  @return a <code>Ref</code> instance equal to (or the same as) the one
@@ -395,9 +402,9 @@ object Ref {
 }
 
 /** Provides access to a single element of type <i>T</i>.  Accesses may be
- *  performed as part of a <i>memory transaction<i>, composing an atomic block,
- *  or they may be performed individually in a non-transactional manner.  The
- *  software transactional memory performs concurrency control to make sure
+ *  performed as part of a <i>memory transaction</i>, composing an atomic
+ *  block, or they may be performed individually in a non-transactional manner.
+ *  The software transactional memory performs concurrency control to make sure
  *  that all committed transactions and all non-transactional accesses are
  *  linearizable.  Reads and writes performed by a successful <code>Txn</code>
  *  return the same values as if they were executed atomically at the
@@ -418,9 +425,10 @@ object Ref {
  *  It is possible for separate <code>Ref</code> instances to refer to the same
  *  element; in this case they will compare equal.  (As an example, a
  *  transactional array class might store elements in an array and create
- *  <code>Ref</code>s on demand.)  It is also possible that a <code>Ref</code>,
- *  (more likely a <code>Ref.Source</code>) corresponds to a derived value such
- *  as the size of a transactional collection.
+ *  <code>Ref</code>s on demand.)  <code>Ref</code>s (or
+ *  <code>Ref.Source</code>s) may be provided for computed values, such as the
+ *  emptiness of a queue, to allow conditional retry and waiting on semantic
+ *  properties.
  *  <p>
  *  Non-transactional access is obtained via the view returned from
  *  <code>nonTxn</code>.  Each non-transactional access will be linearized with
@@ -429,7 +437,7 @@ object Ref {
  *  <p>
  *  Concrete <code>Ref</code> instances may be obtained from the factory
  *  methods in the <code>Ref</code> object.
- *  @see edu.stanford.ppl.ccstm.Txn
+ *  @see edu.stanford.ppl.ccstm.STM
  *
  *  @author Nathan Bronson
  */
