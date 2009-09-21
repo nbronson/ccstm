@@ -22,11 +22,11 @@ import runtime.NonLocalReturnException
  *     import edu.stanford.ppl.ccstm._
  *     import edu.stanford.ppl.ccstm.STM._
  *
- *     val a = TVar(10)
- *     val b = TVar(0)
+ *     val a = Ref(10)
+ *     val b = Ref(0)
  *     atomic(performTransfer(a, b, 5)(_))
- *     //...
- *     def performTransfer(from: TVar[Int], to: TVar[Int], amount: Int)(implicit txn: Txn) {
+ *
+ *     def performTransfer(from: Ref[Int], to: Ref[Int], amount: Int)(implicit txn: Txn) {
  *       from := !from - amount
  *       to := !to + amount
  *     }
@@ -35,8 +35,8 @@ import runtime.NonLocalReturnException
  *  <pre>
  *     import edu.stanford.ppl.ccstm._
  *
- *     val a = TVar(10)
- *     val b = TVar(0)
+ *     val a = Ref(10)
+ *     val b = Ref(0)
  *     new Atomic { def body {
  *       val amount = 5
  *       a := !a - amount
