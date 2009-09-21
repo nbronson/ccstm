@@ -8,6 +8,9 @@ package edu.stanford.ppl.ccstm
 private[ccstm] abstract class AbstractTxn extends StatusHolder {
   import Txn._
 
+  /** Values of <code>TxnLocal</code>s for this transaction, created lazily. */ 
+  private[ccstm] var locals: TxnLocal.PerTxn = null
+
   //////////////// Functions to be implemented in an STM-specific manner
 
   private[ccstm] def requestRollbackImpl(cause: RollbackCause): Boolean
