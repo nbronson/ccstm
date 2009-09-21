@@ -1,0 +1,19 @@
+To build CCSTM using the ant build script:
+
+1) Set up system.properties to point to your JDK, Scala, and ScalaTest
+installations:
+
+   cp system.properties.example system.properties
+   $VISUAL system.properties
+
+2) Build
+
+   ant all
+
+3) Run the full test and performance suite (this will take a while)
+
+   bin/proj_scala org.scalatest.tools.Runner -o -p out/test/classes/
+
+---
+
+Tested with Sun's 1.6.0_16 JDK, Scala version 2.7.6, and ScalaTest 0.9.5
