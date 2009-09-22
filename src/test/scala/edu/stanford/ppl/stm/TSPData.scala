@@ -1,4 +1,25 @@
+package edu.stanford.ppl.stm
+
 object TSPData {
+
+  val Set = scala.collection.immutable.TreeSet
+  type Set[A] = scala.collection.immutable.SortedSet[A]
+  val Map = scala.collection.immutable.TreeMap
+  type Map[A,B] = scala.collection.immutable.SortedMap[A,B]
+
+  implicit def cmpSortedSet[A <% Ordered[A]](lhs: Set[A]) = new Ordered[Set[A]] {
+    def compare(rhs: Set[A]): Int = {
+      val a = lhs.elements
+      val b = rhs.elements
+      while (a.hasNext && b.hasNext) {
+        val c = a.next.compare(b.next)
+        if (c != 0) return c
+      }
+      if (a.hasNext) return 1
+      if (b.hasNext) return -1
+      return 0
+    }
+  }
 
   type City = Int
   case class Pt(x: Int, y: Int)
@@ -39,7 +60,7 @@ object TSPData {
     (222 -> Pt(252, 21)), (254 -> Pt(236, 93)), ( 31 -> Pt(104,169)), ( 63 -> Pt( 32, 97)), ( 95 -> Pt( 16, 17)), (127 -> Pt(132,145)), (159 -> Pt(104, 65)), (191 -> Pt(162,  9)), (223 -> Pt(260, 29)),
     (255 -> Pt(236,101)))
 
-  val optimalTour = Array(
+  val optimalTour = List(
     0, 1, 241, 242, 243, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230,
     245, 244, 246, 249, 250, 229, 228, 227, 226, 225, 224, 223, 222, 221, 220,
     219, 218, 217, 216, 215, 214, 213, 212, 211, 210, 209, 206, 205, 204, 203,
