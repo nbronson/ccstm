@@ -32,7 +32,7 @@ Essentially, this means that the linearizability property is maintained
 at each point in every transactional execution.  Each time a read is
 performed by a live transaction, CCSTM guarantees that there is an
 instant at which all reads performed so far by the transaction could
-have been observed the values actually seen.  All transactions, even
+have observed the values actually seen.  All transactions, even
 those that will eventually roll back, will always see a consistent
 view of the world.  For more on opacity see ["On the Correctness of
 Transactional Memory"][opacity] by Guerraoui and Kapalka.

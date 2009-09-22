@@ -6,12 +6,14 @@ An exception thrown from inside to outside an atomic block will cause
 the transaction to be rolled back, and then the exception will be
 rethrown without retrying the transaction.  This is not the only possible
 semantics, but in programs that do not use exceptions for control flow
-it minimizes the chances that partial results will be committed.
+it minimizes the chances that partial results will be committed.  The
+internal Scala exception `scala.runtime.NonLocalReturnException` is
+handled specially.
 
 If you want to commit an atomic block prior to propagating an exception,
 try something like the following:
 
-    val failure = new TVar[Throwable]
+    val failure = new Ref[Throwable]
     new Atomic { def body {
       try {
         // ...
@@ -34,9 +36,9 @@ If more than one exception is caught only one of them will be rethrown.
 ## Internally thrown exceptions subclass `RollbackError`
 
 Rollback of an in-progress transaction requires a non-local transfer of
-control, which is accomplished by throwing an `Error`.  This will occur if
-a transaction becomes invalid or if it is explicitly retried by the user.
-All exceptions that subclass `edu.stanford.ppl.ccstm.RollbackError`
-should be allowed to propagate.  Rollbacks use `Error`s instead of
-`Exception`s because it is common (if questionable) to catch all
-`Exception` instances in error handling code.
+control, which is accomplished by throwing `RollbackError`.  This will
+occur if a transaction becomes invalid or if it is explicitly retried
+by the user.  `edu.stanford.ppl.ccstm.RollbackError` should be allowed
+to propagate.  Rollbacks use `Error`s instead of `Exception`s because
+it is common (if questionable) to catch all `Exception` instances in
+error handling code.
