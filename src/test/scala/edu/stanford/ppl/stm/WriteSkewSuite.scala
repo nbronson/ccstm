@@ -30,11 +30,11 @@ class WriteSkewSuite extends FunSuite {
             for (i <- 0 until IncrCount) {
               if (failure != null) return
               new Atomic { def body {
-                if ((other % 2) != 0) {
-                  assert((self % 2) == 0, "refs=" + refs.map(_.get))
+                if ((!other % 2) != 0) {
+                  assert((!self % 2) == 0, "refs=" + refs.map(_.get))
                   retry
                 }
-                self := self + 1
+                self := !self + 1
               }}.run
             }
           } catch {

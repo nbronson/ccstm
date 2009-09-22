@@ -16,6 +16,13 @@ class TxnSuite extends FunSuite {
     }}.run
   }
 
+  test("atomic function") {
+    val answer = new AtomicFunc[Int] { def body = {
+      42
+    }}.run
+    assert(Integer.parseInt(answer.toString, 13) === 6*9)
+  }
+
   test("duplicate binding with old access") {
     val x = Ref(1)
     new Atomic { def body {

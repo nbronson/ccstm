@@ -5,31 +5,18 @@
 package edu.stanford.ppl.ccstm
 
 
-/** An abstract class that allows a relatively compact syntax for transactions
- *  under current Scala rules.  The trait performs its magic by declaring an
- *  implicit function that returns a <code>Txn</code>, which means that
- *  anonymous subclasses that implement <code>body</code> have an implicit
- *  transaction in scope.  If/when Scala allows anonymous function parameters
- *  to be marked implicit, this class will probably become obsolete.
- *  <p>
- *  Typical usage:<pre>
- *    val tx: Ref[Int] = ..
- *    val ty: Ref[Int] = ..
- *
- *    new Atomic { def body {
- *      if (!tx &gt; 10) ty := 20
- *    }}.run
- *  </pre>
+/** Works like <code>Atomic</code>, but allows atomic blocks to return a value.
  *
  *  @author Nathan Bronson
  */
-abstract class Atomic extends (Txn => Unit) {
+
+abstract class AtomicFunc[Z] extends (Txn => Z) {
   private var _currentTxn: Txn = null
 
   /** Calls <code>body</code> while providing implicit access to
    *  <code>txn</code>.
    */
-  def apply(txn: Txn): Unit = {
+  def apply(txn: Txn): Z = {
     assert(_currentTxn == null)
     _currentTxn = txn
     try {
@@ -45,7 +32,7 @@ abstract class Atomic extends (Txn => Unit) {
   implicit def currentTxn: Txn = _currentTxn
 
   /** Performs the work of this atomic block. */
-  def body
+  def body: Z
 
   /** Rolls the transaction back, indicating that it should be retried after
    *  one or more of the values read during the transaction have changed.
@@ -74,7 +61,7 @@ abstract class Atomic extends (Txn => Unit) {
   /** Performs a single attempt to execute this atomic block in a transaction.
    *  @see edu.stanford.ppl.ccstm.Atomic#attemptAtomic
    */
-  def attempt(): Boolean = !STM.attemptAtomic(this).isEmpty
+  def attempt(): Option[Z] = STM.attemptAtomic(this)
 
   /** Repeatedly attempts to perform the work of <code>body</code> in a
    *  transaction, until an attempt is successfully committed or an exception is
@@ -83,5 +70,5 @@ abstract class Atomic extends (Txn => Unit) {
    *  throws an exception, the transaction will be rolled back and the
    *  exception will be rethrown from this method without further retries.
    */
-  def run() { STM.atomic(this) }
+  def run(): Z = { STM.atomic(this) }
 }
