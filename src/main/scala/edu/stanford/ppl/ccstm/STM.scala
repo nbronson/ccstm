@@ -52,15 +52,16 @@ object STM {
   /** Repeatedly attempts to perform the work of <code>block</code> in a
    *  transaction, until an attempt is successfully committed or an exception is
    *  thrown by <code>block</code> or a callback registered during the block's
-   *  execution.  On successful commit this method returns.  If the block
-   *  throws an exception, the transaction will be rolled back and the
-   *  exception will be rethrown from this method without further retries.
+   *  execution.  On successful commit this method returns the result of the
+   *  block.  If the block throws an exception, the transaction will be rolled
+   *  back and the exception will be rethrown from this method without further
+   *  retries.
    */
-  def atomic(block: Txn => Unit) {
+  def atomic[Z](block: Txn => Z): Z = {
     var hist: List[Txn.RollbackCause] = Nil
-    var txn = attemptImpl(block, hist)
-    while (txn.status != Txn.Committed) {
-      val cause = txn.status.rollbackCause
+    var zt = attemptImpl(block, hist)
+    while (zt._2.status != Txn.Committed) {
+      val cause = zt._2.status.rollbackCause
       hist = cause :: hist
       cause match {
         case x: Txn.ExplicitRetryCause => {
@@ -69,15 +70,16 @@ object STM {
         case _ => {}
       }
       // retry
-      txn = attemptImpl(block, hist)
+      zt = attemptImpl(block, hist)
     }
+    zt._1
   }
 
   /** Makes a single attempt to perform the work of <code>block</code> in a
-   *  transaction, returning true if the transaction was successfully
-   *  committed, false if it was rolled back.  If the block throws an
-   *  exception the transaction will be rolled back and the exception rethrown
-   *  from this method.
+   *  transaction, returning <code>Some(result)</code> if the transaction was
+   *  successfully committed, <code>None</code> if it was rolled back.  If the
+   *  block throws an exception the transaction will be rolled back and the
+   *  exception rethrown from this method.
    *  <p>
    *  Repeated calls to <code>attemptAtomic</code> are <em>not</em> the same as
    *  a call to <code>atomic</code>, because the latter avoids livelock via an
@@ -86,15 +88,17 @@ object STM {
    *  <code>Txn.retry</code>.
    *  @see #atomic
    */
-  def attemptAtomic(block: Txn => Unit): Boolean = {
-    attemptImpl(block, Nil).status == Txn.Committed
+  def attemptAtomic[Z](block: Txn => Z): Option[Z] = {
+    val (z,txn) = attemptImpl(block, Nil)
+    if (txn.status == Txn.Committed) Some(z) else None
   }
 
-  private def attemptImpl(block: Txn => Unit, failureHistory: List[Txn.RollbackCause]): Txn = {
+  private def attemptImpl[Z](block: Txn => Z, failureHistory: List[Txn.RollbackCause]): (Z,Txn) = {
     val txn = new Txn(failureHistory)
     var nonLocalReturn: NonLocalReturnException[_] = null
+    var result: Z = null.asInstanceOf[Z]
     try {
-      block(txn)
+      result = block(txn)
     }
     catch {
       case RollbackError => {}
@@ -107,7 +111,7 @@ object STM {
     }
     txn.commitAndRethrow()
     if (nonLocalReturn != null && txn.status == Txn.Committed) throw nonLocalReturn
-    txn
+    (result,txn)
   }
 
   /** Rolls the transaction back, indicating that it should be retried after
@@ -116,18 +120,4 @@ object STM {
    *  @see edu.stanford.ppl.ccstm.Txn#retry
    */
   def retry()(implicit txn: Txn) { txn.retry() }
-
-  // TODO: reevaluate
-  /** Allows access to a <code>Ref[T]</code> in a transaction without using the
-   *  <code>get</code> or <code>unary_!</code> methods, if used in a context
-   *  that can accept a <code>T</code> but cannot accept a <code>Ref</code>.
-   *  <p>
-   *  <em>This feature is still under consideration.</em> 
-   *  <p>
-   *  Pros: less clutter when implicit conversion is applicable.  Cons: caller
-   *  must consider whether or not the implicit conversion does the right
-   *  thing.  This can be considered a tradeoff between syntactic and semantic
-   *  complexity.  Pay special attempt to <code>constant == tvar</code>.
-   */
-  implicit def implicitRead[T](v: Ref[T])(implicit txn: Txn): T = v.get
 }
