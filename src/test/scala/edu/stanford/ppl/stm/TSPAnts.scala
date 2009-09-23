@@ -10,6 +10,31 @@ import java.util.concurrent.atomic.AtomicLong
 import edu.stanford.ppl.ccstm._
 
 
+// Notes: nbronson 22 Sep 2009
+//
+// This is a direct port of the Clojure traveling salesman problem
+// ant system.  It does not turn out to stress the STM enough to be
+// useful as a CCSTM benchmark, rather it is an intensive test of the
+// persistent set and persistent map implementations.  The original
+// Clojure implementation and the Scala implementation differ by only
+// a small factor in their performance (a non-rigorous 20% speedup for
+// Scala) when using Clojure's PersistentHash{Set,Map} (via a wrapper
+// in Scala).  Switching to immutable.Tree{Set,Map} is good for about
+// another 30% improvement.
+//
+// The largest gain, by far, however, comes from representing edges using
+// something other than a Set.  Switching to a Tuple2 was more than 6
+// times faster than immutable.Set, and constructing a custom Edge class
+// (that doesn't need to box its elements and doesn't need to perform
+// implicit conversions during ordering) yields results that are more
+// than 20 times faster than the baseline Scala implementation.
+//
+// I did not benchmark the default Scala persistent set and map
+// implementations (immutable.HashSet and immutable.HashMap for
+// collections with more than 4 elements) due to bugs in their
+// implementation.
+
+
 object TSPAnts {
   import TSPData._
 
