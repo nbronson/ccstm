@@ -13,8 +13,26 @@ import edu.stanford.ppl.ccstm._
 object TSPAnts {
   import TSPData._
 
-  val Edge = Set // Factory
-  type Edge = Set[City]
+  // this impl gives ~ 2.5 tours/sec on my laptop (Scala TreeMap, 2 ants)
+//  val Edge = Set // Factory
+//  type Edge = Set[City]
+
+  // this impl gives ~ 16 tours/sec on my laptop  (Scala TreeMap, 2 ants)
+//  def Edge(a: City, b: City) = (a min b, a max b)
+//  type Edge = (City,City)
+//  implicit def edgeToList(e: Edge) = List(e._1, e._2)
+
+  // this impl gives > 50 tours/sec on my laptop  (Scala TreeMap, 2 ants)
+  def Edge(a: City, b: City) = new Edge(a min b, a max b)
+  class Edge(val from: City, val to: City) extends Ordered[Edge] {
+    override def equals(rhs: Any) = rhs match {
+      case x: Edge => compare(x) == 0
+      case _ => false
+    }
+    override def hashCode = from * 1001 + to
+    def compare(rhs: Edge) = if (from != rhs.from) from - rhs.from else to - rhs.to
+    def toSeq = List(from, to)
+  }
 
   def distance(coords: City => Pt, edge: Edge) = {
     val a = coords(edge.toSeq(0))
@@ -121,7 +139,7 @@ object TSPAnts {
       val len = tourLength(t)
       // drop pheromones, recalc edge probs
       for (p <- t.zip(t.tail)) {
-        val edge = Set(p._1, p._2)
+        val edge = Edge(p._1, p._2)
         new Atomic { def body {
           pheromones(edge).transform(_ + Q / len)
           probs(edge) := prob(edge)
