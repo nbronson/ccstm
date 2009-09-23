@@ -31,7 +31,9 @@ class WriteSkewSuite extends FunSuite {
               if (failure != null) return
               new Atomic { def body {
                 if ((!other % 2) != 0) {
-                  assert((!self % 2) == 0, "refs=" + refs.map(_.get))
+                  if ((!self % 2) != 0) {
+                    fail("refs=" + refs.map(_.get))
+                  }
                   retry
                 }
                 self := !self + 1
