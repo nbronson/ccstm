@@ -13,7 +13,10 @@ import edu.stanford.ppl.ccstm._
 object TSPAnts {
   import TSPData._
 
-  def distance(coords: City => Pt, edge: Set[City]) = {
+  val Edge = Set // Factory
+  type Edge = Set[City]
+
+  def distance(coords: City => Pt, edge: Edge) = {
     val a = coords(edge.toSeq(0))
     val b = coords(edge.toSeq(1))
     val dx = a.x - b.x
@@ -29,22 +32,22 @@ object TSPAnts {
   val EFactor = 0.5
 
   def tourLength(tour: List[City]) = {
-    tour.zip(tour.tail).map(p => distance(coords,Set(p._1,p._2))).reduceLeft(_+_)
+    tour.zip(tour.tail).map(p => distance(coords, Edge(p._1,p._2))).reduceLeft(_+_)
   }
 
   val optimalDistance = tourLength(optimalTour)
 
-  val nodes = Set.empty[Int] ++ coords.keys
-  val edges = Set.empty[Set[Int]] ++ (for (a <- nodes.toList; b <- nodes.toList; if a != b) yield Set(a, b))
-  val distances = Map.empty[Set[Int],Int] ++ (for (e <- edges.toList) yield (e -> distance(coords, e)))
+  val nodes = Set.empty[City] ++ coords.keys
+  val edges = Set.empty[Edge] ++ (for (a <- nodes.toList; b <- nodes.toList; if a != b) yield Edge(a, b))
+  val distances = Map.empty[Edge,Int] ++ (for (e <- edges.toList) yield (e -> distance(coords, e)))
 
-  val pheromones = Map.empty[Set[Int],Ref[Double]] ++ (for (e <- edges.toList) yield (e -> Ref(InitP)))
+  val pheromones = Map.empty[Edge,Ref[Double]] ++ (for (e <- edges.toList) yield (e -> Ref(InitP)))
 
-  def prob(edge: Set[City])(implicit txn: Txn) = {
+  def prob(edge: Edge)(implicit txn: Txn) = {
     Math.pow(!pheromones(edge), PFactor) * Math.pow(1.0 / distances(edge), DFactor)
   }
 
-  val probs = Map.empty[Set[Int],Ref[Double]] ++ (for (e <- edges.toList) yield (e -> Ref(STM.atomic(prob(e)(_)))))
+  val probs = Map.empty[Edge,Ref[Double]] ++ (for (e <- edges.toList) yield (e -> Ref(STM.atomic(prob(e)(_)))))
 
   val bestLength = Ref(Math.MAX_INT)
   val bestTour = Ref(List(Math.MAX_INT))
@@ -86,7 +89,7 @@ object TSPAnts {
     loop(0, 0.0)
   }
 
-  def getProb(from: City, to: City) = probs(Set(from, to)).nonTxn.get
+  def getProb(from: City, to: City) = probs(Edge(from, to)).nonTxn.get
 
   def nextStop(node: City, togo: Set[City]) = {
     val vec = togo.toArray
@@ -101,7 +104,7 @@ object TSPAnts {
         node :: path
       } else {
         val next = nextStop(node, togo)
-        loop(next, node :: path, (togo - next).asInstanceOf[Set[City]])
+        loop(next, node :: path, (togo - next).asInstanceOf[Set[City]]) // missing - override in TreeSet
       }
     }
     loop(home, Nil, (nodes - home).asInstanceOf[Set[City]])
