@@ -489,4 +489,11 @@ trait Ref[T] extends Ref.Source[T] with Ref.Sink[T] {
    *      each operation as if in its own transaction.
    */
   def nonTxn: Ref.Bound[T]
+
+  /** Returns this instance, but with only the read-only portion accessible.
+   *  Equivalent to <code>asInstanceOf[Ref.Source[T]]</code>, but may be more
+   *  readable.
+   *  @return this instance, but with only read-only methods accessible
+   */
+  def source: Ref.Source[T] = this
 }
