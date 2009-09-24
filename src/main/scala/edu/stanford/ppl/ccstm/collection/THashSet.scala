@@ -13,7 +13,10 @@ class THashSet[A] {
   // problem case:
   //   txn A is a read-only txn, iterates over set
   //   non-txn B changes an entry, then removes an entry from set
-  //   A may observe the pre-change value, but see the removal 
+  //   A may observe the pre-change value, but see the removal
+
+  // How to guarantee:
+  //
 
   def add(key: A)(implicit txn: Txn): Boolean = {
     val r = getTxnRef(key, txn)
@@ -67,23 +70,29 @@ class THashSet[A] {
     def data: STMImpl.Data[Boolean] = {
       instance._data.get(key) match {
         case null => STMImpl.initialData(false)
-        case ref: THashSetWeakRefAndKey[_] => {
-          val z = ref.get
-          if (z == null) STMImpl.initialData(false) else z
-        }
         case x => x.asInstanceOf[STMImpl.Data[Boolean]]
       }
     }
     def data_=(v: STMImpl.Data[Boolean]) {
       instance._data.put(key, v)
     }
-    def dataCAS(before: STMImpl.Data[Boolean], after: STMImpl.Data[Boolean]) = {
-      instance._data.replace(key, before, after)
+    def dataCAS(before: STMImpl.Data[Boolean], after: STMImpl.Data[Boolean]): Boolean = {
+      val beforeInSet = !STMImpl.isInitial(before)
+      val afterInSet = !STMImpl.isReplaceable(after, false)
+      if (!beforeInSet) {
+        if (!afterInSet) {
+          true
+        } else {
+          instance._data.putIfAbsent(key, after) == null
+        }
+      } else {
+        if (!afterInSet) {
+          instance._data.remove(key, before)
+        } else {
+          instance._data.replace(key, before, after)
+        }
+      }
     }
   }
 
 }
-
-private class THashSetWeakRefAndKey[A](data: STMImpl.Data[Boolean],
-                                       queue: ReferenceQueue[STMImpl.Data[Boolean]],
-                                       val key: A) extends WeakReference[STMImpl.Data[Boolean]](data, queue)
