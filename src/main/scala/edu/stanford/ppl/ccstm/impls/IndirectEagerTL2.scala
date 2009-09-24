@@ -178,7 +178,9 @@ private[ccstm] object IndirectEagerTL2 {
   /** The global timestamp.  We use TL2's GV6 scheme to avoid the need to
    *  increment this during every transactional commit.  Non-transactional
    *  writes are even more conservative, incrementing the global version only
-   *  when absolutely required. 
+   *  when absolutely required.  This helps reduce contention (especially when
+   *  there are many non-transactional writes), but it means we must always
+   *  validate transactions that are not read-only.
    */
   private[impls] val globalVersion = new AtomicLong(1)
 
