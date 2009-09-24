@@ -77,21 +77,22 @@ class THashSet[A] {
       instance._data.put(key, v)
     }
     def dataCAS(before: STMImpl.Data[Boolean], after: STMImpl.Data[Boolean]): Boolean = {
-      val beforeInSet = !STMImpl.isInitial(before)
-      val afterInSet = !STMImpl.isReplaceable(after, false)
-      if (!beforeInSet) {
-        if (!afterInSet) {
-          true
-        } else {
-          instance._data.putIfAbsent(key, after) == null
-        }
-      } else {
-        if (!afterInSet) {
-          instance._data.remove(key, before)
-        } else {
-          instance._data.replace(key, before, after)
-        }
-      }
+//      val beforeInSet = !STMImpl.isInitial(before)
+//      val afterInSet = !STMImpl.isReplaceable(after, false)
+//      if (!beforeInSet) {
+//        if (!afterInSet) {
+//          true
+//        } else {
+//          instance._data.putIfAbsent(key, after) == null
+//        }
+//      } else {
+//        if (!afterInSet) {
+//          instance._data.remove(key, before)
+//        } else {
+//          instance._data.replace(key, before, after)
+//        }
+//      }
+      false
     }
   }
 
