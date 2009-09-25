@@ -29,13 +29,14 @@ class WriteBuffer(initialBuckets: Int) {
   /** Constructs a write buffer with 16 buckets, and an initial capacity of 10. */
   def this() = this(16)
 
-  var _size = 0
+  private var _size = 0
+  def size = _size
 
   /** Reference key i is at 2*i, speculative value i is at 2*i+1. */
-  var _objs = new Array[AnyRef](2 * initialBuckets)
+  private var _objs = new Array[AnyRef](2 * initialBuckets)
 
   /** Hop i is at 2*i, offset key i is at 2*i+1. */
-  var _ints = new Array[Int](2 * initialBuckets)
+  private var _ints = new Array[Int](2 * initialBuckets)
 
   private def capacity = _ints.length / 2
 
@@ -173,7 +174,7 @@ class WriteBuffer(initialBuckets: Int) {
     var i = 0
     while (i < n) {
       if (oldObjs(refI(i)) ne null) {
-        set(oldObjs(refI(i)), oldInts(offsetI(i)), oldObjs(specValueI(i)))
+        put(oldObjs(refI(i)), oldInts(offsetI(i)), oldObjs(specValueI(i)))
       }
       i += 1
     }

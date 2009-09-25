@@ -14,64 +14,60 @@ object TxnLocal {
     def set(v: T)
   }
 
-  private[ccstm] class Entry[T](val key: Long, var value: T)
-
   private[ccstm] class PerTxn {
-    var count: Int = 0
-    var entries: Array[Entry[_]] = new Array[Entry[_]](8)
+    private var _size: Int = 0
+    private var _data: Array[AnyRef] = new Array[AnyRef](16)
 
     def apply[T](owner: TxnLocal[T]): T = getOrSet(owner, true, null.asInstanceOf[T])
     def update[T](owner: TxnLocal[T], v: T) { getOrSet(owner, false, v) }
 
-    private def getOrSet[T](owner: TxnLocal[T], getting: Boolean, v: T): T = {
-      val key = owner.key
-      var index = key.asInstanceOf[Int]
+    private def getOrSet[T](owner: AnyRef, getting: Boolean, v: T): T = {
+      val n = _data.length / 2
+      var i = System.identityHashCode(owner) & (n - 1)
       while (true) {
-        index &= (entries.length - 1)
-        var e = entries(index)
-        if (e != null) {
-          if (e.key == key) {
-            val entry = e.asInstanceOf[Entry[T]]
-            if (!getting) entry.value = v
-            return entry.value
+        var k = _data(2 * i)
+        if (k eq owner) {
+          // hit
+          if (getting) {
+            return _data(2 * i + 1).asInstanceOf[T]
+          } else {
+            _data(2 * i + 1) = v.asInstanceOf[AnyRef]
+            return v
           }
-          // else probe
-          index += 1
-        } else {
-          // fill in the empty slot
-          val z = if (getting) owner.initialValue else v
-          entries(index) = new Entry(key, z)
-          count += 1
-          if (count * 2 > entries.length) rehash()
+        }
+        else if (k eq null) {
+          // empty slot
+          val z = (if (getting) owner.asInstanceOf[TxnLocal[T]].initialValue else v)
+          _data(2 * i + 1) = z.asInstanceOf[AnyRef]
+          _size += 1
+          if (_size * 2 > _data.length) grow()
           return z
+        }
+        else {
+          // probe
+          i += 1
         }
       }
       throw new Error("unreachable")
     }
 
-    private def rehash() {
-      val n = entries.length * 2
-      val a = new Array[Entry[_]](n)
-      for (e <- entries) {
-        if (e != null) {
-          var index = e.key.asInstanceOf[Int] & (n - 1)
-          while (a(index) != null) {
-            index = (index + 1) & (n - 1)
-          }
-          a(index) = e
-        }
+    private def grow() {
+      val n = _data.length / 2
+      val oldData = _data
+      _size = 0
+      _data = new Array[AnyRef](n * 4)
+      var i = 0
+      while (i < n) {
+        val k = oldData(2 * i)
+        if (k ne null) getOrSet(k, false, oldData(2 * i + 1))
+        i += 1
       }
-      entries = a
     }
   }
-
-  private[TxnLocal] val nextKey = new AtomicLong(1)
 }
 
 class TxnLocal[T] {
   import TxnLocal._
-
-  private[TxnLocal] val key = nextKey.getAndIncrement
 
   protected def initialValue: T = null.asInstanceOf[T]
   def get(implicit txn: Txn) = getImpl(txn)
