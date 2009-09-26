@@ -5,15 +5,17 @@
 package edu.stanford.ppl.ccstm.impls
 
 
-private [impls] object WriteBuffer {
+private [impls] object WriteBuffer2 {
   trait Visitor {
-    def visit(ref: AnyRef, offset: Int, specValue: Any): Boolean
+    def visit(ref: AnyRef, offset: Int, first: Any, second: Any): Boolean
   }
 }
 
-/** A map keyed on a reference and integer pair, where the reference portion of
- *  the key is used for identity only (System.identityHashCode and eq).  Only
- *  get, put, and visitation are supported.
+/** A map keyed on a reference and integer pair, with a pair of value
+ *  associated with each key.  The reference portion of the key is used for
+ *  identity only (System.identityHashCode and eq).  Only get, put, and
+ *  visitation are supported.  The second value is available only during
+ *  visitation.
  *  <p>
  *  The underlying implementation uses Hopscotch Hashing (Herlihy, Shavit, and
  *  Tzafrir).  To keep object allocation low, entries are striped across
@@ -25,15 +27,15 @@ private [impls] object WriteBuffer {
  *  16 initial buckets gives an initial capacity of 10 with 336 or 512 bytes.
  *  32 initial buckets gives an initial capacity of 20 with 592 or 896 bytes.
  */
-private [impls] class WriteBuffer(initialBuckets: Int) {
+private [impls] class WriteBuffer2(initialBuckets: Int) {
   /** Constructs a write buffer with 16 buckets, and an initial capacity of 10. */
   def this() = this(16)
 
   private var _size = 0
   def size = _size
 
-  /** Reference key i is at 2*i, speculative value i is at 2*i+1. */
-  private var _objs = new Array[AnyRef](2 * initialBuckets)
+  /** Reference key i is at 3*i, values for i are at 3*i+1 and 3*i+2. */
+  private var _objs = new Array[AnyRef](3 * initialBuckets)
 
   /** Hop i is at 2*i, offset key i is at 2*i+1. */
   private var _ints = new Array[Int](2 * initialBuckets)
@@ -41,9 +43,10 @@ private [impls] class WriteBuffer(initialBuckets: Int) {
   private def capacity = _ints.length / 2
 
   private def hopI(i: Int) = 2 * i
-  private def refI(i: Int) = 2 * i
   private def offsetI(i: Int) = 2 * i + 1
-  private def specValueI(i: Int) = 2 * i + 1 
+  private def refI(i: Int) = 3 * i
+  private def firstValueI(i: Int) = 3 * i + 1
+  private def secondValueI(i: Int) = 3 * i + 2
 
   private def hash(ref: AnyRef, offset: Int) = {
     // Hopscotch will fail if there are more than H entries that end up in the
@@ -127,7 +130,8 @@ private [impls] class WriteBuffer(initialBuckets: Int) {
       val dist = (empty - i0) & (n - 1)
       if (dist < 32) {
         // entry at i hashed to i0, and i0 is in range of empty
-        _objs(specValueI(empty)) = _objs(specValueI(i))
+        _objs(firstValueI(empty)) = _objs(firstValueI(i))
+        _objs(secondValueI(empty)) = _objs(secondValueI(i))
         _objs(refI(empty)) = _objs(refI(i))
         _objs(refI(i)) = null
         _ints(offsetI(empty)) = _ints(offsetI(i))
@@ -139,24 +143,25 @@ private [impls] class WriteBuffer(initialBuckets: Int) {
     return -1
   }
 
-
+  /** Returns the first value associated with (ref,offset). */
   def get[T](ref: AnyRef, offset: Int, defaultValue: T): T = {
     val i = find(ref, offset)
-    if (i == -1) defaultValue else _objs(specValueI(i)).asInstanceOf[T]
+    if (i == -1) defaultValue else _objs(firstValueI(i)).asInstanceOf[T]
   }
 
-  def put[T](ref: AnyRef, offset: Int, value: T) {
+  def put(ref: AnyRef, offset: Int, first: Any, second: Any) {
     val i = findOrAdd(ref, offset)
-    _objs(specValueI(i)) = value.asInstanceOf[AnyRef]
+    _objs(firstValueI(i)) = first.asInstanceOf[AnyRef]
+    _objs(secondValueI(i)) = second.asInstanceOf[AnyRef]
   }
 
-  def visit(visitor: WriteBuffer.Visitor): Boolean = {
+  def visit(visitor: WriteBuffer2.Visitor): Boolean = {
     val n = capacity
     var i = 0
     while (i < n) {
       val ref = _objs(refI(i))
       if (ref ne null) {
-        if (!visitor.visit(ref, _ints(offsetI(i)), _objs(specValueI(i)))) return false
+        if (!visitor.visit(ref, _ints(offsetI(i)), _objs(firstValueI(i)), _objs(secondValueI(i)))) return false
       }
       i += 1
     }
@@ -170,11 +175,11 @@ private [impls] class WriteBuffer(initialBuckets: Int) {
     val n = capacity
     _size = 0
     _ints = new Array[Int](n * 4)
-    _objs = new Array[AnyRef](n * 4)
+    _objs = new Array[AnyRef](n * 6)
     var i = 0
     while (i < n) {
       if (oldObjs(refI(i)) ne null) {
-        put(oldObjs(refI(i)), oldInts(offsetI(i)), oldObjs(specValueI(i)))
+        put(oldObjs(refI(i)), oldInts(offsetI(i)), oldObjs(firstValueI(i)), oldObjs(secondValueI(i)))
       }
       i += 1
     }
@@ -183,9 +188,10 @@ private [impls] class WriteBuffer(initialBuckets: Int) {
   override def toString = {
     val buf = new StringBuilder
     buf.append("WriteBuffer(size=").append(_size).append("\n")
-    buf.append("%8s | %16s | %7s | %s\n".format("hops", "refs", "offsets", "specValues"))
+    buf.append("%8s | %16s | %7s | %16s | %s\n".format("hops", "refs", "offsets", "first", "second"))
     for (i <- 0 until capacity) {
-      buf.append("%08x | %16s | %7d | %s\n".format(_ints(hopI(i)), _objs(refI(i)), _ints(offsetI(i)), _objs(specValueI(i))))
+      buf.append("%08x | %16s | %7d | %16s | %s\n".format(
+        _ints(hopI(i)), _objs(refI(i)), _ints(offsetI(i)), _objs(firstValueI(i)), _objs(secondValueI(i))))
     }
     buf.append(")")
     buf.toString
