@@ -12,6 +12,7 @@ package edu.stanford.ppl.ccstm.impls
 private[impls] class FastPoorRandom {
   // TODO: (re)choose the number of slots with a bit more thought
   private def Slots = 1024
+  
   private val states = {
     val z = new Array[Long](Slots)
     for (i <- 0 until Slots) z(i) =  i * 0x123456789abcdefL
@@ -21,34 +22,12 @@ private[impls] class FastPoorRandom {
   def nextInt: Int = {
     val id = Thread.currentThread.hashCode & (Slots - 1)
 
-    // adapted from Wikipedia
+    // The constants in this 64-bit linear congruential random number generator
+    // are from http://nuclear.llnl.gov/CNP/rng/rngman/node4.html.
 
-    val s = states(id)
+    val next = states(id) * 2862933555777941757L + 3037000493L
+    states(id) = next
 
-    var m_z = s.asInstanceOf[Int]
-    var m_w = (s >> 32).asInstanceOf[Int]
-
-    m_z = 36969 * (m_z & 65535) + (m_z >> 16)
-    m_w = 18000 * (m_w & 65535) + (m_w >> 16)
-
-    states(id) = (m_z & 0xffffffffL) | (m_w.asInstanceOf[Long] << 32)
-
-    (m_z << 16) + m_w  /* 32-bit result */
+    (next >> 30).asInstanceOf[Int]
   }
-
-  // nbronson: on my laptop the following implementation is 2 nanoseconds faster (11.9 instead of 13.9)
-
-//  private val states = {
-//    val z = new Array[Int](Slots)
-//    for (i <- 0 until Slots) z(i) =  i
-//    z
-//  }
-//
-//  def nextInt: Int = {
-//    val id = Thread.currentThread.hashCode & (Slots - 1)
-//
-//    val s = states(id) * (2000000000 + 1141592653) + 14142135
-//    states(id) = s
-//    s
-//  }
 }

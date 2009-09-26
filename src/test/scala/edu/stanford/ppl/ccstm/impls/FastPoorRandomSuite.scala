@@ -45,16 +45,20 @@ class FastPoorRandomSuite extends FunSuite {
 
   test("FastPoorRandom should be fast") {
     val rand = new FastPoorRandom
-    var best = java.lang.Long.MAX_VALUE
+    var best = Math.MAX_LONG
     for (pass <- 0 until 1000) {
       val begin = System.nanoTime
-      for (i <- 0 until 100) rand.nextInt
+      var i = 0
+      while (i < 10000) {
+        rand.nextInt
+        i += 1
+      }
       val elapsed = System.nanoTime - begin
       best = best min elapsed
     }
-    println("best was " + (best / 100.0) + " nanos/call")
+    println("best was " + (best / 10000.0) + " nanos/call")
 
     // we should be able to get less than 250 nanos, even on a Niagara
-    assert(best / 100 < 250)
+    assert(best / 10000 < 250)
   }
 }
