@@ -539,7 +539,6 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends STMImpl.TxnImp
   }
 
   private[ccstm] def writeResourcesPerformRollback() {
-    assert(status.isInstanceOf[RollingBack])
     if (_writeLikeResources != null) {
       for (res <- _writeLikeResources) {
         try {
