@@ -2,10 +2,10 @@
 
 // WriteBuffer
 
-package edu.stanford.ppl.ccstm.impls
+package edu.stanford.ppl.ccstm.impl
 
 
-private [impls] object WriteBuffer {
+private [impl] object WriteBuffer {
   trait Visitor {
     def visit(ref: AnyRef, offset: Int, specValue: Any): Boolean
   }
@@ -25,7 +25,7 @@ private [impls] object WriteBuffer {
  *  16 initial buckets gives an initial capacity of 10 with 336 or 512 bytes.
  *  32 initial buckets gives an initial capacity of 20 with 592 or 896 bytes.
  */
-private [impls] class WriteBuffer(initialBuckets: Int) {
+private [impl] class WriteBuffer(initialBuckets: Int) {
   /** Constructs a write buffer with 16 buckets, and an initial capacity of 10. */
   def this() = this(16)
 

@@ -2,7 +2,7 @@
 
 // IndirectEagerTL2.scala
 
-package edu.stanford.ppl.ccstm.impls
+package edu.stanford.ppl.ccstm.impl
 
 import edu.stanford.ppl.ccstm.Ref
 import edu.stanford.ppl.ccstm.UnrecordedRead
@@ -25,6 +25,9 @@ trait IndirectEagerTL2 {
    *  holds a value of type T.
    */
   type Data[T] = IndirectEagerTL2.Wrapped[T]
+
+  type Metadata = Unit
+  type MetadataHolder = UnitMetadataHolder
 
   /** The initial value that should be defined for a field in an atomic object
    *  that holds a value of type T.
@@ -51,28 +54,28 @@ private[ccstm] object IndirectEagerTL2 extends GV6 {
   type WakeupMask = Long
 
   sealed abstract class Wrapped[T](val value: T, val version: Version) {
-    private[impls] def unlocked: Unlocked[T]
+    private[impl] def unlocked: Unlocked[T]
 
-    private[impls] def nonTxnRead: T
-    private[impls] def nonTxnSnapshot: Wrapped[T]
+    private[impl] def nonTxnRead: T
+    private[impl] def nonTxnSnapshot: Wrapped[T]
 
-    private[impls] def nonTxnStillValid(v: Version): Boolean
+    private[impl] def nonTxnStillValid(v: Version): Boolean
 
     /** True iff a CAS may be used to obtain write permission. */
-    private[impls] def isAcquirable: Boolean
-    private[impls] def isLockedBy(txn: IndirectEagerTL2Txn): Boolean
+    private[impl] def isAcquirable: Boolean
+    private[impl] def isLockedBy(txn: IndirectEagerTL2Txn): Boolean
 
     /** Only handles self-reads, does not check if a TxnLocked is present for
      *  a commmitted transaction.
      */
-    private[impls] def txnRead(txn: IndirectEagerTL2Txn): T
+    private[impl] def txnRead(txn: IndirectEagerTL2Txn): T
 
-    private[impls] def txnStillValid(txn: IndirectEagerTL2Txn, v: Version): Boolean
+    private[impl] def txnStillValid(txn: IndirectEagerTL2Txn, v: Version): Boolean
   }
 
   private val unlockedPendingWakeupsUpdater = (new Unlocked[AnyRef](null, 0)).newPendingWakeupUpdater  
 
-  private[impls] class Unlocked[T](value0: T, version0: Version) extends Wrapped[T](value0, version0) {
+  private[impl] class Unlocked[T](value0: T, version0: Version) extends Wrapped[T](value0, version0) {
     @volatile private var _pendingWakeups: WakeupMask = 0
 
     private[IndirectEagerTL2] def newPendingWakeupUpdater = AtomicLongFieldUpdater.newUpdater(classOf[Unlocked[_]], "_pendingWakeups")
@@ -105,7 +108,7 @@ private[ccstm] object IndirectEagerTL2 extends GV6 {
     }
   }
 
-  private[impls] class NonTxnLocked[T](val unlocked: Unlocked[T]) extends Wrapped[T](unlocked.value, unlocked.version) {
+  private[impl] class NonTxnLocked[T](val unlocked: Unlocked[T]) extends Wrapped[T](unlocked.value, unlocked.version) {
     def nonTxnRead = value
     def nonTxnSnapshot = this
 
@@ -123,7 +126,7 @@ private[ccstm] object IndirectEagerTL2 extends GV6 {
     }
   }
 
-  private[impls] class TxnLocked[T](val unlocked: Unlocked[T],
+  private[impl] class TxnLocked[T](val unlocked: Unlocked[T],
                                     var specValue: T,
                                     val owner: IndirectEagerTL2Txn) extends Wrapped[T](unlocked.value, unlocked.version) {
 
@@ -174,7 +177,7 @@ private[ccstm] object IndirectEagerTL2 extends GV6 {
 
   //////////////// Conditional retry stuff
 
-  private[impls] class WakeupChannel {
+  private[impl] class WakeupChannel {
     private val currentEvent = new AtomicReference[WakeupEvent]
 
     def subscribe: WakeupEvent = {
@@ -199,7 +202,7 @@ private[ccstm] object IndirectEagerTL2 extends GV6 {
     }
   }
 
-  private[impls] class WakeupEvent {
+  private[impl] class WakeupEvent {
     var _triggered = false
 
     def await {
@@ -209,7 +212,7 @@ private[ccstm] object IndirectEagerTL2 extends GV6 {
     }
   }
 
-  private[impls] class ReadSet(val readCount: Int, val reads: Array[IndirectEagerTL2TxnAccessor[_]]) {
+  private[impl] class ReadSet(val readCount: Int, val reads: Array[IndirectEagerTL2TxnAccessor[_]]) {
     override def toString = {
       "ReadSet(size=" + readCount + ")"
     }
@@ -218,10 +221,10 @@ private[ccstm] object IndirectEagerTL2 extends GV6 {
   private val wakeupChannels = Array.fromFunction(i => new WakeupChannel)(64)
 
   /** Returns a wakeup event for use during conditional retry. */
-  private[impls] def subscribeToWakeup(hash: Int) = wakeupChannels(hash & 63).subscribe
+  private[impl] def subscribeToWakeup(hash: Int) = wakeupChannels(hash & 63).subscribe
 
   /** Triggers all wakeup channels implied by <code>mask</code>. */
-  private[impls] def triggerWakeups(mask: WakeupMask) {
+  private[impl] def triggerWakeups(mask: WakeupMask) {
     var i = 0
     var m = mask
     while (m != 0) {
@@ -231,7 +234,7 @@ private[ccstm] object IndirectEagerTL2 extends GV6 {
     }
   }
 
-  private[impls] def awaitRetry(explicitRetries: Txn.ExplicitRetryCause*) {
+  private[impl] def awaitRetry(explicitRetries: Txn.ExplicitRetryCause*) {
     assert(explicitRetries.exists(_.readSet.asInstanceOf[ReadSet].readCount > 0))
 
     // Spin a few times
@@ -282,7 +285,7 @@ private[ccstm] object IndirectEagerTL2 extends GV6 {
 
   //////////////// Internal per-slot blocking
 
-  private[impls] def awaitNonTxnUnlock[T](data: () => Wrapped[T], nl: NonTxnLocked[_]): Wrapped[T] = {
+  private[impl] def awaitNonTxnUnlock[T](data: () => Wrapped[T], nl: NonTxnLocked[_]): Wrapped[T] = {
     // spin a bit
     var spins = 0
     while (spins < SpinCount + YieldCount) {
@@ -328,7 +331,7 @@ private[ccstm] abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.Rollb
    *  <code>globalVersion.get</code>, must never decrease, and each time it is
    *  changed the read set must be revalidated.
    */
-  private[impls] var _readVersion: Version = globalVersion.get
+  private[impl] var _readVersion: Version = globalVersion.get
 
   /** The version number with which this transaction's writes are labelled, or
    *  zero if this transaction has not yet decided on commit or is in the
@@ -339,10 +342,10 @@ private[ccstm] abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.Rollb
    *  must wait for _commitVersion to be non-zero if they observe our status as
    *  Committing, because linearize after us.
    */
-  @volatile private[impls] var _commitVersion: Version = 0
+  @volatile private[impl] var _commitVersion: Version = 0
 
   /** True if all reads should be performed as writes. */
-  private[impls] val barging: Boolean = {
+  private[impl] val barging: Boolean = {
     // barge if we have already had 3 failures since the last explicit retry
     var cur = failureHistory
     var count = 0
@@ -353,10 +356,10 @@ private[ccstm] abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.Rollb
     (count == 3)
   }
 
-  private[impls] var _readCount = 0
-  private[impls] var _reads: Array[IndirectEagerTL2TxnAccessor[_]] = null
-  private[impls] var _writeCount = 0
-  private[impls] var _writes: Array[IndirectEagerTL2TxnAccessor[_]] = null
+  private[impl] var _readCount = 0
+  private[impl] var _reads: Array[IndirectEagerTL2TxnAccessor[_]] = null
+  private[impl] var _writeCount = 0
+  private[impl] var _writes: Array[IndirectEagerTL2TxnAccessor[_]] = null
 
 
   override def toString = {
@@ -369,7 +372,7 @@ private[ccstm] abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.Rollb
   }
 
 
-  private[impls] def addToReadSet(w: IndirectEagerTL2TxnAccessor[_]) {
+  private[impl] def addToReadSet(w: IndirectEagerTL2TxnAccessor[_]) {
     if (_readCount == 0) {
       _reads = new Array[IndirectEagerTL2TxnAccessor[_]](8)
     } else if (_readCount == _reads.length) {
@@ -379,7 +382,7 @@ private[ccstm] abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.Rollb
     _readCount += 1
   }
 
-  private[impls] def addToWriteSet(w: IndirectEagerTL2TxnAccessor[_]) {
+  private[impl] def addToWriteSet(w: IndirectEagerTL2TxnAccessor[_]) {
     if (_writeCount == 0) {
       _writes = new Array[IndirectEagerTL2TxnAccessor[_]](4)
     } else if (_writeCount == _writes.length) {
@@ -402,13 +405,13 @@ private[ccstm] abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.Rollb
    *  all reads will have been validated against the new read version.  Throws
    *  <code>RollbackError</code> if invalid.
    */
-  private[impls] def revalidate(minReadVersion: Version) {
+  private[impl] def revalidate(minReadVersion: Version) {
     _readVersion = freshReadVersion(minReadVersion)
     if (!revalidateImpl()) throw RollbackError
   }
 
   /** Returns true if valid. */
-  private[impls] def revalidateImpl(): Boolean = {
+  private[impl] def revalidateImpl(): Boolean = {
     var i = 0
     while (i < _readCount) {
       val r = _reads(i)
@@ -431,7 +434,7 @@ private[ccstm] abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.Rollb
    *  case <code>RollbackError</code> will be thrown.  Will never return false
    *  if currentOwner.status == Validating.
    */
-  private[impls] def shouldWaitForRead(currentOwner: IndirectEagerTL2Txn): Boolean = {
+  private[impl] def shouldWaitForRead(currentOwner: IndirectEagerTL2Txn): Boolean = {
     // TODO: something more sophisticated?
 
     // This method must take care to avoid deadlock cycles, via the other txn
@@ -446,7 +449,7 @@ private[ccstm] abstract class IndirectEagerTL2Txn(failureHistory: List[Txn.Rollb
    *  rolled back or <code>currentOwner</code> will allow the write resource to
    *  be acquired.
    */
-  private[impls] def resolveWriteWriteConflict(currentOwner: IndirectEagerTL2Txn, contended: AnyRef) {
+  private[impl] def resolveWriteWriteConflict(currentOwner: IndirectEagerTL2Txn, contended: AnyRef) {
     val cause = WriteConflictCause(contended, null)
 
     // this test is _almost_ symmetric
@@ -567,7 +570,7 @@ private[ccstm] abstract class IndirectEagerTL2TxnAccessor[T] extends Ref.Bound[T
 
   //////////////// Implementation
 
-  private[impls] var _readSnapshot: Wrapped[T] = null
+  private[impl] var _readSnapshot: Wrapped[T] = null
 
   def context: Option[Txn] = Some(txn.asInstanceOf[Txn])
 
@@ -615,7 +618,7 @@ private[ccstm] abstract class IndirectEagerTL2TxnAccessor[T] extends Ref.Bound[T
   }
 
   // does not check for read-after-write
-  private[impls] def readImpl(t: IndirectEagerTL2Txn, w0: Wrapped[T], unrecorded: Boolean): Wrapped[T] = {
+  private[impl] def readImpl(t: IndirectEagerTL2Txn, w0: Wrapped[T], unrecorded: Boolean): Wrapped[T] = {
     var w: Wrapped[T] = w0
 
     if (_readSnapshot != null) {
@@ -713,7 +716,7 @@ private[ccstm] abstract class IndirectEagerTL2TxnAccessor[T] extends Ref.Bound[T
     readForWriteImpl(false).specValue = v
   }
 
-  private[impls] def readForWriteImpl(addToRS: Boolean): TxnLocked[T] = {
+  private[impl] def readForWriteImpl(addToRS: Boolean): TxnLocked[T] = {
     val t = txn
     t.requireActive
 
@@ -726,7 +729,7 @@ private[ccstm] abstract class IndirectEagerTL2TxnAccessor[T] extends Ref.Bound[T
     }
   }
 
-  private[impls] def readForWriteImpl(t: IndirectEagerTL2Txn, w0: Wrapped[T], addToRS: Boolean): TxnLocked[T] = {
+  private[impl] def readForWriteImpl(t: IndirectEagerTL2Txn, w0: Wrapped[T], addToRS: Boolean): TxnLocked[T] = {
     var w = w0
     var result: TxnLocked[T] = null
     do {
@@ -891,7 +894,7 @@ private[ccstm] abstract class IndirectEagerTL2TxnAccessor[T] extends Ref.Bound[T
 
   //////////////// Local use only
 
-  private[impls] def commit(cv: Version): WakeupMask = {
+  private[impl] def commit(cv: Version): WakeupMask = {
     // we don't need to use CAS, because stealing can only occur from doomed
     // transactions
     val before = data.asInstanceOf[TxnLocked[T]]
@@ -899,7 +902,7 @@ private[ccstm] abstract class IndirectEagerTL2TxnAccessor[T] extends Ref.Bound[T
     before.unlocked.pendingWakeups
   }
 
-  private[impls] def rollback(failingTxn: IndirectEagerTL2Txn) {
+  private[impl] def rollback(failingTxn: IndirectEagerTL2Txn) {
     // we must use CAS, to account for stealing, but we don't need to retry
     // because we can only fail if there was a thief
     data match {

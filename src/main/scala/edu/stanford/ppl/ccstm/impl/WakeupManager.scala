@@ -2,12 +2,12 @@
 
 // WakeupManager
 
-package edu.stanford.ppl.ccstm.impls
+package edu.stanford.ppl.ccstm.impl
 
 
 import java.util.concurrent.atomic.{AtomicReferenceArray, AtomicLongArray}
 
-private[impls] class WakeupManager(numChannels: Int, numSources: Int) {
+private[impl] class WakeupManager(numChannels: Int, numSources: Int) {
   def this() = this(64, 512)
 
   assert(numChannels > 0 && numChannels <= 64 && (numChannels & (numChannels - 1)) == 0)
@@ -84,6 +84,10 @@ private[impls] class WakeupManager(numChannels: Int, numSources: Int) {
 
   /** See <code>trigger</code>. */
   def subscribe: Event = {
+    // Picking the waiter's identity using the thread hash means that there is
+    // a possibility that we will get repeated interference with another thread
+    // in a per-VM way, but it minimizes saturation of the pending wakeups,
+    // which is quite important.
     subscribe(hash(Thread.currentThread, 0) & (numChannels - 1))
   }
 
@@ -108,22 +112,24 @@ private[impls] class WakeupManager(numChannels: Int, numSources: Int) {
 
   class Event(channel: Int) {
     private val mask = 1L << channel
-    private var triggered = false
+    @volatile private var _triggered = false
+
+    def triggered = _triggered
 
     def addSource(ref: AnyRef, offset: Int) {
-      if (!triggered) {
+      if (!_triggered) {
         val i = hash(ref, offset) & (numSources - 1)
         var p = 0L
         do {
           p = pending.get(i)
-        } while((p & mask) == 0 && !pending.compareAndSet(i, p, p | mask) && !triggered)
+        } while((p & mask) == 0 && !pending.compareAndSet(i, p, p | mask) && !_triggered)
       }
     }
 
     def await() {
-      if (!triggered) {
+      if (!_triggered) {
         synchronized {
-          while (!triggered) {
+          while (!_triggered) {
             wait
           }
         }
@@ -131,10 +137,10 @@ private[impls] class WakeupManager(numChannels: Int, numSources: Int) {
     }
 
     private[WakeupManager] def trigger() {
-      if (!triggered) {
+      if (!_triggered) {
         synchronized {
-          if (!triggered) {
-            triggered = true
+          if (!_triggered) {
+            _triggered = true
             notifyAll
           }
         }

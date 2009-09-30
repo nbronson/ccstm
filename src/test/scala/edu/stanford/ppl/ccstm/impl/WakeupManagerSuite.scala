@@ -2,7 +2,7 @@
 
 // WakeupManagerSuite
 
-package edu.stanford.ppl.ccstm.impls
+package edu.stanford.ppl.ccstm.impl
 
 
 import java.util.concurrent.CyclicBarrier

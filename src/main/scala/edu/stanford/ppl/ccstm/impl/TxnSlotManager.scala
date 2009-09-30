@@ -2,7 +2,7 @@
 
 // TxnSlotManager
 
-package edu.stanford.ppl.ccstm.impls
+package edu.stanford.ppl.ccstm.impl
 
 
 import java.util.concurrent.atomic.AtomicReferenceArray
@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray
 /** This class manages a mapping from active Txn to a bounded integral range.
  *  This allows transaction identities to be packed into metadata.
  */
-private[impls] class TxnSlotManager[T <: AnyRef](range: Int, reservedSlots: Int) extends (Int => T) {
+private[impl] class TxnSlotManager[T <: AnyRef](range: Int, reservedSlots: Int) extends (Int => T) {
   assert(range >= 16 & (range & (range - 1)) == 0)
   assert(range >= reservedSlots + 16)
 

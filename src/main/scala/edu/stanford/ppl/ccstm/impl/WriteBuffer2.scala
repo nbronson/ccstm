@@ -2,10 +2,10 @@
 
 // WriteBuffer
 
-package edu.stanford.ppl.ccstm.impls
+package edu.stanford.ppl.ccstm.impl
 
 
-private [impls] object WriteBuffer2 {
+private [impl] object WriteBuffer2 {
   trait Visitor {
     def visit(ref: AnyRef, offset: Int, first: Any, second: Any): Boolean
   }
@@ -27,18 +27,17 @@ private [impls] object WriteBuffer2 {
  *  16 initial buckets gives an initial capacity of 10 with 336 or 512 bytes.
  *  32 initial buckets gives an initial capacity of 20 with 592 or 896 bytes.
  */
-private [impls] class WriteBuffer2(initialBuckets: Int) {
-  /** Constructs a write buffer with 16 buckets, and an initial capacity of 10. */
-  def this() = this(16)
+private [impl] trait WriteBuffer2 {
+  protected def writeBufferInitialCapacity = 16
 
   private var _size = 0
-  def size = _size
+  def writeBufferSize = _size
 
   /** Reference key i is at 3*i, values for i are at 3*i+1 and 3*i+2. */
-  private var _objs = new Array[AnyRef](3 * initialBuckets)
+  private var _objs: Array[AnyRef] = null
 
   /** Hop i is at 2*i, offset key i is at 2*i+1. */
-  private var _ints = new Array[Int](2 * initialBuckets)
+  private var _ints: Array[Int] = null
 
   private def capacity = _ints.length / 2
 
@@ -65,6 +64,8 @@ private [impls] class WriteBuffer2(initialBuckets: Int) {
 
   /** Returns the index on a hit, -1 on failure. */
   private def find(ref: AnyRef, offset: Int): Int = {
+    if (_size == 0) return -1
+
     val n = capacity
     var i = hash(ref, offset) & (n - 1)
     var mask = _ints(hopI(i))
@@ -79,8 +80,13 @@ private [impls] class WriteBuffer2(initialBuckets: Int) {
   }
 
   private def findOrAdd(ref: AnyRef, offset: Int): Int = {
-    // max load factor is 2/3
-    if (_size * 3 >= capacity * 2) {
+    if (_size == 0) {
+      // lazy initialization
+      val n = writeBufferInitialCapacity
+      _objs = new Array[AnyRef](3 * n)
+      _ints = new Array[Int](2 * n)
+    } else if (_size * 3 >= capacity * 2) {
+      // max load factor is 2/3
       grow()
     }
 
@@ -144,18 +150,20 @@ private [impls] class WriteBuffer2(initialBuckets: Int) {
   }
 
   /** Returns the first value associated with (ref,offset). */
-  def get[T](ref: AnyRef, offset: Int, defaultValue: T): T = {
+  private[impl] def writeBufferGet[T](ref: AnyRef, offset: Int, defaultValue: T): T = {
     val i = find(ref, offset)
     if (i == -1) defaultValue else _objs(firstValueI(i)).asInstanceOf[T]
   }
 
-  def put(ref: AnyRef, offset: Int, first: Any, second: Any) {
+  private[impl] def writeBufferPut(ref: AnyRef, offset: Int, first: Any, second: Any) {
     val i = findOrAdd(ref, offset)
     _objs(firstValueI(i)) = first.asInstanceOf[AnyRef]
     _objs(secondValueI(i)) = second.asInstanceOf[AnyRef]
   }
 
-  def visit(visitor: WriteBuffer2.Visitor): Boolean = {
+  private[impl] def writeBufferVisit(visitor: WriteBuffer2.Visitor): Boolean = {
+    if (_size == 0) return true
+    
     val n = capacity
     var i = 0
     while (i < n) {
@@ -179,13 +187,13 @@ private [impls] class WriteBuffer2(initialBuckets: Int) {
     var i = 0
     while (i < n) {
       if (oldObjs(refI(i)) ne null) {
-        put(oldObjs(refI(i)), oldInts(offsetI(i)), oldObjs(firstValueI(i)), oldObjs(secondValueI(i)))
+        writeBufferPut(oldObjs(refI(i)), oldInts(offsetI(i)), oldObjs(firstValueI(i)), oldObjs(secondValueI(i)))
       }
       i += 1
     }
   }
 
-  override def toString = {
+  private[impl] def writeBufferStr = {
     val buf = new StringBuilder
     buf.append("WriteBuffer(size=").append(_size).append("\n")
     buf.append("%8s | %16s | %7s | %16s | %s\n".format("hops", "refs", "offsets", "first", "second"))

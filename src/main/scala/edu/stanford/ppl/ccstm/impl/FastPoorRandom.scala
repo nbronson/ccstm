@@ -2,14 +2,14 @@
 
 // FastPoorRandom
 
-package edu.stanford.ppl.ccstm.impls
+package edu.stanford.ppl.ccstm.impl
 
 
 /** A thread-safe random number generator that focuses on speed and lack of
  *  inter-thread interference, rather than on the quality of the numbers
  *  returned.
  */
-private[impls] class FastPoorRandom {
+private[impl] class FastPoorRandom {
   // TODO: (re)choose the number of slots with a bit more thought
   private def Slots = 1024
   

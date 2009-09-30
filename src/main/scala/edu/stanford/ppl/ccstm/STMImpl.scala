@@ -10,4 +10,4 @@ package edu.stanford.ppl.ccstm
  *
  *  @author Nathan Bronson
  */
-object STMImpl extends impls.IndirectEagerTL2 
+object STMImpl extends impl.IndirectEagerTL2

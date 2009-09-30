@@ -2,7 +2,7 @@
 
 // WriteBufferSuite
 
-package edu.stanford.ppl.ccstm.impls
+package edu.stanford.ppl.ccstm.impl
 
 
 import _root_.scala.collection.jcl.IdentityHashMap
@@ -69,5 +69,41 @@ class WriteBufferSuite extends FunSuite {
 
   test("many offsets") {
     runTest(for (i <- 0 until 200) yield Put("ref1", i, "value" + i))
+  }
+
+  def nanosPerGet(size: Int, passes: Int, numReadHits: Int, numReadMisses: Int): Double = {
+    val wb = new WriteBuffer
+    for (i <- 0 until size) wb.put("ref", i, "x" + i)
+
+    var best = Math.MAX_LONG
+    for (p <- 0 until passes) {
+      val t0 = System.nanoTime
+      var k = 0
+      var i = 0
+      while (i < numReadHits) {
+        wb.get("ref", k, "default")
+        k += 1
+        i += 1
+        if (k == size) k = 0
+      }
+      k = size
+      i = 0
+      while (i < numReadMisses) {
+        wb.get("ref", k, "default")
+        k += 1
+        i += 1
+      }
+      val elapsed = System.nanoTime - t0
+      best = best min elapsed
+    }
+
+    best * 1.0 / (numReadHits + numReadMisses)
+  }
+
+  test("read performance") {
+    for (size <- 0 until 64) {
+      printf("%d entries -> %3.1f nanos/hit, %3.1f nanos/miss\n",
+        size, nanosPerGet(size, 1000, 10000, 0), nanosPerGet(size, 1000, 0, 10000))
+    }
   }
 }

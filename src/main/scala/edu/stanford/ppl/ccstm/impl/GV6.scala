@@ -2,12 +2,12 @@
 
 // GV6
 
-package edu.stanford.ppl.ccstm.impls
+package edu.stanford.ppl.ccstm.impl
 
 
 import java.util.concurrent.atomic.AtomicLong
 
-private[impls] trait GV6 {
+private[impl] trait GV6 {
   type Version = Long
 
   /** The global timestamp.  We use TL2's GV6 scheme to avoid the need to
@@ -17,7 +17,7 @@ private[impls] trait GV6 {
    *  there are many non-transactional writes), but it means we must always
    *  validate transactions that are not read-only.
    */
-  private[impls] val globalVersion = new AtomicLong(1)
+  private[impl] val globalVersion = new AtomicLong(1)
 
   /** The approximate ratio of the number of commits to the number of
    *  increments of <code>globalVersion</code>, as in TL2's GV6 scheme.  If
@@ -42,17 +42,17 @@ private[impls] trait GV6 {
    *  the value of <code>globalVersion</code> present on entry and greater
    *  than <code>prevVersion</code>.
    */
-  private[impls] def nonTxnWriteVersion(prevVersion: Version): Version = {
+  private[impl] def nonTxnWriteVersion(prevVersion: Version): Version = {
     freshReadVersion(prevVersion) + 1
   }
 
   /** Returns a read version for use in a new transaction. */
-  private[impls] def freshReadVersion: Version = globalVersion.get
+  private[impl] def freshReadVersion: Version = globalVersion.get
 
   /** Guarantees that <code>globalVersion</code> is &ge; <code>minRV</code>,
    *  and returns a <code>globalVersion.get</code>.
    */
-  private[impls] def freshReadVersion(minRV: Version): Version = {
+  private[impl] def freshReadVersion(minRV: Version): Version = {
     var g = globalVersion.get
     while (g < minRV) {
       if (globalVersion.compareAndSet(g, minRV)) {
@@ -68,7 +68,7 @@ private[impls] trait GV6 {
   /** Returns a value that is greater than the <code>globalVersion</code> on
    *  entry, possibly incrementing <code>globalVersion</code>.
    */
-  private[impls] def freshCommitVersion: Version = {
+  private[impl] def freshCommitVersion: Version = {
     val g = globalVersion.get
     if (silentCommitRatio <= 1 || silentCommitRand.nextInt <= silentCommitCutoff) {
       globalVersion.compareAndSet(g, g + 1)

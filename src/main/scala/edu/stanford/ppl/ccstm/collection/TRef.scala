@@ -18,7 +18,7 @@ private object TRef {
  *
  *  @author Nathan Bronson
  */
-class TRef[T](initialValue: T) extends Ref[T] {
+class TRef[T](initialValue: T) extends STMImpl.MetadataHolder with Ref[T] {
 
   private trait Accessor[T] {
     def unbind: TRef[T]
