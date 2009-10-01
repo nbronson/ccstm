@@ -7,9 +7,10 @@ package edu.stanford.ppl.ccstm.impl
 
 /** A thread-safe random number generator that focuses on speed and lack of
  *  inter-thread interference, rather than on the quality of the numbers
- *  returned.
+ *  returned.  Because it is striped across threads, there is little use in
+ *  having more than one instance, so it is an object.
  */
-private[impl] class FastPoorRandom {
+private[impl] object FastPoorRandom {
   // TODO: (re)choose the number of slots with a bit more thought
   private def Slots = 1024
   

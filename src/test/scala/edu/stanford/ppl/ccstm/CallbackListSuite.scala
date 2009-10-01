@@ -5,6 +5,7 @@
 package edu.stanford.ppl.ccstm
 
 
+import impl.CallbackList
 import scala.collection.mutable.ListBuffer
 import org.scalatest.FunSuite
 

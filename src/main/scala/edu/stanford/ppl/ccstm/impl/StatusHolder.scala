@@ -2,7 +2,7 @@
 
 // StatusHolder.scala
 
-package edu.stanford.ppl.ccstm
+package edu.stanford.ppl.ccstm.impl
 
 
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater
@@ -12,6 +12,7 @@ private[ccstm] object StatusHolder {
 }
 
 private[ccstm] class StatusHolder {
+  import STMImpl.{SpinCount, YieldCount}
 
   @volatile private var __status: Txn.Status = Txn.Active
   @volatile private var _anyAwaitingDecided = false
@@ -88,9 +89,9 @@ private[ccstm] class StatusHolder {
   private[ccstm] def awaitDecided() {
     // spin a bit
     var spins = 0
-    while (spins < 200) {
+    while (spins < SpinCount + YieldCount) {
       spins += 1
-      if (spins > 100) Thread.`yield`
+      if (spins > SpinCount) Thread.`yield`
 
       if (_status.decided) return
     }
@@ -105,9 +106,9 @@ private[ccstm] class StatusHolder {
   private[ccstm] def awaitCompletedOrDoomed() {
     // spin a bit
     var spins = 0
-    while (spins < 200) {
+    while (spins < SpinCount + YieldCount) {
       spins += 1
-      if (spins > 100) Thread.`yield`
+      if (spins > SpinCount) Thread.`yield`
 
       if (completedOrDoomed) return
     }

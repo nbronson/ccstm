@@ -5,8 +5,6 @@
 package edu.stanford.ppl.ccstm.collection
 
 
-import edu.stanford.ppl.ccstm.Ref.BoundSource
-
 /** A concrete implementation of <code>Ref</code> that holds a single
  *  unchanging value.  This is useful for code where some references may be
  *  dynamically known to be constant.
@@ -17,12 +15,14 @@ class ConstantRef[T](value0: T) extends Ref[T] {
 
   private abstract class Bnd extends Ref.Bound[T] {
     def unbind: Ref[T] = ConstantRef.this
+    def unary_! : T = value0
     def get: T = value0
     def map[Z](f: T => Z): Z = f(value0)
+
     def await(pred: T => Boolean) = {
       if (!pred(value0)) throw new IllegalStateException("predicate on ConstantRef will never become true")
     }
-
+    
     def unrecordedRead: UnrecordedRead[T] = new UnrecordedRead[T] {
       def context: Option[Txn] = Bnd.this.context
       def value: T = value0
@@ -31,13 +31,13 @@ class ConstantRef[T](value0: T) extends Ref[T] {
     }
 
     def readForWrite: T = value0
-
     def freeze() {}
 
     //////////// mutating operations
 
     private def failure(op: String) = new IllegalStateException(op + ": not allowed for ConstantRef")
 
+    def :=(v: T) = throw failure(":=")
     def set(v: T) = throw failure("set")
     def tryWrite(v: T): Boolean = throw failure("tryWrite")
     def transform(f: T => T) = throw failure("transform")

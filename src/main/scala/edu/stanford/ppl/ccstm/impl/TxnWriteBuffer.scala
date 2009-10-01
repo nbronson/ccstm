@@ -5,9 +5,9 @@
 package edu.stanford.ppl.ccstm.impl
 
 
-private [impl] object WriteBuffer2 {
+private [impl] object TxnWriteBuffer {
   trait Visitor {
-    def visit(ref: AnyRef, offset: Int, first: Any, second: Any): Boolean
+    def visit(specValue: Any, handle: Handle[_]): Boolean
   }
 }
 
@@ -26,14 +26,18 @@ private [impl] object WriteBuffer2 {
  *  to a capacity before resize of 5 and a memory usage of 208 or 320 bytes.
  *  16 initial buckets gives an initial capacity of 10 with 336 or 512 bytes.
  *  32 initial buckets gives an initial capacity of 20 with 592 or 896 bytes.
+ *  <p>
+ *  This is designed to be mixed in to the actual Txn implementation, to remove
+ *  a layer of indirection, so the non-private methods are named to make it
+ *  clear that they involve the write buffer.
  */
-private [impl] trait WriteBuffer2 {
+private [impl] trait TxnWriteBuffer {
   protected def writeBufferInitialCapacity = 16
 
   private var _size = 0
-  def writeBufferSize = _size
+  private[impl] def writeBufferSize = _size
 
-  /** Reference key i is at 3*i, values for i are at 3*i+1 and 3*i+2. */
+  /** Reference key i is at 3*i, specValue is at 3*i+1, handle is at 3*i+2. */
   private var _objs: Array[AnyRef] = null
 
   /** Hop i is at 2*i, offset key i is at 2*i+1. */
@@ -44,8 +48,8 @@ private [impl] trait WriteBuffer2 {
   private def hopI(i: Int) = 2 * i
   private def offsetI(i: Int) = 2 * i + 1
   private def refI(i: Int) = 3 * i
-  private def firstValueI(i: Int) = 3 * i + 1
-  private def secondValueI(i: Int) = 3 * i + 2
+  private def specValueI(i: Int) = 3 * i + 1
+  private def handleI(i: Int) = 3 * i + 2
 
   private def hash(ref: AnyRef, offset: Int) = {
     // Hopscotch will fail if there are more than H entries that end up in the
@@ -81,10 +85,12 @@ private [impl] trait WriteBuffer2 {
 
   private def findOrAdd(ref: AnyRef, offset: Int): Int = {
     if (_size == 0) {
-      // lazy initialization
-      val n = writeBufferInitialCapacity
-      _objs = new Array[AnyRef](3 * n)
-      _ints = new Array[Int](2 * n)
+      if (_objs == null) {
+        // lazy initialization
+        val n = writeBufferInitialCapacity
+        _objs = new Array[AnyRef](3 * n)
+        _ints = new Array[Int](2 * n)
+      }
     } else if (_size * 3 >= capacity * 2) {
       // max load factor is 2/3
       grow()
@@ -136,8 +142,8 @@ private [impl] trait WriteBuffer2 {
       val dist = (empty - i0) & (n - 1)
       if (dist < 32) {
         // entry at i hashed to i0, and i0 is in range of empty
-        _objs(firstValueI(empty)) = _objs(firstValueI(i))
-        _objs(secondValueI(empty)) = _objs(secondValueI(i))
+        _objs(specValueI(empty)) = _objs(specValueI(i))
+        _objs(handleI(empty)) = _objs(handleI(i))
         _objs(refI(empty)) = _objs(refI(i))
         _objs(refI(i)) = null
         _ints(offsetI(empty)) = _ints(offsetI(i))
@@ -149,27 +155,28 @@ private [impl] trait WriteBuffer2 {
     return -1
   }
 
-  /** Returns the first value associated with (ref,offset). */
+  /** Returns the specValue associated with (ref,offset). */
   private[impl] def writeBufferGet[T](ref: AnyRef, offset: Int, defaultValue: T): T = {
     val i = find(ref, offset)
-    if (i == -1) defaultValue else _objs(firstValueI(i)).asInstanceOf[T]
+    if (i == -1) defaultValue else _objs(specValueI(i)).asInstanceOf[T]
   }
 
-  private[impl] def writeBufferPut(ref: AnyRef, offset: Int, first: Any, second: Any) {
+  /** Adds or updates a write buffer entry. */
+  private[impl] def writeBufferPut[T](ref: AnyRef, offset: Int, specValue: T, handle: Handle[T]) {
     val i = findOrAdd(ref, offset)
-    _objs(firstValueI(i)) = first.asInstanceOf[AnyRef]
-    _objs(secondValueI(i)) = second.asInstanceOf[AnyRef]
+    _objs(specValueI(i)) = specValue.asInstanceOf[AnyRef]
+    _objs(handleI(i)) = handle
   }
 
-  private[impl] def writeBufferVisit(visitor: WriteBuffer2.Visitor): Boolean = {
+  private[impl] def writeBufferVisit(visitor: TxnWriteBuffer.Visitor): Boolean = {
     if (_size == 0) return true
     
     val n = capacity
     var i = 0
     while (i < n) {
-      val ref = _objs(refI(i))
-      if (ref ne null) {
-        if (!visitor.visit(ref, _ints(offsetI(i)), _objs(firstValueI(i)), _objs(secondValueI(i)))) return false
+      val handle = _objs(handleI(i))
+      if (handle ne null) {
+        if (!visitor.visit(_objs(specValueI(i)), handle.asInstanceOf[Handle[_]])) return false
       }
       i += 1
     }
@@ -186,8 +193,11 @@ private [impl] trait WriteBuffer2 {
     _objs = new Array[AnyRef](n * 6)
     var i = 0
     while (i < n) {
-      if (oldObjs(refI(i)) ne null) {
-        writeBufferPut(oldObjs(refI(i)), oldInts(offsetI(i)), oldObjs(firstValueI(i)), oldObjs(secondValueI(i)))
+      val ref = oldObjs(refI(i))
+      if (ref ne null) {
+        val j = findOrAdd(ref, oldInts(offsetI(i)))
+        _objs(specValueI(j)) = oldObjs(specValueI(i))
+        _objs(handleI(j)) = oldObjs(handleI(i))
       }
       i += 1
     }
@@ -195,11 +205,11 @@ private [impl] trait WriteBuffer2 {
 
   private[impl] def writeBufferStr = {
     val buf = new StringBuilder
-    buf.append("WriteBuffer(size=").append(_size).append("\n")
-    buf.append("%8s | %16s | %7s | %16s | %s\n".format("hops", "refs", "offsets", "first", "second"))
+    buf.append("TxnWriteBuffer(size=").append(_size).append("\n")
+    buf.append("%8s | %16s | %7s | %16s | %s\n".format("hops", "refs", "offsets", "specValue", "handle"))
     for (i <- 0 until capacity) {
       buf.append("%08x | %16s | %7d | %16s | %s\n".format(
-        _ints(hopI(i)), _objs(refI(i)), _ints(offsetI(i)), _objs(firstValueI(i)), _objs(secondValueI(i))))
+        _ints(hopI(i)), _objs(refI(i)), _ints(offsetI(i)), _objs(specValueI(i)), _objs(handleI(i))))
     }
     buf.append(")")
     buf.toString

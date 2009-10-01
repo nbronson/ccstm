@@ -5,7 +5,7 @@
 package edu.stanford.ppl.ccstm
 
 
-private[ccstm] abstract class AbstractTxn extends StatusHolder {
+private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
   import Txn._
 
   /** Values of <code>TxnLocal</code>s for this transaction, created lazily. */ 

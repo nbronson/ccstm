@@ -30,263 +30,19 @@ object Ref {
    *  returned reference acts as if it has already been frozen with
    *  <code>freeze</code>.
    *  <p>
-   *  When feasible, the <code>Ref.Source</code> returned by
-   *  <code>source</code> will provide better type-checking for constant
-   *  references.
+   *  When feasible, the <code>source</code> may be preferred, as it provides
+   *  better compile-time checking.
    *  @see edu.stanford.ppl.ccstm.Ref#source
    *  @see edu.stanford.ppl.ccstm.Ref.Bound#freeze
    */
   def constant[T](value: T): Ref[T] = new collection.ConstantRef(value)
   
-  /** Returns a new constant <code>Ref.Source</code> instance with the
+  /** Returns a new constant <code>Source</code> instance with the
    *  specified value.  Reads of the source will always return the same value.
    *  @see edu.stanford.ppl.ccstm.Ref#constant
    */
-  def source[T](value: T): Ref.Source[T] = constant(value)
+  def source[T](value: T): Source[T] = constant(value)
 
-
-  /** <code>Source</code> defines the covariant read-only interface of a
-   *  <code>Ref</code> instance.
-   */
-  trait Source[+T] {
-
-    /** Performs a transactional read.  Equivalent to <code>get</code>.
-     *  @see edu.stanford.ppl.ccstm.Ref.Source#get
-     */
-    def unary_!(implicit txn: Txn): T = get
-
-    /** Performs a transactional read of the value managed by this
-     *  <code>Ref</code>.  The returned value will take into account the
-     *  writes already performed in this transaction, and the returned value
-     *  will be consistent with all reads already performed by
-     *  <code>txn</code>.  If there does not exist a point in time at which all
-     *  of <code>txn</code>'s reads could have been performed, then it will be
-     *  immediately rolled back.
-     *  <p>
-     *  This method is equivalent to <code>bind(txn).get</code>.  To perform a
-     *  solitary read from a <code>Ref</code> outside a transaction, use
-     *  <code>nonTxn.get</code>. 
-     *  @param txn an active transaction.
-     *  @return the value of the <code>Ref</code> as observed by
-     *      <code>txn</code>.
-     *  @throws IllegalStateException if <code>txn</code> is not active.
-     *  @see edu.stanford.ppl.ccstm.Ref#bind
-     *  @see edu.stanford.ppl.ccstm.Ref#nonTxn
-     */
-    def get(implicit txn: Txn): T = bind.get
-
-    /** Returns <code>f(get)</code>, possibly reevaluating <code>f</code> to
-     *  avoid rollback if a conflicting change is made but both the old and new
-     *  values are equal after application of <code>f</code>.  Requires that
-     *  <code>f(x) == f(x)</code>.
-     *  @param f an idempotent function.
-     *  @return the result of applying <code>f</code> to the value read by this
-     *      view.
-     */
-    def map[Z](f: T => Z)(implicit txn: Txn) = bind.map(f)
-
-    /** The restriction of <code>Ref.bind</code> to <code>Ref.Source</code>.
-     *  @see edu.stanford.ppl.ccstm.Ref#bind
-     */
-    def bind(implicit txn: Txn): BoundSource[T]
-
-    /** The restriction of <code>Ref.nonTxn</code> to <code>Ref.Source</code>.
-     *  @see edu.stanford.ppl.ccstm.Ref#nonTxn
-     */
-    def nonTxn: BoundSource[T]
-
-    // implicit access to unrecordedRead is omitted to discourage its use
-  }
-
-  /** <code>Sink</code> defines the contravariant write-only interface of a
-   *  <code>Ref</code> instance.
-   */
-  trait Sink[-T] {
-
-    /** Performs a transactional write.  Equivalent to <code>set(v)</code>.
-     *  @see edu.stanford.ppl.ccstm.Ref.Sink#set
-     */
-    def :=(v: T)(implicit txn: Txn) { set(v) }
-
-    /** Performs a transactional write.  The new value will not be visible by
-     *  any other transactions or any non-transactional accesses until (and
-     *  unless) <code>txn</code> successfully commits.
-     *  @param v a value to store in the <code>Ref</code>.
-     *  @throws IllegalStateException if <code>txn</code> is not active.
-     */
-    def set(v: T)(implicit txn: Txn) { bind.set(v) }
-
-    /** The restriction of <code>Ref.bind</code> to <code>Ref.Sink</code>.
-     *  @see edu.stanford.ppl.ccstm.Ref#bind
-     */
-    def bind(implicit txn: Txn): BoundSink[T]
-
-    /** The restriction of <code>Ref.nonTxn</code> to <code>Ref.Sink</code>.
-     *  @see edu.stanford.ppl.ccstm.Ref#nonTxn
-     */
-    def nonTxn: BoundSink[T]
-  }
-
-  /** <code>Ref.BoundSource</code> defines the covariant read-only view of a
-   *  <code>Ref</code> bound to a particular context.  The context may be
-   *  either a <code>Txn</code>, which guarantees that all reads will observe
-   *  the same values as if they were executed at the transaction's commit
-   *  (linearization) point, or the non-transactional context, which guarantees
-   *  that each read will be linearized with all writes to the cell.
-   */
-  trait BoundSource[+T] {
-    
-    /** The restriction of <code>Ref.Bound.unbind</code> to
-     *  <code>Ref.BoundSource</code>.
-     *  @see edu.stanford.ppl.ccstm.Bound#unbind
-     */
-    def unbind: Ref.Source[T]
-
-    /** Returns <code>Some(txn)</code> if this view is bound to a transaction
-     *  <code>txn</code>, <code>None</code> if it is bound to the
-     *  non-transactional context.
-     */
-    def context: Option[Txn]
-
-    /** Performs a read in the current context.  Equivalent to <code>get</code>.
-     *  @see edu.stanford.ppl.ccstm.Ref.BoundSource#get
-     */
-    def unary_! : T = get
-
-    /** Performs a transactional read of the value managed by the bound
-     *  <code>Ref</code>.  If this view was created by <code>bind(txn)</code>,
-     *  the returned value will take into account the writes already performed
-     *  in this transaction, and the returned value will be consistent with all
-     *  reads already performed by <code>txn</code>.  If this view was created
-     *  by <code>nonTxn</code>, the read will be strongly atomic and isolated
-     *  with respect to all transactions.  This means that if a non-txn read
-     *  observes a value stored by transaction <i>A</i>, any subsequent non-txn
-     *  read on the same thread is guaranteed to observe all changes committed
-     *  by <i>A</i>.
-     *  @return the current value of the bound <code>Ref</code> as observed by
-     *      the binding context.
-     *  @throws IllegalStateException if this view is bound to a transaction
-     *      that is not active.
-     */
-    def get: T
-
-    /** Returns <code>f(get)</code>, possibly reevaluating <code>f</code> to
-     *  avoid rollback if a conflicting change is made but both the old and new
-     *  values are equal after application of <code>f</code>.  Requires that
-     *  <code>f(x) == f(x)</code>.
-     *  @param f an idempotent function.
-     *  @return the result of applying <code>f</code> to the value read by this
-     *      view.
-     */
-    def map[Z](f: T => Z): Z
-
-    /** Blocks until <code>pred(get)</code> is true, in a manner consistent
-     *  with the current context.  If called from a transactional context, this
-     *  method is equivalent to <code>if(!pred(get)) txn.retry</code>. If
-     *  called from a non-transactional context, this method blocks until the
-     *  predicate holds.  Requires that the predicate be safe to reevaluate,
-     *  and that <code>pred(x) == pred(x)</code>.
-     *  @param pred an idempotent predicate.
-     *  @see edu.stanford.ppl.ccstm.Txn#retry
-     */
-    def await(pred: T => Boolean)
-
-    /** Returns an <code>UnrecordedRead</code> instance that wraps the value
-     *  that would be returned from <code>get</code>.  If this source is bound
-     *  to a transactional context does not add the <code>Ref</code> to the
-     *  transaction's read set.  The caller is responsible for guaranteeing
-     *  that the transaction's behavior is correct even if the
-     *  <code>Ref</code> is changed by an outside context before commit.  This
-     *  method may be useful for heuristic decisions that can tolerate
-     *  inconsistent or stale data, or for methods that register transaction
-     *  handlers to perform validation at a semantic level.  When called from a
-     *  non-transactional context the wrapping <code>UnrecordedRead</code>
-     *  instance can be used to determine if any changes have been made to a
-     *  <code>Ref</code>, which may be useful to avoid ABA problems.  Some STM
-     *  implementations may spuriously indicate that a read is no longer valid.
-     *  <p>
-     *  When combining this method with transaction resource callbacks, it is
-     *  important to consider the case that the unrecorded read is already
-     *  invalid when it is returned from this method.
-     *  <p>
-     *  Although this method does not add to the read set, the returned value
-     *  is consistent with the transaction's previous (recorded) reads.
-     *  @return an <code>UnrecordedRead</code> instance that holds the read
-     *      value and allows explicit revalidation.
-     *  @throws IllegalStateException if this view is bound to a transaction
-     *      that is not active.
-     */
-    def unrecordedRead: UnrecordedRead[T]
-  }
-
-  /** <code>BoundSink</code> defines the contravariant write-only view of a
-   *  <code>Ref</code> bound to a particular context. The context may be
-   *  either a <code>Txn</code>, which guarantees that all writes will appear
-   *  to other contexts as if they were executed atomically at the
-   *  transaction's commit (linearization) point, or the non-transactional
-   *  context, which guarantees that each write will be linearized (and a
-   *  happens-before relationship established) with all other reads and writes
-   *  to an equal reference.
-   */
-  trait BoundSink[-T] {
-
-    /** The restriction of <code>Ref.Bound.unbind</code> to
-     *  <code>Ref.BoundSink</code>.
-     *  @see edu.stanford.ppl.ccstm.Bound#unbind
-     */
-    def unbind: Ref.Sink[T]
-
-    /** Returns <code>Some(txn)</code> if this view is bound to a transaction
-     *  <code>txn</code>, <code>None</code> if it is bound to the
-     *  non-transactional context.
-     */
-    def context: Option[Txn]
-
-    /** Writes to the bound <code>Ref</code>, equivalent to <code>set</code>.
-     *  @see edu.stanford.ppl.ccstm.Ref.BoundSink#set
-     */
-    def :=(v: T) { set(v) }
-
-    /** Updates the value refered to by the bound <code>Ref</code>.  If this
-     *  view was created by <code>bind(txn)</code> then the new value will not
-     *  be visible to other contexts until (and unless) <code>txn</code>
-     *  successfully commits.  If this view was created by <code>nonTxn</code>,
-     *  the value will be made available immediately, and a happens-before
-     *  relationship will be established between this thread and any thread
-     *  that reads the <code>v</code> stored by this method.
-     *  @param v a value to store in the <code>Ref</code>.
-     *  @throws IllegalStateException if this view is bound to a transaction
-     *      that is not active.
-     */
-    def set(v: T)
-
-    /** Updates the element held by the bound <code>Ref</code> without
-     *  blocking and returns true, or does nothing and returns false.  This
-     *  method may be used to reduce blocking or rollback in the case of write
-     *  contention.  The efficient use of this method may require knowledge of
-     *  the conflict detection and versioning strategy used by the specific STM
-     *  implementation in use.
-     *  @param v a value to store in the <code>Ref</code>.
-     *  @return true if the value was stored, false if nothing was done.
-     *  @throws IllegalStateException if this view is bound to a transaction
-     *      that is not active.
-     */
-    def tryWrite(v: T): Boolean
-
-    /** Prohibits future changes to the value referenced by the bound
-     *  <code>Ref</code>.  If this method is called from a transactional
-     *  context the prohibition will be removed if the transaction rolls back.
-     *  Future calls to <code>set</code> will cause an
-     *  <code>IllegalStateException</code> to be thrown.  Future calls to a
-     *  conditional update function such as <code>compareAndSet</code> or
-     *  <code>transformIfDefined</code> will be allowed only if the condition
-     *  for update does not hold (they must return false).  Future calls to
-     *  <code>readForWrite</code> are allowed.
-     *  @throws IllegalStateException if this view is bound to a transaction
-     *      that is not active.
-     */
-    def freeze()
-  }
 
   /** A <code>Ref</code> view that supports reads and writes.  Reads and writes
    *  are performed from the perspective of the bound context, which is either
@@ -295,7 +51,7 @@ object Ref {
    *  <code>BoundSink</code>, and operations that both read and write are
    *  defined in this trait.
    */
-  trait Bound[T] extends BoundSource[T] with BoundSink[T] {
+  trait Bound[T] extends Source.Bound[T] with Sink.Bound[T] {
 
     /** Provides access to a <code>Ref</code> that refers to the same value as
      *  the one that was bound to produce this <code>Ref.Bound</code> instance.
@@ -425,10 +181,9 @@ object Ref {
  *  It is possible for separate <code>Ref</code> instances to refer to the same
  *  element; in this case they will compare equal.  (As an example, a
  *  transactional array class might store elements in an array and create
- *  <code>Ref</code>s on demand.)  <code>Ref</code>s (or
- *  <code>Ref.Source</code>s) may be provided for computed values, such as the
- *  emptiness of a queue, to allow conditional retry and waiting on semantic
- *  properties.
+ *  <code>Ref</code>s on demand.)  <code>Ref</code>s (or <code>Source</code>s)
+ *  may be provided for computed values, such as the emptiness of a queue, to
+ *  allow conditional retry and waiting on semantic properties.
  *  <p>
  *  Non-transactional access is obtained via the view returned from
  *  <code>nonTxn</code>.  Each non-transactional access will be linearized with
@@ -441,7 +196,26 @@ object Ref {
  *
  *  @author Nathan Bronson
  */
-trait Ref[T] extends Ref.Source[T] with Ref.Sink[T] {
+trait Ref[T] extends Source[T] with Sink[T] {
+
+  /** Provides access to the data and metadata associated with this reference.
+   *  This is the only method for which the default <code>Ref</code>
+   *  implementation is not sufficient.
+   */
+  protected def handle: impl.Handle[T]
+
+  //////////////// Source stuff
+
+  def unary_!(implicit txn: Txn): T = txn.get(handle)
+  def get(implicit txn: Txn): T = txn.get(handle)
+  def map[Z](f: (T) => Z)(implicit txn: Txn) = txn.map(handle, f)
+
+  //////////////// Sink stuff
+
+  def :=(v: T)(implicit txn: Txn) { txn.set(handle, v) }
+  def set(v: T)(implicit txn: Txn) { txn.set(handle, v) }
+
+  //////////////// Ref functions
 
   /** Transforms the value referenced by this <code>Ref</code> by applying the
    *  function <code>f</code>.  Acts like <code>ref.set(f(ref.get))</code>, but
@@ -451,7 +225,7 @@ trait Ref[T] extends Ref.Source[T] with Ref.Sink[T] {
    *      call later during the transaction.
    *  @throws IllegalStateException if <code>txn</code> is not active.
    */
-  def transform(f: T => T)(implicit txn: Txn) { bind(txn).transform(f) }
+  def transform(f: T => T)(implicit txn: Txn) { txn.transform(handle) }
 
   /** Transforms the value referenced by this <code>Ref</code> by applying the
    *  <code>pf.apply</code>, but only if <code>pf.isDefinedAt</code> holds for
@@ -465,7 +239,16 @@ trait Ref[T] extends Ref.Source[T] with Ref.Sink[T] {
    *      current value of this <code>Ref</code> on entry.
    *  @throws IllegalStateException if <code>txn</code> is not active.
    */
-  def transformIfDefined(pf: PartialFunction[T,T])(implicit txn: Txn) = bind(txn).transformIfDefined(pf)
+  def transformIfDefined(pf: PartialFunction[T,T])(implicit txn: Txn) = txn.transformIfDefined(handle, pf)
+
+  /** Returns this instance, but with only the read-only portion accessible.
+   *  Equivalent to <code>asInstanceOf[Source[T]]</code>, but may be more
+   *  readable.
+   *  @return this instance, but with only read-only methods accessible
+   */
+  def source: Source[T] = this
+
+  //////////////// Binding
 
   /** Returns a reference view that does not require an implicit
    *  <code>Txn</code> parameter on each method call, but instead always
@@ -479,21 +262,78 @@ trait Ref[T] extends Ref.Source[T] with Ref.Sink[T] {
    *  @return a view of this instance that performs all accesses as if from
    *      <code>txn</code>.
    */
-  def bind(implicit txn: Txn): Ref.Bound[T]
+  def bind(implicit txn: Txn): Ref.Bound[T] = new Ref.Bound[T] {
+    def unbind: Ref[T] = Ref.this
+    def context: Option[Txn] = Some(txn)
+
+    def get: T = txn.get(handle)
+    def map[Z](f: (T) => Z): Z = txn.map(handle, f)
+    def await(pred: (T) => Boolean) { if (!pred(get)) txn.retry } 
+    def unrecordedRead: UnrecordedRead[T] = txn.unrecordedRead(handle)
+
+    def set(v: T) { txn.set(handle, v) }
+    def tryWrite(v: T): Boolean = txn.tryWrite(handle, v)
+    def freeze() = txn.freeze(handle)
+
+    def readForWrite: T = txn.readForWrite(handle)
+    def compareAndSet(before: T, after: T): Boolean = {
+      txn.compareAndSet(handle, before, after)
+    }
+    def compareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = {
+      txn.compareAndSetIdentity(handle, before, after)
+    }
+    def weakCompareAndSet(before: T, after: T): Boolean = {
+      txn.weakCompareAndSet(handle, before, after)
+    }
+    def weakCompareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = {
+      txn.weakCompareAndSetIdentity(handle, before, after)
+    }
+    def transform(f: T => T) {
+      txn.transform(handle, f)
+    }
+    def transformIfDefined(pf: PartialFunction[T,T]): Boolean = {
+      txn.transformIfDefined(handle, pf)
+    }
+  }
 
   /** Returns a view that can be used to perform individual reads and writes to
    *  this reference outside any transactional context.  Each operation acts as
    *  if it was performed in its own transaction.  The returned instance is
    *  valid for the lifetime of the program.
-   *  @return a view into the value of a <code>Ref</code>, that will perform
+   *  @return a view into the value of this <code>Ref</code>, that will perform
    *      each operation as if in its own transaction.
    */
-  def nonTxn: Ref.Bound[T]
+  def nonTxn: Ref.Bound[T] = new Ref.Bound[T] {
+    def unbind: Ref[T] = Ref.this
+    def context: Option[Txn] = None
 
-  /** Returns this instance, but with only the read-only portion accessible.
-   *  Equivalent to <code>asInstanceOf[Ref.Source[T]]</code>, but may be more
-   *  readable.
-   *  @return this instance, but with only read-only methods accessible
-   */
-  def source: Ref.Source[T] = this
+    def get: T = impl.NonTxn.get(handle)
+    def map[Z](f: (T) => Z): Z = f(impl.NonTxn.get(handle))
+    def await(pred: (T) => Boolean) { impl.NonTxn.await(pred) }
+    def unrecordedRead: UnrecordedRead[T] = impl.NonTxn.unrecordedRead(handle)
+
+    def set(v: T) { impl.NonTxn.set(handle, v) }
+    def tryWrite(v: T): Boolean = impl.NonTxn.tryWrite(handle, v)
+    def freeze() = impl.NonTxn.freeze(handle)
+
+    def readForWrite: T = impl.NonTxn.get(handle)
+    def compareAndSet(before: T, after: T): Boolean = {
+      impl.NonTxn.compareAndSet(handle, before, after)
+    }
+    def compareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = {
+      impl.NonTxn.compareAndSetIdentity(handle, before, after)
+    }
+    def weakCompareAndSet(before: T, after: T): Boolean = {
+      impl.NonTxn.weakCompareAndSet(handle, before, after)
+    }
+    def weakCompareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = {
+      impl.NonTxn.weakCompareAndSetIdentity(handle, before, after)
+    }
+    def transform(f: T => T) {
+      impl.NonTxn.transform(handle, f)
+    }
+    def transformIfDefined(pf: PartialFunction[T,T]): Boolean = {
+      impl.NonTxn.transformIfDefined(handle, pf)
+    }
+  }
 }

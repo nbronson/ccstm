@@ -5,10 +5,11 @@
 package edu.stanford.ppl.ccstm.impl
 
 
-import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.{AtomicReference, AtomicLong}
+
+private[impl] case class VersionTrap(version: Long) extends ConcurrentTrap
 
 private[impl] trait GV6 {
-  type Version = Long
 
   /** The global timestamp.  We use TL2's GV6 scheme to avoid the need to
    *  increment this during every transactional commit.  Non-transactional
@@ -17,7 +18,7 @@ private[impl] trait GV6 {
    *  there are many non-transactional writes), but it means we must always
    *  validate transactions that are not read-only.
    */
-  private[impl] val globalVersion = new AtomicLong(1)
+  private[impl] val globalVersion = new AtomicReference(VersionTrap(1))
 
   /** The approximate ratio of the number of commits to the number of
    *  increments of <code>globalVersion</code>, as in TL2's GV6 scheme.  If
@@ -35,28 +36,32 @@ private[impl] trait GV6 {
     ((1 << 31) + ((1L << 32) / silentCommitRatio) - 1).asInstanceOf[Int]
   }
 
-  private val silentCommitRand = new FastPoorRandom
+  private val silentCommitRand = FastPoorRandom
 
   /** Guarantees that <code>globalVersion</code> is greater than
    *  or equal to <code>prevVersion</code>, and returns a value greater than
    *  the value of <code>globalVersion</code> present on entry and greater
    *  than <code>prevVersion</code>.
    */
-  private[impl] def nonTxnWriteVersion(prevVersion: Version): Version = {
-    freshReadVersion(prevVersion) + 1
+  private[impl] def nonTxnWriteVersion(prevVersion: Long): Long = {
+    freshReadVersion(prevVersion).value + 1
   }
 
-  /** Returns a read version for use in a new transaction. */
-  private[impl] def freshReadVersion: Version = globalVersion.get
-
-  /** Guarantees that <code>globalVersion</code> is &ge; <code>minRV</code>,
-   *  and returns a <code>globalVersion.get</code>.
+  /** Returns a <code>VersionTrap</code> to use for reading in a new
+   *  transaction.
    */
-  private[impl] def freshReadVersion(minRV: Version): Version = {
+  private[impl] def freshReadVersion: VersionTrap = globalVersion.get
+
+  /** Guarantees that <code>globalVersion.value</code> is &ge;
+   *  <code>minRV</code>, and returns <code>globalVersion.get</code>.
+   */
+  private[impl] def freshReadVersion(minRV: Long): VersionTrap = {
     var g = globalVersion.get
-    while (g < minRV) {
-      if (globalVersion.compareAndSet(g, minRV)) {
-        // succeeded, we're done
+    while (g.value < minRV) {
+      val repl = VersionTrap(minRV)
+      if (globalVersion.compareAndSet(g, repl)) {
+        // succeeded, make a strong ref to the new trap
+        g += repl
         return minRV
       }
       // failed, retry
@@ -65,15 +70,18 @@ private[impl] trait GV6 {
     return g
   }
 
-  /** Returns a value that is greater than the <code>globalVersion</code> on
-   *  entry, possibly incrementing <code>globalVersion</code>.
+  /** Returns a value that is greater than <code>gvSnap.version</code>,
+   *  possibly incrementing <code>globalVersion</code>.
    */
-  private[impl] def freshCommitVersion: Version = {
-    val g = globalVersion.get
+  private[impl] def freshCommitVersion(gvSnap: VersionTrap): Long = {
     if (silentCommitRatio <= 1 || silentCommitRand.nextInt <= silentCommitCutoff) {
-      globalVersion.compareAndSet(g, g + 1)
+      val repl = VersionTrap(gvSnap.value + 1)
+      if (globalVersion.compareAndSet(gvSnap, repl)) {
+        // our replacement was the winner, so make a strong ref to it
+        gvSnap += repl
+      }
       // no need to retry on failure, because somebody else succeeded
     }
-    g + 1
+    gvSnap.value + 1
   }  
 }

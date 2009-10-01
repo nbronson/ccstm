@@ -116,13 +116,18 @@ private[impl] class WakeupManager(numChannels: Int, numSources: Int) {
 
     def triggered = _triggered
 
-    def addSource(ref: AnyRef, offset: Int) {
-      if (!_triggered) {
+    /** Returns false if triggered. */
+    def addSource(ref: AnyRef, offset: Int): Boolean = {
+      if (_triggered) {
+        return false
+      } else {
         val i = hash(ref, offset) & (numSources - 1)
-        var p = 0L
-        do {
+        var p = pending.get(i)
+        while((p & mask) == 0 && !pending.compareAndSet(i, p, p | mask)) {
+          if (_triggered) return false
           p = pending.get(i)
-        } while((p & mask) == 0 && !pending.compareAndSet(i, p, p | mask) && !_triggered)
+        }
+        return true
       }
     }
 

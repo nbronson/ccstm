@@ -2,7 +2,7 @@
 
 // CallbackList
 
-package edu.stanford.ppl.ccstm
+package edu.stanford.ppl.ccstm.impl
 
 
 /** This data structure is used to implement callback lists with optional

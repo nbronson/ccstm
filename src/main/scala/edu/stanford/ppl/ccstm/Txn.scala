@@ -376,7 +376,7 @@ object Txn {
    *  sets of one of the elements of <code>explicitRetries</code> might have
    *  changed.
    */
-  def awaitRetry(explicitRetries: ExplicitRetryCause*) = STMImpl.awaitRetry(explicitRetries:_*)
+  def awaitRetry(explicitRetries: ExplicitRetryCause*) = impl.STMImpl.awaitRetry(explicitRetries:_*)
 }
 
 /** An instance representing a single execution attempt for a single atomic
@@ -392,8 +392,9 @@ object Txn {
  *
  *  @author Nathan Bronson
  */
-sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends STMImpl.TxnImpl(failureHistory) {
+sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(failureHistory) {
   import Txn._
+  import impl.CallbackList
 
   /** Constructs a <code>Txn</code> with an empty failure history. */
   def this() = this(Nil)
