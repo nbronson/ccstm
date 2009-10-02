@@ -312,7 +312,70 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   private[ccstm] def explicitlyValidateReadsImpl() {
     revalidate(0)
   }
-  
+
+  //////////////// lock waiting - similar to NonTxn but we also check for remote rollback
+
+  private def weakAwaitUnowned(handle: Handle[_], m0: Meta) {
+    // spin a bit
+    var spins = 0
+    while (spins < SpinCount + YieldCount) {
+      spins += 1
+      if (spins > SpinCount) Thread.`yield`
+
+      val m = handle.meta
+      if (ownerAndVersion(m) != ownerAndVersion(m0)) return
+
+      requireActive
+    }
+
+    owner(m0) match {
+      case NonTxnSlot => weakNoSpinAwaitNonTxnUnowned(handle, m0)
+      case FrozenSlot => throw new IllegalStateException("frozen")
+      case _ => weakNoSpinAwaitTxnUnowned(handle, m0)
+    }
+  }
+
+  private def weakNoSpinAwaitNonTxnUnowned(handle: Handle[_], m0: Meta) {
+    // to wait for a non-txn owner, we use pendingWakeups
+    val event = wakeupManager.subscribe
+    event.addSource(handle.ref, handle.offset)
+    do {
+      val m = handle.meta
+      if (ownerAndVersion(m) != ownerAndVersion(m0)) {
+        // observed unowned
+        return
+      }
+
+      if (pendingWakeups(m) || handle.metaCAS(m, withPendingWakeups(m))) {
+        // after the block, things will have changed with reasonably high
+        // likelihood (spurious wakeups are okay)
+        requireActive
+        event.await
+        return
+      }
+    } while (!event.triggered)
+  }
+
+  private def weakNoSpinAwaitTxnUnowned(handle: Handle[_], m0: Meta) {
+    // to wait for a txn owner, we track down the Txn and wait on it
+    val owningSlot = owner(m0)
+    val owningTxn = slotManager.lookup(owningSlot)
+    if (owningSlot == owner(handle.meta)) {
+      // The slot numbers are the same, which means that either owningTxn is
+      // the current owner or it has completed and its slot has been reused.
+      // Either way it is okay to wait for it.
+      requireActive
+      owningTxn.awaitCompletedOrDoomed
+
+      if (ownerAndVersion(handle.meta) == ownerAndVersion(m0)) {
+        assert(owningTxn.status.mustRollBack)
+        requireActive
+        stealHandle(handle, m0, owningTxn)
+      }
+    }
+    // else invalid read of owningTxn, which means there was an ownership change
+  }
+
   //////////////// barrier implementations
   
   def get[T](handle: Handle[T]): T = {
@@ -320,16 +383,25 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
 
     var m = handle.meta
     if (owner(m) == slot) {
-      // self-owned
+      // Self-owned.  This particular ref+offset might not be in the write
+      // buffer, but it's definitely not in anybody else's.
       return writeBufferGet(handle)
     }
 
     while (true) {
       if (changing(m)) {
-        // TODO cursor
-        // TODO cursor
-        // TODO cursor
-        // TODO cursor
+        weakAwaitUnowned(handle, m)
+      } else {
+        val v = handle.data
+        val m1 = handle.meta
+        if (changingAndVersion(m) == changingAndVersion(m1)) {
+          // Stable read.  The second read of handle.meta is required for
+          // opacity, and it also enables our read-only commit optimization.
+          addToReadSet(handle, version(m))
+          return v
+        }
+        // try again
+        m = m1
       }
     }
   }
@@ -363,6 +435,8 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
 
     result
   }
+
+  // TODO: think about blind writes to values that share metadata
 
   def unrecordedRead[T](handle: Handle[T]): UnrecordedRead[T] = null // TODO implement
 
