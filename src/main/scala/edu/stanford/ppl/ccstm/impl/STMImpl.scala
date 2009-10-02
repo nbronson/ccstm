@@ -42,7 +42,7 @@ private[ccstm] object STMImpl extends GV6 {
    */
   val YieldCount = 100
 
-  val slotManager = new TxnSlotManager[TxnImpl](1024, 2)
+  val slotManager = new TxnSlotManager[TxnImpl](1024, 3)
   val wakeupManager = new WakeupManager // default size
 
   //////////////// Metadata bit packing
@@ -67,8 +67,9 @@ private[ccstm] object STMImpl extends GV6 {
    */
   val NonTxnSlot: Slot = 1
 
-  /** The version number used for frozen references. */
-  val FrozenVersion: Version = (1L << 51) - 1
+  /** The slot number that claims ownership of frozen handles. */
+  val FrozenSlot: Slot = 2
+
 
   // TODO: clean up the following mess
   
@@ -80,6 +81,7 @@ private[ccstm] object STMImpl extends GV6 {
 
   // masks off userBit, owner, and pendingWakeups
   def changingAndVersion(m: Meta) = m & ((1L << 63) | ((1L << 51) - 1))
+  def ownerAndVersion(m: Meta) = m & ((1023L << 51) | ((1L << 51) - 1))
 
   def withOwner(m: Meta, o: Slot): Meta = (m & ~(1023L << 51)) | (o.asInstanceOf[Long] << 51)
   def withUnowned(m: Meta): Meta = withOwner(m, UnownedSlot)
