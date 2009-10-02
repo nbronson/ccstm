@@ -143,16 +143,34 @@ private [impl] trait TxnWriteBuffer {
   }
 
   /** Returns the specValue associated with (ref,offset). */
-  private[impl] def writeBufferGet[T](ref: AnyRef, offset: Int, defaultValue: T): T = {
-    val i = find(ref, offset)
-    if (i == -1) defaultValue else _objs(specValueI(i)).asInstanceOf[T]
+  private[impl] def writeBufferGet[T](handle: Handle[T]): T = {
+    val i = find(handle.ref, handle.offset)
+    if (i == -1) handle.data else _objs(specValueI(i)).asInstanceOf[T]
   }
 
   /** Adds or updates a write buffer entry. */
-  private[impl] def writeBufferPut[T](ref: AnyRef, offset: Int, specValue: T, handle: Handle[T]) {
-    val i = findOrAdd(ref, offset)
+  private[impl] def writeBufferPut[T](handle: Handle[T], specValue: T) {
+    val i = findOrAdd(handle.ref, handle.offset)
     _objs(specValueI(i)) = specValue.asInstanceOf[AnyRef]
     _objs(handleI(i)) = handle
+  }
+
+  /** Creates a write buffer entry if one does not already exist, initializing
+   *  it from <code>handle.data</code> if creating.  Returns the resulting
+   *  <code>specValue</code>.
+   */
+  private[impl] def writeBufferGetForPut[T](handle: Handle[T]): T = {
+    val i = findOrAdd(handle.ref, handle.offset)
+    if (_objs(handleI(i)) == null) {
+      // inserting
+      val z = handle.data
+      _objs(specValueI(i)) = z.asInstanceOf[AnyRef]
+      _objs(handleI(i)) = handle
+      z
+    } else {
+      // already present
+      _objs(specValueI(i)).asInstanceOf[T]
+    }
   }
 
   private[impl] def writeBufferVisit(visitor: TxnWriteBuffer.Visitor): Boolean = {

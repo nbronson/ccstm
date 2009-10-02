@@ -315,8 +315,55 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   
   //////////////// barrier implementations
   
-  def get[T](handle: Handle[T]): T = null.asInstanceOf[T] // TODO implement
-  def map[T,Z](handle: Handle[T], f: T => Z): Z = null.asInstanceOf[Z] // TODO implement
+  def get[T](handle: Handle[T]): T = {
+    requireActive
+
+    var m = handle.meta
+    if (owner(m) == slot) {
+      // self-owned
+      return writeBufferGet(handle)
+    }
+
+    while (true) {
+      if (changing(m)) {
+        // TODO cursor
+        // TODO cursor
+        // TODO cursor
+        // TODO cursor
+      }
+    }
+  }
+
+  def map[T,Z](handle: Handle[T], f: T => Z): Z = {
+    val u = unrecordedRead(handle)
+    val result = f(u.value)
+    if (!u.recorded) {
+      val callback = new Txn.ReadResource {
+        var _latestRead = u
+
+        def valid(t: Txn) = {
+          if (!_latestRead.stillValid) {
+            // reread, and see if that changes the result
+            _latestRead = unrecordedRead(handle)
+            val reapply = f(_latestRead.value)
+            result == reapply
+          } else {
+            true
+          }
+        }
+      }
+
+      // It is safe to skip calling callback.valid() here, because we
+      // have made no calls into the txn that might have resulted in it
+      // moving its virtual snapshot forward.  This means that the
+      // unrecorded read that initialized u is consistent with all of the
+      // reads performed so far.
+      addReadResource(callback, 0, false)
+    }
+
+    result
+  }
+
   def unrecordedRead[T](handle: Handle[T]): UnrecordedRead[T] = null // TODO implement
 
   def set[T](handle: Handle[T], v: T) {} // TODO implement
@@ -324,11 +371,65 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   def freeze(handle: Handle[_]) {} // TODO implement
 
   def readForWrite[T](handle: Handle[T]): T = null.asInstanceOf[T] // TODO implement
-  def compareAndSet[T](handle: Handle[T], before: T, after: T): Boolean = false // TODO implement
-  def compareAndSetIdentity[T, R <: T with AnyRef](handle: Handle[T], before: R, after: T): Boolean = false // TODO implement
-  def weakCompareAndSet[T](handle: Handle[T], before: T, after: T): Boolean = false // TODO implement
-  def weakCompareAndSetIdentity[T, R <: T with AnyRef](handle: Handle[T], before: R, after: T): Boolean = false // TODO implement
-  def transform[T](handle: Handle[T], f: T => T) = false // TODO implement
-  def transformIfDefined[T](handle: Handle[T], pf: PartialFunction[T,T]): Boolean = false // TODO implement
+
+  def compareAndSet[T](handle: Handle[T], before: T, after: T): Boolean = {
+    transformIfDefined(handle, new PartialFunction[T,T] {
+      def isDefinedAt(v: T): Boolean = before == v
+      def apply(v: T): T = after
+    })
+  }
+
+  def compareAndSetIdentity[T, R <: T with AnyRef](handle: Handle[T], before: R, after: T): Boolean = {
+    transformIfDefined(handle, new PartialFunction[T,T] {
+      def isDefinedAt(v: T): Boolean = (before eq v.asInstanceOf[AnyRef])
+      def apply(v: T): T = after
+    })
+  }
+
+  def weakCompareAndSet[T](handle: Handle[T], before: T, after: T): Boolean = {
+    compareAndSet(handle, before, after)
+  }
+
+  def weakCompareAndSetIdentity[T, R <: T with AnyRef](handle: Handle[T], before: R, after: T): Boolean = {
+    compareAndSetIdentity(handle, before, after)
+  }
+
+  def transform[T](handle: Handle[T], f: T => T) = {
+    set(handle, f(readForWrite(handle)))
+  }
   
+  def transformIfDefined[T](handle: Handle[T], pf: PartialFunction[T,T]): Boolean = {
+    val u = unrecordedRead(handle)
+    if (!pf.isDefinedAt(u.value)) {
+      // make sure it stays undefined
+      if (!u.recorded) {
+        val callback = new Txn.ReadResource {
+          var _latestRead = u
+
+          def valid(t: Txn) = {
+            if (!_latestRead.stillValid) {
+              // if defined after reread then return false==invalid
+              _latestRead = unrecordedRead(handle)
+              !pf.isDefinedAt(_latestRead.value)
+            } else {
+              true
+            }
+          }
+        }
+        addReadResource(callback, 0, false)
+      }
+      false
+    } else {
+      val v = readForWrite(handle)
+      if (!pf.isDefinedAt(v)) {
+        // value changed after unrecordedRead
+        false
+      } else {
+        // still defined, do the actual transform
+        set(handle, pf(v))
+        true
+      }
+    }
+  }
+
 }
