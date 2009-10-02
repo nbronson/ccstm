@@ -17,8 +17,8 @@ class TxnSlotManagerSuite extends FunSuite {
     assert(s0 >= 2 && s0 < 32)
     assert(s1 >= 2 && s1 < 32)
     assert(s0 != s1)
-    assert(mgr(s0) === "0")
-    assert(mgr(s1) === "1")
+    assert(mgr.lookup(s0) === "0")
+    assert(mgr.lookup(s1) === "1")
     mgr.release(s0)
     mgr.release(s1)
   }
@@ -39,7 +39,7 @@ class TxnSlotManagerSuite extends FunSuite {
     for (i <- 4 until 32) slots += mgr.assign("t" + i)
     assert(slots === (Set.empty[Int] ++ (4 until 32)))
     var txns = Set.empty[String]
-    for (i <- 4 until 32) txns += mgr(i)
+    for (i <- 4 until 32) txns += mgr.lookup(i)
     assert(txns === (Set.empty[String] ++ ((4 until 32).map("t" + _))))
   }
 

@@ -4,7 +4,8 @@
 
 package edu.stanford.ppl.ccstm.collection
 
-import java.util.concurrent.atomic.AtomicReferenceArray
+import impl.{MetaHolder, Handle}
+import java.util.concurrent.atomic.{AtomicLongArray, AtomicReferenceArray}
 
 // TODO: fix null initial value for primitive types
 
@@ -24,28 +25,28 @@ class TArray[T](length0: Int) {
 
   def length = length0
 
-  def apply(index: Int)(implicit txn: Txn) = getBoundRef(index, txn).get
-  def update(index: Int, v: T)(implicit txn: Txn) = getBoundRef(index, txn).set(v)
+  def apply(index: Int)(implicit txn: Txn) = getRef(index).get
+  def update(index: Int, v: T)(implicit txn: Txn) = getRef(index).set(v)
 
   def bind(implicit txn: Txn): Bound[T] = new Bound[T] {
     def unbind = TArray.this
     def context = Some(txn)
-    def apply(index: Int): T = getBoundRef(index, txn).get
-    def update(index: Int, v: T) = getBoundRef(index, txn).set(v)
+    def apply(index: Int): T = getRef(index).get
+    def update(index: Int, v: T) = getRef(index).set(v)
     def refs: RandomAccessSeq[Ref.Bound[T]] = new RandomAccessSeq[Ref.Bound[T]] {
       def length = length0
-      def apply(index: Int) = getBoundRef(index, txn)
+      def apply(index: Int) = getRef(index).bind
     }
   }
 
   def nonTxn: Bound[T] = new Bound[T] {
     def unbind = TArray.this
     def context = None
-    def apply(index: Int): T = getNonTxnRef(index).get
-    def update(index: Int, v: T) = getNonTxnRef(index).set(v)
+    def apply(index: Int): T = getRef(index).nonTxn.get
+    def update(index: Int, v: T) = getRef(index).nonTxn.set(v)
     def refs: RandomAccessSeq[Ref.Bound[T]] = new RandomAccessSeq[Ref.Bound[T]] {
       def length = length0
-      def apply(index: Int) = getNonTxnRef(index)
+      def apply(index: Int) = getRef(index).nonTxn
     }
   }
 
@@ -56,67 +57,24 @@ class TArray[T](length0: Int) {
 
   /////////////// Internal implementation
 
-  private val _data = {
-    val d = new AtomicReferenceArray[STMImpl.Data[T]](length0)
-    var i = 0
-    if (STMImpl.isInitialDataReusable) {
-      val init = STMImpl.initialData(null.asInstanceOf[T])
-      while (i < length0) {
-        d.set(i, init)
-        i += 1
-      }
-    } else {
-      while (i < length0) {
-        d.set(i, STMImpl.initialData(null.asInstanceOf[T]))
-        i += 1
-      }
-    }
-    d
-  }
+  private val _meta = new AtomicLongArray(length0)
+  private val _data = new AtomicReferenceArray[T](length0) // TODO: we really just want a volatile array
 
-  private trait Accessor[T] {
-    def instance: TArray[T]
-    def index: Int
-    def unbind: Ref[T] = instance.getRef(index)
+  private def getRef(index: Int): Ref[T] = new Ref[T] with Handle[T] {
 
-    def data: STMImpl.Data[T] = instance._data.get(index)
-    def data_=(v: STMImpl.Data[T]) { instance._data.set(index, v) }
-    def dataCAS(before: STMImpl.Data[T], after: STMImpl.Data[T]) = {
-      instance._data.compareAndSet(index, before, after)
-    }
-  }
+    protected def handle = this
 
-  private trait IndexedRef[T] extends Ref[T] {
-    def instance: TArray[T]
-    def index: Int
-  }
+    private[ccstm] def meta = _meta.get(index)
+    private[ccstm] def meta_=(v: Long) = _meta.set(index, v)
+    private[ccstm] def metaCAS(before: Long, after: Long) = _meta.compareAndSet(index, before, after)
+    private[ccstm] def ref = TArray.this
+    private[ccstm] def offset = index
+    private[ccstm] def data = _data.get(index)
+    private[ccstm] def data_=(v: T) { _data.set(index, v) } 
 
-  private def getRef(index0: Int): Ref[T] = new IndexedRef[T] {
-    def instance = TArray.this
-    def index = index0
-
-    def bind(implicit txn0: Txn) = getBoundRef(index0, txn0)
-    def nonTxn = getNonTxnRef(index0)
-
-    override def equals(rhs: Any) = rhs match {
-      case x: IndexedRef[_] => (index0 == x.index) && (instance eq x.instance)
-      case _ => false
-    }
-    override def hashCode = System.identityHashCode(instance) * 31 ^ index0
     override def toString = {
-      "TArray@" + Integer.toHexString(System.identityHashCode(instance)) + "(" + index0 + ")"
+      "TArray@" + Integer.toHexString(System.identityHashCode(TArray.this)) + "(" + index + ")"
     }
-  }
-
-  private def getBoundRef(index0: Int, txn0: Txn): Ref.Bound[T] = new STMImpl.TxnAccessor[T] with Accessor[T] {
-    def instance = TArray.this
-    def txn = txn0
-    def index = index0
-  }
-
-  private def getNonTxnRef(index0: Int): Ref.Bound[T] = new STMImpl.NonTxnAccessor[T] with Accessor[T] {
-    def instance = TArray.this
-    def index = index0
   }
 }
 

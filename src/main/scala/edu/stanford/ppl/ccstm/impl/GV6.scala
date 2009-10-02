@@ -44,7 +44,7 @@ private[impl] trait GV6 {
    *  than <code>prevVersion</code>.
    */
   private[impl] def nonTxnWriteVersion(prevVersion: Long): Long = {
-    freshReadVersion(prevVersion).value + 1
+    freshReadVersion(prevVersion).version + 1
   }
 
   /** Returns a <code>VersionTrap</code> to use for reading in a new
@@ -57,12 +57,12 @@ private[impl] trait GV6 {
    */
   private[impl] def freshReadVersion(minRV: Long): VersionTrap = {
     var g = globalVersion.get
-    while (g.value < minRV) {
+    while (g.version < minRV) {
       val repl = VersionTrap(minRV)
       if (globalVersion.compareAndSet(g, repl)) {
         // succeeded, make a strong ref to the new trap
         g += repl
-        return minRV
+        return repl
       }
       // failed, retry
       g = globalVersion.get
@@ -75,13 +75,13 @@ private[impl] trait GV6 {
    */
   private[impl] def freshCommitVersion(gvSnap: VersionTrap): Long = {
     if (silentCommitRatio <= 1 || silentCommitRand.nextInt <= silentCommitCutoff) {
-      val repl = VersionTrap(gvSnap.value + 1)
+      val repl = VersionTrap(gvSnap.version + 1)
       if (globalVersion.compareAndSet(gvSnap, repl)) {
         // our replacement was the winner, so make a strong ref to it
         gvSnap += repl
       }
       // no need to retry on failure, because somebody else succeeded
     }
-    gvSnap.value + 1
+    gvSnap.version + 1
   }  
 }

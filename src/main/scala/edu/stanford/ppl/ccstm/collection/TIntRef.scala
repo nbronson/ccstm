@@ -4,14 +4,16 @@
 
 package edu.stanford.ppl.ccstm.collection
 
-/** A concrete implementation of <code>Ref</code>.
+
+/** A concrete implementation of <code>Ref[Int]</code>.
  *  <p>
  *  This class is not sealed, so it may be opportunistically subclassed to
  *  reduce a level of indirection and the associated storage overheads.
  *
  *  @author Nathan Bronson
  */
-class TRef[T](initialValue: T) extends impl.MetaHolder with Ref[T] with impl.Handle[T] {
+
+class TIntRef(initialValue: Int) extends impl.MetaHolder with Ref[Int] with impl.Handle[Int] {
 
   protected def handle = this
 
@@ -20,6 +22,6 @@ class TRef[T](initialValue: T) extends impl.MetaHolder with Ref[T] with impl.Han
   @volatile private[ccstm] var data = initialValue
 
   override def toString = {
-    "TRef@" + Integer.toHexString(hashCode)
+    "TIntRef@" + Integer.toHexString(hashCode)
   }
 }

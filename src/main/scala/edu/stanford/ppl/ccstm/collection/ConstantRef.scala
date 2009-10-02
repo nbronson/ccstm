@@ -5,17 +5,18 @@
 package edu.stanford.ppl.ccstm.collection
 
 
+import impl.STMImpl
+
 /** A concrete implementation of <code>Ref</code> that holds a single
  *  unchanging value.  This is useful for code where some references may be
  *  dynamically known to be constant.
  *
  *  @author Nathan Bronson
  */
-class ConstantRef[T](value0: T) extends Ref[T] {
+class ConstantRef[T](value0: T) extends Ref[T] with impl.Handle[T] {
 
   private abstract class Bnd extends Ref.Bound[T] {
     def unbind: Ref[T] = ConstantRef.this
-    def unary_! : T = value0
     def get: T = value0
     def map[Z](f: T => Z): Z = f(value0)
 
@@ -37,7 +38,6 @@ class ConstantRef[T](value0: T) extends Ref[T] {
 
     private def failure(op: String) = new IllegalStateException(op + ": not allowed for ConstantRef")
 
-    def :=(v: T) = throw failure(":=")
     def set(v: T) = throw failure("set")
     def tryWrite(v: T): Boolean = throw failure("tryWrite")
     def transform(f: T => T) = throw failure("transform")
@@ -64,12 +64,24 @@ class ConstantRef[T](value0: T) extends Ref[T] {
     override def toString: String = "ConstantRef.Bound(" + value0 + ")"
   }
 
+  //////////////// Handle stuff
+
+  protected def handle = this
+
+  private[ccstm] def meta: Long = STMImpl.withOwner(0L, STMImpl.FrozenSlot)
+  private[ccstm] def meta_=(v: Long) { throw new IllegalStateException("frozen") }
+  private[ccstm] def metaCAS(before: Long, after: Long): Boolean = { throw new IllegalStateException("frozen") }
+  private[ccstm] def ref: AnyRef = this
+  private[ccstm] def offset: Int = 0
+  private[ccstm] def data: T = value0
+  private[ccstm] def data_=(v: T) { throw new IllegalStateException("frozen") } 
+
+  //////////////// Ref implementation
+
   override def get(implicit txn: Txn): T = value0
-  override def map[Z](f: (T) => Z)(implicit txn: Txn) = f(value0)
-
-  def bind(implicit txn: Txn): Ref.Bound[T] = new Bnd { def context = Some(txn) }
-
-  def nonTxn: Ref.Bound[T] = new Bnd { def context = None }
+  override def map[Z](f: T => Z)(implicit txn: Txn): Z = f(value0)
+  override def bind(implicit txn: Txn): Ref.Bound[T] = new Bnd { def context = Some(txn) }
+  override def nonTxn: Ref.Bound[T] = new Bnd { def context = None }
 
   override def toString: String = "ConstantRef(" + value0 + ")"
 }

@@ -208,7 +208,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
 
   def unary_!(implicit txn: Txn): T = txn.get(handle)
   def get(implicit txn: Txn): T = txn.get(handle)
-  def map[Z](f: (T) => Z)(implicit txn: Txn) = txn.map(handle, f)
+  def map[Z](f: (T) => Z)(implicit txn: Txn): Z = txn.map(handle, f)
 
   //////////////// Sink stuff
 
@@ -225,7 +225,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *      call later during the transaction.
    *  @throws IllegalStateException if <code>txn</code> is not active.
    */
-  def transform(f: T => T)(implicit txn: Txn) { txn.transform(handle) }
+  def transform(f: T => T)(implicit txn: Txn) { txn.transform(handle, f) }
 
   /** Transforms the value referenced by this <code>Ref</code> by applying the
    *  <code>pf.apply</code>, but only if <code>pf.isDefinedAt</code> holds for
@@ -309,7 +309,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
 
     def get: T = impl.NonTxn.get(handle)
     def map[Z](f: (T) => Z): Z = f(impl.NonTxn.get(handle))
-    def await(pred: (T) => Boolean) { impl.NonTxn.await(pred) }
+    def await(pred: (T) => Boolean) { impl.NonTxn.await(handle, pred) }
     def unrecordedRead: UnrecordedRead[T] = impl.NonTxn.unrecordedRead(handle)
 
     def set(v: T) { impl.NonTxn.set(handle, v) }
@@ -334,6 +334,19 @@ trait Ref[T] extends Source[T] with Sink[T] {
     }
     def transformIfDefined(pf: PartialFunction[T,T]): Boolean = {
       impl.NonTxn.transformIfDefined(handle, pf)
+    }
+  }
+
+  override def hashCode = impl.STMImpl.hash(handle.ref, handle.offset)
+
+  override def equals(rhs: Any) = {
+    rhs match {
+      case r: Ref[_] => {
+        val h1 = handle
+        val h2 = r.handle
+        (h1.ref eq h2.ref) && (h1.offset == h2.offset)
+      }
+      case _ => false
     }
   }
 }

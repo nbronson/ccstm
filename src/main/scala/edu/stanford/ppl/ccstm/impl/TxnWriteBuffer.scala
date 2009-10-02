@@ -32,6 +32,8 @@ private [impl] object TxnWriteBuffer {
  *  clear that they involve the write buffer.
  */
 private [impl] trait TxnWriteBuffer {
+  import STMImpl.hash
+
   protected def writeBufferInitialCapacity = 16
 
   private var _size = 0
@@ -50,21 +52,6 @@ private [impl] trait TxnWriteBuffer {
   private def refI(i: Int) = 3 * i
   private def specValueI(i: Int) = 3 * i + 1
   private def handleI(i: Int) = 3 * i + 2
-
-  private def hash(ref: AnyRef, offset: Int) = {
-    // Hopscotch will fail if there are more than H entries that end up in the
-    // same bucket.  This can lead to a pathological case if a single instance
-    // is used with offsets that are strided by a power-of-two, because if we
-    // use a simple hashCode(ref) op M*offset, we will fail to get any unique
-    // bits from the M*offset portion.  Our solution is to use the bit-mixing
-    // function from java.util.HashMap after merging with the system identity
-    // hash code.
-    if (ref == null) throw new NullPointerException
-    var h = System.identityHashCode(ref) ^ (0x40108097 * offset)
-    h ^= (h >>> 20) ^ (h >>> 12)
-    h ^= (h >>> 7) ^ (h >>> 4)
-    h
-  }
 
   /** Returns the index on a hit, -1 on failure. */
   private def find(ref: AnyRef, offset: Int): Int = {

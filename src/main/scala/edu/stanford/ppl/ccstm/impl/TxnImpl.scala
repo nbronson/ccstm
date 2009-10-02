@@ -5,7 +5,7 @@
 package edu.stanford.ppl.ccstm.impl
 
 
-class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends AbstractTxn with TxnWriteBuffer {
+abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends AbstractTxn with TxnWriteBuffer {
 
   import STMImpl._
   import Txn._
@@ -99,35 +99,42 @@ class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends AbstractTxn with 
     var i = 0
     while (i < _readCount) {
       val handle = _readHandles(i)
-      val meta = handle.meta
-      if (!changing(meta) || owner(meta) == slot) {
-        if (version(meta) != _readVersion(i)) {
+      val m1 = handle.meta
+      if (!changing(m1) || owner(m1) == slot) {
+        if (version(m1) != _readVersions(i)) {
           forceRollback(InvalidReadCause(handle.ref, handle.offset))
           return false
         }
         i += 1
-      } else if (owner(meta) == NonTxnSlot) {
+      } else if (owner(m1) == NonTxnSlot) {
         // non-txn updates don't set changing unless they will install a new
         // value, so we are the only party that can yield
         forceRollback(InvalidReadCause(handle.ref, handle.offset))
         return false
       } else {
-        val o = slotManager(owner(m))
+        val o = slotManager.lookup(owner(m1))
+        val s = o._status
         val m2 = handle.meta
-        if (owner(m2) == owner(m)) {
-          // Either this or o must roll back.  We choose to give precedence to
-          // o, as it is the writer and is Validating.  We verify that o still
-          // has a chance to commit.
-          if (o._status.mightCommit) {
+        if (owner(m2) == owner(m1)) {
+          // Either this txn or the owning must roll back.  We choose to give
+          // precedence to the owning txn, as it is the writer and is
+          // Validating.  There's a bit of trickiness since o may not be the
+          // owning transaction, it may be a new txn that reused the same slot.
+          // If the actual owning txn committed then the version number will
+          // have changed, which we will detect on the next pass because we
+          // aren't incrementing i.  If it rolled back then we don't have to.
+          // If the status that we see is Active, then we must have observed
+          // the race and we don't roll back here.
+          if (s.mightCommit && s != Active) {
             forceRollback(InvalidReadCause(handle.ref, handle.offset))
             return false
           }
 
-          // Help it release the lock.  We don't have to worry about any
-          // pending wakeups because nothing has been committed.
-          handle.metaCAS(m2, withRollback(m2))
+          stealHandle(handle, m2, o)
+
+          // try again on this i
         }
-        // something has definitely changed, so recheck this i
+        // else stale read of owner, try again on this i
       }
     }
 
@@ -183,7 +190,7 @@ class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends AbstractTxn with 
     if (!acquireLocks()) return completeRollback()
 
     // this is our linearization point
-    val commitVersion = freshCommitVersion
+    val commitVersion = freshCommitVersion(globalVersion.get)
 
     // if the reads are still valid, then they were valid at the linearization
     // point
@@ -242,6 +249,7 @@ class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends AbstractTxn with 
           assert(_status.isInstanceOf[RollingBack])
           return false
         }
+        return true
       }
     }) && (_status == Validating)    
   }
@@ -304,4 +312,23 @@ class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends AbstractTxn with 
   private[ccstm] def explicitlyValidateReadsImpl() {
     revalidate(0)
   }
+  
+  //////////////// barrier implementations
+  
+  def get[T](handle: Handle[T]): T = null.asInstanceOf[T] // TODO implement
+  def map[T,Z](handle: Handle[T], f: T => Z): Z = null.asInstanceOf[Z] // TODO implement
+  def unrecordedRead[T](handle: Handle[T]): UnrecordedRead[T] = null // TODO implement
+
+  def set[T](handle: Handle[T], v: T) {} // TODO implement
+  def tryWrite[T](handle: Handle[T], v: T): Boolean = false // TODO implement
+  def freeze(handle: Handle[_]) {} // TODO implement
+
+  def readForWrite[T](handle: Handle[T]): T = null.asInstanceOf[T] // TODO implement
+  def compareAndSet[T](handle: Handle[T], before: T, after: T): Boolean = false // TODO implement
+  def compareAndSetIdentity[T, R <: T with AnyRef](handle: Handle[T], before: R, after: T): Boolean = false // TODO implement
+  def weakCompareAndSet[T](handle: Handle[T], before: T, after: T): Boolean = false // TODO implement
+  def weakCompareAndSetIdentity[T, R <: T with AnyRef](handle: Handle[T], before: R, after: T): Boolean = false // TODO implement
+  def transform[T](handle: Handle[T], f: T => T) = false // TODO implement
+  def transformIfDefined[T](handle: Handle[T], pf: PartialFunction[T,T]): Boolean = false // TODO implement
+  
 }

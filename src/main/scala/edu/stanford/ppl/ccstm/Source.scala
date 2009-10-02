@@ -140,7 +140,7 @@ trait Source[+T] {
    *  @return the result of applying <code>f</code> to the value read by this
    *      view.
    */
-  def map[Z](f: T => Z)(implicit txn: Txn)
+  def map[Z](f: T => Z)(implicit txn: Txn): Z
 
   /** The restriction of <code>Ref.bind</code> to <code>Source</code>.
    *  @see edu.stanford.ppl.ccstm.Ref#bind

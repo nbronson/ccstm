@@ -10,12 +10,12 @@ import org.scalatest.FunSuite
 class FastPoorRandomSuite extends FunSuite {
 
   test("FastPoorRandom should return a value") {
-    val rand = new FastPoorRandom
+    val rand = FastPoorRandom
     rand.nextInt
   }
 
   test("FastPoorRandom should eventually get reasonable coverage") {
-    val rand = new FastPoorRandom
+    val rand = FastPoorRandom
     val bigEndBuckets = new Array[Boolean](64)
     var bigEndEmpty = 64
     val smallEndBuckets = new Array[Boolean](64)
@@ -44,7 +44,7 @@ class FastPoorRandomSuite extends FunSuite {
   }
 
   test("FastPoorRandom should be fast") {
-    val rand = new FastPoorRandom
+    val rand = FastPoorRandom
     var best = Math.MAX_LONG
     for (pass <- 0 until 1000) {
       val begin = System.nanoTime

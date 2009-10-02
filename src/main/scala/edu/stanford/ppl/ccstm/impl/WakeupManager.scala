@@ -8,6 +8,8 @@ package edu.stanford.ppl.ccstm.impl
 import java.util.concurrent.atomic.{AtomicReferenceArray, AtomicLongArray}
 
 private[impl] class WakeupManager(numChannels: Int, numSources: Int) {
+  import STMImpl.hash
+
   def this() = this(64, 512)
 
   assert(numChannels > 0 && numChannels <= 64 && (numChannels & (numChannels - 1)) == 0)
@@ -100,14 +102,6 @@ private[impl] class WakeupManager(numChannels: Int, numSources: Int) {
       if (events.compareAndSet(i, null, fresh)) return fresh
     }
     throw new Error("unreachable")
-  }
-
-  private def hash(ref: AnyRef, offset: Int): Int = {
-    // TODO: merge this with WriteBuffer.hash, where should it go?
-    var h = System.identityHashCode(ref) ^ (0x40108097 * offset)
-    h ^= (h >>> 20) ^ (h >>> 12)
-    h ^= (h >>> 7) ^ (h >>> 4)
-    h
   }
 
   class Event(channel: Int) {

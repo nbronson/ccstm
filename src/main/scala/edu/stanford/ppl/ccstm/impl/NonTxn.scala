@@ -55,7 +55,7 @@ private[ccstm] object NonTxn {
     // to wait for a txn owner, we track down the Txn and wait on it
     val owningSlot = owner(m0)
     val owningTxn = slotManager.lookup(owningSlot)
-    if (ownerSlot == owner(handle.meta)) {
+    if (owningSlot == owner(handle.meta)) {
       // The slot numbers are the same, which means that either owningTxn is
       // the current owner or it has completed and its slot has been reused.
       // Either way it is okay to wait for it.
@@ -63,48 +63,10 @@ private[ccstm] object NonTxn {
 
       if (ownerAndVersion(handle.meta) == ownerAndVersion(m0)) {
         assert(owningTxn.status.mustRollBack)
-        stealHandle(handle, owningSlot, m0, owningTxn)
+        stealHandle(handle, m0, owningTxn)
       }
     }
     // else invalid read of owningTxn, which means there was an ownership change
-  }
-
-  private def stealHandle(handle: Handle[_], m0: Meta, owningSlot: Slot, owningTxn: TxnImpl) {
-    spins = 0
-    do {
-      val m = handle.meta
-      if (ownerAndVersion(m) != ownerAndVersion(m0)) {
-        // no steal needed
-        return
-      }
-
-      spins += 1
-      if (spins > SpinCount) Thread.`yield`
-    } while (spins < SpinCount + YieldCount)
-
-    // If owningTxn has been doomed it might be a while before it releases its
-    // lock on the handle.  Slot numbers are reused, however, so we have to
-    // manage a reference count on the slot while we steal the handle.  This is
-    // expensive, which is why we just spun.
-
-    val o = slotManager.beginLookup(owningSlot)
-    try {
-      if (o ne owningTxn) {
-        // if txn unregistered itself from slotManager, then it has already
-        // released all of its locks
-        return
-      }
-
-      while (true) {
-        val m = handle.meta
-        if (ownerAndVersion(m) != ownerAndVersion(m0) || handle.metaCAS(m1, withRollback(m1))) {
-          // no longer locked, or steal succeeded
-          return
-        }
-      }
-    } finally {
-      slotManager.endLookup(owningSlot, o)
-    }
   }
 
   //////////////// value waiting
@@ -157,7 +119,7 @@ private[ccstm] object NonTxn {
       if (owner(m0) != UnownedSlot) {
         weakAwaitUnowned(handle, m0)
       } else {
-        val mOwned = withOwner(m, NonTxnSlot)
+        val mOwned = withOwner(m0, NonTxnSlot)
         val m1 = if (exclusive) withChanging(mOwned) else mOwned
         if (handle.metaCAS(m0, m1)) {
           // lock acquired
@@ -165,6 +127,7 @@ private[ccstm] object NonTxn {
         }
       }
     }
+    throw new Error
   }
 
   private def upgradeLock(handle: Handle[_], m0: Meta): Meta = {
@@ -280,7 +243,7 @@ private[ccstm] object NonTxn {
     if (owner(m0) != UnownedSlot) {
       return false
     }
-    val m1 = withChanging(withOwner(m, NonTxnSlot))
+    val m1 = withChanging(withOwner(m0, NonTxnSlot))
     if (!handle.metaCAS(m0, m1)) {
       return false
     }
@@ -333,9 +296,9 @@ private[ccstm] object NonTxn {
   }
 
   def compareAndSetIdentity[T,R <: AnyRef with T](handle: Handle[T], before: R, after: T): Boolean = {
-    if (before eq get(handle)) {
+    if (before eq get(handle).asInstanceOf[AnyRef]) {
       val m0 = acquireLock(handle, true)
-      if (before eq handle.data) {
+      if (before eq handle.data.asInstanceOf[AnyRef]) {
         handle.data = after
         commitLock(handle, m0)
         true
@@ -370,7 +333,7 @@ private[ccstm] object NonTxn {
       val m0 = acquireLock(handle, false)
       val v = handle.data
       if (pf.isDefinedAt(v)) {
-        val repl = f(v)
+        val repl = pf(v)
         val m1 = upgradeLock(handle, m0)
         handle.data = repl
         commitLock(handle, m1)

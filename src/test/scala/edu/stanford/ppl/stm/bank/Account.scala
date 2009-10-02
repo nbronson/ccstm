@@ -5,7 +5,7 @@
 package edu.stanford.ppl.stm.bank
 
 
-import ccstm.{Ref, Txn}
+import ccstm._
 
 object Account {
   var yieldALot = false
@@ -35,7 +35,7 @@ object Account {
 
 trait Account {
   def name: String
-  def balance: Ref.Source[Float]
+  def balance: Source[Float]
   def deposit(amount: Float)(implicit txn: Txn)
   def withdraw(amount: Float)(implicit txn: Txn)
 }

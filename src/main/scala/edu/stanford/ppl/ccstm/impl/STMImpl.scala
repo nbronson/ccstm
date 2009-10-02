@@ -17,13 +17,13 @@ package edu.stanford.ppl.ccstm.impl
  *  Metadata is a 64 bit long, of which 1 bit records whether any pending
  *  wakeups should be triggered if the associated data is changed, 10 bits
  *  record the write permission owner (0 means no owner, 1 means non-txn
- *  owner), 1 bit flags values that are committing and may not be accessed,
- *  1 bit is available for the user of a Handle, and 51 bits record the
- *  version number.  2^51 is a bit more than 2*10^15.  On a hypothetical
- *  computer that could perform a non-transactional write in 10 nanoseconds
- *  (each of which requires at least 3 CAS-s), version numbers would not
- *  overflow for 250 days of continuous writes.  The all 1-s version number is
- *  used to indicate a value that is frozen.
+ *  owner, 2 means a value is frozen), 1 bit flags values that are committing
+ *  and may not be accessed, 1 bit is available for the user of a Handle, and
+ *  51 bits record the version number.  2^51 is a bit more than 2*10^15.  On a
+ *  hypothetical computer that could perform a non-transactional write in 10
+ *  nanoseconds (each of which requires at least 3 CAS-s), version numbers
+ *  would not overflow for 250 days of continuous writes.  The all 1-s version
+ *  number is used to indicate a value that is frozen.
  *
  *  @author Nathan Bronson
  */
@@ -44,6 +44,26 @@ private[ccstm] object STMImpl extends GV6 {
 
   val slotManager = new TxnSlotManager[TxnImpl](1024, 3)
   val wakeupManager = new WakeupManager // default size
+
+  /** Hashes <code>ref</code> with <code>offset</code>, mixing the resulting
+   *  bits.  This hash function is chosen so that it is suitable as a basis for
+   *  hopscotch hashing (among other purposes).
+   *  @throw NullPointerException if <code>ref</code> is null. 
+   */
+  def hash(ref: AnyRef, offset: Int): Int = {
+    // Hopscotch will fail if there are more than H entries that end up in the
+    // same bucket.  This can lead to a pathological case if a single instance
+    // is used with offsets that are strided by a power-of-two, because if we
+    // use a simple hashCode(ref) op M*offset, we will fail to get any unique
+    // bits from the M*offset portion.  Our solution is to use the bit-mixing
+    // function from java.util.HashMap after merging with the system identity
+    // hash code.
+    if (ref == null) throw new NullPointerException
+    var h = System.identityHashCode(ref) ^ (0x40108097 * offset)
+    h ^= (h >>> 20) ^ (h >>> 12)
+    h ^= (h >>> 7) ^ (h >>> 4)
+    h
+  }
 
   //////////////// Metadata bit packing
 
@@ -111,7 +131,7 @@ private[ccstm] object STMImpl extends GV6 {
       for (er <- explicitRetries) {
         val rs = er.readSet.asInstanceOf[ReadSet]
         if (!readSetStillValid(rs)) return
-        spins += rs.readCount
+        spins += rs.size
       }
       if (spins > SpinCount) Thread.`yield`
   }
@@ -149,4 +169,44 @@ private[ccstm] object STMImpl extends GV6 {
     return true
   }
 
+  //////////////// lock release helping
+
+  def stealHandle(handle: Handle[_], m0: Meta, owningTxn: TxnImpl) {
+    var spins = 0
+    do {
+      val m = handle.meta
+      if (ownerAndVersion(m) != ownerAndVersion(m0)) {
+        // no steal needed
+        return
+      }
+
+      spins += 1
+      if (spins > SpinCount) Thread.`yield`
+    } while (spins < SpinCount + YieldCount)
+
+    // If owningTxn has been doomed it might be a while before it releases its
+    // lock on the handle.  Slot numbers are reused, however, so we have to
+    // manage a reference count on the slot while we steal the handle.  This is
+    // expensive, which is why we just spun.
+
+    val owningSlot = owner(m0)
+    val o = slotManager.beginLookup(owningSlot)
+    try {
+      if (o ne owningTxn) {
+        // if txn unregistered itself from slotManager, then it has already
+        // released all of its locks
+        return
+      }
+
+      while (true) {
+        val m = handle.meta
+        if (ownerAndVersion(m) != ownerAndVersion(m0) || handle.metaCAS(m, withRollback(m))) {
+          // no longer locked, or steal succeeded
+          return
+        }
+      }
+    } finally {
+      slotManager.endLookup(owningSlot, o)
+    }
+  }
 }
