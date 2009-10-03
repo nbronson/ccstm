@@ -6,7 +6,6 @@ package edu.stanford.ppl.ccstm.impl
 
 
 abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends AbstractTxn with TxnWriteBuffer {
-
   import STMImpl._
   import Txn._
 
@@ -50,17 +49,21 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
    */
   private[impl] var _readVersion: Version = _readVersionTrap.version
 
+  /** The commit version of this transaction, or -1 if not assigned. */
+  private[impl] var _commitVersion: Version = -1L
 
   /** True if all reads should be performed as writes. */
-  private[impl] val barging: Boolean = {
+  private[impl] val barging: Boolean = shouldBarge(failureHistory)
+
+  private def shouldBarge(failureHistory: List[Txn.RollbackCause]) = {
     // barge if we have already had 2 failures since the last explicit retry
     var cur = failureHistory
-    var count = 0
-    while (count < 2 && !cur.isEmpty && !cur.head.isInstanceOf[ExplicitRetryCause]) {
+    var count = 2
+    while (count != 0 && !cur.isEmpty && !cur.head.isInstanceOf[ExplicitRetryCause]) {
       cur = cur.tail
-      count += 1
+      count -= 1
     }
-    (count == 3)
+    (count == 0)
   }
 
   /** The slot assigned to this transaction. */
@@ -190,7 +193,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     if (!acquireLocks()) return completeRollback()
 
     // this is our linearization point
-    val commitVersion = freshCommitVersion(globalVersion.get)
+    _commitVersion = freshCommitVersion(globalVersion.get)
 
     // if the reads are still valid, then they were valid at the linearization
     // point
@@ -199,7 +202,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     // attempt to decide commit
     if (!_statusCAS(Validating, Committing)) return completeRollback()
 
-    commitWrites(commitVersion)
+    commitWrites()
     writeResourcesPerformCommit()
     _status = Committed
     callAfter()
@@ -254,13 +257,13 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     }) && (_status == Validating)    
   }
 
-  private def commitWrites(commitVersion: Version) {
+  private def commitWrites() {
     // first pass
     var wakeups = 0L
     writeBufferVisit(new TxnWriteBuffer.Visitor {
       def visit(specValue: Any, handle: Handle[_]): Boolean = {
         // TODO: remove this check
-        assert(version(handle.meta) < commitVersion)
+        assert(version(handle.meta) < _commitVersion)
 
         // update the values
         handle.asInstanceOf[Handle[Any]].data = specValue
@@ -281,7 +284,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
         val m = handle.meta
         if (owner(m) == slot) {
           // release the lock, clear the PW bit, and update the version
-          handle.meta = withCommit(m, commitVersion)
+          handle.meta = withCommit(m, _commitVersion)
         }
         true
       }
@@ -313,67 +316,32 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     revalidate(0)
   }
 
-  //////////////// lock waiting - similar to NonTxn but we also check for remote rollback
+  //////////////// lock management - similar to NonTxn but we also check for remote rollback
 
   private def weakAwaitUnowned(handle: Handle[_], m0: Meta) {
-    // spin a bit
-    var spins = 0
-    while (spins < SpinCount + YieldCount) {
-      spins += 1
-      if (spins > SpinCount) Thread.`yield`
-
-      val m = handle.meta
-      if (ownerAndVersion(m) != ownerAndVersion(m0)) return
-
+    STMImpl.weakAwaitUnowned(handle, m0, () => {
       requireActive
-    }
-
-    owner(m0) match {
-      case NonTxnSlot => weakNoSpinAwaitNonTxnUnowned(handle, m0)
-      case FrozenSlot => throw new IllegalStateException("frozen")
-      case _ => weakNoSpinAwaitTxnUnowned(handle, m0)
-    }
+      true
+    })
   }
 
-  private def weakNoSpinAwaitNonTxnUnowned(handle: Handle[_], m0: Meta) {
-    // to wait for a non-txn owner, we use pendingWakeups
-    val event = wakeupManager.subscribe
-    event.addSource(handle.ref, handle.offset)
-    do {
-      val m = handle.meta
-      if (ownerAndVersion(m) != ownerAndVersion(m0)) {
-        // observed unowned
-        return
+  private def acquireOwnership(handle: Handle[_], m0: Meta): Meta = {
+    var m = m0
+    var done = false
+    while (!done) {
+      while (owner(m) != UnownedSlot) {
+        weakAwaitUnowned(handle, m)
+        m = handle.meta
       }
-
-      if (pendingWakeups(m) || handle.metaCAS(m, withPendingWakeups(m))) {
-        // after the block, things will have changed with reasonably high
-        // likelihood (spurious wakeups are okay)
-        requireActive
-        event.await
-        return
-      }
-    } while (!event.triggered)
-  }
-
-  private def weakNoSpinAwaitTxnUnowned(handle: Handle[_], m0: Meta) {
-    // to wait for a txn owner, we track down the Txn and wait on it
-    val owningSlot = owner(m0)
-    val owningTxn = slotManager.lookup(owningSlot)
-    if (owningSlot == owner(handle.meta)) {
-      // The slot numbers are the same, which means that either owningTxn is
-      // the current owner or it has completed and its slot has been reused.
-      // Either way it is okay to wait for it.
-      requireActive
-      owningTxn.awaitCompletedOrDoomed
-
-      if (ownerAndVersion(handle.meta) == ownerAndVersion(m0)) {
-        assert(owningTxn.status.mustRollBack)
-        requireActive
-        stealHandle(handle, m0, owningTxn)
+      val after = withOwner(m, slot)
+      if (handle.metaCAS(m, after)) {
+        m = after
+        done = true
+      } else {
+        m = handle.meta
       }
     }
-    // else invalid read of owningTxn, which means there was an ownership change
+    m
   }
 
   //////////////// barrier implementations
@@ -381,29 +349,32 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   def get[T](handle: Handle[T]): T = {
     requireActive
 
-    var m = handle.meta
-    if (owner(m) == slot) {
+    var m1 = handle.meta
+    if (owner(m1) == slot) {
       // Self-owned.  This particular ref+offset might not be in the write
       // buffer, but it's definitely not in anybody else's.
       return writeBufferGet(handle)
     }
 
-    while (true) {
-      if (changing(m)) {
-        weakAwaitUnowned(handle, m)
-      } else {
-        val v = handle.data
-        val m1 = handle.meta
-        if (changingAndVersion(m) == changingAndVersion(m1)) {
-          // Stable read.  The second read of handle.meta is required for
-          // opacity, and it also enables our read-only commit optimization.
-          addToReadSet(handle, version(m))
-          return v
-        }
-        // try again
-        m = m1
+    var m0 = 0L
+    var value: T = null.asInstanceOf[T]
+    do {
+      m0 = m1
+      while (changing(m0)) {
+        weakAwaitUnowned(handle, m0)
+        m0 = handle.meta
       }
-    }
+      if (version(m0) > _readVersion) {
+        revalidate(version(m0))
+      }
+      value = handle.data
+      m1 = handle.meta
+    } while (changingAndVersion(m0) != changingAndVersion(m1))
+
+    // Stable read.  The second read of handle.meta is required for
+    // opacity, and it also enables the read-only commit optimization.
+    addToReadSet(handle, version(m1))
+    return value
   }
 
   def map[T,Z](handle: Handle[T], f: T => Z): Z = {
@@ -433,18 +404,137 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
       addReadResource(callback, 0, false)
     }
 
-    result
+    return result
   }
 
-  // TODO: think about blind writes to values that share metadata
+  def unrecordedRead[T](handle: Handle[T]): UnrecordedRead[T] = {
+    requireActive
 
-  def unrecordedRead[T](handle: Handle[T]): UnrecordedRead[T] = null // TODO implement
+    var m1 = handle.meta
+    if (owner(m1) == slot) {
+      return new UnrecordedRead[T] {
+        def context: Option[Txn] = Some(TxnImpl.this.asInstanceOf[Txn])
+        val value: T = writeBufferGet(handle)
+        def stillValid = {
+          val s = _status
+          if (!_status.mightCommit) {
+            false
+          } else if (s != Committing) {
+            true
+          } else {
+            val m = handle.meta
+            !changing(m) && version(m) == _commitVersion
+          }
+        }
+        def recorded = true
+      }
+    }
 
-  def set[T](handle: Handle[T], v: T) {} // TODO implement
-  def tryWrite[T](handle: Handle[T], v: T): Boolean = false // TODO implement
+    var m0 = 0L
+    var v: T = null.asInstanceOf[T]
+    do {
+      m0 = m1
+      while (changing(m0)) {
+        weakAwaitUnowned(handle, m0)
+        m0 = handle.meta
+      }
+      if (version(m0) > _readVersion) {
+        revalidate(version(m0))
+      }
+      v = handle.data
+      m1 = handle.meta
+    } while (changingAndVersion(m0) != changingAndVersion(m1))
+
+    // Everything above this line is the same as for get().  Is there a way to
+    // share some of that code without incurring boxing/unboxing penalties?
+
+    addToReadSet(handle, version(m1))
+    v
+
+    return new UnrecordedRead[T] {
+      def context: Option[Txn] = Some(TxnImpl.this.asInstanceOf[Txn])
+      def value: T = v
+      def stillValid = changingAndVersion(handle.meta) == changingAndVersion(m1)
+      def recorded = false
+    }
+  }
+
+  def set[T](handle: Handle[T], v: T) {
+    requireActive
+
+    val m0 = handle.meta
+    if (owner(m0) == slot) {
+      // Self-owned.  This particular ref+offset might not be in the write
+      // buffer, but it's definitely not in anybody else's.
+      writeBufferPut(handle, v)
+      return
+    }
+
+    val m = acquireOwnership(handle, m0)
+    writeBufferPut(handle, v)
+
+    // This might not be a blind write, because meta might be shared with other
+    // values that are subsequently read by the transaction.  We don't need to
+    // add a read set entry, however, because nobody can modify it after we
+    // grab ownership.  This means it suffices to check against _readVersion.
+    // We must put something in the buffer before calling revalidate in case we
+    // roll back, so that the ownership gets released.
+
+    if (version(m) > _readVersion) {
+      revalidate(version(m))
+    }
+  }
+  
+  def tryWrite[T](handle: Handle[T], v: T): Boolean = {
+    requireActive
+
+    val m0 = handle.meta
+    owner(m0) match {
+      case UnownedSlot => {
+        if (handle.metaCAS(m0, withOwner(m0, slot))) {
+          writeBufferPut(handle, v)
+          if (version(m0) > _readVersion) {
+            revalidate(version(m0))
+          }
+          true
+        } else {
+          false
+        }
+      }
+      case FrozenSlot => {
+        throw new IllegalStateException("frozen")
+      }
+      case s if s == slot => {
+        // Self-owned.  This particular ref+offset might not be in the write
+        // buffer, but it's definitely not in anybody else's.
+        writeBufferPut(handle, v)
+        true
+      }
+      case _ => {
+        false
+      }
+    }
+  }
+
   def freeze(handle: Handle[_]) {} // TODO implement
 
-  def readForWrite[T](handle: Handle[T]): T = null.asInstanceOf[T] // TODO implement
+  def readForWrite[T](handle: Handle[T]): T = {
+    requireActive
+
+    val m0 = handle.meta
+    if (owner(m0) == slot) {
+      return writeBufferGetForPut(handle)
+    }
+
+    val m = acquireOwnership(handle, m0)
+    val v = writeBufferGetForPut(handle)
+
+    if (version(m) > _readVersion) {
+      revalidate(version(m))
+    }
+
+    return v
+  }
 
   def compareAndSet[T](handle: Handle[T], before: T, after: T): Boolean = {
     transformIfDefined(handle, new PartialFunction[T,T] {

@@ -14,59 +14,7 @@ private[ccstm] object NonTxn {
   //////////////// lock waiting
 
   private def weakAwaitUnowned(handle: Handle[_], m0: Meta) {
-    // spin a bit
-    var spins = 0
-    while (spins < SpinCount + YieldCount) {
-      spins += 1
-      if (spins > SpinCount) Thread.`yield`
-
-      val m = handle.meta
-      if (ownerAndVersion(m) != ownerAndVersion(m0)) return
-    }
-
-    owner(m0) match {
-      case NonTxnSlot => weakNoSpinAwaitNonTxnUnowned(handle, m0)
-      case FrozenSlot => throw new IllegalStateException("frozen")
-      case _ => weakNoSpinAwaitTxnUnowned(handle, m0)
-    }
-  }
-
-  private def weakNoSpinAwaitNonTxnUnowned(handle: Handle[_], m0: Meta) {
-    // to wait for a non-txn owner, we use pendingWakeups
-    val event = wakeupManager.subscribe
-    event.addSource(handle.ref, handle.offset)
-    do {
-      val m = handle.meta
-      if (ownerAndVersion(m) != ownerAndVersion(m0)) {
-        // observed unowned
-        return
-      }
-
-      if (pendingWakeups(m) || handle.metaCAS(m, withPendingWakeups(m))) {
-        // after the block, things will have changed with reasonably high
-        // likelihood (spurious wakeups are okay)
-        event.await
-        return
-      }
-    } while (!event.triggered)
-  }
-
-  private def weakNoSpinAwaitTxnUnowned(handle: Handle[_], m0: Meta) {
-    // to wait for a txn owner, we track down the Txn and wait on it
-    val owningSlot = owner(m0)
-    val owningTxn = slotManager.lookup(owningSlot)
-    if (owningSlot == owner(handle.meta)) {
-      // The slot numbers are the same, which means that either owningTxn is
-      // the current owner or it has completed and its slot has been reused.
-      // Either way it is okay to wait for it.
-      owningTxn.awaitCompletedOrDoomed
-
-      if (ownerAndVersion(handle.meta) == ownerAndVersion(m0)) {
-        assert(owningTxn.status.mustRollBack)
-        stealHandle(handle, m0, owningTxn)
-      }
-    }
-    // else invalid read of owningTxn, which means there was an ownership change
+    STMImpl.weakAwaitUnowned(handle, m0, null)
   }
 
   //////////////// value waiting

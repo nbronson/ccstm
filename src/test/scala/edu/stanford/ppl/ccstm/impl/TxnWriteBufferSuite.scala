@@ -25,7 +25,7 @@ class TxnWriteBufferSuite extends FunSuite {
     private[ccstm] def data_=(v: T) {}
   }
 
-  case class Put(ref: AnyRef, offset: Int, specValue: Any, handle: Handle[_])
+  case class Put(specValue: Any, handle: Handle[_])
 
   private class NestedMap extends IdentityHashMap[AnyRef,HashMap[Int,(Any,Handle[_])]] {
     override def apply(ref: AnyRef) = {
@@ -43,19 +43,21 @@ class TxnWriteBufferSuite extends FunSuite {
   def runTest(steps: Iterable[Put]) {
     val wb = new WB
     val reference = new NestedMap
-    for (Put(ref, offset, specValue, handle) <- steps) {
+    for (Put(specValue, handle) <- steps) {
+      val ref = handle.ref
+      val offset = handle.offset
       val expected = reference(ref).getOrElse(offset, (null, null))._1
-      val actual = wb.writeBufferGet[Any](ref, offset, null)
+      val actual = wb.writeBufferGet[Any](handle)
       assert(expected === actual)
       reference(ref)(offset) = Tuple2.apply[Any,Handle[_]](specValue, handle)
-      wb.writeBufferPut(ref, offset, specValue, handle)
+      wb.writeBufferPut(handle, specValue)
 
       // validate the set
       val fresh = new NestedMap
       wb.writeBufferVisit(new TxnWriteBuffer.Visitor {
         def visit(specValue: Any, handle: Handle[_]): Boolean = {
           fresh(handle.ref)(handle.offset) = (specValue, handle)
-          assert(wb.writeBufferGet(handle.ref, handle.offset, null) == specValue)
+          assert(wb.writeBufferGet(handle) == specValue)
           true
         }
       })
@@ -73,25 +75,24 @@ class TxnWriteBufferSuite extends FunSuite {
 
   test("single entry") {
     runTest(List(
-        Put("ref1", 0, "value", new H[String]("ref1", 0)),
-        Put("ref1", 0, "value2", new H[String]("ref1", 0))
+        Put("value", new H[String]("ref1", 0)),
+        Put("value2", new H[String]("ref1", 0))
       ))
   }
 
   test("many refs") {
     runTest(for (i <- 0 until 200) yield {
-      val ref = "ref" + i
-      Put(ref, 0, "value" + i, new H[String](ref, 0))
+      Put("value" + i, new H[String]("ref" + i, 0))
     })
   }
 
   test("many offsets") {
-    runTest(for (i <- 0 until 200) yield Put("ref1", i, "value" + i, new H[String]("ref1", i)))
+    runTest(for (i <- 0 until 200) yield Put("value" + i, new H[String]("ref1", i)))
   }
 
   def nanosPerGet(size: Int, passes: Int, numReadHits: Int, numReadMisses: Int): Double = {
     val wb = new WB
-    for (i <- 0 until size) wb.writeBufferPut("ref", i, "x" + i, new H[String]("ref", i))
+    for (i <- 0 until size) wb.writeBufferPut(new H[String]("ref", i), "x" + i)
 
     var best = Math.MAX_LONG
     for (p <- 0 until passes) {
@@ -99,7 +100,7 @@ class TxnWriteBufferSuite extends FunSuite {
       var k = 0
       var i = 0
       while (i < numReadHits) {
-        wb.writeBufferGet("ref", k, "default")
+        wb.writeBufferGet(new H[String]("ref", k))
         k += 1
         i += 1
         if (k == size) k = 0
@@ -107,7 +108,7 @@ class TxnWriteBufferSuite extends FunSuite {
       k = size
       i = 0
       while (i < numReadMisses) {
-        wb.writeBufferGet("ref", k, "default")
+        wb.writeBufferGet(new H[String]("ref", k))
         k += 1
         i += 1
       }

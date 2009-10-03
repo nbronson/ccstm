@@ -135,6 +135,18 @@ private[impl] class WakeupManager(numChannels: Int, numSources: Int) {
       }
     }
 
+    def await(earlyExit: () => Boolean) {
+      if (!_triggered) {
+        if (earlyExit != null && earlyExit()) return
+        synchronized {
+          while (!_triggered) {
+            if (earlyExit != null && earlyExit()) return
+            wait
+          }
+        }
+      }
+    }
+
     private[WakeupManager] def trigger() {
       if (!_triggered) {
         synchronized {
