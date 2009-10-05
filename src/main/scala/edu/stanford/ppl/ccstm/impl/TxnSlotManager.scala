@@ -74,4 +74,13 @@ private[impl] class TxnSlotManager[T <: AnyRef](range: Int, reservedSlots: Int) 
       }
     } while (!slots.compareAndSet(slot, p, repl))
   }
+
+  def assertAllReleased() {
+    for (i <- 0 until range) {
+      val p = slots.get(i)
+      if (p != null) {
+        assert(false, i + " -> " + p)
+      }
+    }
+  }
 }

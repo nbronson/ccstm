@@ -5,8 +5,8 @@
 package edu.stanford.ppl.stm
 
 import edu.stanford.ppl.ccstm._
-import scala.collection.jcl.IdentityHashMap
 import org.scalatest.{Group, FunSuite}
+import scala.collection.jcl.IdentityHashMap
 
 
 /** Performs single-threaded tests of <code>Ref</code>.  Since there is no
@@ -15,12 +15,21 @@ import org.scalatest.{Group, FunSuite}
  */
 class IsolatedRefSuite extends FunSuite {
 
+  override protected def test(testName: String, testGroups: Group*)(f: => Unit) = {
+    super.test(testName, testGroups:_*)({
+      f
+      STM.Debug.assertQuiescent()
+    })
+  }
+
+
   /** Binder implementations provide a way of obtaining Ref.Bound instances
    *  from a Ref.  The bound views may be reused, or not, and they may be
    *  non-transactional or transactional.
    */
   trait Binder {
     def apply[T](v: Ref[T]): Ref.Bound[T]
+    def reset() {}
   }
 
   case object FreshNonTxn extends Binder {
@@ -38,14 +47,16 @@ class IsolatedRefSuite extends FunSuite {
     var accesses = 0
 
     def apply[T](v: Ref[T]) = {
-      if (accesses == txnLen) {
-        val s = txn.commit
-        assert(s === Txn.Committed)
-        accesses = 0
-        txn = new Txn
-      }
+      if (accesses == txnLen) reset()
       accesses += 1
       v.bind(txn)
+    }
+
+    override def reset() {
+      val s = txn.commit()
+      assert(s === Txn.Committed)
+      txn = new Txn
+      accesses = 0
     }
   }
 
@@ -55,15 +66,17 @@ class IsolatedRefSuite extends FunSuite {
     var accesses = 0
 
     def apply[T](v: Ref[T]) = {
-      if (accesses == txnLen) {
-        val s = txn.commit
-        assert(s === Txn.Committed)
-        accesses = 0
-        cache.clear
-        txn = new Txn
-      }
+      if (accesses == txnLen) reset()
       accesses += 1
       cache.getOrElseUpdate(v, v.bind(txn)).asInstanceOf[Ref.Bound[T]]
+    }
+
+    override def reset() {
+      val s = txn.commit()
+      assert(s === Txn.Committed)
+      txn = new Txn
+      accesses = 0
+      cache.clear
     }
   }
 
@@ -80,6 +93,7 @@ class IsolatedRefSuite extends FunSuite {
       val r = binder(x).get + 1
       binder(x) := r
       assert(binder(x).get === 2)
+      binder.reset()
     }
 
     test(binder + ": counter increment should be fast") {
@@ -100,17 +114,20 @@ class IsolatedRefSuite extends FunSuite {
       // We should be able to get less than 5000 nanos, even on a Niagara.
       // On most platforms we should be able to do much better than this.
       assert(best / 10 < 5000)
+      binder.reset()
     }
   
     test(binder + ": map") {
       val x = Ref(1)
       assert(binder(x).map(_ * 10) === 10)
+      binder.reset()
     }
   
     test(binder + ": transform") {
       val x = Ref(1)
       binder(x).transform(_ + 1)
       assert(binder(x).get === 2)
+      binder.reset()
     }
   
     test(binder + ": successful compareAndSet") {
@@ -118,6 +135,7 @@ class IsolatedRefSuite extends FunSuite {
       val f = binder(x).compareAndSet(1, 2)
       assert(f)
       assert(binder(x).get === 2)
+      binder.reset()
     }
   
     test(binder + ": failing compareAndSet") {
@@ -125,6 +143,7 @@ class IsolatedRefSuite extends FunSuite {
       val f = binder(x).compareAndSet(2, 3)
       assert(!f)
       assert(binder(x).get === 1)
+      binder.reset()
     }
   
     test(binder + ": successful compareAndSetIdentity") {
@@ -134,6 +153,7 @@ class IsolatedRefSuite extends FunSuite {
       val f = binder(x).compareAndSetIdentity(ref1, ref2)
       assert(f)
       assert(binder(x).get eq ref2)
+      binder.reset()
     }
   
     test(binder + ": failing compareAndSetIdentity") {
@@ -144,6 +164,7 @@ class IsolatedRefSuite extends FunSuite {
       val f = binder(x).compareAndSetIdentity(ref2, ref3)
       assert(!f)
       assert(binder(x).get eq ref1)
+      binder.reset()
     }
   
     test(binder + ": applicable transformIfDefined") {
@@ -155,6 +176,7 @@ class IsolatedRefSuite extends FunSuite {
       val f = binder(x).transformIfDefined(pf)
       assert(f)
       assert(binder(x).get === 4)
+      binder.reset()
     }
   
     test(binder + ": inapplicable transformIfDefined") {
@@ -166,6 +188,7 @@ class IsolatedRefSuite extends FunSuite {
       val f = binder(x).transformIfDefined(pf)
       assert(!f)
       assert(binder(x).get === 2)
+      binder.reset()
     }
   
     test(binder + ": successful weakCompareAndSet") {
@@ -174,6 +197,7 @@ class IsolatedRefSuite extends FunSuite {
         assert(binder(x).get === 1)
       }
       assert(binder(x).get === 2)
+      binder.reset()
     }
   
     test(binder + ": failing weakCompareAndSet") {
@@ -181,6 +205,7 @@ class IsolatedRefSuite extends FunSuite {
       val f = binder(x).weakCompareAndSet(2, 3)
       assert(!f)
       assert(binder(x).get === 1)
+      binder.reset()
     }
   
     test(binder + ": successful weakCompareAndSetIdentity") {
@@ -191,6 +216,7 @@ class IsolatedRefSuite extends FunSuite {
         assert(binder(x).get eq ref1)
       }
       assert(binder(x).get eq ref2)
+      binder.reset()
     }
   
     test(binder + ": failing weakCompareAndSetIdentity") {
@@ -201,6 +227,7 @@ class IsolatedRefSuite extends FunSuite {
       val f = binder(x).weakCompareAndSetIdentity(ref2, ref3)
       assert(!f)
       assert(binder(x).get eq ref1)
+      binder.reset()
     }
   
     test(binder + ": unrecordedRead immediate use") {
@@ -208,6 +235,7 @@ class IsolatedRefSuite extends FunSuite {
       val u = binder(x).unrecordedRead
       assert(u.value === 1)
       assert(u.stillValid)
+      binder.reset()
     }
   
     test(binder + ": unrecordedRead ABA") {
@@ -218,6 +246,7 @@ class IsolatedRefSuite extends FunSuite {
       assert(u.value === 1)
       assert(binder(x).get === 1)
       assert(!u.stillValid)
+      binder.reset()
     }
   
     test(binder + ": tryWrite") {
@@ -227,6 +256,7 @@ class IsolatedRefSuite extends FunSuite {
         assert(binder(x).get === 1)
       }
       assert(binder(x).get === 2)
+      binder.reset()
     }
 
   }

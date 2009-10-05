@@ -19,7 +19,7 @@ private[impl] object ConcurrentTrap {
 class ConcurrentTrap {
   // TODO: a more scalable implementation
 
-  @volatile private val _head: List[AnyRef] = Nil
+  @volatile private var _head: List[AnyRef] = Nil
 
   private[impl] def newUpdater = {
     AtomicReferenceFieldUpdater.newUpdater(classOf[ConcurrentTrap], classOf[List[_]], "_head")

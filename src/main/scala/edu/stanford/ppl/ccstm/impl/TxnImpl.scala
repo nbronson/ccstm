@@ -66,16 +66,23 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     (count == 0)
   }
 
-  /** The slot assigned to this transaction. */
-  private val slot = slotManager.assign(this)
+  /** The slot assigned to this transaction.  Lazily acquired so that usused
+   *  TxnImpl instances don't cause problems.
+   *  TODO: should we use a WeakReference queue to roll back GC-ed uncommitted txns?
+   */
+  private var _slotIfAssigned = UnownedSlot
+  private def slot: Slot = {
+    if (_slotIfAssigned == UnownedSlot) _slotIfAssigned = slotManager.assign(this)
+    _slotIfAssigned
+  }
 
-  /** Higher is better. */
+  /** Higher wins. */
   // TODO: think about this more deeply
-  private val priority = -System.identityHashCode(this)
+  private val priority = STMImpl.hash(this, 0)
 
   override def toString = {
     ("Txn@" + Integer.toHexString(hashCode) + "(" + status +
-            ", slot=" + slot +
+            ", slot=" + (if (_slotIfAssigned == 0) "unassigned" else _slotIfAssigned.toString) +
             ", priority=" + priority +
             ", readCount=" + _readCount +
             ", writeBufferSize=" + writeBufferSize +
@@ -103,7 +110,11 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     while (i < _readCount) {
       val handle = _readHandles(i)
       val m1 = handle.meta
-      if (!changing(m1) || owner(m1) == slot) {
+      // _slotIfAssigned will be UnownedSlot if it hasn't been assigned, so
+      // owner(m1) == _slotIfAssigned && _slotIfAssigned == UnownedSlot implies
+      // !changing(m1), so we don't need to check if there is an assignment or
+      // not.
+      if (!changing(m1) || owner(m1) == _slotIfAssigned) {
         if (version(m1) != _readVersions(i)) {
           forceRollback(InvalidReadCause(handle.ref, handle.offset))
           return false
@@ -221,31 +232,36 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
 
   private def rollbackWrites() {
     assert(_status.isInstanceOf[RollingBack])
-    writeBufferVisit(new TxnWriteBuffer.Visitor {
-      def visit(specValue: Any, handle: Handle[_]): Boolean = {
-        var m = handle.meta
-        while (owner(m) == slot) {
-          // we must use CAS because there can be concurrent pendingWaiter adds
-          // and concurrent "helpers" that release the lock
-          if (handle.metaCAS(m, withRollback(m))) return true
-          m = handle.meta
-        }
-        return true
-      }
-    })
 
-    // we don't need our slot any more
-    slotManager.release(slot)
+    if (_slotIfAssigned != UnownedSlot) {
+      writeBufferVisit(new TxnWriteBuffer.Visitor {
+        def visit(specValue: Any, handle: Handle[_]): Boolean = {
+          var m = handle.meta
+          while (owner(m) == _slotIfAssigned) {
+            // we must use CAS because there can be concurrent pendingWaiter adds
+            // and concurrent "helpers" that release the lock
+            if (handle.metaCAS(m, withRollback(m))) return true
+            m = handle.meta
+          }
+          return true
+        }
+      })
+
+      slotManager.release(_slotIfAssigned)
+    } else {
+      assert(writeBufferSize == 0)
+    }
   }
 
   private def acquireLocks(): Boolean = {
     writeBufferVisit(new TxnWriteBuffer.Visitor {
       def visit(specValue: Any, handle: Handle[_]): Boolean = {
+        assert(_slotIfAssigned != UnownedSlot)
         var m = handle.meta
         if (!changing(m)) {
           // remote requestRollback might have doomed us, followed by a steal
           // of this handle, so we must verify ownership each try
-          while (owner(m) == slot) {
+          while (owner(m) == _slotIfAssigned) {
             if (handle.metaCAS(m, withChanging(m))) return true
             m = handle.meta
           }
@@ -279,19 +295,23 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     })
 
     // second pass
-    writeBufferVisit(new TxnWriteBuffer.Visitor {
-      def visit(specValue: Any, handle: Handle[_]): Boolean = {
-        val m = handle.meta
-        if (owner(m) == slot) {
-          // release the lock, clear the PW bit, and update the version
-          handle.meta = withCommit(m, _commitVersion)
+    if (_slotIfAssigned != UnownedSlot) {
+      writeBufferVisit(new TxnWriteBuffer.Visitor {
+        def visit(specValue: Any, handle: Handle[_]): Boolean = {
+          val m = handle.meta
+          if (owner(m) == _slotIfAssigned) {
+            // release the lock, clear the PW bit, and update the version
+            handle.meta = withCommit(m, _commitVersion)
+          }
+          true
         }
-        true
-      }
-    })
+      })
 
-    // we don't need our slot any more
-    slotManager.release(slot)
+      // we don't need our slot any more
+      slotManager.release(_slotIfAssigned)
+    } else {
+      assert(writeBufferSize == 0)
+    }
 
     // unblock anybody waiting on a value change that has just occurred
     wakeupManager.trigger(wakeups)
@@ -350,7 +370,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     requireActive
 
     var m1 = handle.meta
-    if (owner(m1) == slot) {
+    if (_slotIfAssigned != UnownedSlot && owner(m1) == _slotIfAssigned) {
       // Self-owned.  This particular ref+offset might not be in the write
       // buffer, but it's definitely not in anybody else's.
       return writeBufferGet(handle)
@@ -411,7 +431,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     requireActive
 
     var m1 = handle.meta
-    if (owner(m1) == slot) {
+    if (_slotIfAssigned != UnownedSlot && owner(m1) == _slotIfAssigned) {
       return new UnrecordedRead[T] {
         def context: Option[Txn] = Some(TxnImpl.this.asInstanceOf[Txn])
         val value: T = writeBufferGet(handle)
@@ -504,7 +524,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
       case FrozenSlot => {
         throw new IllegalStateException("frozen")
       }
-      case s if s == slot => {
+      case s if (_slotIfAssigned != UnownedSlot && s == _slotIfAssigned) => {
         // Self-owned.  This particular ref+offset might not be in the write
         // buffer, but it's definitely not in anybody else's.
         writeBufferPut(handle, v)

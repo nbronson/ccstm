@@ -120,4 +120,10 @@ object STM {
    *  @see edu.stanford.ppl.ccstm.Txn#retry
    */
   def retry()(implicit txn: Txn) { txn.retry() }
+
+  object Debug {
+    def assertQuiescent() {
+      impl.STMImpl.slotManager.assertAllReleased()
+    }
+  }
 }

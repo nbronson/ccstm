@@ -265,7 +265,7 @@ private[ccstm] object NonTxn {
   }
 
   def weakCompareAndSetIdentity[T,R <: AnyRef with T](handle: Handle[T], before: R, after: T): Boolean = {
-    weakCompareAndSet(handle, before, after)
+    compareAndSetIdentity(handle, before, after)
   }
 
   def transform[T](handle: Handle[T], f: T => T) {
