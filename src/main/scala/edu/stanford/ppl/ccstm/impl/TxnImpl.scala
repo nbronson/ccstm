@@ -11,9 +11,6 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
 
   //////////////// State
 
-  // TODO: remove
-  val thread = Thread.currentThread
-
   // _status and _statusCAS come from StatusHolder via AbstractTxn
 
   // writeBufferSize, writeBufferGet, writeBufferPut, and writeBufferVisit come
@@ -80,8 +77,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   }
 
   /** Higher wins. */
-  // TODO: think about this more deeply
-  private val priority = STMImpl.hash(this, 0)
+  private val priority = FastPoorRandom.nextInt
 
   override def toString = {
     ("Txn@" + Integer.toHexString(hashCode) + "(" + status +
@@ -129,30 +125,30 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
         forceRollback(InvalidReadCause(handle.ref, handle.offset))
         return false
       } else {
+        // Either this txn or the owning must roll back.  We choose to give
+        // precedence to the owning txn, as it is the writer and is
+        // Validating.  There's a bit of trickiness since o may not be the
+        // owning transaction, it may be a new txn that reused the same slot.
+        // If the actual owning txn committed then the version number will
+        // have changed, which we will detect on the next pass because we
+        // aren't incrementing i.  If it rolled back then we don't have to.
+        // If the ownership is the same but the changing bit is not set (or if
+        // the owner txn is null) then we must have observed the race and we
+        // don't roll back here.
         val o = slotManager.lookup(owner(m1))
         if (o != null) {
           val s = o._status
           val m2 = handle.meta
-          if (owner(m2) == owner(m1)) {
-            // Either this txn or the owning must roll back.  We choose to give
-            // precedence to the owning txn, as it is the writer and is
-            // Validating.  There's a bit of trickiness since o may not be the
-            // owning transaction, it may be a new txn that reused the same slot.
-            // If the actual owning txn committed then the version number will
-            // have changed, which we will detect on the next pass because we
-            // aren't incrementing i.  If it rolled back then we don't have to.
-            // If the status that we see is Active (or if o is null), then we
-            // must have observed the race and we don't roll back here.
-            if (s.mightCommit && s != Active) {
+          if (changing(m2) && owner(m2) == owner(m1)) {
+            if (s.mightCommit) {
               forceRollback(InvalidReadCause(handle.ref, handle.offset))
               return false
             }
 
             stealHandle(handle, m2, o)
           }
-          // try again on this i
         }
-        // else stale read of owner, try again on this i
+        // try again on this i
       }
     }
 
@@ -168,14 +164,24 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   private[impl] def resolveWriteWriteConflict(currentOwner: TxnImpl, contended: AnyRef) {
     requireActive
 
-    val cause = WriteConflictCause(contended, null)
+    // TODO: drop priority if no slot has yet been assigned?
 
     // This test is _almost_ symmetric.  Tie goes to neither.
     if (this.priority <= currentOwner.priority) {
-      forceRollback(cause)
-      throw RollbackError
+      if (_slotIfAssigned == UnownedSlot) {
+        // We haven't acquired ownership of anything, so we can safely block
+        // without obstructing anybody.
+        currentOwner.awaitCompletedOrDoomed()
+        revalidate(0)
+      } else {
+        // We could block here without deadlock if
+        // this.priority < currentOwner.priority, but we are obstructing so we
+        // choose not to.
+        forceRollback(WriteConflictCause(contended, null))
+        throw RollbackError
+      }
     } else {
-      currentOwner.requestRollback(cause)
+      currentOwner.requestRollback(WriteConflictCause(contended, null))
     }
   }
 
@@ -273,7 +279,9 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
             m = handle.meta
           }
           if (!_status.isInstanceOf[RollingBack]) {
-            assert(false, m.toHexString + ", " + owner(m) + ", " + _status)
+            // TODO: remove this
+            println("FAILURE in acquireLocks: " + m.toHexString + ", " + owner(m) + ", " + TxnImpl.this)
+            _status = RollingBack(CallbackExceptionCause(handle, new Exception))
           }
           return false
         }

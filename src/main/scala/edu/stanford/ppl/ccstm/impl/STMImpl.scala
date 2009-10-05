@@ -34,6 +34,11 @@ private[ccstm] object STMImpl extends GV6 {
    */
   val SpinCount = 100
 
+  /** The number of times to spin tightly when waiting for another thread to
+   *  perform work that we can also perform.
+   */
+  val StealSpinCount = 10
+
   /** The number of times to spin with intervening calls to
    *  <code>Thread.yield</code> when waiting for a condition to become true.
    *  These spins will occur after the <code>SpinCount</code> spins.  After
@@ -172,6 +177,8 @@ private[ccstm] object STMImpl extends GV6 {
   //////////////// lock release helping
 
   def stealHandle(handle: Handle[_], m0: Meta, owningTxn: TxnImpl) {
+    // We can definitely make forward progress at the expense of a couple of
+    // extra CAS, but it is not useful for us to do a big spin with yields.
     var spins = 0
     do {
       val m = handle.meta
@@ -181,8 +188,7 @@ private[ccstm] object STMImpl extends GV6 {
       }
 
       spins += 1
-      if (spins > SpinCount) Thread.`yield`
-    } while (spins < SpinCount + YieldCount)
+    } while (spins < StealSpinCount)
 
     // If owningTxn has been doomed it might be a while before it releases its
     // lock on the handle.  Slot numbers are reused, however, so we have to
@@ -220,6 +226,14 @@ private[ccstm] object STMImpl extends GV6 {
    *  called before waiting for a transaction.
    */
   private[impl] def weakAwaitUnowned(handle: Handle[_], m0: Meta, currentTxn: TxnImpl) {
+    owner(m0) match {
+      case NonTxnSlot => weakAwaitNonTxnUnowned(handle, m0, currentTxn)
+      case FrozenSlot => throw new IllegalStateException("frozen")
+      case _ => weakAwaitTxnUnowned(handle, m0, currentTxn)
+    }
+  }
+
+  private def weakAwaitNonTxnUnowned(handle: Handle[_], m0: Meta, currentTxn: TxnImpl) {
     // spin a bit
     var spins = 0
     while (spins < SpinCount + YieldCount) {
@@ -232,14 +246,6 @@ private[ccstm] object STMImpl extends GV6 {
       if (currentTxn != null) currentTxn.requireActive
     }
 
-    owner(m0) match {
-      case NonTxnSlot => weakNoSpinAwaitNonTxnUnowned(handle, m0, currentTxn)
-      case FrozenSlot => throw new IllegalStateException("frozen")
-      case _ => weakNoSpinAwaitTxnUnowned(handle, m0, currentTxn)
-    }
-  }
-
-  private def weakNoSpinAwaitNonTxnUnowned(handle: Handle[_], m0: Meta, currentTxn: TxnImpl) {
     // to wait for a non-txn owner, we use pendingWakeups
     val event = wakeupManager.subscribe
     event.addSource(handle.ref, handle.offset)
@@ -259,28 +265,49 @@ private[ccstm] object STMImpl extends GV6 {
     } while (!event.triggered)
   }
 
-  private def weakNoSpinAwaitTxnUnowned(handle: Handle[_], m0: Meta, currentTxn: TxnImpl) {
-    // to wait for a txn owner, we track down the Txn and wait on it
-    val owningSlot = owner(m0)
-    val owningTxn = slotManager.lookup(owningSlot)
-    if (owningTxn != null && owningSlot == owner(handle.meta)) {
-      // The slot numbers are the same, which means that either owningTxn is
-      // the current owner or it has completed and its slot has been reused.
-      // Either way it is okay to wait for it (so long as we don't create a
-      // deadlock).
-      if (!owningTxn.completedOrDoomed) {
-        if (currentTxn != null) {
-          currentTxn.resolveWriteWriteConflict(owningTxn, handle)
-        }
-        owningTxn.awaitCompletedOrDoomed()
-      }
+  private def weakAwaitTxnUnowned(handle: Handle[_], m0: Meta, currentTxn: TxnImpl) {
+    if (currentTxn == null) {
+      // Spin a bit, but only from a non-txn context.  If this is a txn context
+      // We need to roll ourself back ASAP if that is the proper resolution.
+      var spins = 0
+      while (spins < SpinCount + YieldCount) {
+        spins += 1
+        if (spins > SpinCount) Thread.`yield`
 
-      if (ownerAndVersion(handle.meta) == ownerAndVersion(m0)) {
-        assert(owningTxn.status.mustRollBack)
-        stealHandle(handle, m0, owningTxn)
+        val m = handle.meta
+        if (ownerAndVersion(m) != ownerAndVersion(m0)) return
+
+        if (currentTxn != null) currentTxn.requireActive
       }
     }
-    // else invalid read of owningTxn or owningTxn has removed itself, either
-    // of which implies there was an ownership change
+
+    // to wait for a txn owner, we track down the Txn and wait on it
+    val owningSlot = owner(m0)
+    val owningTxn = slotManager.beginLookup(owningSlot)
+    try {
+      if (owningTxn != null && owningSlot == owner(handle.meta)) {
+        if (!owningTxn.completedOrDoomed) {
+          if (currentTxn != null) {
+            currentTxn.resolveWriteWriteConflict(owningTxn, handle)
+          }
+          owningTxn.awaitCompletedOrDoomed()
+        }
+
+        if (ownerAndVersion(handle.meta) == ownerAndVersion(m0)) {
+          assert(owningTxn.status.mustRollBack)
+
+          // we've already got the beginLookup, so no need to do a standalone
+          // stealHandle
+          var m = 0L
+          do {
+            m = handle.meta
+          } while (ownerAndVersion(m) == ownerAndVersion(m0) && !handle.metaCAS(m, withRollback(m)))
+
+          // no longer locked, or steal succeeded
+        }
+      }
+    } finally {
+      slotManager.endLookup(owningSlot, owningTxn)
+    }
   }
 }

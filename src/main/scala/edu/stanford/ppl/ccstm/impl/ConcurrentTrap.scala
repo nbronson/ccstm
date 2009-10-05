@@ -19,17 +19,18 @@ private[impl] object ConcurrentTrap {
 class ConcurrentTrap {
   // TODO: a more scalable implementation
 
-  @volatile private var _head: List[AnyRef] = Nil
+  @volatile private var _head: AnyRef = null
 
   private[impl] def newUpdater = {
-    AtomicReferenceFieldUpdater.newUpdater(classOf[ConcurrentTrap], classOf[List[_]], "_head")
+    AtomicReferenceFieldUpdater.newUpdater(classOf[ConcurrentTrap], classOf[AnyRef], "_head")
   }
 
   /** Adds a strong reference from this trap to <code>ref</code>. */
   def +=(ref: AnyRef) {
     while (true) {
-      val h = _head
-      if (ConcurrentTrap.headUpdater.compareAndSet(this, h, ref :: h)) return
+      val before = _head
+      val after = if (before == null) ref else (before, ref)
+      if (ConcurrentTrap.headUpdater.compareAndSet(this, before, after)) return
     }
   }
 }

@@ -213,16 +213,31 @@ object Txn {
   private[ccstm] val writeConflictCounter = new Counter
   private[ccstm] val vetoingWriteResourceCounter = new Counter
 
+  private[ccstm] def countsToStr: String = {
+    val buf = new StringBuilder
+    for (m <- Txn.getClass.getMethods.toList.reverse) {
+      val n = m.getName
+      if (n.endsWith("Count")) {
+        buf ++= "\nCCSTM: " + n + (" " * (26-n.length)) + " = " + m.invoke(Txn)
+      }
+    }
+    buf.toString
+  }
+
+//  new Thread("status updater") {
+//    setDaemon(true)
+//
+//    override def run {
+//      while (true) {
+//        println(countsToStr)
+//        Thread.sleep(5000)
+//      }
+//    }
+//  }.start()
+
   Runtime.getRuntime.addShutdownHook(new Thread("Txn shutdown hook") {
     override def run {
-      val buf = new StringBuilder
-      for (m <- Txn.getClass.getMethods.toList.reverse) {
-        val n = m.getName
-        if (n.endsWith("Count")) {
-          buf ++= "\nCCSTM: " + n + (" " * (26-n.length)) + " = " + m.invoke(Txn)
-        }
-      }
-      println(buf)
+      println(countsToStr)
     }
   })
 

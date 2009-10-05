@@ -99,7 +99,9 @@ private[ccstm] class StatusHolder {
     // spin failed, put ourself to sleep
     _anyAwaitingDecided = true
     this.synchronized {
-      while (!_status.decided) { this.wait }
+      while (!_status.decided) {
+        this.wait
+      }
     }
   }
 
