@@ -5,10 +5,9 @@
 package edu.stanford.ppl.stm
 
 import edu.stanford.ppl.ccstm._
-import org.scalatest.FunSuite
 
 
-class TxnSuite extends FunSuite {
+class TxnSuite extends STMFunSuite {
 
   test("empty transaction") {
     new Atomic { def body {

@@ -11,7 +11,7 @@ private object MetaHolder {
   val metadataUpdater = (new MetaHolder {}).newMetaUpdater
 }
 
-private[ccstm] abstract class MetaHolder(initialMeta: Long) {
+abstract class MetaHolder(initialMeta: Long) {
   def this() = this(0L)
   
   @volatile private[ccstm] var meta: Long = initialMeta

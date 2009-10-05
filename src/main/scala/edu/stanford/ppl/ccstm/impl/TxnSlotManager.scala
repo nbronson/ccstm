@@ -46,7 +46,10 @@ private[impl] class TxnSlotManager[T <: AnyRef](range: Int, reservedSlots: Int) 
   /** Returns the slot associated with <code>slot</code> at some instant.  The
    *  returned value may be obsolete before this method returns.
    */
-  def lookup(slot:Int): T = slots.get(slot)._2
+  def lookup(slot:Int): T = {
+    val p = slots.get(slot)
+    if (p != null) p._2 else null.asInstanceOf[T]
+  }
 
   /** A non-racy version of <code>lookup</code>, that must be paired with
    *  <code>endLookup</code>.
@@ -56,7 +59,7 @@ private[impl] class TxnSlotManager[T <: AnyRef](range: Int, reservedSlots: Int) 
     while (p != null && !slots.compareAndSet(slot, p, (p._1 + 1, p._2))) {
       p = slots.get(slot)
     }
-    p._2
+    if (p != null) p._2 else null.asInstanceOf[T]
   }
   
   def endLookup(slot: Int, observed: T) {

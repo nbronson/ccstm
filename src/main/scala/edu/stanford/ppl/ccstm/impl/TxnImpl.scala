@@ -11,6 +11,9 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
 
   //////////////// State
 
+  // TODO: remove
+  val thread = Thread.currentThread
+
   // _status and _statusCAS come from StatusHolder via AbstractTxn
 
   // writeBufferSize, writeBufferGet, writeBufferPut, and writeBufferVisit come
@@ -127,25 +130,26 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
         return false
       } else {
         val o = slotManager.lookup(owner(m1))
-        val s = o._status
-        val m2 = handle.meta
-        if (owner(m2) == owner(m1)) {
-          // Either this txn or the owning must roll back.  We choose to give
-          // precedence to the owning txn, as it is the writer and is
-          // Validating.  There's a bit of trickiness since o may not be the
-          // owning transaction, it may be a new txn that reused the same slot.
-          // If the actual owning txn committed then the version number will
-          // have changed, which we will detect on the next pass because we
-          // aren't incrementing i.  If it rolled back then we don't have to.
-          // If the status that we see is Active, then we must have observed
-          // the race and we don't roll back here.
-          if (s.mightCommit && s != Active) {
-            forceRollback(InvalidReadCause(handle.ref, handle.offset))
-            return false
+        if (o != null) {
+          val s = o._status
+          val m2 = handle.meta
+          if (owner(m2) == owner(m1)) {
+            // Either this txn or the owning must roll back.  We choose to give
+            // precedence to the owning txn, as it is the writer and is
+            // Validating.  There's a bit of trickiness since o may not be the
+            // owning transaction, it may be a new txn that reused the same slot.
+            // If the actual owning txn committed then the version number will
+            // have changed, which we will detect on the next pass because we
+            // aren't incrementing i.  If it rolled back then we don't have to.
+            // If the status that we see is Active (or if o is null), then we
+            // must have observed the race and we don't roll back here.
+            if (s.mightCommit && s != Active) {
+              forceRollback(InvalidReadCause(handle.ref, handle.offset))
+              return false
+            }
+
+            stealHandle(handle, m2, o)
           }
-
-          stealHandle(handle, m2, o)
-
           // try again on this i
         }
         // else stale read of owner, try again on this i
@@ -162,6 +166,8 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
    *  be acquired.
    */
   private[impl] def resolveWriteWriteConflict(currentOwner: TxnImpl, contended: AnyRef) {
+    requireActive
+
     val cause = WriteConflictCause(contended, null)
 
     // This test is _almost_ symmetric.  Tie goes to neither.
@@ -256,6 +262,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   private def acquireLocks(): Boolean = {
     writeBufferVisit(new TxnWriteBuffer.Visitor {
       def visit(specValue: Any, handle: Handle[_]): Boolean = {
+        // TODO: remove this check
         assert(_slotIfAssigned != UnownedSlot)
         var m = handle.meta
         if (!changing(m)) {
@@ -265,7 +272,9 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
             if (handle.metaCAS(m, withChanging(m))) return true
             m = handle.meta
           }
-          assert(_status.isInstanceOf[RollingBack])
+          if (!_status.isInstanceOf[RollingBack]) {
+            assert(false, m.toHexString + ", " + owner(m) + ", " + _status)
+          }
           return false
         }
         return true
@@ -339,10 +348,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   //////////////// lock management - similar to NonTxn but we also check for remote rollback
 
   private def weakAwaitUnowned(handle: Handle[_], m0: Meta) {
-    STMImpl.weakAwaitUnowned(handle, m0, () => {
-      requireActive
-      true
-    })
+    STMImpl.weakAwaitUnowned(handle, m0, this)
   }
 
   private def acquireOwnership(handle: Handle[_], m0: Meta): Meta = {
@@ -367,6 +373,8 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   //////////////// barrier implementations
   
   def get[T](handle: Handle[T]): T = {
+    if (barging) return readForWrite(handle)
+
     requireActive
 
     var m1 = handle.meta
@@ -398,6 +406,8 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   }
 
   def map[T,Z](handle: Handle[T], f: T => Z): Z = {
+    if (barging) return f(readForWrite(handle))
+
     val u = unrecordedRead(handle)
     val result = f(u.value)
     if (!u.recorded) {

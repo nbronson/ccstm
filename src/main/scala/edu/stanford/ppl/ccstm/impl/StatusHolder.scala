@@ -104,29 +104,25 @@ private[ccstm] class StatusHolder {
   }
 
   private[ccstm] def awaitCompletedOrDoomed() {
-    awaitCompletedOrDoomed(null)
-  }
-
-  private[ccstm] def awaitCompletedOrDoomed(earlyExit: () => Boolean) {
     // spin a bit
     var spins = 0
     while (spins < SpinCount + YieldCount) {
       spins += 1
       if (spins > SpinCount) Thread.`yield`
 
-      if (completedOrDoomed || (earlyExit != null && earlyExit())) return
+      if (completedOrDoomed) return
     }
 
     // spin failed, put ourself to sleep
     _anyAwaitingCompletedOrDoomed = true
     this.synchronized {
-      while (!(completedOrDoomed || (earlyExit != null && earlyExit()))) {
+      while (!completedOrDoomed) {
         this.wait
       }
     }
   }
 
-  private def completedOrDoomed = {
+  private[impl] def completedOrDoomed = {
     val s = _status
     s.completed || s.mustRollBack
   }

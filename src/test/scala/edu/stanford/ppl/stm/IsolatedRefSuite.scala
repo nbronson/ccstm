@@ -5,7 +5,6 @@
 package edu.stanford.ppl.stm
 
 import edu.stanford.ppl.ccstm._
-import org.scalatest.{Group, FunSuite}
 import scala.collection.jcl.IdentityHashMap
 
 
@@ -13,15 +12,7 @@ import scala.collection.jcl.IdentityHashMap
  *  outside interference, the tests cover non-transactional and transactional
  *  accesses, with various types and levels of bound view reuse.   
  */
-class IsolatedRefSuite extends FunSuite {
-
-  override protected def test(testName: String, testGroups: Group*)(f: => Unit) = {
-    super.test(testName, testGroups:_*)({
-      f
-      STM.Debug.assertQuiescent()
-    })
-  }
-
+class IsolatedRefSuite extends STMFunSuite {
 
   /** Binder implementations provide a way of obtaining Ref.Bound instances
    *  from a Ref.  The bound views may be reused, or not, and they may be

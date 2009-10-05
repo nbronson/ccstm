@@ -214,11 +214,12 @@ private[ccstm] object STMImpl extends GV6 {
 
   /** Once <code>handle.meta</code> has been unlocked since a time it had
    *  value <code>m0</code>, the method will return.  It might return sooner,
-   *  but an attempt is made to do the right thing.  If
-   *  <code>earlyExit()</code> returns true, then this method might return
-   *  sooner.  <code>earlyExit</code> may be null, which implies no early exit.
+   *  but an attempt is made to do the right thing.  If <code>currentTxn</code>
+   *  is non-null, <code>currentTxn.requireActive</code> will be called before
+   *  blocking and <code>currentTxn.resolveWriteWriteConflict</code> will be
+   *  called before waiting for a transaction.
    */
-  private[impl] def weakAwaitUnowned(handle: Handle[_], m0: Meta, earlyExit: () => Boolean) {
+  private[impl] def weakAwaitUnowned(handle: Handle[_], m0: Meta, currentTxn: TxnImpl) {
     // spin a bit
     var spins = 0
     while (spins < SpinCount + YieldCount) {
@@ -228,17 +229,17 @@ private[ccstm] object STMImpl extends GV6 {
       val m = handle.meta
       if (ownerAndVersion(m) != ownerAndVersion(m0)) return
 
-      if (earlyExit != null && earlyExit()) return
+      if (currentTxn != null) currentTxn.requireActive
     }
 
     owner(m0) match {
-      case NonTxnSlot => weakNoSpinAwaitNonTxnUnowned(handle, m0, earlyExit)
+      case NonTxnSlot => weakNoSpinAwaitNonTxnUnowned(handle, m0, currentTxn)
       case FrozenSlot => throw new IllegalStateException("frozen")
-      case _ => weakNoSpinAwaitTxnUnowned(handle, m0, earlyExit)
+      case _ => weakNoSpinAwaitTxnUnowned(handle, m0, currentTxn)
     }
   }
 
-  private def weakNoSpinAwaitNonTxnUnowned(handle: Handle[_], m0: Meta, earlyExit: () => Boolean) {
+  private def weakNoSpinAwaitNonTxnUnowned(handle: Handle[_], m0: Meta, currentTxn: TxnImpl) {
     // to wait for a non-txn owner, we use pendingWakeups
     val event = wakeupManager.subscribe
     event.addSource(handle.ref, handle.offset)
@@ -252,28 +253,34 @@ private[ccstm] object STMImpl extends GV6 {
       if (pendingWakeups(m) || handle.metaCAS(m, withPendingWakeups(m))) {
         // after the block, things will have changed with reasonably high
         // likelihood (spurious wakeups are okay)
-        event.await(earlyExit)
+        event.await(currentTxn)
         return
       }
     } while (!event.triggered)
   }
 
-  private def weakNoSpinAwaitTxnUnowned(handle: Handle[_], m0: Meta, earlyExit: () => Boolean) {
+  private def weakNoSpinAwaitTxnUnowned(handle: Handle[_], m0: Meta, currentTxn: TxnImpl) {
     // to wait for a txn owner, we track down the Txn and wait on it
     val owningSlot = owner(m0)
     val owningTxn = slotManager.lookup(owningSlot)
-    if (owningSlot == owner(handle.meta)) {
+    if (owningTxn != null && owningSlot == owner(handle.meta)) {
       // The slot numbers are the same, which means that either owningTxn is
       // the current owner or it has completed and its slot has been reused.
-      // Either way it is okay to wait for it.
-      owningTxn.awaitCompletedOrDoomed(earlyExit)
+      // Either way it is okay to wait for it (so long as we don't create a
+      // deadlock).
+      if (!owningTxn.completedOrDoomed) {
+        if (currentTxn != null) {
+          currentTxn.resolveWriteWriteConflict(owningTxn, handle)
+        }
+        owningTxn.awaitCompletedOrDoomed()
+      }
 
       if (ownerAndVersion(handle.meta) == ownerAndVersion(m0)) {
         assert(owningTxn.status.mustRollBack)
-        if (earlyExit != null && earlyExit()) return
         stealHandle(handle, m0, owningTxn)
       }
     }
-    // else invalid read of owningTxn, which means there was an ownership change
+    // else invalid read of owningTxn or owningTxn has removed itself, either
+    // of which implies there was an ownership change
   }
 }

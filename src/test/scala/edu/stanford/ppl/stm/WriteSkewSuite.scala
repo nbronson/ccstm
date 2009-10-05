@@ -4,11 +4,10 @@
 
 package edu.stanford.ppl.stm
 
-
 import edu.stanford.ppl.ccstm._
-import org.scalatest.FunSuite
 
-class WriteSkewSuite extends FunSuite {
+
+class WriteSkewSuite extends STMFunSuite {
   val IncrCount = 1000000
 
   test("write skew test") {

@@ -125,22 +125,14 @@ private[impl] class WakeupManager(numChannels: Int, numSources: Int) {
       }
     }
 
-    def await() {
-      if (!_triggered) {
-        synchronized {
-          while (!_triggered) {
-            wait
-          }
-        }
-      }
-    }
+    def await() { await(null) }
 
-    def await(earlyExit: () => Boolean) {
+    def await(currentTxn: TxnImpl) {
       if (!_triggered) {
-        if (earlyExit != null && earlyExit()) return
+        if (currentTxn != null) currentTxn.requireActive
         synchronized {
           while (!_triggered) {
-            if (earlyExit != null && earlyExit()) return
+            if (currentTxn != null) currentTxn.requireActive
             wait
           }
         }

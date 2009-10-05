@@ -7,10 +7,9 @@ package edu.stanford.ppl.stm
 import edu.stanford.ppl.ccstm.collection.TArray
 import edu.stanford.ppl.ccstm._
 import java.util.concurrent.CyclicBarrier
-import org.scalatest.FunSuite
 
 
-class HistogramSuite extends FunSuite {
+class HistogramSuite extends STMFunSuite {
 
   val OpsPerTest = 1000000
 

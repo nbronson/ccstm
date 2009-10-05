@@ -6,10 +6,9 @@ package edu.stanford.ppl.stm
 
 import ccstm.{Atomic, Txn, Ref}
 import java.util.concurrent.CyclicBarrier
-import org.scalatest.FunSuite
 
 
-class FlipperSuite extends FunSuite {
+class FlipperSuite extends STMFunSuite {
   val DEFAULT_SYNC_COUNT = 3
   val DEFAULT_TRANS_COUNT = 100
   val DEFAULT_INSTR_COUNT = 100
