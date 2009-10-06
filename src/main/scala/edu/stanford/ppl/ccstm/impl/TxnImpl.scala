@@ -66,26 +66,28 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     (count == 0)
   }
 
-  /** The slot assigned to this transaction.  Lazily acquired so that usused
+  /** The slot assigned to this transaction.  Lazily acquired so that unused
    *  TxnImpl instances don't cause problems.
    *  TODO: should we use a WeakReference queue to roll back GC-ed uncommitted txns?
    */
   private var _slotIfAssigned = UnownedSlot
-  private def slot: Slot = {
-    if (_slotIfAssigned == UnownedSlot) _slotIfAssigned = slotManager.assign(this)
-    _slotIfAssigned
+
+  private def assignSlot {
+    if (_slotIfAssigned == UnownedSlot) {
+      _slotIfAssigned = slotManager.assign(this)
+    }
   }
 
   /** Higher wins. */
   private val priority = FastPoorRandom.nextInt
 
   override def toString = {
-    ("Txn@" + Integer.toHexString(hashCode) + "(" + status +
+    ("Txn@" + hashCode.toHexString + "(" + status +
             ", slot=" + (if (_slotIfAssigned == 0) "unassigned" else _slotIfAssigned.toString) +
             ", priority=" + priority +
             ", readCount=" + _readCount +
             ", writeBufferSize=" + writeBufferSize +
-            ", readVersion=" + _readVersion +
+            ", readVersion=0x" + _readVersion.toHexString +
             (if (barging) ", barging" else "") + ")")
   }
 
@@ -289,6 +291,11 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
             _status = RollingBack(CallbackExceptionCause(handle, new Exception))
           }
           return false
+        } else {
+          // TODO: remove this check
+          if (owner(m) != _slotIfAssigned && !_status.isInstanceOf[RollingBack]) {
+            println("FAILURE in acquireLocks: " + m.toHexString + ", " + owner(m) + ", " + TxnImpl.this)
+          }
         }
         return true
       }
@@ -296,13 +303,14 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   }
 
   private def commitWrites() {
+    if (_slotIfAssigned == UnownedSlot) {
+      return
+    }
+
     // first pass
     var wakeups = 0L
     writeBufferVisit(new TxnWriteBuffer.Visitor {
       def visit(specValue: Any, handle: Handle[_]): Boolean = {
-        // TODO: remove this check
-        assert(version(handle.meta) < _commitVersion)
-
         // update the values
         handle.asInstanceOf[Handle[Any]].data = specValue
 
@@ -317,20 +325,16 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     })
 
     // second pass
-    if (_slotIfAssigned != UnownedSlot) {
-      writeBufferVisit(new TxnWriteBuffer.Visitor {
-        def visit(specValue: Any, handle: Handle[_]): Boolean = {
-          val m = handle.meta
-          if (owner(m) == _slotIfAssigned) {
-            // release the lock, clear the PW bit, and update the version
-            handle.meta = withCommit(m, _commitVersion)
-          }
-          true
+    writeBufferVisit(new TxnWriteBuffer.Visitor {
+      def visit(specValue: Any, handle: Handle[_]): Boolean = {
+        val m = handle.meta
+        if (owner(m) == _slotIfAssigned) {
+          // release the lock, clear the PW bit, and update the version
+          handle.meta = withCommit(m, _commitVersion)
         }
-      })
-    } else {
-      assert(writeBufferSize == 0)
-    }
+        true
+      }
+    })
 
     // unblock anybody waiting on a value change that has just occurred
     wakeupManager.trigger(wakeups)
@@ -362,6 +366,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   }
 
   private def acquireOwnership(handle: Handle[_], m0: Meta): Meta = {
+    assert(_slotIfAssigned != UnownedSlot)
     var m = m0
     var done = false
     while (!done) {
@@ -369,7 +374,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
         weakAwaitUnowned(handle, m)
         m = handle.meta
       }
-      val after = withOwner(m, slot)
+      val after = withOwner(m, _slotIfAssigned)
       if (handle.metaCAS(m, after)) {
         m = after
         done = true
@@ -503,8 +508,17 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   def set[T](handle: Handle[T], v: T) {
     requireActive
 
+    // It is important that we assign the slot _before_ we read the metadata,
+    // because otherwise we might think we own it when we actually have just
+    // acquired the slot from a previous txn from which we also have a stale
+    // metadata read.
+    assignSlot
+
     val m0 = handle.meta
-    if (owner(m0) == slot) {
+    if (owner(m0) == _slotIfAssigned) {
+      // TODO: Remove this check
+      assert(writeBufferSize > 0 && !changing(m0))
+
       // Self-owned.  This particular ref+offset might not be in the write
       // buffer, but it's definitely not in anybody else's.
       writeBufferPut(handle, v)
@@ -532,7 +546,8 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     val m0 = handle.meta
     owner(m0) match {
       case UnownedSlot => {
-        if (handle.metaCAS(m0, withOwner(m0, slot))) {
+        assignSlot
+        if (handle.metaCAS(m0, withOwner(m0, _slotIfAssigned))) {
           writeBufferPut(handle, v)
           if (version(m0) > _readVersion) {
             revalidate(version(m0))
@@ -562,6 +577,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   def readForWrite[T](handle: Handle[T]): T = {
     requireActive
 
+    assignSlot
     val m0 = handle.meta
     if (owner(m0) == FrozenSlot) {
       // revert back to normal read
@@ -571,7 +587,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
       return handle.data
     }
 
-    if (owner(m0) == slot) {
+    if (owner(m0) == _slotIfAssigned) {
       return writeBufferGetForPut(handle)
     }
 

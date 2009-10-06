@@ -191,6 +191,7 @@ private [impl] trait TxnWriteBuffer {
 
 
   private def grow() {
+    val oldSize = _size
     val oldInts = _ints
     val oldObjs = _objs
     val n = capacity
@@ -207,6 +208,7 @@ private [impl] trait TxnWriteBuffer {
       }
       i += 1
     }
+    assert(_size == oldSize)
   }
 
   private[impl] def writeBufferStr = {
