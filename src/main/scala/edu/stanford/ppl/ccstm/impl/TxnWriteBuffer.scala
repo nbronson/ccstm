@@ -189,6 +189,11 @@ private [impl] trait TxnWriteBuffer {
     return true
   }
 
+  private[impl] def writeBufferDestroy() {
+    _ints = null
+    _objs = null
+  }
+
 
   private def grow() {
     val oldSize = _size

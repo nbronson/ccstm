@@ -16,18 +16,23 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   // writeBufferSize, writeBufferGet, writeBufferPut, and writeBufferVisit come
   // from TxnWriteBuffer
 
-  private[impl] var _readCount = 0
-  private[impl] var _readHandles = new Array[Handle[_]](16)
-  private[impl] var _readVersions = new Array[Long](16)
+  private var _readCount = 0
+  private var _readHandles = new Array[Handle[_]](16)
+  private var _readVersions = new Array[Long](16)
 
-  private[impl] def addToReadSet(handle: Handle[_], version: Long) {
-    if (_readCount == _readHandles.length) growReadSet()
+  private def readSetAdd(handle: Handle[_], version: Long) {
+    if (_readCount == _readHandles.length) readSetGrow()
     _readHandles(_readCount) = handle
     _readVersions(_readCount) = version
     _readCount += 1
   }
 
-  private def growReadSet() {
+  private def readSetDestroy() {
+    _readHandles = null
+    _readVersions = null
+  }
+
+  private def readSetGrow() {
     _readHandles = java.util.Arrays.copyOf(_readHandles, _readHandles.length * 2)
     _readVersions = java.util.Arrays.copyOf(_readVersions, _readVersions.length * 2)
   }
@@ -35,9 +40,9 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   /** The <code>VersionTrap</code> associated with <code>_readVersion</code>,
    *  used to make sure that any ephemeral handles created after this
    *  transaction's virtual read snapshot will survive until the snapshot's
-   *  validation.
+   *  validation.  Lazily assigned.
    */
-  private var _readVersionTrap: VersionTrap = STMImpl.freshReadVersion
+  private var _readVersionTrap: VersionTrap = null
 
   /** The read version of this transaction.  It is guaranteed that all values
    *  read by this transaction have a version number less than or equal to this
@@ -45,12 +50,12 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
    *  transaction will label those writes with a version number greater than
    *  this value.  The read version must never be greater than
    *  <code>globalVersion.get</code>, must never decrease, and each time it is
-   *  changed the read set must be revalidated.
+   *  changed the read set must be revalidated.  Lazily assigned.
    */
-  private[impl] var _readVersion: Version = _readVersionTrap.version
+  private[impl] var _readVersion: Version = 0
 
-  /** The commit version of this transaction, or -1 if not assigned. */
-  private[impl] var _commitVersion: Version = -1L
+  /** The commit version of this transaction, or 0 if not assigned. */
+  private[impl] var _commitVersion: Version = 0L
 
   /** True if all reads should be performed as writes. */
   private[impl] val barging: Boolean = shouldBarge(failureHistory)
@@ -103,6 +108,17 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     _readVersionTrap = freshReadVersion(minReadVersion)
     _readVersion = _readVersionTrap.version
     if (!revalidateImpl()) throw RollbackError
+  }
+
+  /** Calls revalidate(version) if version &le; _readVersion. */
+  private def revalidateIfRequired(version: Version) {
+    if (_readVersion == 0) {
+      _readVersionTrap = freshReadVersion
+      _readVersion = _readVersionTrap.version
+    }
+    if (version > _readVersion) {
+      revalidate(version)
+    }
   }
 
   /** Returns true if valid. */
@@ -240,6 +256,14 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
         slotManager.release(_slotIfAssigned)
       }
       callAfter()
+
+      // Clear out references from this Txn, to aid GC in case someone keeps a
+      // Txn reference around.  The trap is especially important because it
+      // will pin all future VersionTrap-s, and therefore pin all future 
+      // TxnImpl-s.
+      _readVersionTrap = null
+      writeBufferDestroy()
+      readSetDestroy()
     }
   }
 
@@ -407,9 +431,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
         weakAwaitUnowned(handle, m0)
         m0 = handle.meta
       }
-      if (version(m0) > _readVersion) {
-        revalidate(version(m0))
-      }
+      revalidateIfRequired(version(m0))
       value = handle.data
       if (owner(m0) == FrozenSlot) {
         // version can't change, just checking against _readVersion is enough
@@ -420,7 +442,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
 
     // Stable read.  The second read of handle.meta is required for
     // opacity, and it also enables the read-only commit optimization.
-    addToReadSet(handle, version(m1))
+    readSetAdd(handle, version(m1))
     return value
   }
 
@@ -487,9 +509,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
         weakAwaitUnowned(handle, m0)
         m0 = handle.meta
       }
-      if (version(m0) > _readVersion) {
-        revalidate(version(m0))
-      }
+      revalidateIfRequired(version(m0))
       v = handle.data
       m1 = handle.meta
     } while (changingAndVersion(m0) != changingAndVersion(m1))
@@ -535,9 +555,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     // We must put something in the buffer before calling revalidate in case we
     // roll back, so that the ownership gets released.
 
-    if (version(m) > _readVersion) {
-      revalidate(version(m))
-    }
+    revalidateIfRequired(version(m))
   }
   
   def tryWrite[T](handle: Handle[T], v: T): Boolean = {
@@ -549,9 +567,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
         assignSlot
         if (handle.metaCAS(m0, withOwner(m0, _slotIfAssigned))) {
           writeBufferPut(handle, v)
-          if (version(m0) > _readVersion) {
-            revalidate(version(m0))
-          }
+          revalidateIfRequired(version(m0))
           true
         } else {
           false
@@ -581,9 +597,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     val m0 = handle.meta
     if (owner(m0) == FrozenSlot) {
       // revert back to normal read
-      if (version(m0) > _readVersion) {
-        revalidate(version(m0))
-      }
+      revalidateIfRequired(version(m0))
       return handle.data
     }
 
@@ -594,9 +608,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     val m = acquireOwnership(handle, m0)
     val v = writeBufferGetForPut(handle)
 
-    if (version(m) > _readVersion) {
-      revalidate(version(m))
-    }
+    revalidateIfRequired(version(m))
 
     return v
   }

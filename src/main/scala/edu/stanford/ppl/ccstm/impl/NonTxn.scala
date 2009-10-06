@@ -100,18 +100,16 @@ private[ccstm] object NonTxn {
   }
 
   private def releaseLock(handle: Handle[_], m0: Meta, newVersion: Version) {
-    var before = m0
-    if (!handle.metaCAS(before, withCommit(before, newVersion))) {
-      // must have been a concurrent set of pendingWakeups
-      before = withPendingWakeups(before)
-      if (!handle.metaCAS(before, withCommit(before, newVersion))) {
-        // should never happen
-        throw new Error
-      }
+    var m = m0
+    while (!handle.metaCAS(m, withCommit(m, newVersion))) {
+      // There can be a concurrent pendingWakeups <- true, and there can also
+      // be a twiddle of the userBit by this thread between when m0 was sampled
+      // and now.
+      m = handle.meta
     }
 
     // trigger any required wakeups
-    if (pendingWakeups(before)) {
+    if (pendingWakeups(m)) {
       wakeupManager.trigger(wakeupManager.prepareToTrigger(handle.ref, handle.offset))
     }
   }
