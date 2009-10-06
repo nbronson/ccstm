@@ -205,9 +205,17 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   }
 
   private[ccstm] def retryImpl() {
-    if (_readCount == 0) {
+    if (_readCount == 0 && writeBufferSize == 0) {
       throw new IllegalStateException("retry doesn't make sense with empty read set")
     }
+
+    // writeBuffer entries are part of the conceptual read set
+    writeBufferVisit(new TxnWriteBuffer.Visitor {
+      def visit(specValue: Any, handle: Handle[_]): Boolean = {
+        readSetAdd(handle, version(handle.meta))
+        true
+      }
+    })
 
     forceRollback(new ExplicitRetryCause(ReadSet(_readCount, _readVersions, _readHandles)))
     throw RollbackError
