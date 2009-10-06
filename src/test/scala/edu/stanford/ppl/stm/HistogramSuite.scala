@@ -46,7 +46,12 @@ class HistogramSuite extends STMFunSuite {
     val buckets: Seq[Ref[Int]] = (if (useTArray) {
       new TArray[Int](bucketCount).refs
     } else {
-      Array.fromFunction(i => Ref(0))(bucketCount)
+      // Array.fromFunction results in buckets being a BoxedAnyArray, which has
+      // synchronization on each access
+      //Array.fromFunction(i => Ref(0))(bucketCount)
+      val a = new Array[Ref[Int]](bucketCount)
+      for (i <- 0 until a.length) a(i) = Ref(0)
+      a
     })
     val threads = new Array[Thread](workerCount)
     val barrier = new CyclicBarrier(workerCount, new Runnable {

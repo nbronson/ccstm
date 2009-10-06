@@ -13,7 +13,7 @@ class Counter {
   private val GrowThreshold = 8
   private val MaxSlots = 4 * Runtime.getRuntime.availableProcessors
 
-  private val state = new AtomicReference(Array.fromFunction(i => new AtomicLong)(4), 0)
+  private val state = new AtomicReference(allocateSlots(4), 0)
 
   /** Returns the current value of the counter. */
   def get: Long = {
@@ -58,9 +58,16 @@ class Counter {
   private def attemptGrow {
     val s = state.get
     val prev = s._1
-    val next = Array.fromFunction(i => if (i < prev.length) prev(i) else new AtomicLong)(prev.length * 2)
+    val next = allocateSlots(prev.length * 2)
+    for (i <- 0 until prev.length) next(i).set(prev(i).get)
     state.compareAndSet(s, (next,0))
   }
 
-  override def toString = get.toString 
+  private def allocateSlots(size: Int): Array[AtomicLong] = {
+    val a = new Array[AtomicLong](size)
+    for (i <- 0 until size) a(i) = new AtomicLong
+    a
+  }
+
+  override def toString = get.toString
 }

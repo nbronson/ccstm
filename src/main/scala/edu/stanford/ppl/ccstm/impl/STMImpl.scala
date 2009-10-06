@@ -139,7 +139,7 @@ private[ccstm] object STMImpl extends GV6 {
         spins += rs.size
       }
       if (spins > SpinCount) Thread.`yield`
-  }
+    }
 
     while (true) {
       val event = wakeupManager.subscribe
