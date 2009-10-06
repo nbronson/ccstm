@@ -125,7 +125,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
         forceRollback(InvalidReadCause(handle.ref, handle.offset))
         return false
       } else {
-        // Either this txn or the owning must roll back.  We choose to give
+        // Either this txn or the owning txn must roll back.  We choose to give
         // precedence to the owning txn, as it is the writer and is
         // Validating.  There's a bit of trickiness since o may not be the
         // owning transaction, it may be a new txn that reused the same slot.
@@ -172,7 +172,6 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
         // We haven't acquired ownership of anything, so we can safely block
         // without obstructing anybody.
         currentOwner.awaitCompletedOrDoomed()
-        revalidate(0)
       } else {
         // We could block here without deadlock if
         // this.priority < currentOwner.priority, but we are obstructing so we
@@ -181,6 +180,8 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
         throw RollbackError
       }
     } else {
+      // This will resolve the conflict regardless of whether it succeeds or
+      // fails. 
       currentOwner.requestRollback(WriteConflictCause(contended, null))
     }
   }
@@ -195,49 +196,55 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   }
 
   private[ccstm] def commitImpl(): Status = {
-    if (status.mustRollBack || !writeLikeResourcesPrepare()) {
-      return completeRollback()
-    }
+    try {
+      if (status.mustRollBack || !writeLikeResourcesPrepare()) {
+        return completeRollback()
+      }
 
-    if (writeBufferSize == 0 && !writeResourcesPresent) {
-      // read-only transactions are easy to commit, because all of the reads
-      // are already guaranteed to be consistent
-      if (!_statusCAS(Active, Committed)) {
-        // remote requestRollback got us at the last moment
-        assert(_status.isInstanceOf[RollingBack])
-        _status = Rolledback(status.rollbackCause)
+      if (writeBufferSize == 0 && !writeResourcesPresent) {
+        // read-only transactions are easy to commit, because all of the reads
+        // are already guaranteed to be consistent
+        if (!_statusCAS(Active, Committed)) {
+          // remote requestRollback got us at the last moment
+          assert(_status.isInstanceOf[RollingBack])
+          _status = Rolledback(status.rollbackCause)
+        }
+        return _status
+      }
+
+      if (!_statusCAS(Active, Validating)) return completeRollback()
+
+      if (!acquireLocks()) return completeRollback()
+
+      // this is our linearization point
+      _commitVersion = freshCommitVersion(globalVersion.get)
+
+      // if the reads are still valid, then they were valid at the linearization
+      // point
+      if (!revalidateImpl()) return completeRollback()
+
+      // attempt to decide commit
+      if (!_statusCAS(Validating, Committing)) return completeRollback()
+
+      commitWrites()
+      writeResourcesPerformCommit()
+      _status = Committed
+
+      return Committed
+      
+    } finally {
+      // cleanup
+      if (_slotIfAssigned != UnownedSlot) {
+        slotManager.release(_slotIfAssigned)
       }
       callAfter()
-      return _status
     }
-
-    if (!_statusCAS(Active, Validating)) return completeRollback()
-
-    if (!acquireLocks()) return completeRollback()
-
-    // this is our linearization point
-    _commitVersion = freshCommitVersion(globalVersion.get)
-
-    // if the reads are still valid, then they were valid at the linearization
-    // point
-    if (!revalidateImpl()) return completeRollback()
-
-    // attempt to decide commit
-    if (!_statusCAS(Validating, Committing)) return completeRollback()
-
-    commitWrites()
-    writeResourcesPerformCommit()
-    _status = Committed
-    callAfter()
-
-    return Committed
   }
 
   private def completeRollback(): Status = {
     rollbackWrites()
     writeResourcesPerformRollback()
     _status = Rolledback(status.rollbackCause)
-    callAfter()
 
     return _status
   }
@@ -258,8 +265,6 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
           return true
         }
       })
-
-      slotManager.release(_slotIfAssigned)
     } else {
       assert(writeBufferSize == 0)
     }
@@ -323,9 +328,6 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
           true
         }
       })
-
-      // we don't need our slot any more
-      slotManager.release(_slotIfAssigned)
     } else {
       assert(writeBufferSize == 0)
     }
@@ -404,6 +406,10 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
         revalidate(version(m0))
       }
       value = handle.data
+      if (owner(m0) == FrozenSlot) {
+        // version can't change, just checking against _readVersion is enough
+        return value
+      }
       m1 = handle.meta
     } while (changingAndVersion(m0) != changingAndVersion(m1))
 
@@ -486,14 +492,11 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     // Everything above this line is the same as for get().  Is there a way to
     // share some of that code without incurring boxing/unboxing penalties?
 
-    addToReadSet(handle, version(m1))
-    v
-
     return new UnrecordedRead[T] {
       def context: Option[Txn] = Some(TxnImpl.this.asInstanceOf[Txn])
       def value: T = v
       def stillValid = changingAndVersion(handle.meta) == changingAndVersion(m1)
-      def recorded = false
+      def recorded = owner(m1) == FrozenSlot
     }
   }
 
@@ -560,6 +563,14 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     requireActive
 
     val m0 = handle.meta
+    if (owner(m0) == FrozenSlot) {
+      // revert back to normal read
+      if (version(m0) > _readVersion) {
+        revalidate(version(m0))
+      }
+      return handle.data
+    }
+
     if (owner(m0) == slot) {
       return writeBufferGetForPut(handle)
     }

@@ -65,7 +65,7 @@ class TArray[T](length0: Int) {
     protected def handle = this
 
     private[ccstm] def meta = _meta.get(index)
-    private[ccstm] def meta_=(v: Long) = _meta.set(index, v)
+    private[ccstm] def meta_=(v: Long) { _meta.set(index, v) }
     private[ccstm] def metaCAS(before: Long, after: Long) = _meta.compareAndSet(index, before, after)
     private[ccstm] def ref = TArray.this
     private[ccstm] def offset = index

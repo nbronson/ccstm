@@ -444,7 +444,17 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
 
   def retry() { retryImpl() }
 
-  def commit(): Status = commitImpl()
+  def commit(): Status = {
+    try {
+      commitImpl()
+    } catch {
+      case x => {
+        Console.err.println("rethrowing unexpected exception during commitImpl")
+        x.printStackTrace
+        throw x
+      }
+    }
+  }
 
   private[ccstm] def commitAndRethrow() {
     val s = commit()

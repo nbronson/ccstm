@@ -4,6 +4,7 @@
 
 package edu.stanford.ppl.stm
 
+import ccstm.collection.TBooleanRef
 import ccstm.{Atomic, Txn, Ref}
 import java.util.concurrent.CyclicBarrier
 
@@ -63,7 +64,7 @@ class FlipperSuite extends STMFunSuite {
       print("computing sequentially...")
       Console.flush
 
-      val P = Array.fromFunction(i => Ref(false))(len)
+      val P = Array.fromFunction[Ref[Boolean]]((i: Int) => new TBooleanRef(false))(len)
       val expected = computeSequential(this, P)
 
       print("\ncomputing in parallel with transactions...")
@@ -166,7 +167,10 @@ class FlipperSuite extends STMFunSuite {
         try {
           task()
         } catch {
-          case x => failure = x
+          case x => {
+            x.printStackTrace
+            failure = x
+          }
         }
       }
     }

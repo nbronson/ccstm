@@ -1,6 +1,6 @@
 /* CCSTM - (c) 2009 Stanford University - PPL */
 
-// TRef
+// TIntRef
 
 package edu.stanford.ppl.ccstm.collection
 

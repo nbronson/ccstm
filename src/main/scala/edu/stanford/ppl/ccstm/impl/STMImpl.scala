@@ -177,6 +177,8 @@ private[ccstm] object STMImpl extends GV6 {
   //////////////// lock release helping
 
   def stealHandle(handle: Handle[_], m0: Meta, owningTxn: TxnImpl) {
+    assert(owningTxn.status.mustRollBack)
+
     // We can definitely make forward progress at the expense of a couple of
     // extra CAS, but it is not useful for us to do a big spin with yields.
     var spins = 0
@@ -199,7 +201,7 @@ private[ccstm] object STMImpl extends GV6 {
     val o = slotManager.beginLookup(owningSlot)
     try {
       if (o ne owningTxn) {
-        // if txn unregistered itself from slotManager, then it has already
+        // owningTxn unregistered itself from slotManager, so it has already
         // released all of its locks
         return
       }
@@ -293,18 +295,15 @@ private[ccstm] object STMImpl extends GV6 {
           owningTxn.awaitCompletedOrDoomed()
         }
 
-        if (ownerAndVersion(handle.meta) == ownerAndVersion(m0)) {
-          assert(owningTxn.status.mustRollBack)
+        // we've already got the beginLookup, so no need to do a standalone
+        // stealHandle
+        var m = 0L
+        do {
+          m = handle.meta
+          assert(ownerAndVersion(m) != ownerAndVersion(m0) || owningTxn._status.mustRollBack)
+        } while (ownerAndVersion(m) == ownerAndVersion(m0) && !handle.metaCAS(m, withRollback(m)))
 
-          // we've already got the beginLookup, so no need to do a standalone
-          // stealHandle
-          var m = 0L
-          do {
-            m = handle.meta
-          } while (ownerAndVersion(m) == ownerAndVersion(m0) && !handle.metaCAS(m, withRollback(m)))
-
-          // no longer locked, or steal succeeded
-        }
+        // no longer locked, or steal succeeded
       }
     } finally {
       slotManager.endLookup(owningSlot, owningTxn)
