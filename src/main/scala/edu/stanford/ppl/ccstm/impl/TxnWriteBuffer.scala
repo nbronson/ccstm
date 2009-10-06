@@ -115,11 +115,9 @@ private [impl] trait TxnWriteBuffer {
 
       // find an entry within the 31 previous that can be moved to i
       i = hopscotch(i, n)
-      println("hopscotch")
     } while (i != -1)
 
     // hopscotch failed
-    println("hopscotch failed")
     grow()
     return findOrAdd(ref, offset)
   }
@@ -181,17 +179,13 @@ private [impl] trait TxnWriteBuffer {
     
     val n = capacity
     var i = 0
-    var count = 0
     while (i < n) {
       val handle = _objs(handleI(i))
       if (handle ne null) {
-        count += 1
         if (!visitor.visit(_objs(specValueI(i)), handle.asInstanceOf[Handle[_]])) return false
       }
       i += 1
     }
-    // TODO: remove
-    assert(count == _size)
     return true
   }
 
