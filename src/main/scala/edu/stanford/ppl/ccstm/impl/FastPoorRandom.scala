@@ -21,7 +21,7 @@ private[impl] object FastPoorRandom {
   }
 
   def nextInt: Int = {
-    val id = Thread.currentThread.hashCode & (Slots - 1)
+    val id = System.identityHashCode(Thread.currentThread) & (Slots - 1)
 
     // The constants in this 64-bit linear congruential random number generator
     // are from http://nuclear.llnl.gov/CNP/rng/rngman/node4.html.

@@ -24,7 +24,7 @@ class Counter {
   def +=(delta: Long) {
     if (delta == 0) return
     
-    val h = Thread.currentThread.hashCode
+    val h = System.identityHashCode(Thread.currentThread)
     while (true) {
       val s = state.get
       val i = h & (s._1.length - 1)

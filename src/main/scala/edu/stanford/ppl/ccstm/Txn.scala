@@ -130,13 +130,11 @@ object Txn {
    *  hence should be automatically retried.
    */
   sealed abstract class OptimisticFailureCause extends RollbackCause {
-    /** Returns the object for which the value read is no longer current. */
-    val invalidObject: AnyRef
-
-    /** Returns additional information about what portion of
-     *  <code>invalidObject</code> caused the optimistic failure.
+    /** Identifies the object that triggered rollback.  The actual object is
+     *  implementation dependent, but will provide at least a reasonable
+     *  attempt at a useful <code>.toString()</code> method.
      */
-    val extraInfo: Any
+    val trigger: AnyRef
   }
 
   /** The <code>RollbackCause</code> recorded for an explicit
@@ -169,16 +167,14 @@ object Txn {
   /** An exception that indicates that a transaction was rolled back because a
    *  previous read is no longer valid.
    */
-  case class InvalidReadCause(invalidObject: AnyRef, extraInfo: Any) extends OptimisticFailureCause {
+  case class InvalidReadCause(trigger: AnyRef) extends OptimisticFailureCause {
     private[ccstm] def counter = invalidReadCounter
   }
 
   /** An exception that indicates that a transaction was rolled back because a
    *  <code>ReadResource</code> was not valid.
    */
-  case class InvalidReadResourceCause(resource: ReadResource) extends OptimisticFailureCause {
-    val invalidObject = resource
-    val extraInfo = null
+  case class InvalidReadResourceCause(trigger: ReadResource) extends OptimisticFailureCause {
     private[ccstm] def counter = invalidReadResourceCounter
   }
 
@@ -186,18 +182,18 @@ object Txn {
    *  needed write access to an object also being written by another
    *  transaction.  The transaction that is rolled back with this exception may
    *  have been the first or second to request write access; the contention
-   *  management policy may choose either transaction to roll back.
+   *  management policy may choose either transaction to roll back.  The
+   *  contention manager may record extra information about its choice in
+   *  <code>extraInfo</code>.
    */
-  case class WriteConflictCause(invalidObject: AnyRef, extraInfo: Any) extends OptimisticFailureCause {
+  case class WriteConflictCause(trigger: AnyRef, extraInfo: String) extends OptimisticFailureCause {
     private[ccstm] def counter = writeConflictCounter
   }
 
   /** An exception that indicates that a transaction was rolled back because a
    *  <code>WriteResource</code> voted to roll back.
    */
-  case class VetoingWriteResourceCause(resource: WriteResource) extends OptimisticFailureCause {
-    val invalidObject = resource
-    val extraInfo = null
+  case class VetoingWriteResourceCause(trigger: WriteResource) extends OptimisticFailureCause {
     private[ccstm] def counter = vetoingWriteResourceCounter
   }
 

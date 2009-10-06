@@ -73,7 +73,6 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
 
   /** The slot assigned to this transaction.  Lazily acquired so that unused
    *  TxnImpl instances don't cause problems.
-   *  TODO: should we use a WeakReference queue to roll back GC-ed uncommitted txns?
    */
   private var _slotIfAssigned = UnownedSlot
 
@@ -133,14 +132,14 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
       // not.
       if (!changing(m1) || owner(m1) == _slotIfAssigned) {
         if (version(m1) != _readVersions(i)) {
-          forceRollback(InvalidReadCause(handle.ref, handle.offset))
+          forceRollback(InvalidReadCause(handle))
           return false
         }
         i += 1
       } else if (owner(m1) == NonTxnSlot) {
         // non-txn updates don't set changing unless they will install a new
         // value, so we are the only party that can yield
-        forceRollback(InvalidReadCause(handle.ref, handle.offset))
+        forceRollback(InvalidReadCause(handle))
         return false
       } else {
         // Either this txn or the owning txn must roll back.  We choose to give
@@ -159,7 +158,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
           val m2 = handle.meta
           if (changing(m2) && owner(m2) == owner(m1)) {
             if (s.mightCommit) {
-              forceRollback(InvalidReadCause(handle.ref, handle.offset))
+              forceRollback(InvalidReadCause(handle))
               return false
             }
 
@@ -194,13 +193,13 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
         // We could block here without deadlock if
         // this.priority < currentOwner.priority, but we are obstructing so we
         // choose not to.
-        forceRollback(WriteConflictCause(contended, null))
+        forceRollback(WriteConflictCause(contended, "existing owner wins"))
         throw RollbackError
       }
     } else {
       // This will resolve the conflict regardless of whether it succeeds or
       // fails. 
-      currentOwner.requestRollback(WriteConflictCause(contended, null))
+      currentOwner.requestRollback(WriteConflictCause(contended, "steal from existing owner"))
     }
   }
 
@@ -307,8 +306,6 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   private def acquireLocks(): Boolean = {
     writeBufferVisit(new TxnWriteBuffer.Visitor {
       def visit(specValue: Any, handle: Handle[_]): Boolean = {
-        // TODO: remove this check
-        assert(_slotIfAssigned != UnownedSlot)
         var m = handle.meta
         if (!changing(m)) {
           // remote requestRollback might have doomed us, followed by a steal
@@ -317,17 +314,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
             if (handle.metaCAS(m, withChanging(m))) return true
             m = handle.meta
           }
-          if (!_status.isInstanceOf[RollingBack]) {
-            // TODO: remove this
-            println("FAILURE in acquireLocks: " + m.toHexString + ", " + owner(m) + ", " + TxnImpl.this)
-            _status = RollingBack(CallbackExceptionCause(handle, new Exception))
-          }
           return false
-        } else {
-          // TODO: remove this check
-          if (owner(m) != _slotIfAssigned && !_status.isInstanceOf[RollingBack]) {
-            println("FAILURE in acquireLocks: " + m.toHexString + ", " + owner(m) + ", " + TxnImpl.this)
-          }
         }
         return true
       }
@@ -544,9 +531,6 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
 
     val m0 = handle.meta
     if (owner(m0) == _slotIfAssigned) {
-      // TODO: Remove this check
-      assert(writeBufferSize > 0 && !changing(m0))
-
       // Self-owned.  This particular ref+offset might not be in the write
       // buffer, but it's definitely not in anybody else's.
       writeBufferPut(handle, v)

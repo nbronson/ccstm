@@ -12,6 +12,8 @@ package edu.stanford.ppl.ccstm
  */
 object Ref {
 
+  // TODO: use Manifest to choose an optimized implementation
+
   /** Returns a new <code>Ref</code> instance, initialized to the default value
    *  for objects of type <code>T</code>.
    */
