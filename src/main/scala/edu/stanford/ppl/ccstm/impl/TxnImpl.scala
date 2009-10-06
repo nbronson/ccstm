@@ -198,7 +198,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
       }
     } else {
       // This will resolve the conflict regardless of whether it succeeds or
-      // fails. 
+      // fails.
       currentOwner.requestRollback(WriteConflictCause(contended, "steal from existing owner"))
     }
   }

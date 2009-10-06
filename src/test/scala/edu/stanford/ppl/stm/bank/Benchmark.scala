@@ -11,7 +11,7 @@ object Benchmark {
       ("startup",       "-s", "2000",     "warmup period duration (millis)"),
       ("elapsed",       "-e", "10000",    "benchmark period duration (millis)"),
       ("threads",       "-n", "8",        "total number of threads"),
-      ("accounts",      "-a", "threads",  "total number of accounts"),
+      ("accounts",      "-a", "8",        "total number of accounts"),
       ("init",          "-i", "10000",    "starting account balance"),
       ("maxAmount",     "-m", "10",       "maximum transfer amount"),
       ("readFreq",      "-r", "0",        "% prob a non-dedicated thread performs a global read"),
@@ -53,11 +53,13 @@ object Benchmark {
 
     //// warmup
 
+    println("warming up")
     for (t <- threads) t.start()
     Thread.sleep(warmup)
 
     //// timed
 
+    println("timed execution")
     val start = System.currentTimeMillis
     for (t <- threads) t.mode = BenchmarkThread.Timed
     Thread.sleep(timed)
@@ -67,6 +69,12 @@ object Benchmark {
     for (t <- threads) t.mode = BenchmarkThread.Shutdown
     val stop = System.currentTimeMillis
     for (t <- threads) t.join
+
+    //// check
+
+    val finalBalances = accounts.map(_.balance.nonTxn.get)
+    val sum = finalBalances.reduceLeft(_+_)
+    println("TOTAL=" + sum + finalBalances.mkString(" [ ", " ", " ]"))
 
     //// stats
 
@@ -100,9 +108,6 @@ object Benchmark {
       }
       i += 1
     }
-
-    // special handling for accounts
-    if (result("accounts") == "threads") result += ("accounts" -> result("threads"))
 
     result
   }

@@ -7,6 +7,8 @@ package edu.stanford.ppl.ccstm
 
 object Txn {
 
+  val EnableCounters = "1tTyY" contains (System.getProperty("ccstm.counters", "") + "0").charAt(0)
+
   //////////////// Status
 
   /** Represents the current status of a <code>Txn</code>. */
@@ -231,11 +233,15 @@ object Txn {
 //    }
 //  }.start()
 
-  Runtime.getRuntime.addShutdownHook(new Thread("Txn shutdown hook") {
-    override def run {
-      println(countsToStr)
+  {
+    if (EnableCounters) {
+      Runtime.getRuntime.addShutdownHook(new Thread("Txn shutdown hook") {
+        override def run {
+          println(countsToStr)
+        }
+      })
     }
-  })
+  }
 
   /** Returns the number of transactions that have committed. */
   def commitCount = commitCounter.get
@@ -440,17 +446,7 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
 
   def retry() { retryImpl() }
 
-  def commit(): Status = {
-    try {
-      commitImpl()
-    } catch {
-      case x => {
-        Console.err.println("rethrowing unexpected exception during commitImpl")
-        x.printStackTrace
-        throw x
-      }
-    }
-  }
+  def commit(): Status = commitImpl()
 
   private[ccstm] def commitAndRethrow() {
     val s = commit()
@@ -599,10 +595,10 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
   private[ccstm] def callAfter() {
     val s = status
     val callbacks = (if (s == Committed) {
-      commitCounter += 1
+      if (EnableCounters) commitCounter += 1
       _afterCommit
     } else {
-      s.rollbackCause.counter += 1
+      if (EnableCounters) s.rollbackCause.counter += 1
       _afterRollback
     })
     if (callbacks != null) {
