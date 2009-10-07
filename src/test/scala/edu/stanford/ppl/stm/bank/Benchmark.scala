@@ -53,7 +53,7 @@ object Benchmark {
 
     //// warmup
 
-    println("warming up")
+    println("\nwarming up")
     for (t <- threads) t.start()
     Thread.sleep(warmup)
 
@@ -74,12 +74,21 @@ object Benchmark {
 
     val finalBalances = accounts.map(_.balance.nonTxn.get)
     val sum = finalBalances.reduceLeft(_+_)
-    println("TOTAL=" + sum + finalBalances.mkString(" [ ", " ", " ]"))
+    println("\nTOTAL=" + sum + finalBalances.mkString(" [ ", " ", " ]"))
 
     //// stats
 
-    println((stop - start) + " elapsed")
-    for (t <- threads) println(t)
+    println("\n" + (stop - start) + " actual elapsed\n")
+    var transfers = 0
+    var reads = 0
+    var writes = 0
+    for (t <- threads) {
+      transfers += t.numTransfers
+      reads += t.numReads
+      writes += t.numWrites
+      println(t)
+    }
+    println("\nTOTAL: T=" + transfers + ", R=" + reads + ", W=" + writes)
   }
 
   //////////////// Argument parsing
