@@ -394,6 +394,43 @@ object Txn {
    *  changed.
    */
   def awaitRetry(explicitRetries: ExplicitRetryCause*) = impl.STMImpl.awaitRetry(explicitRetries:_*)
+
+  private[Txn] class Callbacks {
+    import impl.CallbackList
+
+    var readResources: CallbackList[ReadResource] = null
+
+    /** Includes WriteResource-s and beforeCommit callbacks. */
+    var writeLikeResources: CallbackList[WriteResource] = null
+    var writeResourcesPresent = false
+    var afterCommit: CallbackList[Txn => Unit] = null
+    var afterRollback: CallbackList[Txn => Unit] = null
+    
+    def addReadResource(res: ReadResource, prio: Int) {
+      if (readResources == null) readResources = new CallbackList[ReadResource]
+      readResources.add(res, prio)
+    }
+
+    def addWriteLikeResource(res: WriteResource, prio: Int) {
+      if (writeLikeResources == null) writeLikeResources = new CallbackList[WriteResource]
+      writeLikeResources.add(res, prio)
+    }
+    
+    def addWriteResource(res: WriteResource, prio: Int) {
+      addWriteLikeResource(res, prio)
+      writeResourcesPresent = true
+    }
+
+    def addAfterCommit(callback: Txn => Unit, prio: Int) {
+      if (afterCommit == null) afterCommit = new CallbackList[Txn => Unit]
+      afterCommit.add(callback, prio)
+    }
+
+    def addAfterRollback(callback: Txn => Unit, prio: Int) {
+      if (afterRollback == null) afterRollback = new CallbackList[Txn => Unit]
+      afterRollback.add(callback, prio)
+    }
+  }
 }
 
 /** An instance representing a single execution attempt for a single atomic
@@ -411,7 +448,6 @@ object Txn {
  */
 sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(failureHistory) {
   import Txn._
-  import impl.CallbackList
 
   /** Constructs a <code>Txn</code> with an empty failure history. */
   def this() = this(Nil)
@@ -428,13 +464,13 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
   // manner are xxxImpl-s, forwarded to from the real methods so that none of
   // the useful Txn functionality is not directly visible in the Txn class.
   
-  private var _readResources: CallbackList[ReadResource] = null
+  /** Values of <code>TxnLocal</code>s for this transaction, created lazily. */
+  private[ccstm] var locals: java.util.IdentityHashMap[TxnLocal[_],Any] = null
 
-  /** Includes WriteResource-s and beforeCommit callbacks. */
-  private var _writeLikeResources: CallbackList[WriteResource] = null
-  private var _writeResourcesPresent = false
-  private var _afterCommit: CallbackList[Txn => Unit] = null
-  private var _afterRollback: CallbackList[Txn => Unit] = null
+  /** Most txns don't register any callbacks, so we put them behind a layer of
+   *  indirection to slim down the fat <code>Txn</code> object.
+   */
+  private var _callbacks: Callbacks = null
 
   def status: Status = _status
 
@@ -462,8 +498,8 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
 
   def beforeCommit(callback: Txn => Unit, prio: Int) {
     requireActive
-    if (_writeLikeResources == null) _writeLikeResources = new CallbackList[WriteResource]
-    _writeLikeResources.add(new WriteResource {
+    if (_callbacks == null) _callbacks = new Callbacks
+    _callbacks.addWriteLikeResource(new WriteResource {
       def prepare(txn: Txn): Boolean = { callback(txn); true }
       def performCommit(txn: Txn) {}
       def performRollback(txn: Txn) {}
@@ -482,8 +518,8 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
 
   def addReadResource(readResource: ReadResource, prio: Int, checkAfterRegister: Boolean) {
     requireActive
-    if (_readResources == null) _readResources = new CallbackList[ReadResource]
-    _readResources.add(readResource, prio)
+    if (_callbacks == null) _callbacks = new Callbacks
+    _callbacks.addReadResource(readResource, prio)
     if (checkAfterRegister) {
       validateNoThrow(readResource)
       requireActive
@@ -503,8 +539,8 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
   }
 
   private[ccstm] def readResourcesValidate(): Boolean = {
-    if (_readResources != null) {
-      for (res <- _readResources) {
+    if (_callbacks != null && _callbacks.readResources != null) {
+      for (res <- _callbacks.readResources) {
         validateNoThrow(res)
         if (!status.mightCommit) return false
       }
@@ -518,16 +554,15 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
 
   def addWriteResource(writeResource: WriteResource, prio: Int) {
     requireActive
-    if (_writeLikeResources == null) _writeLikeResources = new CallbackList[WriteResource]
-    _writeResourcesPresent = true
-    _writeLikeResources.add(writeResource, prio)
+    if (_callbacks == null) _callbacks = new Callbacks
+    _callbacks.addWriteResource(writeResource, prio)
   }
 
-  private[ccstm] def writeResourcesPresent = _writeResourcesPresent
+  private[ccstm] def writeResourcesPresent = _callbacks != null && _callbacks.writeResourcesPresent
 
   private[ccstm] def writeLikeResourcesPrepare(): Boolean = {
-    if (_writeLikeResources != null) {
-      for (res <- _writeLikeResources) {
+    if (_callbacks != null && _callbacks.writeLikeResources != null) {
+      for (res <- _callbacks.writeLikeResources) {
         try {
           if (!res.prepare(this)) {
             forceRollback(VetoingWriteResourceCause(res))
@@ -544,8 +579,8 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
   }
 
   private[ccstm] def writeResourcesPerformCommit() {
-    if (_writeLikeResources != null) {
-      for (res <- _writeLikeResources) {
+    if (_callbacks != null && _callbacks.writeLikeResources != null) {
+      for (res <- _callbacks.writeLikeResources) {
         try {
           res.performCommit(this)
         }
@@ -557,8 +592,8 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
   }
 
   private[ccstm] def writeResourcesPerformRollback() {
-    if (_writeLikeResources != null) {
-      for (res <- _writeLikeResources) {
+    if (_callbacks != null && _callbacks.writeLikeResources != null) {
+      for (res <- _callbacks.writeLikeResources) {
         try {
           res.performRollback(this)
         }
@@ -571,16 +606,16 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
 
   def afterCommit(callback: Txn => Unit, prio: Int) {
     requireNotCompleted
-    if (_afterCommit == null) _afterCommit = new CallbackList[Txn => Unit]
-    _afterCommit.add(callback, prio)
+    if (_callbacks == null) _callbacks = new Callbacks
+    _callbacks.addAfterCommit(callback, prio)
   }
 
   def afterCommit(callback: Txn => Unit) { afterCommit(callback, 0) }
 
   def afterRollback(callback: Txn => Unit, prio: Int) {
     requireNotCompleted
-    if (_afterRollback == null) _afterRollback = new CallbackList[Txn => Unit]
-    _afterRollback.add(callback, prio)
+    if (_callbacks == null) _callbacks = new Callbacks
+    _callbacks.addAfterRollback(callback, prio)
   }
 
   def afterRollback(callback: Txn => Unit) { afterRollback(callback, 0) }
@@ -593,21 +628,23 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
   }
 
   private[ccstm] def callAfter() {
-    val s = status
-    val callbacks = (if (s == Committed) {
-      if (EnableCounters) commitCounter += 1
-      _afterCommit
-    } else {
-      if (EnableCounters) s.rollbackCause.counter += 1
-      _afterRollback
-    })
-    if (callbacks != null) {
-      for (cb <- callbacks) {
-        try {
-          cb(this)
-        }
-        catch {
-          case x => handlePostDecisionException(this, cb, x)
+    if (_callbacks != null) {
+      val s = status
+      val cb = (if (s == Committed) {
+        if (EnableCounters) commitCounter += 1
+        _callbacks.afterCommit
+      } else {
+        if (EnableCounters) s.rollbackCause.counter += 1
+        _callbacks.afterRollback
+      })
+      if (cb != null) {
+        for (cb <- cb) {
+          try {
+            cb(this)
+          }
+          catch {
+            case x => handlePostDecisionException(this, cb, x)
+          }
         }
       }
     }

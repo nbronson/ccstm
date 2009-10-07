@@ -18,14 +18,13 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   private var _slot: Slot = 0
 
   /** Higher wins. */
-  private var _priority = 0
+  private def priority = STMImpl.hash(this, 0)
 
   {
     val ctx = ThreadContext.get
     _readSet = ctx.takeReadSet
     _writeBuffer = ctx.takeWriteBuffer
     _slot = slotManager.assign(this, ctx.preferredSlot)
-    _priority = ctx.rand.nextInt
   }
 
   /** The <code>VersionTrap</code> associated with <code>_readVersion</code>,
@@ -45,9 +44,6 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
    */
   private[impl] var _readVersion: Version = _readVersionTrap.version
 
-  /** The commit version of this transaction, or 0 if not assigned. */
-  private[impl] var _commitVersion: Version = 0L
-
   /** True if all reads should be performed as writes. */
   private[impl] val barging: Boolean = shouldBarge(failureHistory)
 
@@ -65,7 +61,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   override def toString = {
     ("Txn@" + hashCode.toHexString + "(" + status +
             ", slot=" + _slot +
-            ", priority=" + _priority +
+            ", priority=" + priority +
             ", readSet.size=" + _readSet.size +
             ", writeBuffer.size=" + _writeBuffer.size +
             ", readVersion=0x" + _readVersion.toHexString +
@@ -154,7 +150,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     // TODO: drop priority if no writes yet?
 
     // This test is _almost_ symmetric.  Tie goes to neither.
-    if (this._priority <= currentOwner._priority) {
+    if (this.priority <= currentOwner.priority) {
       if (_writeBuffer.isEmpty) {
         // We haven't acquired ownership of anything, so we can safely block
         // without obstructing anybody.
@@ -212,7 +208,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
       if (!acquireLocks()) return completeRollback()
 
       // this is our linearization point
-      _commitVersion = freshCommitVersion(globalVersion.get)
+      val cv = freshCommitVersion(globalVersion.get)
 
       // if the reads are still valid, then they were valid at the linearization
       // point
@@ -221,7 +217,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
       // attempt to decide commit
       if (!_statusCAS(Validating, Committing)) return completeRollback()
 
-      commitWrites()
+      commitWrites(cv)
       writeResourcesPerformCommit()
       _status = Committed
 
@@ -288,7 +284,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     }) && (_status == Validating)    
   }
 
-  private def commitWrites() {
+  private def commitWrites(cv: Long) {
     if (_writeBuffer.isEmpty) {
       return
     }
@@ -316,7 +312,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
         val m = handle.meta
         if (owner(m) == _slot) {
           // release the lock, clear the PW bit, and update the version
-          handle.meta = withCommit(m, _commitVersion)
+          handle.meta = withCommit(m, cv)
         }
         true
       }
@@ -443,37 +439,24 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     requireActive
 
     var m1 = handle.meta
-    if (owner(m1) == _slot) {
-      return new UnrecordedRead[T] {
-        def context: Option[Txn] = Some(TxnImpl.this.asInstanceOf[Txn])
-        val value: T = _writeBuffer.get(handle)
-        def stillValid = {
-          val s = _status
-          if (!_status.mightCommit) {
-            false
-          } else if (s != Committing) {
-            true
-          } else {
-            val m = handle.meta
-            !changing(m) && version(m) == _commitVersion
-          }
-        }
-        def recorded = true
-      }
-    }
-
-    var m0 = 0L
     var v: T = null.asInstanceOf[T]
-    do {
-      m0 = m1
-      while (changing(m0)) {
-        weakAwaitUnowned(handle, m0)
-        m0 = handle.meta
-      }
-      revalidateIfRequired(version(m0))
-      v = handle.data
-      m1 = handle.meta
-    } while (changingAndVersion(m0) != changingAndVersion(m1))
+    val rec = (if (owner(m1) == _slot) {
+      v = _writeBuffer.get(handle)
+      true
+    } else {
+      var m0 = 0L
+      do {
+        m0 = m1
+        while (changing(m0)) {
+          weakAwaitUnowned(handle, m0)
+          m0 = handle.meta
+        }
+        revalidateIfRequired(version(m0))
+        v = handle.data
+        m1 = handle.meta
+      } while (changingAndVersion(m0) != changingAndVersion(m1))
+      false
+    })
 
     // Everything above this line is the same as for get().  Is there a way to
     // share some of that code without incurring boxing/unboxing penalties?
@@ -482,7 +465,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
       def context: Option[Txn] = Some(TxnImpl.this.asInstanceOf[Txn])
       def value: T = v
       def stillValid = changingAndVersion(handle.meta) == changingAndVersion(m1)
-      def recorded = owner(m1) == FrozenSlot
+      def recorded = rec
     }
   }
 
