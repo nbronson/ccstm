@@ -24,6 +24,7 @@ private[impl] class WriteBuffer {
   private var _size = 0
   private var _capacity = InitialCapacity
   private var _entries = new Array[AnyRef](lenForCap(InitialRealCapacity))
+  private var _lastInsert = 0
 
   private def lenForCap(i: Int) = 3 * i
   private def handleI(i: Int) = 3 * i
@@ -68,6 +69,7 @@ private[impl] class WriteBuffer {
       var r = _entries(refI(i))
       if (r eq null) {
         // miss, insert here
+        _lastInsert = i
         _entries(handleI(i)) = handle
         _entries(refI(i)) = ref
         _entries(specValueI(i)) = specValue
@@ -95,6 +97,7 @@ private[impl] class WriteBuffer {
       var r = _entries(refI(i))
       if (r eq null) {
         // miss, insert here
+        _lastInsert = i
         _entries(handleI(i)) = handle
         _entries(refI(i)) = ref
         val z = handle.data
@@ -115,7 +118,7 @@ private[impl] class WriteBuffer {
   }
 
   def visit(visitor: Visitor): Boolean = {
-    var i = 0
+    var i = _lastInsert
     var remaining = _size
     while (remaining > 0) {
       val h = _entries(handleI(i))
@@ -125,7 +128,7 @@ private[impl] class WriteBuffer {
         }
         remaining -= 1
       }
-      i += 1
+      i = (i + 1) & (_capacity - 1)
     }
     return true
   }
