@@ -78,7 +78,8 @@ class ConstantRef[T](value0: T) extends Ref[T] with impl.Handle[T] {
 
   //////////////// Ref implementation
 
-  override def get(implicit txn: Txn): T = value0
+  // we don't override get to make life easier for the JVM
+  //override def get(implicit txn: Txn): T = value0
   override def map[Z](f: T => Z)(implicit txn: Txn): Z = f(value0)
   override def bind(implicit txn: Txn): Ref.Bound[T] = new Bnd { def context = Some(txn) }
   override def nonTxn: Ref.Bound[T] = new Bnd { def context = None }
