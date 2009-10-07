@@ -11,8 +11,7 @@ package edu.stanford.ppl.ccstm
  *  @author Nathan Bronson
  */
 object Ref {
-
-  // TODO: use Manifest to choose an optimized implementation
+  import collection._
 
   /** Returns a new <code>Ref</code> instance, initialized to the default value
    *  for objects of type <code>T</code>.
@@ -22,7 +21,13 @@ object Ref {
   /** Returns a new <code>Ref</code> instance with the specified initial
    *  value.
    */
-  def apply[T](initialValue: T): Ref[T] = new collection.TRef(initialValue)
+  def apply[T](initialValue: T): Ref[T] = new TRef(initialValue)
+
+  def apply(initialValue: Int): Ref[Int] = new TIntRef(initialValue)
+  def apply(initialValue: Long): Ref[Long] = new TLongRef(initialValue)
+  def apply(initialValue: Float): Ref[Float] = new TFloatRef(initialValue)
+  def apply(initialValue: Double): Ref[Double] = new TDoubleRef(initialValue)
+  def apply(initialValue: Boolean): Ref[Boolean] = new TBooleanRef(initialValue)
 
   /** Returns a new constant <code>Ref</code> instance with the specified
    *  value.  Reads of the reference will always return the same value, and any
