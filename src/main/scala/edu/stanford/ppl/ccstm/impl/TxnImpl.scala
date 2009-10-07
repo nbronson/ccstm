@@ -145,7 +145,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
    *  be acquired.
    */
   private[impl] def resolveWriteWriteConflict(currentOwner: TxnImpl, contended: AnyRef) {
-    requireActive
+    requireActive()
 
     // TODO: drop priority if no writes yet?
 
@@ -371,7 +371,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   def get[T](handle: Handle[T]): T = {
     if (barging) return readForWrite(handle)
 
-    requireActive
+    requireActive()
 
     var m1 = handle.meta
     if (owner(m1) == _slot) {
@@ -436,7 +436,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   }
 
   def unrecordedRead[T](handle: Handle[T]): UnrecordedRead[T] = {
-    requireActive
+    requireActive()
 
     var m1 = handle.meta
     var v: T = null.asInstanceOf[T]
@@ -470,7 +470,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   }
 
   def set[T](handle: Handle[T], v: T) {
-    requireActive
+    requireActive()
 
     val m0 = handle.meta
     if (owner(m0) == _slot) {
@@ -494,7 +494,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   }
   
   def tryWrite[T](handle: Handle[T], v: T): Boolean = {
-    requireActive
+    requireActive()
 
     val m0 = handle.meta
     owner(m0) match {
@@ -530,7 +530,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   }
 
   def readForWrite[T](handle: Handle[T]): T = {
-    requireActive
+    requireActive()
 
     val m0 = handle.meta
     if (owner(m0) == FrozenSlot) {
@@ -582,7 +582,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   }
 
   def transform[T](handle: Handle[T], f: T => T) = {
-    requireActive
+    requireActive()
     val v = readForImmediateWrite(handle, handle.meta)
     _writeBuffer.put(handle, f(v))
   }

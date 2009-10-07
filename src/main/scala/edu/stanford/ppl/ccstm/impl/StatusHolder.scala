@@ -58,14 +58,16 @@ private[ccstm] class StatusHolder {
    *  <code>IllegalStateException</code> if the status is something other than
    *  <code>Active</code>.
    */
-  private[ccstm] def requireActive {
+  private[ccstm] def requireActive() {
     val s = _status
-    if (s != Txn.Active) {
-      if (s.isInstanceOf[Txn.RollingBack]) {
-        throw RollbackError
-      } else {
-        throw new IllegalStateException("txn.status is " + s)
-      }
+    if (s ne Txn.Active) slowRequireActive(s)
+  }
+
+  private def slowRequireActive(s: Txn.Status) {
+    if (s.isInstanceOf[Txn.RollingBack]) {
+      throw RollbackError
+    } else {
+      throw new IllegalStateException("txn.status is " + s)
     }
   }
 
@@ -73,7 +75,7 @@ private[ccstm] class StatusHolder {
    *  <code>RollingBack</code>, throws an <code>IllegalStateException</code> if
    *  the status is <code>Committed</code> or <code>RolledBack</code>.
    */
-  private[ccstm] def requireNotCompleted {
+  private[ccstm] def requireNotCompleted() {
     val s = _status
     if (s != Txn.Active) {
       if (s.isInstanceOf[Txn.RollingBack]) {

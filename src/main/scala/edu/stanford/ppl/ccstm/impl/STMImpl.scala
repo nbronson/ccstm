@@ -242,7 +242,7 @@ private[ccstm] object STMImpl extends GV6 {
       val m = handle.meta
       if (ownerAndVersion(m) != ownerAndVersion(m0)) return
 
-      if (null != currentTxn) currentTxn.requireActive
+      if (null != currentTxn) currentTxn.requireActive()
     }
 
     // to wait for a non-txn owner, we use pendingWakeups
@@ -276,7 +276,7 @@ private[ccstm] object STMImpl extends GV6 {
         val m = handle.meta
         if (ownerAndVersion(m) != ownerAndVersion(m0)) return
 
-        if (null != currentTxn) currentTxn.requireActive
+        if (null != currentTxn) currentTxn.requireActive()
       }
     }
 

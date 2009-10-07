@@ -129,10 +129,10 @@ private[impl] class WakeupManager(numChannels: Int, numSources: Int) {
 
     def await(currentTxn: TxnImpl) {
       if (!_triggered) {
-        if (null != currentTxn) currentTxn.requireActive
+        if (null != currentTxn) currentTxn.requireActive()
         synchronized {
           while (!_triggered) {
-            if (null != currentTxn) currentTxn.requireActive
+            if (null != currentTxn) currentTxn.requireActive()
             wait
           }
         }

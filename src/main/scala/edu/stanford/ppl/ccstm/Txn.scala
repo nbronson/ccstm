@@ -497,7 +497,7 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
 
 
   def beforeCommit(callback: Txn => Unit, prio: Int) {
-    requireActive
+    requireActive()
     if (null == _callbacks) _callbacks = new Callbacks
     _callbacks.addWriteLikeResource(new WriteResource {
       def prepare(txn: Txn): Boolean = { callback(txn); true }
@@ -517,12 +517,12 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
   }
 
   def addReadResource(readResource: ReadResource, prio: Int, checkAfterRegister: Boolean) {
-    requireActive
+    requireActive()
     if (null == _callbacks) _callbacks = new Callbacks
     _callbacks.addReadResource(readResource, prio)
     if (checkAfterRegister) {
       validateNoThrow(readResource)
-      requireActive
+      requireActive()
     }
   }
 
@@ -553,7 +553,7 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
   }
 
   def addWriteResource(writeResource: WriteResource, prio: Int) {
-    requireActive
+    requireActive()
     if (null == _callbacks) _callbacks = new Callbacks
     _callbacks.addWriteResource(writeResource, prio)
   }
@@ -605,7 +605,7 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
   }
 
   def afterCommit(callback: Txn => Unit, prio: Int) {
-    requireNotCompleted
+    requireNotCompleted()
     if (null == _callbacks) _callbacks = new Callbacks
     _callbacks.addAfterCommit(callback, prio)
   }
@@ -613,7 +613,7 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
   def afterCommit(callback: Txn => Unit) { afterCommit(callback, 0) }
 
   def afterRollback(callback: Txn => Unit, prio: Int) {
-    requireNotCompleted
+    requireNotCompleted()
     if (null == _callbacks) _callbacks = new Callbacks
     _callbacks.addAfterRollback(callback, prio)
   }
