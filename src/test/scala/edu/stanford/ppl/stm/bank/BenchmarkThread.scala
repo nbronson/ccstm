@@ -41,7 +41,7 @@ class BenchmarkThread(id: Int,
   def step(record: Boolean) {
     val (readCutoff, writeCutoff, pct) = if (id < readThreads) {
       (100, 100, 50)
-    } else if (id < writeThreads) {
+    } else if (id < readThreads + writeThreads) {
       (0, 100, 50)
     } else {
       (readFreq, readFreq + writeFreq, rand.nextInt(100))
