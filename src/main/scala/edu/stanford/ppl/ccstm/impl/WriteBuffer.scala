@@ -116,10 +116,14 @@ private[impl] class WriteBuffer {
 
   def visit(visitor: Visitor): Boolean = {
     var i = 0
-    while (i < _capacity) {
+    var remaining = _size
+    while (remaining > 0) {
       val h = _entries(handleI(i))
-      if ((h ne null) && !visitor.visit(h.asInstanceOf[Handle[_]], _entries(specValueI(i)))) {
-        return false
+      if (h ne null) {
+        if (!visitor.visit(h.asInstanceOf[Handle[_]], _entries(specValueI(i)))) {
+          return false
+        }
+        remaining -= 1
       }
       i += 1
     }
