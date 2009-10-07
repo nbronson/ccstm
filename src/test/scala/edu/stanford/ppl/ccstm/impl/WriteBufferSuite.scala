@@ -9,12 +9,10 @@ import _root_.scala.collection.jcl.IdentityHashMap
 import _root_.scala.collection.mutable.HashMap
 import org.scalatest.FunSuite
 
-class TxnWriteBufferSuite extends FunSuite {
 
-  /** TxnWriteBuffer is a trait, so this is a minimal concrete class. */
-  class WB extends TxnWriteBuffer {
-    override def toString = writeBufferStr
-  }
+class WriteBufferSuite extends FunSuite {
+
+  type WB = WriteBuffer
 
   /** Only needed for identity comparisons. */
   class H[T](val ref: AnyRef, val offset: Int) extends Handle[T] {
@@ -52,19 +50,19 @@ class TxnWriteBufferSuite extends FunSuite {
           val ref = handle.ref
           val offset = handle.offset
           val expected = reference(ref).getOrElse(offset, (null, null))._1
-          val actual = wb.writeBufferGet[Any](handle)
+          val actual = wb.get[Any](handle)
           assert(expected === actual)
           reference(ref)(offset) = Tuple2.apply[Any,Handle[_]](specValue, handle)
-          wb.writeBufferPut(handle, specValue)
+          wb.put(handle, specValue)
         }
         case GetForPut(handle) => {
           val ref = handle.ref
           val offset = handle.offset
           val expected = reference(ref).getOrElse(offset, (handle.data, null))._1
           reference(ref)(offset) = Tuple2.apply[Any,Handle[_]](expected, handle)
-          val actual = wb.writeBufferGetForPut[Any](handle)
+          val actual = wb.allocatingGet[Any](handle)
           assert(expected === actual)
-          val reget = wb.writeBufferGet[Any](handle)
+          val reget = wb.get[Any](handle)
           assert(expected === reget)
         }
       }
@@ -72,10 +70,10 @@ class TxnWriteBufferSuite extends FunSuite {
       if (incrementalValidate || !iter.hasNext) {
         // validate the set
         val fresh = new NestedMap
-        wb.writeBufferVisit(new TxnWriteBuffer.Visitor {
-          def visit(specValue: Any, handle: Handle[_]): Boolean = {
+        wb.visit(new WriteBuffer.Visitor {
+          def visit(handle: Handle[_], specValue: Any): Boolean = {
             fresh(handle.ref)(handle.offset) = (specValue, handle)
-            assert(wb.writeBufferGet(handle) == specValue)
+            assert(wb.get(handle) == specValue)
             true
           }
         })
@@ -155,26 +153,26 @@ class TxnWriteBufferSuite extends FunSuite {
   }
 
   def nanosPerGet(size: Int, passes: Int, numReadHits: Int, numReadMisses: Int): Double = {
+    val refs = new Array[AnyRef](size * 2 + 2)
+    for (i <- 0 until refs.length) {
+      refs(i) = "ref" + i
+    }
+
     val wb = new WB
-    for (i <- 0 until size) wb.writeBufferPut(new H[String]("ref", i), "x" + i)
+    for (i <- 0 until size) {
+      wb.put(new H[String](refs(i), 0), "x" + i)
+    }
 
     var best = Math.MAX_LONG
     for (p <- 0 until passes) {
       val t0 = System.nanoTime
       var k = 0
       var i = 0
-      while (i < numReadHits) {
-        wb.writeBufferGet(new H[String]("ref", k))
+      while (i < numReadHits + numReadMisses) {
+        wb.get(new H[String](refs(k + (if (i >= numReadMisses) size else 0)), 0))
         k += 1
         i += 1
-        if (k == size) k = 0
-      }
-      k = size
-      i = 0
-      while (i < numReadMisses) {
-        wb.writeBufferGet(new H[String]("ref", k))
-        k += 1
-        i += 1
+        if (k >= size) k = 0
       }
       val elapsed = System.nanoTime - t0
       best = best min elapsed
@@ -184,7 +182,7 @@ class TxnWriteBufferSuite extends FunSuite {
   }
 
   test("read performance") {
-    for (size <- 0 until 64) {
+    for (size <- (0 until 8) ++ (8 until 16 by 2) ++ (16 until 32 by 4) ++ (32 to 256 by 16)) {
       printf("%d entries -> %3.1f nanos/hit, %3.1f nanos/miss\n",
         size, nanosPerGet(size, 1000, 10000, 0), nanosPerGet(size, 1000, 0, 10000))
     }

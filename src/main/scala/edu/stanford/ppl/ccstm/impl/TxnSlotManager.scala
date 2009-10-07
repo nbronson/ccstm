@@ -22,24 +22,18 @@ private[impl] class TxnSlotManager[T <: AnyRef](range: Int, reservedSlots: Int) 
     s
   }
 
-  /** This caches the last slot used by the current thread. */
-  private val lastSlot = new ThreadLocal[Int] {
-    override def initialValue: Int = nextSlot(0)
-  }
-
   /** CAS on the entries manages the actual acquisition. */
   private val slots = new AtomicReferenceArray[(Int,T)](range)
 
-  def assign(txn: T): Int = {
-    val s0 = lastSlot.get
-    var s = s0
+  def assign(txn: T, preferredSlot: Int): Int = {
+    var s = preferredSlot & (range - 1)
+    if (s < reservedSlots) s = nextSlot(0)
     var tries = 0
     while ((slots.get(s) ne null) || !slots.compareAndSet(s, null, (1,txn))) {
       s = nextSlot(tries)
       tries += 1
       if (tries > 100) Thread.`yield`
     }
-    if (s != s0) lastSlot.set(s)
     s
   }
 

@@ -12,8 +12,8 @@ class TxnSlotManagerSuite extends FunSuite {
 
   test("simple") {
     val mgr = new TxnSlotManager[String](32, 2)
-    val s0 = mgr.assign("0")
-    val s1 = mgr.assign("1")
+    val s0 = mgr.assign("0", 0)
+    val s1 = mgr.assign("1", 0)
     assert(s0 >= 2 && s0 < 32)
     assert(s1 >= 2 && s1 < 32)
     assert(s0 != s1)
@@ -23,11 +23,11 @@ class TxnSlotManagerSuite extends FunSuite {
     mgr.release(s1)
   }
 
-  test("thread-local repeat") {
+  test("request repeat") {
     val mgr = new TxnSlotManager[String](32, 2)
-    val s0 = mgr.assign("0")
+    val s0 = mgr.assign("0", 0)
     mgr.release(s0)
-    val s1 = mgr.assign("1")
+    val s1 = mgr.assign("1", s0)
     mgr.release(s1)
     assert(s0 >= 2 && s0 < 32)
     assert(s0 === s1)
@@ -36,7 +36,7 @@ class TxnSlotManagerSuite extends FunSuite {
   test("sequential full") {
     val mgr = new TxnSlotManager[String](32, 4)
     var slots = Set.empty[Int]
-    for (i <- 4 until 32) slots += mgr.assign("t" + i)
+    for (i <- 4 until 32) slots += mgr.assign("t" + i, 0)
     assert(slots === (Set.empty[Int] ++ (4 until 32)))
     var txns = Set.empty[String]
     for (i <- 4 until 32) txns += mgr.lookup(i)
@@ -46,8 +46,8 @@ class TxnSlotManagerSuite extends FunSuite {
   test("contended") {
     val mgr = new TxnSlotManager[String](32, 4)
     val t0 = System.currentTimeMillis
-    parallel(28*4 + 1) {
-      val s = mgr.assign(Thread.currentThread.getName)
+    for (i <- 0 par_until (28*4 + 1)) {
+      val s = mgr.assign(Thread.currentThread.getName, i)
       assert(s >= 4 && s < 32)
       Thread.sleep(200)
       mgr.release(s)
@@ -66,8 +66,9 @@ class TxnSlotManagerSuite extends FunSuite {
       for (p <- 0 until 10) {
         var i = 0
         val t0 = System.currentTimeMillis
+        var s = 0
         while (i < 1000000) {
-          val s = mgr.assign(txn)
+          s = mgr.assign(txn, s)
           i += 1
           mgr.release(s)
         }

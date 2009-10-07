@@ -34,38 +34,40 @@ class IsolatedRefSuite extends STMFunSuite {
   }
 
   case class FreshTxn(txnLen: Int) extends Binder {
-    var txn: Txn = new Txn
+    var txn: Txn = null
     var accesses = 0
 
     def apply[T](v: Ref[T]) = {
       if (accesses == txnLen) reset()
       accesses += 1
+      if (txn == null) txn = new Txn
       v.bind(txn)
     }
 
     override def reset() {
       val s = txn.commit()
       assert(s === Txn.Committed)
-      txn = new Txn
+      txn = null
       accesses = 0
     }
   }
 
   case class ReuseTxn(txnLen: Int) extends Binder {
     private val cache = new IdentityHashMap[Ref[_],Ref.Bound[_]]
-    var txn: Txn = new Txn
+    var txn: Txn = null
     var accesses = 0
 
     def apply[T](v: Ref[T]) = {
       if (accesses == txnLen) reset()
       accesses += 1
+      if (txn == null) txn = new Txn
       cache.getOrElseUpdate(v, v.bind(txn)).asInstanceOf[Ref.Bound[T]]
     }
 
     override def reset() {
       val s = txn.commit()
       assert(s === Txn.Committed)
-      txn = new Txn
+      txn = null
       accesses = 0
       cache.clear
     }

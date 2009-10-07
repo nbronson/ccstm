@@ -5,10 +5,14 @@
 package edu.stanford.ppl.ccstm.impl
 
 
-/** A thread-safe random number generator that focuses on speed and lack of
- *  inter-thread interference, rather than on the quality of the numbers
- *  returned.  Because it is striped across threads, there is little use in
- *  having more than one instance, so it is an object.
+/** A random number generator that focuses on speed and lack of inter-thread
+ *  interference, rather than on the quality of the numbers returned.  The
+ *  <code>object FastPoorRandom</code> is striped internally to reduce
+ *  contention when accessed from multiple threads.  The <code>class
+ *  FastPoorRandom</code> should only be used by a single thread.
+ *  <p>
+ *  The constants in this 64-bit linear congruential random number generator
+ *  are from http://nuclear.llnl.gov/CNP/rng/rngman/node4.html.
  */
 private[impl] object FastPoorRandom {
   // TODO: (re)choose the number of slots with a bit more thought
@@ -23,12 +27,28 @@ private[impl] object FastPoorRandom {
   def nextInt: Int = {
     val id = System.identityHashCode(Thread.currentThread) & (Slots - 1)
 
-    // The constants in this 64-bit linear congruential random number generator
-    // are from http://nuclear.llnl.gov/CNP/rng/rngman/node4.html.
 
-    val next = states(id) * 2862933555777941757L + 3037000493L
+    val next = step(states(id))
     states(id) = next
 
-    (next >> 30).asInstanceOf[Int]
+    extract(next)
+  }
+
+  private[FastPoorRandom] def step(x: Long) = x * 2862933555777941757L + 3037000493L
+  
+  private[FastPoorRandom] def extract(x: Long) = (x >> 30).asInstanceOf[Int]
+}
+
+/** A single-threaded random number generator that uses the same algorithm as
+ *  the concurrent <code>object FastPoorRandom</code>.
+ */
+private[impl] class FastPoorRandom {
+  import FastPoorRandom._
+
+  private var _state: Long = System.identityHashCode(Thread.currentThread)
+
+  def nextInt: Int = {
+    _state = step(_state)
+    extract(_state)
   }
 }

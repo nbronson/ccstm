@@ -145,33 +145,30 @@ private[ccstm] object STMImpl extends GV6 {
       val event = wakeupManager.subscribe
       for (er <- explicitRetries) {
         val rs = er.readSet.asInstanceOf[ReadSet]
-        var i = 0
-        while (i < rs.size) {
-          val handle = rs.handles(i)
-
-          if (!event.addSource(handle.ref, handle.offset)) return
-
-          var m = 0L
-          do {
-            m = handle.meta
-            if (changing(m) || version(m) != rs.versions(i)) return
-          } while (!pendingWakeups(m) && !handle.metaCAS(m, withPendingWakeups(m)))
-
-          i += 1
-        }
+        val allRegistered = rs.visit(new ReadSet.Visitor {
+          def visit(handle: Handle[_], ver: STMImpl.Version): Boolean = {
+            if (!event.addSource(handle.ref, handle.offset)) return false
+            var m = 0L
+            do {
+              m = handle.meta
+              if (changing(m) || version(m) != ver) return false
+            } while (!pendingWakeups(m) && !handle.metaCAS(m, withPendingWakeups(m)))
+            return true
+          }
+        })
+        if (!allRegistered) return
       }
       event.await
     }
   }
 
   private def readSetStillValid(rs: ReadSet): Boolean = {
-    var i = 0
-    while (i < rs.size) {
-      val m = rs.handles(i).meta
-      if (changing(m) || version(m) != rs.versions(i)) return false
-      i += 1
-    }
-    return true
+    rs.visit(new ReadSet.Visitor {
+      def visit(handle: Handle[_], ver: STMImpl.Version): Boolean = {
+        val m = handle.meta
+        !changing(m) && version(m) == ver
+      }
+    })
   }
 
   //////////////// lock release helping
