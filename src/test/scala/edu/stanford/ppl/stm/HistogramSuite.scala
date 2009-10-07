@@ -14,7 +14,7 @@ class HistogramSuite extends STMFunSuite {
   val OpsPerTest = 1000000
 
   for (buckets <- List(1, 30, 10000)) {
-    for (threads <- List(1, 2, 4, 8, 16, 32, 64, 128, 256, 512) if (threads <= 4*Runtime.getRuntime.availableProcessors)) {
+    for (threads <- List(1, 2, 4, 8, 16, 32, 64, 128, 256, 512) if (threads <= 2*Runtime.getRuntime.availableProcessors)) {
       for (useTArray <- List(false, true)) {
         val str = ("" + buckets + " buckets, " + threads + " threads, " +
                 (if (useTArray) "TArray[Int]" else "Array[Ref[Int]]"))
@@ -22,7 +22,7 @@ class HistogramSuite extends STMFunSuite {
           histogram(buckets, threads, OpsPerTest / threads, useTArray, 100, 1)
         }
 
-        for (accesses <- List(1, 2, 10, 1000)) {
+        for (accesses <- List(1, 3, 100)) {
           addTest("txn, " + str + ", " + accesses + " incr per txn") {
             histogram(buckets, threads, OpsPerTest / threads, useTArray, 0, accesses)
           }
