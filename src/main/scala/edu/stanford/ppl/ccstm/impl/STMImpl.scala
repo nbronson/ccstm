@@ -32,12 +32,12 @@ private[ccstm] object STMImpl extends GV6 {
   /** The number of times to spin tightly when waiting for a condition to
    *  become true.
    */
-  val SpinCount = 100
+  val SpinCount = System.getProperty("ccstm.spin", "100").toInt
 
   /** The number of times to spin tightly when waiting for another thread to
    *  perform work that we can also perform.
    */
-  val StealSpinCount = 10
+  val StealSpinCount = System.getProperty("ccstm.steal.spin", "10").toInt
 
   /** The number of times to spin with intervening calls to
    *  <code>Thread.yield</code> when waiting for a condition to become true.
@@ -45,7 +45,7 @@ private[ccstm] object STMImpl extends GV6 {
    *  <code>SpinCount + YieldCount</code> spins have been performed, the
    *  waiting thread will be blocked on a Java mutex.
    */
-  val YieldCount = 100
+  val YieldCount = System.getProperty("ccstm.yield", "2").toInt
 
   val slotManager = new TxnSlotManager[TxnImpl](1024, 3)
   val wakeupManager = new WakeupManager // default size
