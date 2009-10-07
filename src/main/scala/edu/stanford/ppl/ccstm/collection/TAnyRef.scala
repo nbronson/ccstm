@@ -1,8 +1,9 @@
 /* CCSTM - (c) 2009 Stanford University - PPL */
 
-// TRef
+// TAnyRef
 
 package edu.stanford.ppl.ccstm.collection
+
 
 /** A concrete implementation of <code>Ref</code>.
  *  <p>
@@ -11,7 +12,7 @@ package edu.stanford.ppl.ccstm.collection
  *
  *  @author Nathan Bronson
  */
-class TRef[T](initialValue: T) extends impl.MetaHolder with Ref[T] with impl.Handle[T] {
+class TAnyRef[T](initialValue: T) extends impl.MetaHolder with Ref[T] with impl.Handle[T] {
 
   protected def handle = this
 
@@ -20,6 +21,6 @@ class TRef[T](initialValue: T) extends impl.MetaHolder with Ref[T] with impl.Han
   @volatile private[ccstm] var data = initialValue
 
   override def toString = {
-    "TRef@" + Integer.toHexString(hashCode)
+    "TAnyRef@" + Integer.toHexString(hashCode)
   }
 }

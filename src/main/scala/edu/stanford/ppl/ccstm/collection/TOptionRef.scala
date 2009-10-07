@@ -1,10 +1,8 @@
 /* CCSTM - (c) 2009 Stanford University - PPL */
 
-// TRef
+// TAnyRef
 
 package edu.stanford.ppl.ccstm.collection
-
-import java.util.concurrent.atomic.AtomicReferenceFieldUpdater
 
 
 private object TOptionRef {
@@ -13,7 +11,7 @@ private object TOptionRef {
 
 /** A <code>Ref</code> implementation that holds only non-null
  *  <code>Option</code> instances.  When compared to
- *  <code>TRef[Option[T]]</code> instances, instances of
+ *  <code>TAnyRef[Option[T]]</code> instances, instances of
  *  <code>TOptionRef</code> have lower storage overhead (the wrapping
  *  <code>Option</code> objects are discarded and recreated as needed), but a
  *  slightly higher runtime cost when accessing.

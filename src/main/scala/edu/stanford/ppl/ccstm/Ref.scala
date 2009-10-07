@@ -21,7 +21,7 @@ object Ref {
   /** Returns a new <code>Ref</code> instance with the specified initial
    *  value.
    */
-  def apply[T](initialValue: T): Ref[T] = new TRef(initialValue)
+  def apply[T](initialValue: T): Ref[T] = new TAnyRef(initialValue)
 
   def apply(initialValue: Int): Ref[Int] = new TIntRef(initialValue)
   def apply(initialValue: Long): Ref[Long] = new TLongRef(initialValue)
