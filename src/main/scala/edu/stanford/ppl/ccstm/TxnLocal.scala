@@ -28,7 +28,7 @@ class TxnLocal[T] {
   }
 
   private def locals(txn: Txn): java.util.IdentityHashMap[TxnLocal[_],Any] = {
-    if (txn.locals == null) {
+    if (null == txn.locals) {
       txn.locals = new java.util.IdentityHashMap[TxnLocal[_],Any]
     }
     txn.locals

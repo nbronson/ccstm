@@ -176,6 +176,6 @@ class FlipperSuite extends STMFunSuite {
     }
     for (t <- threads) t.start
     for (t <- threads) t.join
-    if (failure != null) throw failure
+    if (null != failure) throw failure
   }
 }

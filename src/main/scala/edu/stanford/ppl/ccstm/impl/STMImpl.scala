@@ -63,7 +63,7 @@ private[ccstm] object STMImpl extends GV6 {
     // bits from the M*offset portion.  Our solution is to use the bit-mixing
     // function from java.util.HashMap after merging with the system identity
     // hash code.
-    if (ref == null) throw new NullPointerException
+    if (null == ref) throw new NullPointerException
     var h = System.identityHashCode(ref) ^ (0x40108097 * offset)
     h ^= (h >>> 20) ^ (h >>> 12)
     h ^= (h >>> 7) ^ (h >>> 4)
@@ -242,7 +242,7 @@ private[ccstm] object STMImpl extends GV6 {
       val m = handle.meta
       if (ownerAndVersion(m) != ownerAndVersion(m0)) return
 
-      if (currentTxn != null) currentTxn.requireActive
+      if (null != currentTxn) currentTxn.requireActive
     }
 
     // to wait for a non-txn owner, we use pendingWakeups
@@ -265,7 +265,7 @@ private[ccstm] object STMImpl extends GV6 {
   }
 
   private def weakAwaitTxnUnowned(handle: Handle[_], m0: Meta, currentTxn: TxnImpl) {
-    if (currentTxn == null) {
+    if (null == currentTxn) {
       // Spin a bit, but only from a non-txn context.  If this is a txn context
       // We need to roll ourself back ASAP if that is the proper resolution.
       var spins = 0
@@ -276,7 +276,7 @@ private[ccstm] object STMImpl extends GV6 {
         val m = handle.meta
         if (ownerAndVersion(m) != ownerAndVersion(m0)) return
 
-        if (currentTxn != null) currentTxn.requireActive
+        if (null != currentTxn) currentTxn.requireActive
       }
     }
 
@@ -284,9 +284,9 @@ private[ccstm] object STMImpl extends GV6 {
     val owningSlot = owner(m0)
     val owningTxn = slotManager.beginLookup(owningSlot)
     try {
-      if (owningTxn != null && owningSlot == owner(handle.meta)) {
+      if (null != owningTxn && owningSlot == owner(handle.meta)) {
         if (!owningTxn.completedOrDoomed) {
-          if (currentTxn != null) {
+          if (null != currentTxn) {
             currentTxn.resolveWriteWriteConflict(owningTxn, handle)
           }
           owningTxn.awaitCompletedOrDoomed()

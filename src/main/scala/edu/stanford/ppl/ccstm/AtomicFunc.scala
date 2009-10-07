@@ -17,7 +17,7 @@ abstract class AtomicFunc[Z] extends (Txn => Z) {
    *  <code>txn</code>.
    */
   def apply(txn: Txn): Z = {
-    assert(_currentTxn == null)
+    assert(null == _currentTxn)
     _currentTxn = txn
     try {
       body

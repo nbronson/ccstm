@@ -120,7 +120,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
             // the owner txn is null) then we must have observed the race and we
             // don't roll back here.
             val o = slotManager.lookup(owner(m1))
-            if (o != null) {
+            if (null != o) {
               val s = o._status
               val m2 = handle.meta
               if (changing(m2) && owner(m2) == owner(m1)) {

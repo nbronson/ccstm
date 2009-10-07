@@ -40,7 +40,7 @@ class IsolatedRefSuite extends STMFunSuite {
     def apply[T](v: Ref[T]) = {
       if (accesses == txnLen) reset()
       accesses += 1
-      if (txn == null) txn = new Txn
+      if (null == txn) txn = new Txn
       v.bind(txn)
     }
 
@@ -60,7 +60,7 @@ class IsolatedRefSuite extends STMFunSuite {
     def apply[T](v: Ref[T]) = {
       if (accesses == txnLen) reset()
       accesses += 1
-      if (txn == null) txn = new Txn
+      if (null == txn) txn = new Txn
       cache.getOrElseUpdate(v, v.bind(txn)).asInstanceOf[Ref.Bound[T]]
     }
 

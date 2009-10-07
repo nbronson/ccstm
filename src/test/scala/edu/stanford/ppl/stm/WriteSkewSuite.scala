@@ -27,7 +27,7 @@ class WriteSkewSuite extends STMFunSuite {
         override def run {
           try {
             for (i <- 0 until IncrCount) {
-              if (failure != null) return
+              if (null != failure) return
               new Atomic { def body {
                 if ((!other % 2) != 0) {
                   if ((!self % 2) != 0) {
@@ -39,7 +39,7 @@ class WriteSkewSuite extends STMFunSuite {
               }}.run
             }
           } catch {
-            case x => if (failure == null) failure = x
+            case x => if (null == failure) failure = x
           }
         }
       }
@@ -49,7 +49,7 @@ class WriteSkewSuite extends STMFunSuite {
     for (t <- threads) t.start
     for (t <- threads) t.join
 
-    if (failure != null) throw failure
+    if (null != failure) throw failure
     val elapsed = System.currentTimeMillis - begin
     println("write skew test took " + elapsed + " millis for " + (2 * IncrCount) + " increments")
   }

@@ -44,7 +44,7 @@ class TOptionRef[T](initialValue: Option[T]) extends impl.MetaHolder with Ref[Op
     o match {
       case null => throw new NullPointerException("TOptionRef does not allow null Option references")
       case None => null
-      case Some(v) => if (v == null) SOME_NULL else v.asInstanceOf[AnyRef]
+      case Some(v) => if (null == v) SOME_NULL else v.asInstanceOf[AnyRef]
     }
   }
 

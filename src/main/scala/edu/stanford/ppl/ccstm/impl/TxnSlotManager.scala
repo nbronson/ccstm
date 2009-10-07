@@ -64,7 +64,7 @@ private[impl] class TxnSlotManager[T <: AnyRef](range: Int, reservedSlots: Int) 
     var e: AnyRef = null
     do {
       e = slots.get(slot)
-    } while (e != null && !slots.compareAndSet(slot, e, locked(e)))
+    } while (null != e && !slots.compareAndSet(slot, e, locked(e)))
     unwrap(e)
   }
 
@@ -76,7 +76,7 @@ private[impl] class TxnSlotManager[T <: AnyRef](range: Int, reservedSlots: Int) 
   }
 
   def endLookup(slot: Int, observed: T) {
-    if (observed != null) release(slot)
+    if (null != observed) release(slot)
   }
 
   def release(slot: Int) {
@@ -97,7 +97,7 @@ private[impl] class TxnSlotManager[T <: AnyRef](range: Int, reservedSlots: Int) 
   def assertAllReleased() {
     for (i <- 0 until range) {
       val e = slots.get(i)
-      if (e != null) {
+      if (null != e) {
         assert(false, i + " -> " + e)
       }
     }

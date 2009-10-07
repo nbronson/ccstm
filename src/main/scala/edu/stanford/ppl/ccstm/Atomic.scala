@@ -30,7 +30,7 @@ abstract class Atomic extends (Txn => Unit) {
    *  <code>txn</code>.
    */
   def apply(txn: Txn): Unit = {
-    assert(_currentTxn == null)
+    assert(null == _currentTxn)
     _currentTxn = txn
     try {
       body

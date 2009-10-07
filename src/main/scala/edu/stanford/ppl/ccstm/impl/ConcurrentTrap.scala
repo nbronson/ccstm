@@ -29,7 +29,7 @@ class ConcurrentTrap {
   def +=(ref: AnyRef) {
     while (true) {
       val before = _head
-      val after = if (before == null) ref else (before, ref)
+      val after = if (null == before) ref else (before, ref)
       if (ConcurrentTrap.headUpdater.compareAndSet(this, before, after)) return
     }
   }

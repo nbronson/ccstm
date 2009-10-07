@@ -18,7 +18,7 @@ private[ccstm] class CallbackList[T] {
 
   def add(elem: T, priority: Int) {
     var slot = _slotsByPrio.get(priority)
-    if (slot == null) {
+    if (null == slot) {
       slot = new CallbackPrioSlot[T]
       _slotsByPrio.put(priority, slot)
     }

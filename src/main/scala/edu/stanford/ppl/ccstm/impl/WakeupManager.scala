@@ -81,7 +81,7 @@ private[impl] class WakeupManager(numChannels: Int, numSources: Int) {
   private def trigger(channel: Int) {
     val i = channel * ChannelSpacing
     val e = events.get(i)
-    if (e != null && events.compareAndSet(i, e, null)) e.trigger
+    if (null != e && events.compareAndSet(i, e, null)) e.trigger
   }
 
   /** See <code>trigger</code>. */
@@ -97,7 +97,7 @@ private[impl] class WakeupManager(numChannels: Int, numSources: Int) {
     val i = channel * ChannelSpacing
     while (true) {
       val existing = events.get(i)
-      if (existing != null) return existing
+      if (null != existing) return existing
       val fresh = new Event(channel)
       if (events.compareAndSet(i, null, fresh)) return fresh
     }
@@ -129,10 +129,10 @@ private[impl] class WakeupManager(numChannels: Int, numSources: Int) {
 
     def await(currentTxn: TxnImpl) {
       if (!_triggered) {
-        if (currentTxn != null) currentTxn.requireActive
+        if (null != currentTxn) currentTxn.requireActive
         synchronized {
           while (!_triggered) {
-            if (currentTxn != null) currentTxn.requireActive
+            if (null != currentTxn) currentTxn.requireActive
             wait
           }
         }

@@ -22,7 +22,7 @@ class ThreadContext {
   var preferredSlot: STMImpl.Slot = rand.nextInt
 
   def takeReadSet: ReadSet = {
-    if (_readSet == null) {
+    if (null == _readSet) {
       new ReadSet
     } else {
       val z = _readSet
@@ -32,7 +32,7 @@ class ThreadContext {
   }
 
   def takeWriteBuffer: WriteBuffer = {
-    if (_writeBuffer == null) {
+    if (null == _writeBuffer) {
       new WriteBuffer
     } else {
       val z = _writeBuffer

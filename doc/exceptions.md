@@ -21,7 +21,7 @@ try something like the following:
         case x => failure := x
       }
     }}.run
-    if (failure.get != null) throw failure.get
+    if (null != failure.get) throw failure.get
 
 
 ## Exceptions thrown by registered callbacks

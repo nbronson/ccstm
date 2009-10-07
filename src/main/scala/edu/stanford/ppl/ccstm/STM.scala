@@ -110,7 +110,7 @@ object STM {
       case x => txn.forceRollback(Txn.UserExceptionCause(x))
     }
     txn.commitAndRethrow()
-    if (nonLocalReturn != null && txn.status == Txn.Committed) throw nonLocalReturn
+    if (null != nonLocalReturn && txn.status == Txn.Committed) throw nonLocalReturn
     (result,txn)
   }
 
