@@ -4,6 +4,8 @@
 
 package edu.stanford.ppl.ccstm.collection
 
+import impl.STMImpl._
+
 
 /** A concrete implementation of <code>Ref[Boolean]</code>.
  *  <p>
@@ -13,8 +15,7 @@ package edu.stanford.ppl.ccstm.collection
  *  @author Nathan Bronson
  */
 
-class TBooleanRef(initialValue: Boolean) extends impl.MetaHolder with Ref[Boolean] with impl.Handle[Boolean] {
-  import impl.STMImpl._
+class TBooleanRef(initialValue: Boolean) extends impl.MetaHolder(withUserBit(0L, initialValue)) with Ref[Boolean] with impl.Handle[Boolean] {
 
   protected def handle = this
 
