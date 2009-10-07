@@ -5,18 +5,6 @@
 package edu.stanford.ppl.ccstm.impl
 
 
-// TODO: make readVersion assignment eager
-// TODO: make slot assignment eager
-// TODO: replace _slotIfAssigned == UnownedSlot with writeBufferSize == 0
-// TODO: move TxnWriteBuffer, _read*, _slot to Context class
-// TODO: copy out for ReadSet
-// TODO: add clear() function to Context
-// TODO: store unused Context in TxnSlotManager
-// TODO: increase default read set size
-// TODO: simplify STMImpl.hash to take into account that System.identityHashCode is good
-// TODO: replace TxnWriteBuffer with a simple open-addressed hash, instead of Hopscotch hashing
-// TODO: overallocate TxnWriteBuffer backing arrays and grow in-place?
-
 abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends AbstractTxn {
   import STMImpl._
   import Txn._
