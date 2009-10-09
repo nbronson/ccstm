@@ -28,8 +28,8 @@ class FlipperSuite extends STMFunSuite {
       0).runTest
   }
 
-  test("4 random flipper tests") {
-    for (i <- 0 until 4) {
+  test("random flipper test") {
+    for (i <- 0 until 1) {
       Config(
         DEFAULT_SYNC_COUNT,
         DEFAULT_TRANS_COUNT,
