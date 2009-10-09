@@ -4,10 +4,10 @@
 
 package edu.stanford.ppl.ccstm.collection
 
-import impl.{MetaHolder, Handle}
+import impl.{DefaultValue, MetaHolder, Handle}
 import java.util.concurrent.atomic.{AtomicLongArray, AtomicReferenceArray}
 
-// TODO: fix null initial value for primitive types
+// TODO: select backing store based on manifest
 
 object TArray {
   trait Bound[T] extends RandomAccessSeq.Mutable[T] {
@@ -20,7 +20,7 @@ object TArray {
   }
 }
 
-class TArray[T](length0: Int) {
+class TArray[T](length0: Int)(implicit manifest: scala.reflect.Manifest[T]) {
   import TArray._
 
   def length = length0
@@ -58,7 +58,16 @@ class TArray[T](length0: Int) {
   /////////////// Internal implementation
 
   private val _meta = new AtomicLongArray(length0)
-  private val _data = new AtomicReferenceArray[T](length0) // TODO: we really just want a volatile array
+  private val _data = ({
+    val dv = DefaultValue[T]
+    if (null == dv) {
+      new AtomicReferenceArray[T](length0)
+    } else {
+      val a = new Array[AnyRef](length0)
+      java.util.Arrays.fill(a, dv.asInstanceOf[AnyRef])
+      (new AtomicReferenceArray(a)).asInstanceOf[AtomicReferenceArray[T]]
+    }
+  })
 
   private def getRef(index: Int): Ref[T] = new Ref[T] with Handle[T] {
 
