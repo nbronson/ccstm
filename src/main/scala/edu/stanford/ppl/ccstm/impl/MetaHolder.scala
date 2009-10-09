@@ -11,9 +11,13 @@ private object MetaHolder {
   val metadataUpdater = (new MetaHolder {}).newMetaUpdater
 }
 
+// It would be convenient if this was a trait, but then the actual field would
+// change on a per-class basis.  That would require a separate Updater per
+// concrete class, with some sort of Class -> AtomicLongFieldUpdater mapping.
+
 abstract class MetaHolder(initialMeta: Long) {
   def this() = this(0L)
-  
+
   @volatile private[ccstm] var meta: Long = initialMeta
 
   private[ccstm] def metaCAS(before: Long, after: Long) = {
