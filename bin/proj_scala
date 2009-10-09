@@ -63,20 +63,15 @@ if [ "x$SCALA_HOME" = "x" ]; then
   exit 1
 fi
 
-SCALATEST_JAR=`awk -F= '$1=="scalatest.jar" {print $2}' $PROPS`
-if [ "x$SCALATEST_JAR" = "x" ]; then
-  echo "Unable to load scalatest.jar from properties file $PROPS" 1>&2
-  exit 1
-fi
-
-
-L="$SCALA_HOME/lib"
+# CLASSPATH should include whatever was passed in on the command
+# line, target/classes, target/test-classes, all of the JARs in
+# lib_managed/compile, and then the core Scala libs.
 if [ "x$CLASSPATH" != "x" ]; then
   CLASSPATH="${CLASSPATH}:"
 fi
-CLASSPATH="${CLASSPATH}$SCALATEST_JAR:$CCSTM_BASE/out/main/classes:$CCSTM_BASE/out/test/classes"
-for i in scala-compiler scala-library; do
-  CLASSPATH="${CLASSPATH}:$L/${i}.jar"
+CLASSPATH="${CLASSPATH}$CCSTM_BASE/target/classes:$CCSTM_BASE/target/test-classes"
+for j in "$CCSTM_BASE"/lib_managed/compile/*.jar $SCALA_HOME/lib/scala-{compiler,library}.jar; do
+  CLASSPATH="${CLASSPATH}:$j"
 done
 
 SCALA_MAIN=""

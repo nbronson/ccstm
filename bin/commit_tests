@@ -1,0 +1,5 @@
+#!/bin/bash
+set -e
+cd `dirname $0`/..
+sbt test-compile
+bin/proj_scala --esc org.scalatest.tools.Runner -eFAPRY -p target/test-classes/ -x ExhaustiveTest >/dev/null
