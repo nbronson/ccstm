@@ -12,7 +12,7 @@ import org.scalatest.Group
 
 class HistogramSuite extends STMFunSuite {
 
-  for ((opsPerTest, name, groups) <- List((1000, "1K", List[Group]()),
+  for ((opsPerTest, name, groups) <- List((10000, "10K", List[Group]()),
                                           (1000000, "1M", List[Group](ExhaustiveTest)))) {
     for (buckets <- List(1, 30, 10000)) {
       for (threads <- List(1, 2, 4, 8, 16, 32, 64, 128, 256, 512) if (threads <= 2*Runtime.getRuntime.availableProcessors)) {
