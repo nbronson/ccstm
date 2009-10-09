@@ -13,12 +13,15 @@ import java.util.concurrent.CyclicBarrier
  *  separate <code>Ref</code> is used for each handoff.
  */
 class TokenRingSuite extends STMFunSuite {
-  test("non-txn ping-pong") { tokenRing(2, 1000000, false) }
-  test("non-txn threesome") { tokenRing(3, 1000000, false) }
-  test("non-txn large ring") { tokenRing(32, 10000, false) }
-  test("txn ping-pong") { tokenRing(2, 100000, true) }
-  test("txn threesome") { tokenRing(3, 100000, true) }
-  test("txn large ring") { tokenRing(32, 10000, true) }
+  test("small non-txn threesome") { tokenRing(3, 10000, false) }
+  test("small txn threesome") { tokenRing(3, 1000, true) }
+
+  test("non-txn ping-pong", ExhaustiveTest) { tokenRing(2, 1000000, false) }
+  test("non-txn threesome", ExhaustiveTest) { tokenRing(3, 1000000, false) }
+  test("non-txn large ring", ExhaustiveTest) { tokenRing(32, 10000, false) }
+  test("txn ping-pong", ExhaustiveTest) { tokenRing(2, 100000, true) }
+  test("txn threesome", ExhaustiveTest) { tokenRing(3, 100000, true) }
+  test("txn large ring", ExhaustiveTest) { tokenRing(32, 10000, true) }
 
   def tokenRing(ringSize: Int, handoffsPerThread: Int, useTxns: Boolean) {
     val ready = Array.fromFunction(i => Ref(i == 0))(ringSize)

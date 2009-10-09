@@ -28,7 +28,7 @@ class WakeupManagerSuite extends FunSuite {
     event.await
   }
 
-  test("single blocking") {
+  test("single blocking", ExhaustiveTest) {
     val mgr = new WakeupManager(1, 1)
     val event = mgr.subscribe
     event.addSource("ref", 0)
@@ -81,23 +81,23 @@ class WakeupManagerSuite extends FunSuite {
     }
   }
 
-  test("single ticket handoff, 2 threads, 100K handoffs/thread") {
+  test("single ticket handoff, 2 threads, 100K handoffs/thread", ExhaustiveTest) {
     runTicketTest(1, 2, 100000)
   }
 
-  test("single ticket handoff, 3 threads, 100K handoffs/thread") {
+  test("single ticket handoff, 3 threads, 100K handoffs/thread", ExhaustiveTest) {
     runTicketTest(1, 3, 100000)
   }
 
-  test("single ticket handoff, 100 threads, 1000 handoffs/thread") {
+  test("single ticket handoff, 100 threads, 1000 handoffs/thread", ExhaustiveTest) {
     runTicketTest(1, 100, 1000)
   }
 
-  test("separate ticket handoff, 100 threads, 1000 handoffs/thread") {
+  test("separate ticket handoff, 100 threads, 1000 handoffs/thread", ExhaustiveTest) {
     runTicketTest(50, 2, 1000)
   }
 
-  test("overlapped ticket handoff, 10 threads, 10K handoffs/thread") {
+  test("overlapped ticket handoff, 10 threads, 10K handoffs/thread", ExhaustiveTest) {
     runTicketTest(2, 5, 10000)
   }
 

@@ -89,7 +89,7 @@ class IsolatedRefSuite extends STMFunSuite {
       binder.reset()
     }
 
-    test(binder + ": counter increment should be fast") {
+    test(binder + ": counter increment should be fast", ExhaustiveTest) {
       val x = Ref(1)
       var best = java.lang.Long.MAX_VALUE
       for (pass <- 0 until 100000) {

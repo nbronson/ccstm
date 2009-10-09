@@ -43,7 +43,7 @@ class TxnSlotManagerSuite extends FunSuite {
     assert(txns === (Set.empty[String] ++ ((4 until 32).map("t" + _))))
   }
 
-  test("contended") {
+  test("contended", ExhaustiveTest) {
     val mgr = new TxnSlotManager[String](32, 4)
     val t0 = System.currentTimeMillis
     for (i <- 0 par_until (28*4 + 1)) {
@@ -58,7 +58,15 @@ class TxnSlotManagerSuite extends FunSuite {
     assert(elapsed >= 1000)
   }
 
-  test("parallel uncontended") {
+  test("parallel uncontended 1K") {
+    runParallelUncontended(1000)
+  }
+
+  test("parallel uncontended 1M", ExhaustiveTest) {
+    runParallelUncontended(1000000)
+  }
+
+  def runParallelUncontended(count: Int) {
     val mgr = new TxnSlotManager[String](128, 0)
     val bests = Array(Math.MAX_LONG, Math.MAX_LONG)
     for (t <- 0 par_until 2) {
@@ -67,7 +75,7 @@ class TxnSlotManagerSuite extends FunSuite {
         var i = 0
         val t0 = System.currentTimeMillis
         var s = 0
-        while (i < 1000000) {
+        while (i < count) {
           s = mgr.assign(txn, s)
           i += 1
           mgr.release(s)
@@ -77,6 +85,6 @@ class TxnSlotManagerSuite extends FunSuite {
       }
     }
     val best = bests(0) min bests(1)
-    println("best latency for 1M assign+release was " + best + " millis")
+    println("best latency for " + count + " assign+release was " + best + " millis")
   }
 }

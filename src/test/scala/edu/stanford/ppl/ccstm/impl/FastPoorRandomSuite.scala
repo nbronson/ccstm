@@ -43,7 +43,7 @@ class FastPoorRandomSuite extends FunSuite {
     }
   }
 
-  test("FastPoorRandom should be fast") {
+  test("FastPoorRandom should be fast", ExhaustiveTest) {
     val rand = FastPoorRandom
     var best = Math.MAX_LONG
     for (pass <- 0 until 1000) {

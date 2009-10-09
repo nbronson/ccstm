@@ -10,7 +10,10 @@ import edu.stanford.ppl.ccstm._
 class WriteSkewSuite extends STMFunSuite {
   val IncrCount = 1000000
 
-  test("write skew test") {
+  test("write skew test 1K") { runTest(1000) }
+  test("write skew test 1M", ExhaustiveTest) { runTest(1000000) }              
+
+  def runTest(incrCount: Int) {
     // Two threads, each of which increments its own Ref if the other Ref is
     // even.  Neither thread should ever observe that both Refs are odd.
     // MVCC STMs will require the addition of something like Clojure's "ensure"
@@ -26,7 +29,7 @@ class WriteSkewSuite extends STMFunSuite {
 
         override def run {
           try {
-            for (i <- 0 until IncrCount) {
+            for (i <- 0 until incrCount) {
               if (null != failure) return
               new Atomic { def body {
                 if ((!other % 2) != 0) {
@@ -51,6 +54,6 @@ class WriteSkewSuite extends STMFunSuite {
 
     if (null != failure) throw failure
     val elapsed = System.currentTimeMillis - begin
-    println("write skew test took " + elapsed + " millis for " + (2 * IncrCount) + " increments")
+    println("write skew test took " + elapsed + " millis for " + (2 * incrCount) + " increments")
   }
 }

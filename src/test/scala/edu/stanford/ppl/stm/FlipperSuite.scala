@@ -17,7 +17,7 @@ class FlipperSuite extends STMFunSuite {
   val DEFAULT_WORD_COUNT = 4096
   val DEFAULT_FLIP_PROB = 0.5f
 
-  test("default flipper test") {
+  test("default flipper test", ExhaustiveTest) {
     Config(
       DEFAULT_SYNC_COUNT,
       DEFAULT_TRANS_COUNT,
@@ -28,7 +28,7 @@ class FlipperSuite extends STMFunSuite {
       0).runTest
   }
 
-  test("random flipper test") {
+  test("random flipper test", ExhaustiveTest) {
     for (i <- 0 until 1) {
       Config(
         DEFAULT_SYNC_COUNT,

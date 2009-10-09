@@ -7,34 +7,36 @@ package edu.stanford.ppl.stm
 import edu.stanford.ppl.ccstm.collection.TArray
 import edu.stanford.ppl.ccstm._
 import java.util.concurrent.CyclicBarrier
+import org.scalatest.Group
 
 
 class HistogramSuite extends STMFunSuite {
 
-  val OpsPerTest = 1000000
-
-  for (buckets <- List(1, 30, 10000)) {
-    for (threads <- List(1, 2, 4, 8, 16, 32, 64, 128, 256, 512) if (threads <= 2*Runtime.getRuntime.availableProcessors)) {
-      for (useTArray <- List(false, true)) {
-        val str = ("" + buckets + " buckets, " + threads + " threads, " +
-                (if (useTArray) "TArray[Int]" else "Array[Ref[Int]]"))
-        addTest("non-txn, " + str) {
-          histogram(buckets, threads, OpsPerTest / threads, useTArray, 100, 1)
-        }
-
-        for (accesses <- List(1, 3, 100)) {
-          addTest("txn, " + str + ", " + accesses + " incr per txn") {
-            histogram(buckets, threads, OpsPerTest / threads, useTArray, 0, accesses)
+  for ((opsPerTest, name, groups) <- List((1000, "1K", List[Group]()),
+                                          (1000000, "1M", List[Group](ExhaustiveTest)))) {
+    for (buckets <- List(1, 30, 10000)) {
+      for (threads <- List(1, 2, 4, 8, 16, 32, 64, 128, 256, 512) if (threads <= 2*Runtime.getRuntime.availableProcessors)) {
+        for (useTArray <- List(false, true)) {
+          val str = ("" + buckets + " buckets, " + threads + " threads, " +
+                  (if (useTArray) "TArray[Int]" else "Array[Ref[Int]]"))
+          addTest("non-txn, " + str + ", " + name, groups:_*) {
+            histogram(buckets, threads, opsPerTest / threads, useTArray, 100, 1)
           }
-          addTest("mix, " + str + ", " + accesses + " incr per txn") {
-            histogram(buckets, threads, OpsPerTest / threads, useTArray, 50, accesses)
+
+          for (accesses <- List(1, 3, 100)) {
+            addTest("txn, " + str + ", " + accesses + " incr per txn, " + name, groups:_*) {
+              histogram(buckets, threads, opsPerTest / threads, useTArray, 0, accesses)
+            }
+            addTest("mix, " + str + ", " + accesses + " incr per txn " + name, groups:_*) {
+              histogram(buckets, threads, opsPerTest / threads, useTArray, 50, accesses)
+            }
           }
         }
       }
     }
   }
 
-  private def addTest(name: String)(block: => Unit) { test(name)(block) }
+  private def addTest(name: String, groups: Group*)(block: => Unit) { test(name, groups:_*)(block) }
 
   def histogram(bucketCount: Int,
                 workerCount: Int,
@@ -57,17 +59,17 @@ class HistogramSuite extends STMFunSuite {
     val barrier = new CyclicBarrier(workerCount, new Runnable {
       var start = 0L
       def run {
-        val now = System.currentTimeMillis
+        val now = System.nanoTime
         if (start == 0) {
           start = now
         } else {
           val elapsed = now - start
           println("hist(" + bucketCount + "," + workerCount + "," + samplesPerWorker + "," +
             useTArray + "," + nonTxnPct +
-            "," + samplesPerTxn + ")  total_elapsed=" + elapsed + " msec,  throughput=" +
-            (samplesPerWorker * workerCount * 1000L) / elapsed + " ops/sec,  per_thread_latency=" +
-            (elapsed * 1000000L) / samplesPerWorker + " nanos/op,  avg_arrival=" +
-            (elapsed * 1000000L) / (samplesPerWorker * workerCount) + " nanos/op")
+            "," + samplesPerTxn + ")  total_elapsed=" + elapsed + " nanos,  throughput=" +
+            (samplesPerWorker * workerCount * 1000000000L) / elapsed + " ops/sec,  per_thread_latency=" +
+            elapsed / samplesPerWorker + " nanos/op,  avg_arrival=" +
+            elapsed / (samplesPerWorker * workerCount) + " nanos/op")
         }
       }
     })
