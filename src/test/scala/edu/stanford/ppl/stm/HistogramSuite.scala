@@ -81,7 +81,13 @@ class HistogramSuite extends STMFunSuite {
           var i = 0
           while (i < samplesPerWorker) {
             if (Math.abs(hash(i, worker) % 100) < nonTxnPct) {
-              buckets(Math.abs(hash(worker, i) % bucketCount)).nonTxn.transform(_ + 1)
+              if ((i % 2) == 0) {
+                buckets(Math.abs(hash(worker, i) % bucketCount)).nonTxn.transform(_ + 1)
+              } else {
+                val nt = buckets(Math.abs(hash(worker, i) % bucketCount)).nonTxn
+                var x = !nt
+                while (!nt.compareAndSet(x, x + 1)) x = !nt
+              }
               i += 1
             } else {
               new Atomic { def body {
