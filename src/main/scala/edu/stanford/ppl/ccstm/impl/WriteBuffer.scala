@@ -45,9 +45,12 @@ private[impl] class WriteBuffer {
         // miss, read from handle
         return handle.data
       }
-      if ((r eq ref) && _entries(handleI(i)).asInstanceOf[Handle[_]].offset == offset) {
-        // hit
-        return _entries(specValueI(i)).asInstanceOf[T]
+      if (r eq ref) {
+        val h = _entries(handleI(i))
+        if ((h eq handle) || h.asInstanceOf[Handle[_]].offset == offset) {
+          // hit
+          return _entries(specValueI(i)).asInstanceOf[T]
+        }
       }
 
       // probe
@@ -77,10 +80,13 @@ private[impl] class WriteBuffer {
         growIfNeeded()
         return
       }
-      if ((r eq ref) && _entries(handleI(i)).asInstanceOf[Handle[_]].offset == offset) {
-        // hit
-        _entries(specValueI(i)) = specValue
-        return
+      if (r eq ref) {
+        val h = _entries(handleI(i))
+        if ((h eq handle) || h.asInstanceOf[Handle[_]].offset == offset) {
+          // hit
+          _entries(specValueI(i)) = specValue
+          return
+        }
       }
 
       // probe
@@ -106,9 +112,12 @@ private[impl] class WriteBuffer {
         growIfNeeded()
         return z
       }
-      if ((r eq ref) && _entries(handleI(i)).asInstanceOf[Handle[_]].offset == offset) {
-        // hit
-        return _entries(specValueI(i)).asInstanceOf[T]
+      if (r eq ref) {
+        val h = _entries(handleI(i))
+        if ((h eq handle) || h.asInstanceOf[Handle[_]].offset == offset) {
+          // hit
+          return _entries(specValueI(i)).asInstanceOf[T]
+        }
       }
 
       // probe
