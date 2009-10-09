@@ -15,7 +15,10 @@ object TxnLocal {
 
 class TxnLocal[T] {
 
-  protected def initialValue: T = null.asInstanceOf[T]
+  /** Invoked if <code>get(txn)</code> precedes all calls (if any) to
+   *  <code>set(v)(txn)</code>.
+   */ 
+  protected def initialValue(txn: Txn): T = null.asInstanceOf[T]
 
   def get(implicit txn: Txn) = getImpl(txn)
 
@@ -34,7 +37,15 @@ class TxnLocal[T] {
     txn.locals
   }
 
-  private def getImpl(txn: Txn): T = locals(txn).get(this).asInstanceOf[T]
+  private def getImpl(txn: Txn): T = {
+    val m = locals(txn)
+    if (!m.containsKey(this)) {
+      m.put(this, initialValue(txn))
+    }
+    m.get(this).asInstanceOf[T]
+  }
 
-  private def setImpl(txn: Txn, v: T) { locals(txn).put(this, v) }
+  private def setImpl(txn: Txn, v: T) {
+    locals(txn).put(this, v)
+  }
 }
