@@ -20,8 +20,4 @@ class TFloatRef(initialValue: Float) extends impl.MetaHolder with Ref[Float] wit
   private[ccstm] def ref: AnyRef = this
   private[ccstm] def offset: Int = 0
   @volatile private[ccstm] var data = initialValue
-
-  override def toString = {
-    "TFloatRef@" + Integer.toHexString(hashCode)
-  }
 }

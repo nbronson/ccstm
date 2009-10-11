@@ -19,8 +19,4 @@ class TAnyRef[T](initialValue: T) extends impl.MetaHolder with Ref[T] with impl.
   private[ccstm] def ref: AnyRef = this
   private[ccstm] def offset: Int = 0
   @volatile private[ccstm] var data = initialValue
-
-  override def toString = {
-    "TAnyRef@" + Integer.toHexString(hashCode)
-  }
 }

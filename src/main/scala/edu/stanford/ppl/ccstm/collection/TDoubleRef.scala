@@ -20,8 +20,4 @@ class TDoubleRef(initialValue: Double) extends impl.MetaHolder with Ref[Double] 
   private[ccstm] def ref: AnyRef = this
   private[ccstm] def offset: Int = 0
   @volatile private[ccstm] var data = initialValue
-
-  override def toString = {
-    "TDoubleRef@" + Integer.toHexString(hashCode)
-  }
 }

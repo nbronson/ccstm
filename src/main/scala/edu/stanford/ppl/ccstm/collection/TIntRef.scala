@@ -20,8 +20,4 @@ class TIntRef(initialValue: Int) extends impl.MetaHolder with Ref[Int] with impl
   private[ccstm] def ref: AnyRef = this
   private[ccstm] def offset: Int = 0
   @volatile private[ccstm] var data = initialValue
-
-  override def toString = {
-    "TIntRef@" + Integer.toHexString(hashCode)
-  }
 }

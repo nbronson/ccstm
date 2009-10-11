@@ -45,8 +45,4 @@ class TOptionRef[T](initialValue: Option[T]) extends impl.MetaHolder with Ref[Op
       case Some(v) => if (null == v) SOME_NULL else v.asInstanceOf[AnyRef]
     }
   }
-
-  override def toString = {
-    "TOptionRef@" + Integer.toHexString(hashCode)
-  }
 }

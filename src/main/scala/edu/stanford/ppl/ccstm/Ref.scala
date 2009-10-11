@@ -344,9 +344,9 @@ trait Ref[T] extends Source[T] with Sink[T] {
     }
   }
 
-  override def hashCode = impl.STMImpl.hash(handle.ref, handle.offset)
+  override def hashCode: Int = impl.STMImpl.hash(handle.ref, handle.offset)
 
-  override def equals(rhs: Any) = {
+  override def equals(rhs: Any): Boolean = {
     rhs match {
       case r: Ref[_] => {
         val h1 = handle
@@ -355,5 +355,9 @@ trait Ref[T] extends Source[T] with Sink[T] {
       }
       case _ => false
     }
+  }
+
+  override def toString: String = {
+    getClass.getSimpleName + "@" + (System.identityHashCode(this).toHexString)
   }
 }

@@ -20,8 +20,4 @@ class TLongRef(initialValue: Long) extends impl.MetaHolder with Ref[Long] with i
   private[ccstm] def ref: AnyRef = this
   private[ccstm] def offset: Int = 0
   @volatile private[ccstm] var data = initialValue
-
-  override def toString = {
-    "TLongRef@" + Integer.toHexString(hashCode)
-  }
 }
