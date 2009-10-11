@@ -30,8 +30,4 @@ class TBooleanRef(initialValue: Boolean) extends impl.MetaHolder(withUserBit(0L,
       done = userBit(m) == v || metaCAS(m, withUserBit(m, v))
     }
   }
-
-  override def toString = {
-    "TBooleanRef@" + Integer.toHexString(hashCode)
-  }
 }
