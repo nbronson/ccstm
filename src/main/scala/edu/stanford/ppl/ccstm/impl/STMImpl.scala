@@ -17,13 +17,12 @@ package edu.stanford.ppl.ccstm.impl
  *  Metadata is a 64 bit long, of which 1 bit records whether any pending
  *  wakeups should be triggered if the associated data is changed, 10 bits
  *  record the write permission owner (0 means no owner, 1 means non-txn
- *  owner, 2 means a value is frozen), 1 bit flags values that are committing
- *  and may not be accessed, 1 bit is available for the user of a Handle, and
- *  51 bits record the version number.  2^51 is a bit more than 2*10^15.  On a
- *  hypothetical computer that could perform a non-transactional write in 10
- *  nanoseconds (each of which requires at least 3 CAS-s), version numbers
- *  would not overflow for 250 days of continuous writes.  The all 1-s version
- *  number is used to indicate a value that is frozen.
+ *  owner), 1 bit flags values that are committing and may not be accessed, 1
+ *  bit is available for the user of a Handle, and 51 bits record the version
+ *  number.  2^51 is a bit more than 2*10^15.  On a hypothetical computer that
+ *  could perform a non-transactional write in 10 nanoseconds (each of which
+ *  requires at least 3 CAS-s), version numbers would not overflow for 250 days
+ *  of continuous writes.
  *
  *  @author Nathan Bronson
  */
@@ -47,7 +46,7 @@ private[ccstm] object STMImpl extends GV6 {
    */
   val YieldCount = System.getProperty("ccstm.yield", "2").toInt
 
-  val slotManager = new TxnSlotManager[TxnImpl](1024, 3)
+  val slotManager = new TxnSlotManager[TxnImpl](1024, 2)
   val wakeupManager = new WakeupManager // default size
 
   /** Hashes <code>ref</code> with <code>offset</code>, mixing the resulting
@@ -91,9 +90,6 @@ private[ccstm] object STMImpl extends GV6 {
    *  a location for writing.
    */
   val NonTxnSlot: Slot = 1
-
-  /** The slot number that claims ownership of frozen handles. */
-  val FrozenSlot: Slot = 2
 
 
   // TODO: clean up the following mess
@@ -227,7 +223,6 @@ private[ccstm] object STMImpl extends GV6 {
   private[impl] def weakAwaitUnowned(handle: Handle[_], m0: Meta, currentTxn: TxnImpl) {
     owner(m0) match {
       case NonTxnSlot => weakAwaitNonTxnUnowned(handle, m0, currentTxn)
-      case FrozenSlot => throw new IllegalStateException("frozen")
       case _ => weakAwaitTxnUnowned(handle, m0, currentTxn)
     }
   }

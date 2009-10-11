@@ -390,10 +390,6 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
       }
       revalidateIfRequired(version(m0))
       value = handle.data
-      if (owner(m0) == FrozenSlot) {
-        // version can't change, just checking against _readVersion is enough
-        return value
-      }
       m1 = handle.meta
     } while (changingAndVersion(m0) != changingAndVersion(m1))
 
@@ -545,9 +541,6 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
           false
         }
       }
-      case FrozenSlot => {
-        throw new IllegalStateException("frozen")
-      }
       case s if (s == _slot) => {
         // Self-owned.  This particular ref+offset might not be in the write
         // buffer, but it's definitely not in anybody else's.
@@ -560,31 +553,11 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     }
   }
 
-  def freeze(handle: Handle[_]) {
-    // Instead of releasing the handle at the end of the txn, we want to mark
-    // it frozen.  We also want to prevent future changes inside the txn.
-    // TODO: update doc to reflect non-checked nature of this implementation
-    afterCommit(_ => NonTxn.freeze(handle))
-  }
-
   def readForWrite[T](handle: Handle[T]): T = {
     requireActive()
 
     val m0 = handle.meta
-    if (owner(m0) == FrozenSlot) {
-      // revert back to normal read
-      revalidateIfRequired(version(m0))
-      return handle.data
-    }
-
-    readForImmediateWrite(handle, m0)
-  }
-
-  /** Like <code>readForWrite</code>, but doesn't fall back to a read for
-   *  frozen handles and doesn't check the status.
-   */
-  private def readForImmediateWrite[T](handle: Handle[T], m0: STMImpl.Meta): T = {
-
+    
     if (owner(m0) == _slot) {
       return _writeBuffer.allocatingGet(handle)
     }
@@ -620,8 +593,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   }
 
   def transform[T](handle: Handle[T], f: T => T) = {
-    requireActive()
-    val v = readForImmediateWrite(handle, handle.meta)
+    val v = readForWrite(handle)
     _writeBuffer.put(handle, f(v))
   }
   

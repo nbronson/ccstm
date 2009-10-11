@@ -59,20 +59,6 @@ object Sink {
      *      that is not active.
      */
     def tryWrite(v: T): Boolean
-
-    /** Prohibits future changes to the value referenced by the bound
-     *  <code>Ref</code>.  If this method is called from a transactional
-     *  context the prohibition will be removed if the transaction rolls back.
-     *  Future calls to <code>set</code> will cause an
-     *  <code>IllegalStateException</code> to be thrown.  Future calls to a
-     *  conditional update function such as <code>compareAndSet</code> or
-     *  <code>transformIfDefined</code> will be allowed only if the condition
-     *  for update does not hold (they must return false).  Future calls to
-     *  <code>readForWrite</code> are allowed.
-     *  @throws IllegalStateException if this view is bound to a transaction
-     *      that is not active.
-     */
-    def freeze()
   }
 }
 

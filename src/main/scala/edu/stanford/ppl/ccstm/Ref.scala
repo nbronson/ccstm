@@ -29,27 +29,6 @@ object Ref {
   def apply(initialValue: Double): Ref[Double] = new TDoubleRef(initialValue)
   def apply(initialValue: Boolean): Ref[Boolean] = new TBooleanRef(initialValue)
 
-  /** Returns a new constant <code>Ref</code> instance with the specified
-   *  value.  Reads of the reference will always return the same value, and any
-   *  attempt to change the value will result in an exception.  This may be
-   *  used as an optimization when it can be dynamically determined at
-   *  construction time that a reference will never need to be changed.  The
-   *  returned reference acts as if it has already been frozen with
-   *  <code>freeze</code>.
-   *  <p>
-   *  When feasible, the <code>source</code> may be preferred, as it provides
-   *  better compile-time checking.
-   *  @see edu.stanford.ppl.ccstm.Ref#source
-   *  @see edu.stanford.ppl.ccstm.Ref.Bound#freeze
-   */
-  def constant[T](value: T): Ref[T] = new collection.ConstantRef(value)
-  
-  /** Returns a new constant <code>Source</code> instance with the
-   *  specified value.  Reads of the source will always return the same value.
-   *  @see edu.stanford.ppl.ccstm.Ref#constant
-   */
-  def source[T](value: T): Source[T] = constant(value)
-
 
   /** A <code>Ref</code> view that supports reads and writes.  Reads and writes
    *  are performed from the perspective of the bound context, which is either
@@ -281,7 +260,6 @@ trait Ref[T] extends Source[T] with Sink[T] {
 
     def set(v: T) { txn.set(handle, v) }
     def tryWrite(v: T): Boolean = txn.tryWrite(handle, v)
-    def freeze() = txn.freeze(handle)
 
     def readForWrite: T = txn.readForWrite(handle)
     def compareAndSet(before: T, after: T): Boolean = {
@@ -327,7 +305,6 @@ trait Ref[T] extends Source[T] with Sink[T] {
 
     def set(v: T) { impl.NonTxn.set(handle, v) }
     def tryWrite(v: T): Boolean = impl.NonTxn.tryWrite(handle, v)
-    def freeze() = impl.NonTxn.freeze(handle)
 
     def readForWrite: T = impl.NonTxn.get(handle)
     def compareAndSet(before: T, after: T): Boolean = {

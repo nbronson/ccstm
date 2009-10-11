@@ -39,8 +39,6 @@ private[ccstm] object NonTxn {
   }
 
   private def weakNoSpinAwaitNewVersion(handle: Handle[_], m0: Meta) {
-    if (owner(m0) == FrozenSlot) throw new IllegalStateException("futile wait on frozen data")
-
     val event = wakeupManager.subscribe
     event.addSource(handle.ref, handle.offset)
     do {
@@ -195,30 +193,6 @@ private[ccstm] object NonTxn {
     handle.data = v
     commitLock(handle, m1)
     return true
-  }
-
-  def freeze[T](handle: Handle[T]) {
-    while (true) {
-      val m0 = handle.meta
-      owner(m0) match {
-        case FrozenSlot => {
-          // success
-          return
-        }
-        case UnownedSlot => {
-          // attempt freeze
-          val m1 = withOwner(m0, FrozenSlot)
-          if (handle.metaCAS(m0, m1)) {
-            // success
-            return
-          }
-        }
-        case _ => {
-          weakAwaitUnowned(handle, m0)
-          // try again
-        }
-      }
-    }
   }
 
   def compareAndSet[T](handle: Handle[T], before: T, after: T): Boolean = {
