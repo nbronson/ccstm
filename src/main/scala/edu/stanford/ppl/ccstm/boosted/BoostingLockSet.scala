@@ -8,7 +8,8 @@ package edu.stanford.ppl.ccstm.boosted
 import java.lang.ref.{ReferenceQueue, WeakReference}
 import java.util.concurrent.locks.{ReentrantLock, Lock}
 import java.util.concurrent.{ConcurrentHashMap, TimeUnit}
-import scala.collection.mutable.{HashMap, HashSet}
+import java.util.HashSet
+
 object BoostingLockSet {
 
   val LockTimeoutMillis = 10
@@ -24,14 +25,15 @@ object BoostingLockSet {
       override protected def initialValue(txn: Txn): HashSet[Lock] = {
         // arrange to unlock after commit or rollback
         txn.afterCompletion(t => {
-          get(txn).foreach(_.unlock())
+          val iter = get(txn).iterator
+          while (iter.hasNext) iter.next().unlock()
         }, UnlockPriority)
 
         new HashSet[Lock]
       }
     }
 
-    /** The RW lock used for operations that touch all elements. */
+    // TODO: add a lock to guard operations like size and clear()
 
     /** The locks for this lock set. */
     private val allLocks = new ConcurrentHashMap[Any,WeakRefWithKey]
@@ -65,9 +67,9 @@ object BoostingLockSet {
       }
     }
 
-    def acquire(key, txn: Txn) {
+    def lockKey(key: Any, txn: Txn) {
       val lock = lockFor(key)
-      val owned = txnOwned.get
+      val owned = txnOwned.get(txn)
       if (owned.add(lock)) {
         // wasn't previously present, acquire it
         if (!lock.tryLock(LockTimeoutMillis, TimeUnit.MILLISECONDS)) {
@@ -98,10 +100,6 @@ object BoostingLockSet {
  */
 trait BoostingLockSet {
   def lockKey(key: Any, txn: Txn)
-  def lockSize(txn: Txn)
-  def lockAll(txn: Txn)
 
-  def nonTxnLockKey[A](key: Any, block: => A): A
-  def nonTxnLockSize[A](block: => A): A
-  def nonTxnLockAll[A](block: => A): A
+  def nonTxnOp[A](key: Any, block: => A): A
 }
