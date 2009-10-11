@@ -242,6 +242,20 @@ class IsolatedRefSuite extends STMFunSuite {
       binder.reset()
     }
   
+    test(binder + ": simple releasableRead") {
+      val x = Ref(1)
+      val r1 = binder(x).releasableRead
+      binder(x) := 2
+      val r2 = binder(x).releasableRead
+      r1.release()
+      r2.release()
+      assert(r1.value === 1)
+      assert(r2.value === 2)
+      r1.release()
+      r2.release()
+      binder.reset()
+    }
+
     test(binder + ": tryWrite") {
       val x = Ref(1)
       assert(binder(x).get === 1)

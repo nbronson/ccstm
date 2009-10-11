@@ -469,6 +469,44 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     }
   }
 
+  def releasableRead[T](handle: Handle[T]): ReleasableRead[T] = {
+    requireActive
+    // this code relies on the implementation details of get()
+    val before = _readSet.size
+    val v = get(handle)
+    (_readSet.size - before) match {
+      case 0 => {
+        // read was satisfied from write buffer, can't release
+        new ReleasableRead[T] {
+          def context: Option[Txn] = Some(TxnImpl.this.asInstanceOf[Txn])
+          def value: T = v
+          def release() {}
+        }
+      }
+      case 1 => {
+        // single new addition to read set
+        assert(handle eq _readSet.lastHandle)
+        new ReleasableRead[T] {
+          private val version = _readSet.lastVersion
+          private var released = false
+          
+          def context: Option[Txn] = Some(TxnImpl.this.asInstanceOf[Txn])
+          def value: T = v
+          def release() {
+            if (!released && null != _readSet) {
+              val f = _readSet.remove(handle, version)
+              assert(f)
+              released = true
+            }
+          }
+        }
+      }
+      case _ => {
+        throw new Error("logic error in program")
+      }
+    }
+  }
+
   def set[T](handle: Handle[T], v: T) {
     requireActive()
 

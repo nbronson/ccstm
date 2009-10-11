@@ -277,6 +277,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
     def map[Z](f: (T) => Z): Z = txn.map(handle, f)
     def await(pred: (T) => Boolean) { if (!pred(get)) txn.retry } 
     def unrecordedRead: UnrecordedRead[T] = txn.unrecordedRead(handle)
+    def releasableRead: ReleasableRead[T] = txn.releasableRead(handle)
 
     def set(v: T) { txn.set(handle, v) }
     def tryWrite(v: T): Boolean = txn.tryWrite(handle, v)
@@ -318,6 +319,11 @@ trait Ref[T] extends Source[T] with Sink[T] {
     def map[Z](f: (T) => Z): Z = f(impl.NonTxn.get(handle))
     def await(pred: (T) => Boolean) { impl.NonTxn.await(handle, pred) }
     def unrecordedRead: UnrecordedRead[T] = impl.NonTxn.unrecordedRead(handle)
+    def releasableRead: ReleasableRead[T] = new ReleasableRead[T] {
+      def context: Option[Txn] = None
+      val value: T = get
+      def release() {}
+    }
 
     def set(v: T) { impl.NonTxn.set(handle, v) }
     def tryWrite(v: T): Boolean = impl.NonTxn.tryWrite(handle, v)

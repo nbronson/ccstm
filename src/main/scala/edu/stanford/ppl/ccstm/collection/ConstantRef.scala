@@ -30,6 +30,11 @@ class ConstantRef[T](value0: T) extends Ref[T] with impl.Handle[T] {
       def stillValid: Boolean = true
       def recorded: Boolean = true
     }
+    def releasableRead: ReleasableRead[T] = new ReleasableRead[T] {
+      def context: Option[Txn] = Bnd.this.context
+      def value: T = value0
+      def release() {}
+    }
 
     def readForWrite: T = value0
     def freeze() {}
