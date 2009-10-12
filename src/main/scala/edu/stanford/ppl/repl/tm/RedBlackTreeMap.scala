@@ -19,23 +19,23 @@ class RedBlackTreeMap[A,B] {
 
   private val root = Ref[Node[A,B]](null)
 
-  private def successor(t: Node[A,B]) = {
-    if (null == t) {
+  private def successor(x: Node[A,B])(implicit txn: Txn) = {
+    if (null == x) {
       null
     } else {
-      var t = t.right?;
-      if (null != t) {
-        var p = t
-        t = p.left?;
-        while (null != t) {
-          p = t
-          t = p.left?
+      var tmp = x.right?;
+      if (null != tmp) {
+        var p = tmp
+        tmp = p.left?;
+        while (null != tmp) {
+          p = tmp
+          tmp = p.left?
         }
         p
       } else {
-        var p = t.parent
-        var ch = t
-        while (null != p && ch == p.right?) {
+        var p = x.parent?;
+        var ch = tmp
+        while (null != p && ch == p.right.?) {
           ch = p
           p = p.parent?;
         }
@@ -44,23 +44,23 @@ class RedBlackTreeMap[A,B] {
     }
   }
 
-  private def predecessor(t: Node[A,B]) = {
-    if (null == t) {
+  private def predecessor(x: Node[A,B])(implicit txn: Txn) = {
+    if (null == x) {
       null
     } else {
-      var t = t.left?;
-      if (null != t) {
-        var p = t
-        t = p.right?;
-        while (null != t) {
-          p = t
-          t = p.right?
+      var tmp = x.left?;
+      if (null != tmp) {
+        var p = tmp
+        tmp = p.right?;
+        while (null != tmp) {
+          p = tmp
+          tmp = p.right?
         }
         p
       } else {
-        var p = t.parent
-        var ch = t
-        while (null != p && ch == p.left?) {
+        var p = x.parent?;
+        var ch = tmp
+        while (null != p && ch == p.left.?) {
           ch = p
           p = p.parent?;
         }
