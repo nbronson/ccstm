@@ -33,6 +33,10 @@ private object TxnFieldUpdater {
  *  <code>TxnFieldUpdater</code>s are considered equivalent if they have the
  *  same <code>tClazz</code> and <code>fieldName</code>.
  *  <p>
+ *  <strong>The transactional field must be declared <code>volatile</code>, and
+ *  should not be accessed directly by any code except that used to implement
+ *  <code>getField</code> and <code>setField</code>.</strong>
+ *  <p>
  *  For example, the following two node implementations will both provide
  *  transactional linked list behavior, but the second will involve fewer
  *  non-transient objects:<pre>
@@ -64,18 +68,38 @@ private object TxnFieldUpdater {
  *      def next = DirectNode.Next(this)
  *
  *      // alternate property-like style
- *      def value(implicit txn: Txn): Int = DirectNode.Value.get(this)
- *      def value_=(v: Int)(implicit txn: Txn) { DirectNode.Value.set(this, v) }
- *      def valueRef = DirectNode.Value(this) 
+ *      def valueRef = DirectNode.Value(this)
+ *      def value(implicit txn: Txn): Int = !valueRef
+ *      def value_=(v: Int)(implicit txn: Txn) { valueRef := v }
  *    }
  *  </pre>
  */
 abstract class TxnFieldUpdater[T <: MetaHolder,V](tClazz: Class[T], fieldName: String) {
+
+  /** Overriden for each <code>TxnFieldUpdater</code> instance to return the
+   *  current value of the managed field in <code>instance</code>.  This method
+   *  should perform a volatile read. 
+   */
   protected def getField(instance: T): V
+
+  /** Overriden for each <code>TxnFieldUpdater</code> instance to update the
+   *  value of the managed field in <code>instance</code>.  This method should
+   *  perform a volatile write.
+   */
   protected def setField(instance: T, v: V)
 
   private val offset = TxnFieldUpdater.getOffset(tClazz, fieldName)
 
+  /** Returns a <code>Ref</code> that will provide transactional access to the
+   *  field encapsulated by this updater.  Reads and writes of the returned ref
+   *  that are performed as part of a <code>Txn</code> will be linearizable
+   *  with all other transactional reads and writes.  Reads and writes of the
+   *  returned ref performed via <code>Ref.nonTxn</code> will be atomic and
+   *  isolated, and strongly ordered with any transactions that access the same
+   *  field of <code>instance</code>.
+   *  @returns a <code>Ref</code> that provides transactional access to a field
+   *      in <code>instance</code>.
+   */
   def apply(instance: T): Ref[V] = new Ref[V] with Handle[V] {
     protected def handle: Handle[V] = this
 
@@ -95,8 +119,14 @@ abstract class TxnFieldUpdater[T <: MetaHolder,V](tClazz: Class[T], fieldName: S
     }
   }
 
-  def get(instance: T)(implicit txn: Txn): V = this(instance).get
-  def set(instance: T, v: V)(implicit txn: Txn) { this(instance).set(v) }
+  override def hashCode: Int = offset
+
+  override def equals(rhs: Any): Boolean = {
+    rhs match {
+      case x: TxnFieldUpdater[_,_] => offset == x.offset
+      case _ => false
+    }
+  }
 
   override def toString: String = {
     "TxnFieldUpdater(" + fieldName + ")"
