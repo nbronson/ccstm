@@ -82,7 +82,8 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
    *  exception then the transaction will be rolled back and no subsequent
    *  before-completion callbacks will be invoked.  If two callbacks have
    *  different priorities then the one with the smaller priority will be
-   *  executed first.
+   *  invoked first, otherwise the one enqueued earlier will be invoked
+   *  first.
    *  @throws IllegalStateException if this transaction is not active.
    */
   def beforeCommit(callback: Txn => Unit, prio: Int)
@@ -98,7 +99,8 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
    *  may use the two-argument form of this method.  If the validation fails
    *  then the transaction will be immediately rolled back and this method will
    *  not return.  If two read resources have different priorities then the one
-   *  with the smaller priority will be validated first.
+   *  with the smaller priority will be validated first, otherwise the one
+   *  enqueued earlier will be validated first.
    *  @throws IllegalStateException if this transaction is not active.
    */
   def addReadResource(readResource: ReadResource, prio: Int)
@@ -122,7 +124,8 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
 
   /** Adds a write resource to the transaction, which will participate in the
    *  two-phase commit protocol.  If two write resources have different
-   *  priorities then the one with the smaller priority will be validated first.
+   *  priorities then the one with the smaller priority will be invoked first,
+   *  otherwise the one enqueued earlier will be invoked first.
    *  @throws IllegalStateException if this transaction is not active.
    */
   def addWriteResource(writeResource: WriteResource, prio: Int)
@@ -156,7 +159,8 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
    *  completion, if this transaction commits.  An exception thrown from an
    *  after-commit callback will be rethrown after the rest of the after-commit
    *  callbacks are invoked.  If two callbacks have different priorities then
-   *  the one with the smaller priority will be executed first.
+   *  the one with the smaller priority will be invoked first, otherwise the
+   *  one enqueued earlier will be invoked first.
    *  @throws IllegalStateException if the transaction is already completed.
    */
   def afterCommit(callback: Txn => Unit, prio: Int)
@@ -168,7 +172,8 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
    *  completion, if this transaction rolls back.  An exception thrown from an
    *  after-commit callback will be rethrown after the rest of the after-commit
    *  callbacks are invoked.  If two callbacks have different priorities then
-   *  the one with the smaller priority will be executed first.
+   *  the one with the smaller priority will be invoked first, otherwise the
+   *  one enqueued earlier will be invoked first.
    *  @throws IllegalStateException if the transaction is already completed.
    */
   def afterRollback(callback: Txn => Unit, prio: Int)
