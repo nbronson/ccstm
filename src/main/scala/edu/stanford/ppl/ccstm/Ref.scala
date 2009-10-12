@@ -214,6 +214,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
   //////////////// Source stuff
 
   def unary_!(implicit txn: Txn): T = txn.get(handle)
+  def ?(implicit txn: Txn): T = txn.get(handle)
   def get(implicit txn: Txn): T = txn.get(handle)
   def map[Z](f: (T) => Z)(implicit txn: Txn): Z = txn.map(handle, f)
 
