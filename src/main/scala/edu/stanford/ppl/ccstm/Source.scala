@@ -102,6 +102,22 @@ object Source {
      *      that is not active.
      */
     def unrecordedRead: UnrecordedRead[T]
+    
+    /** Returns a <code>ReleasableRead</code> instance that wraps the value
+     *  that would be returned from <code>get</code>.  If this source is bound
+     *  to a transactional context, <code>Ref</code> will be added to the
+     *  transaction's read set, but it may be removed by a call to
+     *  <code>ReleasableRead.release()</code>.  When called from a
+     *  non-transactional context this method returns a pre-released
+     *  <code>ReleasableRead</code>, which is just an expensive way to call
+     *  <code>get</code>.
+     *  @return an <code>ReleasableRead</code> instance that holds the read
+     *      value and allows the read to be elided from a transaction's read
+     *      set.
+     *  @throws IllegalStateException if this view is bound to a transaction
+     *      that is not active.
+     */
+    def releasableRead: ReleasableRead[T]
   }
 }
 

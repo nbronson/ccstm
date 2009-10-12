@@ -7,16 +7,19 @@ package edu.stanford.ppl.ccstm
 
 /** Holds the result of an unrecorded read, which may be used to avoid
  *  transaction conflicts, or to detect ABA changes when performing
- *  non-transactional accesses.
+ *  non-transactional accesses.  <code>ReleasableRead</code>s provide a
+ *  related functionality.
  *  <p>
  *  When an unrecorded read is performed in a transaction, the caller is
  *  responsible for guaranteeing that the transaction's behavior is correct,
  *  even if the read becomes invalid prior to commit.  Unrecorded reads may be
  *  useful for heuristic decisions that can tolerate inconsistent or stale
- *  data, or for methods that register transaction handlers to perform
- *  validation at a semantic level.  When used in combination with transaction
- *  resource callbacks, it is important to consider the case that the
- *  unrecorded read is already invalid before it is returned to the requester.
+ *  data, for methods that register transaction handlers to perform
+ *  validation at a semantic level, or for optimistically traversing linked
+ *  data structures while tolerating mutations to earlier links.  When used in
+ *  combination with transaction resource callbacks, it is important to
+ *  consider the case that the unrecorded read is already invalid before it is
+ *  returned to the requester.
  *  <p>
  *  When called from a non-transactional context the returned instance can be
  *  used to determine if a value has remained unchanged for a particular
@@ -25,11 +28,13 @@ package edu.stanford.ppl.ccstm
  *  Some STM implementations may spuriously indicate that an unrecorded read
  *  has become invalid, despite no change actually occurring to the original
  *  value.
- *  @see edu.stanford.ppl.ccstm.Ref.BoundSource#unrecordedRead
+ *  @see edu.stanford.ppl.ccstm.Source.Bound#unrecordedRead
+ *  @see edu.stanford.ppl.ccstm.Source.Bound#releasableRead
  *
  *  @author Nathan Bronson
  */
 trait UnrecordedRead[+T] {
+
   /** Returns <code>Some(txn)</code> if this unrecorded read was made from a
    *  transactional context, or <code>None</code> if this unrecorded read was
    *  made from a non-transactional context.

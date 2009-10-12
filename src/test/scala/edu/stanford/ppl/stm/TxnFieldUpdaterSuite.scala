@@ -37,12 +37,10 @@ class TxnFieldUpdaterSuite extends STMFunSuite {
     new Atomic { def body {
       assert(IField(r).get === 0)
       assert(!IField(r) === 0)
-      assert(IField.get(r) === 0)
       assert(SField(r).get === "abc")
       assert(!SField(r) === "abc")
-      assert(SField.get(r) === "abc")
 
-      IField.set(r, 1)
+      IField(r).set(1)
       assert(IField(r).get === 1)
 
       SField(r) := "def"
@@ -52,15 +50,27 @@ class TxnFieldUpdaterSuite extends STMFunSuite {
     assert(IField(r).nonTxn.get === 1)
     assert(SField(r).nonTxn.get === "def")
   }
+
+  test("field equality") {
+    assert(newIField == newIField)
+    assert(newIField != newSField)
+    val r = new TFUSObj
+    newIField(r).nonTxn := 2
+    assert(newIField(r).nonTxn.get === 2)
+  }
 }
 
 private object TFUSObj {
-  val IField = new TxnFieldUpdater[TFUSObj,Int](classOf[TFUSObj], "iField") {
+  val IField = newIField
+
+  def newIField = new TxnFieldUpdater[TFUSObj,Int](classOf[TFUSObj], "iField") {
     protected def getField(instance: TFUSObj): Int = instance._iField
     protected def setField(instance: TFUSObj, v: Int) { instance._iField = v }
   }
 
-  val SField = new TxnFieldUpdater[TFUSObj,String](classOf[TFUSObj], "sField") {
+  val SField = newSField
+
+  def newSField = new TxnFieldUpdater[TFUSObj,String](classOf[TFUSObj], "sField") {
     protected def getField(instance: TFUSObj): String = instance._sField
     protected def setField(instance: TFUSObj, v: String) { instance._sField = v }
   }

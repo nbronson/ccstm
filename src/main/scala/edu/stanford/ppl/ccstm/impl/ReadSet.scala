@@ -39,9 +39,35 @@ private[impl] class ReadSet private(private var _size: Int,
     _size += 1
   }
 
+  def lastHandle: Handle[_] = _handles(_size - 1)
+  def lastVersion: STMImpl.Version = _versions(_size - 1)
+
   private def grow() {
     _handles = java.util.Arrays.copyOf(_handles, _size * 2)
     _versions = java.util.Arrays.copyOf(_versions, _size * 2)    
+  }
+
+  /** Removes at most one entry whose ref and offset are the same as those of
+   *  <code>handle</code> and with the matching <code>version</code>.
+   *  Returns true if something was removed.
+   */  
+  def remove(handle: Handle[_], version: STMImpl.Version): Boolean = {
+    val ref = handle.ref
+    val offset = handle.offset
+    var i = _size - 1
+    while (i >= 0) {
+      val h = _handles(i)
+      if (_versions(i) == version && ((h eq handle) || ((h.ref eq ref) && h.offset == offset))) {
+        // copy down from the end
+        _size -= 1
+        _handles(i) = _handles(_size)
+        _handles(_size) = null
+        _versions(i) = _versions(_size)
+        return true
+      }
+      i -= 1
+    }
+    return false
   }
 
   def clear() {
