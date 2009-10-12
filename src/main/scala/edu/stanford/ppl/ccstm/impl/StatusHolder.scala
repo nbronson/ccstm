@@ -88,25 +88,6 @@ private[ccstm] class StatusHolder {
 
   //////////////// Status change waiting
 
-  private[ccstm] def awaitDecided() {
-    // spin a bit
-    var spins = 0
-    while (spins < SpinCount + YieldCount) {
-      spins += 1
-      if (spins > SpinCount) Thread.`yield`
-
-      if (_status.decided) return
-    }
-
-    // spin failed, put ourself to sleep
-    _anyAwaitingDecided = true
-    this.synchronized {
-      while (!_status.decided) {
-        this.wait
-      }
-    }
-  }
-
   private[ccstm] def awaitCompletedOrDoomed() {
     // spin a bit
     var spins = 0

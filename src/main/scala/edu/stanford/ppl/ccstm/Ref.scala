@@ -12,11 +12,12 @@ package edu.stanford.ppl.ccstm
  */
 object Ref {
   import collection._
+  import impl.DefaultValue
 
   /** Returns a new <code>Ref</code> instance, initialized to the default value
    *  for objects of type <code>T</code>.
    */
-  def apply[T](): Ref[T] = apply(null.asInstanceOf[T])
+  def apply[T]()(implicit manifest: scala.reflect.Manifest[T]): Ref[T] = apply(DefaultValue[T])
 
   /** Returns a new <code>Ref</code> instance with the specified initial
    *  value.
