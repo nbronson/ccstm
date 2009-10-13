@@ -169,7 +169,7 @@ object Txn {
   /** An exception that indicates that a transaction was rolled back because a
    *  previous read is no longer valid.
    */
-  case class InvalidReadCause(trigger: AnyRef) extends OptimisticFailureCause {
+  case class InvalidReadCause(trigger: AnyRef, extraInfo: String) extends OptimisticFailureCause {
     private[ccstm] def counter = invalidReadCounter
   }
 
@@ -495,6 +495,8 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
 
   def explicitlyValidateReads() { explicitlyValidateReadsImpl() }
 
+  def addReference(ptr: AnyRef) { addReferenceImpl(ptr) }
+  
 
   def beforeCommit(callback: Txn => Unit, prio: Int) {
     requireActive()

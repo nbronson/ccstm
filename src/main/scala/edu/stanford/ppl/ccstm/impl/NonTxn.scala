@@ -188,6 +188,14 @@ private[ccstm] object NonTxn {
     commitLock(handle, m0)
   }
 
+  def getAndSet[T](handle: Handle[T], v: T): T = {
+    val m0 = acquireLock(handle, true)
+    val z = handle.data
+    handle.data = v
+    commitLock(handle, m0)
+    z
+  }
+
   def setUserBit(handle: Handle[_], v: Boolean) {
     while (true) {
       val m = handle.meta

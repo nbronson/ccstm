@@ -60,6 +60,16 @@ object Ref {
      */
     def readForWrite: T
 
+    /** Works like <code>set(v)</code>, but returns the old value.  This is an
+     *  atomic swap, equivalent to atomically performing a <code>get</code>
+     *  followed by <code>set(v)</code>.
+     *  @return the previous value of the bound <code>Ref</code>, as observed
+     *      by the binding context.
+     *  @throws IllegalStateException if this view is bound to a transaction
+     *      that is not active.
+     */
+    def getAndSet(v: T): T
+
     /** Equivalent to atomically executing
      *  <code>(if (before == get) { set(after); true } else false)</code>, but
      *  may be more efficient, especially in a non-transactional context.
@@ -158,6 +168,7 @@ object Ref {
     def tryWrite(v: T): Boolean = txn.tryWrite(handle, v)
 
     def readForWrite: T = txn.readForWrite(handle)
+    def getAndSet(v: T): T = txn.getAndSet(handle, v)
     def compareAndSet(before: T, after: T): Boolean = {
       txn.compareAndSet(handle, before, after)
     }
@@ -197,6 +208,7 @@ object Ref {
     def tryWrite(v: T): Boolean = impl.NonTxn.tryWrite(handle, v)
 
     def readForWrite: T = impl.NonTxn.get(handle)
+    def getAndSet(v: T): T = impl.NonTxn.getAndSet(handle, v)
     def compareAndSet(before: T, after: T): Boolean = {
       impl.NonTxn.compareAndSet(handle, before, after)
     }
@@ -278,6 +290,15 @@ trait Ref[T] extends Source[T] with Sink[T] {
   def set(v: T)(implicit txn: Txn) { txn.set(handle, v) }
 
   //////////////// Ref functions
+
+  /** Works like <code>set(v)</code>, but returns the old value.  This is an
+   *  atomic swap, equivalent to atomically performing a <code>get</code>
+   *  followed by <code>set(v)</code>.
+   *  @return the previous value of this <code>Ref</code>, as observed by
+   *      <code>txn</code>.
+   *  @throws IllegalStateException if <code>txn</code> is not active.
+   */
+  def getAndSet(v: T)(implicit txn: Txn): T = txn.getAndSet(handle, v)
 
   /** Transforms the value referenced by this <code>Ref</code> by applying the
    *  function <code>f</code>.  Acts like <code>ref.set(f(ref.get))</code>, but
