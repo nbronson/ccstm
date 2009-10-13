@@ -142,6 +142,81 @@ object Ref {
 
     override def hashCode: Int = (context.hashCode * 137) ^ unbind.hashCode ^ 101
   }
+
+  private[ccstm] class TxnBound[T](val unbind: Ref[T], txn: Txn) extends Ref.Bound[T] {
+    protected def handle = unbind.handle
+    
+    def context: Option[Txn] = Some(txn)
+
+    def get: T = txn.get(handle)
+    def map[Z](f: (T) => Z): Z = txn.map(handle, f)
+    def await(pred: (T) => Boolean) { if (!pred(get)) txn.retry }
+    def unrecordedRead: UnrecordedRead[T] = txn.unrecordedRead(handle)
+    def releasableRead: ReleasableRead[T] = txn.releasableRead(handle)
+
+    def set(v: T) { txn.set(handle, v) }
+    def tryWrite(v: T): Boolean = txn.tryWrite(handle, v)
+
+    def readForWrite: T = txn.readForWrite(handle)
+    def compareAndSet(before: T, after: T): Boolean = {
+      txn.compareAndSet(handle, before, after)
+    }
+    def compareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = {
+      txn.compareAndSetIdentity(handle, before, after)
+    }
+    def weakCompareAndSet(before: T, after: T): Boolean = {
+      txn.weakCompareAndSet(handle, before, after)
+    }
+    def weakCompareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = {
+      txn.weakCompareAndSetIdentity(handle, before, after)
+    }
+    def transform(f: T => T) {
+      txn.transform(handle, f)
+    }
+    def transformIfDefined(pf: PartialFunction[T,T]): Boolean = {
+      txn.transformIfDefined(handle, pf)
+    }
+  }
+
+  private[ccstm] class NonTxnBound[T](val unbind: Ref[T]) extends Ref.Bound[T] {
+    protected def handle = unbind.handle
+    
+    def context: Option[Txn] = None
+
+    def get: T = impl.NonTxn.get(handle)
+    def map[Z](f: (T) => Z): Z = f(impl.NonTxn.get(handle))
+    def await(pred: (T) => Boolean) { impl.NonTxn.await(handle, pred) }
+    def unrecordedRead: UnrecordedRead[T] = impl.NonTxn.unrecordedRead(handle)
+    def releasableRead: ReleasableRead[T] = new ReleasableRead[T] {
+      def context: Option[Txn] = None
+      val value: T = get
+      def release() {}
+    }
+
+    def set(v: T) { impl.NonTxn.set(handle, v) }
+    def tryWrite(v: T): Boolean = impl.NonTxn.tryWrite(handle, v)
+
+    def readForWrite: T = impl.NonTxn.get(handle)
+    def compareAndSet(before: T, after: T): Boolean = {
+      impl.NonTxn.compareAndSet(handle, before, after)
+    }
+    def compareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = {
+      impl.NonTxn.compareAndSetIdentity(handle, before, after)
+    }
+    def weakCompareAndSet(before: T, after: T): Boolean = {
+      impl.NonTxn.weakCompareAndSet(handle, before, after)
+    }
+    def weakCompareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = {
+      impl.NonTxn.weakCompareAndSetIdentity(handle, before, after)
+    }
+    def transform(f: T => T) {
+      impl.NonTxn.transform(handle, f)
+    }
+    def transformIfDefined(pf: PartialFunction[T,T]): Boolean = {
+      impl.NonTxn.transformIfDefined(handle, pf)
+    }
+  }
+
 }
 
 /** Provides access to a single element of type <i>T</i>.  Accesses may be
@@ -193,13 +268,13 @@ trait Ref[T] extends Source[T] with Sink[T] {
 
   //////////////// Source stuff
 
-  def unary_!(implicit txn: Txn): T = txn.get(handle)
+  def unary_!(implicit txn: Txn): T = get
   def get(implicit txn: Txn): T = txn.get(handle)
   def map[Z](f: (T) => Z)(implicit txn: Txn): Z = txn.map(handle, f)
 
   //////////////// Sink stuff
 
-  def :=(v: T)(implicit txn: Txn) { txn.set(handle, v) }
+  def :=(v: T)(implicit txn: Txn) { set(v) }
   def set(v: T)(implicit txn: Txn) { txn.set(handle, v) }
 
   //////////////// Ref functions
@@ -249,39 +324,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *  @return a view of this instance that performs all accesses as if from
    *      <code>txn</code>.
    */
-  def bind(implicit txn: Txn): Ref.Bound[T] = new Ref.Bound[T] {
-    def unbind: Ref[T] = Ref.this
-    def context: Option[Txn] = Some(txn)
-
-    def get: T = txn.get(handle)
-    def map[Z](f: (T) => Z): Z = txn.map(handle, f)
-    def await(pred: (T) => Boolean) { if (!pred(get)) txn.retry } 
-    def unrecordedRead: UnrecordedRead[T] = txn.unrecordedRead(handle)
-    def releasableRead: ReleasableRead[T] = txn.releasableRead(handle)
-
-    def set(v: T) { txn.set(handle, v) }
-    def tryWrite(v: T): Boolean = txn.tryWrite(handle, v)
-
-    def readForWrite: T = txn.readForWrite(handle)
-    def compareAndSet(before: T, after: T): Boolean = {
-      txn.compareAndSet(handle, before, after)
-    }
-    def compareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = {
-      txn.compareAndSetIdentity(handle, before, after)
-    }
-    def weakCompareAndSet(before: T, after: T): Boolean = {
-      txn.weakCompareAndSet(handle, before, after)
-    }
-    def weakCompareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = {
-      txn.weakCompareAndSetIdentity(handle, before, after)
-    }
-    def transform(f: T => T) {
-      txn.transform(handle, f)
-    }
-    def transformIfDefined(pf: PartialFunction[T,T]): Boolean = {
-      txn.transformIfDefined(handle, pf)
-    }
-  }
+  def bind(implicit txn: Txn): Ref.Bound[T] = new Ref.TxnBound(this, txn)
 
   /** Returns a view that can be used to perform individual reads and writes to
    *  this reference outside any transactional context.  Each operation acts as
@@ -290,43 +333,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *  @return a view into the value of this <code>Ref</code>, that will perform
    *      each operation as if in its own transaction.
    */
-  def nonTxn: Ref.Bound[T] = new Ref.Bound[T] {
-    def unbind: Ref[T] = Ref.this
-    def context: Option[Txn] = None
-
-    def get: T = impl.NonTxn.get(handle)
-    def map[Z](f: (T) => Z): Z = f(impl.NonTxn.get(handle))
-    def await(pred: (T) => Boolean) { impl.NonTxn.await(handle, pred) }
-    def unrecordedRead: UnrecordedRead[T] = impl.NonTxn.unrecordedRead(handle)
-    def releasableRead: ReleasableRead[T] = new ReleasableRead[T] {
-      def context: Option[Txn] = None
-      val value: T = get
-      def release() {}
-    }
-
-    def set(v: T) { impl.NonTxn.set(handle, v) }
-    def tryWrite(v: T): Boolean = impl.NonTxn.tryWrite(handle, v)
-
-    def readForWrite: T = impl.NonTxn.get(handle)
-    def compareAndSet(before: T, after: T): Boolean = {
-      impl.NonTxn.compareAndSet(handle, before, after)
-    }
-    def compareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = {
-      impl.NonTxn.compareAndSetIdentity(handle, before, after)
-    }
-    def weakCompareAndSet(before: T, after: T): Boolean = {
-      impl.NonTxn.weakCompareAndSet(handle, before, after)
-    }
-    def weakCompareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = {
-      impl.NonTxn.weakCompareAndSetIdentity(handle, before, after)
-    }
-    def transform(f: T => T) {
-      impl.NonTxn.transform(handle, f)
-    }
-    def transformIfDefined(pf: PartialFunction[T,T]): Boolean = {
-      impl.NonTxn.transformIfDefined(handle, pf)
-    }
-  }
+  def nonTxn: Ref.Bound[T] = new Ref.NonTxnBound(this)
 
   override def hashCode: Int = impl.STMImpl.hash(handle.ref, handle.offset)
 
