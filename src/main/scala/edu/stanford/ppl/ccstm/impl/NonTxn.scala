@@ -124,8 +124,18 @@ private[ccstm] object NonTxn {
       }
       v = handle.data
       m1 = handle.meta
+      // TODO: fall back to pessimistic if we are starving
     } while (changingAndVersion(m0) != changingAndVersion(m1))
     v
+  }
+
+  def getUserBit(handle: Handle[_]): Boolean = {
+    var m = handle.meta
+    while (changing(m)) {
+      weakAwaitUnowned(handle, m)
+      m = handle.meta
+    }
+    userBit(m)
   }
 
   def await[T](handle: Handle[T], pred: T => Boolean) {
@@ -176,6 +186,33 @@ private[ccstm] object NonTxn {
     val m0 = acquireLock(handle, true)
     handle.data = v
     commitLock(handle, m0)
+  }
+
+  def getAndSet[T](handle: Handle[T], v: T): T = {
+    val m0 = acquireLock(handle, true)
+    val z = handle.data
+    handle.data = v
+    commitLock(handle, m0)
+    z
+  }
+
+  def setUserBit(handle: Handle[_], v: Boolean) {
+    while (true) {
+      val m = handle.meta
+      if (!changing(m) && userBit(m) == v) {
+        // we can just linearize before the change
+        return
+      } else if (owner(m) != UnownedSlot) {
+        weakAwaitUnowned(handle, m)
+        // try again
+      } else if (handle.metaCAS(m, withCommit(withUserBit(m, v), nonTxnWriteVersion(version(m))))) {
+        // successful change, trigger any required wakeups
+        if (pendingWakeups(m)) {
+          wakeupManager.trigger(wakeupManager.prepareToTrigger(handle.ref, handle.offset))
+        }
+        return
+      }
+    }
   }
 
   def tryWrite[T](handle: Handle[T], v: T): Boolean = {

@@ -7,7 +7,7 @@ package edu.stanford.ppl.ccstm.impl
 
 import java.util.concurrent.atomic.{AtomicReference, AtomicLong}
 
-private[impl] case class VersionTrap(version: Long) extends ConcurrentTrap
+
 
 private[impl] trait GV6 {
 
@@ -18,7 +18,7 @@ private[impl] trait GV6 {
    *  there are many non-transactional writes), but it means we must always
    *  validate transactions that are not read-only.
    */
-  private[impl] val globalVersion = new AtomicReference(VersionTrap(1))
+  private[impl] val globalVersion = new AtomicLong(1)
 
   /** The approximate ratio of the number of commits to the number of
    *  increments of <code>globalVersion</code>, as in TL2's GV6 scheme.  If
@@ -44,25 +44,20 @@ private[impl] trait GV6 {
    *  than <code>prevVersion</code>.
    */
   private[impl] def nonTxnWriteVersion(prevVersion: Long): Long = {
-    freshReadVersion(prevVersion).version + 1
+    freshReadVersion(prevVersion) + 1
   }
 
-  /** Returns a <code>VersionTrap</code> to use for reading in a new
-   *  transaction.
-   */
-  private[impl] def freshReadVersion: VersionTrap = globalVersion.get
+  /** Returns a version to use for reading in a new transaction. */
+  private[impl] def freshReadVersion: Long = globalVersion.get
 
-  /** Guarantees that <code>globalVersion.value</code> is &ge;
+  /** Guarantees that <code>globalVersion.get</code> is &ge;
    *  <code>minRV</code>, and returns <code>globalVersion.get</code>.
    */
-  private[impl] def freshReadVersion(minRV: Long): VersionTrap = {
+  private[impl] def freshReadVersion(minRV: Long): Long = {
     var g = globalVersion.get
-    while (g.version < minRV) {
-      val repl = VersionTrap(minRV)
-      if (globalVersion.compareAndSet(g, repl)) {
-        // succeeded, make a strong ref to the new trap
-        g += repl
-        return repl
+    while (g < minRV) {
+      if (globalVersion.compareAndSet(g, minRV)) {
+        return minRV
       }
       // failed, retry
       g = globalVersion.get
@@ -70,18 +65,14 @@ private[impl] trait GV6 {
     return g
   }
 
-  /** Returns a value that is greater than <code>gvSnap.version</code>,
-   *  possibly incrementing <code>globalVersion</code>.
+  /** Returns a value that is greater than <code>gvSnap</code>, possibly
+   *  incrementing <code>globalVersion</code>.
    */
-  private[impl] def freshCommitVersion(gvSnap: VersionTrap): Long = {
+  private[impl] def freshCommitVersion(gvSnap: Long): Long = {
     if (silentCommitRatio <= 1 || silentCommitRand.nextInt <= silentCommitCutoff) {
-      val repl = VersionTrap(gvSnap.version + 1)
-      if (globalVersion.compareAndSet(gvSnap, repl)) {
-        // our replacement was the winner, so make a strong ref to it
-        gvSnap += repl
-      }
+      globalVersion.compareAndSet(gvSnap, gvSnap + 1)
       // no need to retry on failure, because somebody else succeeded
     }
-    gvSnap.version + 1
+    gvSnap + 1
   }  
 }

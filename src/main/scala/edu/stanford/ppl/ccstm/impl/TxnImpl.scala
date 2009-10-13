@@ -15,6 +15,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
 
   private var _readSet: ReadSet = null
   private var _writeBuffer: WriteBuffer = null
+  private var _strongRefSet: StrongRefSet = null
   private var _slot: Slot = 0
 
   /** Higher wins. */
@@ -24,15 +25,9 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     val ctx = ThreadContext.get
     _readSet = ctx.takeReadSet
     _writeBuffer = ctx.takeWriteBuffer
+    _strongRefSet = ctx.takeStrongRefSet
     _slot = slotManager.assign(this, ctx.preferredSlot)
   }
-
-  /** The <code>VersionTrap</code> associated with <code>_readVersion</code>,
-   *  used to make sure that any ephemeral handles created after this
-   *  transaction's virtual read snapshot will survive until the snapshot's
-   *  validation.
-   */
-  private var _readVersionTrap: VersionTrap = freshReadVersion
 
   /** The read version of this transaction.  It is guaranteed that all values
    *  read by this transaction have a version number less than or equal to this
@@ -42,10 +37,10 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
    *  <code>globalVersion.get</code>, must never decrease, and each time it is
    *  changed the read set must be revalidated.  Lazily assigned.
    */
-  private[impl] var _readVersion: Version = _readVersionTrap.version
+  private[impl] var _readVersion: Version = freshReadVersion
 
   /** True if all reads should be performed as writes. */
-  private[impl] val barging: Boolean = shouldBarge(failureHistory)
+  private[ccstm] val barging: Boolean = shouldBarge(failureHistory)
 
   private def shouldBarge(failureHistory: List[Txn.RollbackCause]) = {
     // barge if we have already had 2 failures since the last explicit retry
@@ -77,8 +72,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
    *  <code>RollbackError</code> if invalid.
    */
   private def revalidate(minReadVersion: Version) {
-    _readVersionTrap = freshReadVersion(minReadVersion)
-    _readVersion = _readVersionTrap.version
+    _readVersion = freshReadVersion(minReadVersion)
     if (!revalidateImpl()) throw RollbackError
   }
 
@@ -98,7 +92,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
           val m1 = handle.meta
           if (!changing(m1) || owner(m1) == _slot) {
             if (version(m1) != ver) {
-              forceRollback(InvalidReadCause(handle))
+              forceRollback(InvalidReadCause(handle, "version changed"))
               return false
             }
             // okay
@@ -106,7 +100,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
           } else if (owner(m1) == NonTxnSlot) {
             // non-txn updates don't set changing unless they will install a new
             // value, so we are the only party that can yield
-            forceRollback(InvalidReadCause(handle))
+            forceRollback(InvalidReadCause(handle, "pending non-txn write"))
             return false
           } else {
             // Either this txn or the owning txn must roll back.  We choose to give
@@ -125,7 +119,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
               val m2 = handle.meta
               if (changing(m2) && owner(m2) == owner(m1)) {
                 if (s.mightCommit) {
-                  forceRollback(InvalidReadCause(handle))
+                  forceRollback(InvalidReadCause(handle, "pending commit"))
                   return false
                 }
 
@@ -226,16 +220,10 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     } finally {
       // cleanup
       val ctx = ThreadContext.get
-      ctx.put(_readSet, _writeBuffer, _slot)
+      ctx.put(_readSet, _writeBuffer, _strongRefSet, _slot)
       _readSet = null
       _writeBuffer = null
       slotManager.release(_slot)
-
-      // Clear out references from this Txn, to aid GC in case someone keeps a
-      // Txn reference around.  The trap is especially important because it
-      // will pin all future VersionTrap-s, and therefore pin all future 
-      // TxnImpl-s.
-      _readVersionTrap = null
 
       callAfter()
     }
@@ -341,6 +329,11 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     revalidate(0)
   }
 
+  private[ccstm] def addReferenceImpl(ptr: AnyRef) {
+    _strongRefSet += ptr
+  }
+  
+
   //////////////// lock management - similar to NonTxn but we also check for remote rollback
 
   private def weakAwaitUnowned(handle: Handle[_], m0: Meta) {
@@ -398,6 +391,32 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     _readSet.add(handle, version(m1))
     return value
   }
+
+  // currently unused, see TBooleanRef
+//  def getBooleanInUserData(handle: Handle[Boolean]): Boolean = {
+//    if (barging) return readForWrite(handle)
+//
+//    requireActive()
+//
+//    var m = handle.meta
+//    if (owner(m) == _slot) {
+//      // Self-owned.  This particular ref+offset might not be in the write
+//      // buffer, but it's definitely not in anybody else's.
+//      return _writeBuffer.get(handle)
+//    }
+//
+//    while (changing(m)) {
+//      weakAwaitUnowned(handle, m)
+//      m = handle.meta
+//    }
+//    revalidateIfRequired(version(m))
+//    val value = userBit(m)
+//
+//    // Stable read.  The second read of handle.meta is required for
+//    // opacity, and it also enables the read-only commit optimization.
+//    _readSet.add(handle, version(m))
+//    return value
+//  }
 
   def map[T,Z](handle: Handle[T], f: T => Z): Z = {
     if (barging) return f(readForWrite(handle))
@@ -527,6 +546,27 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     revalidateIfRequired(version(m))
   }
   
+  def getAndSet[T](handle: Handle[T], v: T): T = {
+    requireActive()
+
+    val m0 = handle.meta
+    if (owner(m0) == _slot) {
+      // Self-owned.  This particular ref+offset might not be in the write
+      // buffer, but it's definitely not in anybody else's.
+      val z = _writeBuffer.get(handle)
+      _writeBuffer.put(handle, v)
+      return z
+    }
+
+    val m = acquireOwnership(handle, m0)
+    _writeBuffer.put(handle, v)
+
+    revalidateIfRequired(version(m))
+
+    // definitely no value previously in the write buffer
+    handle.data
+  }
+
   def tryWrite[T](handle: Handle[T], v: T): Boolean = {
     requireActive()
 

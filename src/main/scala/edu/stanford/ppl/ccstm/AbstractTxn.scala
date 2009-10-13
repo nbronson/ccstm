@@ -14,6 +14,7 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
   private[ccstm] def retryImpl()
   private[ccstm] def commitImpl(): Status
   private[ccstm] def explicitlyValidateReadsImpl()
+  private[ccstm] def addReferenceImpl(ptr: AnyRef)
 
   //////////////// Functions implemented in Txn, but available to the STM-specific base class
 
@@ -75,6 +76,11 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
    *  guarantee is referred to as "opacity".
    */
   def explicitlyValidateReads()
+
+  /** Creates a strong reference between this <code>Txn</code> and
+   *  <code>ref</code> until the transaction has completed.
+   */
+  def addReference(ptr: AnyRef)
 
   /** Arranges for <code>callback</code> to be executed as late as possible
    *  while the transaction is still active.  If the transaction rolls back

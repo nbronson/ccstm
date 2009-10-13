@@ -7,7 +7,8 @@ package edu.stanford.ppl.ccstm.collection
 import impl.STMImpl._
 
 
-/** A concrete implementation of <code>Ref[Boolean]</code>.
+/** A concrete implementation of <code>Ref[Boolean]</code>.  More efficient
+ *  than a <code>TAnyRef[Boolean]</code>.
  *  <p>
  *  This class is not sealed, so it may be opportunistically subclassed to
  *  reduce a level of indirection and the associated storage overheads.
@@ -29,5 +30,18 @@ class TBooleanRef(initialValue: Boolean) extends impl.MetaHolder(withUserBit(0L,
       val m = meta
       done = userBit(m) == v || metaCAS(m, withUserBit(m, v))
     }
+  }
+
+  // TODO: evaluate whether the advantage of avoiding the spin loop in get is worth the polymorphism
+
+  //override def get(implicit txn: Txn): Boolean = txn.getBooleanInUserData(handle)
+
+  //override def bind(implicit txn: Txn): Ref.Bound[Boolean] = new Ref.TxnBound[Boolean](this, txn) {
+  //  override def get: Boolean = txn.getBooleanInUserData(handle)
+  //}
+
+  override def nonTxn: Ref.Bound[Boolean] = new Ref.NonTxnBound[Boolean](this) {
+    //override def get: Boolean = impl.NonTxn.getUserBit(handle)
+    override def set(v: Boolean) { impl.NonTxn.setUserBit(handle, v) }
   }
 }

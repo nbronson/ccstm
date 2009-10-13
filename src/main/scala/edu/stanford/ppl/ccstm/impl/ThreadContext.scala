@@ -18,6 +18,7 @@ class ThreadContext {
   
   private var _readSet: ReadSet = null
   private var _writeBuffer: WriteBuffer = null
+  private var _strongRefSet: StrongRefSet = null
 
   var preferredSlot: STMImpl.Slot = rand.nextInt
 
@@ -41,11 +42,23 @@ class ThreadContext {
     }
   }
 
-  def put(rs: ReadSet, wb: WriteBuffer, slot: STMImpl.Slot) {
+  def takeStrongRefSet: StrongRefSet = {
+    if (null == _strongRefSet) {
+      new StrongRefSet
+    } else {
+      val z = _strongRefSet
+      _strongRefSet = null
+      z
+    }
+  }
+
+  def put(rs: ReadSet, wb: WriteBuffer, srs: StrongRefSet, slot: STMImpl.Slot) {
     rs.clear()
     _readSet = rs
     wb.clear()
     _writeBuffer = wb
+    srs.clear()
+    _strongRefSet = srs
     preferredSlot = slot
   }
 }
