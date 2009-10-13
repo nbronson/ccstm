@@ -430,6 +430,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
         def valid(t: Txn) = {
           if (!_latestRead.stillValid) {
             // reread, and see if that changes the result
+            // TODO: what if t.status == Validating?
             _latestRead = unrecordedRead(handle)
             val reapply = f(_latestRead.value)
             result == reapply

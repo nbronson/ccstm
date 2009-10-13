@@ -21,7 +21,7 @@ private object TOptionRef {
 class TOptionRef[T](initialValue: Option[T]) extends impl.MetaHolder with Ref[Option[T]] with impl.Handle[Option[T]] {
   import TOptionRef._
 
-  protected def handle = this
+  protected def handle(txn: Txn): impl.Handle[Option[T]] = this
 
   private[ccstm] def ref: AnyRef = this
   private[ccstm] def offset: Int = 0

@@ -4,7 +4,7 @@
 
 package edu.stanford.ppl.stm
 
-import ccstm.collection.TBooleanRef
+import ccstm.collection.{LazyConflictRef, TBooleanRef}
 import ccstm.{Atomic, Txn, Ref}
 import java.util.concurrent.CyclicBarrier
 
@@ -136,7 +136,8 @@ class FlipperSuite extends STMFunSuite {
   }
 
   def computeParallelTxn(config: Config, P: Array[Ref[Boolean]]): Array[Ref[Int]] = {
-    val A = Array.fromFunction(i => Ref(0))(config.wordCount)
+    //val A = Array.fromFunction(i => Ref(0))(config.wordCount)
+    val A = Array.fromFunction[Ref[Int]]((i: Int) => new LazyConflictRef(0))(config.wordCount)
     for (sync <- 0 until config.syncCount) {
       val tasks = (for (thread <- 0 until config.threadCount) yield {
         new FlipperTask(config, A, P, false, thread, sync) {

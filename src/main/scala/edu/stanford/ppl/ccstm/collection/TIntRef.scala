@@ -15,7 +15,7 @@ package edu.stanford.ppl.ccstm.collection
 
 class TIntRef(initialValue: Int) extends impl.MetaHolder with Ref[Int] with impl.Handle[Int] {
 
-  protected def handle = this
+  protected def handle(txn: Txn): impl.Handle[Int] = this
 
   private[ccstm] def ref: AnyRef = this
   private[ccstm] def offset: Int = 0

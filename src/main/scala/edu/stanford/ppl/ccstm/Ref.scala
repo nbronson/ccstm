@@ -151,10 +151,15 @@ object Ref {
     }
 
     override def hashCode: Int = (context.hashCode * 137) ^ unbind.hashCode ^ 101
+
+    override def toString: String = {
+      "NonTxnBound(" + get + ")"
+    }
   }
 
-  private[ccstm] class TxnBound[T](val unbind: Ref[T], txn: Txn) extends Ref.Bound[T] {
-    protected def handle = unbind.handle
+  private[ccstm] class TxnBound[T](val unbind: Ref[T],
+                                   protected val handle: impl.Handle[T],
+                                   txn: Txn) extends Ref.Bound[T] {
     
     def context: Option[Txn] = Some(txn)
 
@@ -187,11 +192,15 @@ object Ref {
     def transformIfDefined(pf: PartialFunction[T,T]): Boolean = {
       txn.transformIfDefined(handle, pf)
     }
+
+    override def toString: String = {
+      "TxnBound(" + txn + ", " + get + ")"
+    }
   }
 
-  private[ccstm] class NonTxnBound[T](val unbind: Ref[T]) extends Ref.Bound[T] {
-    protected def handle = unbind.handle
-    
+  private[ccstm] class NonTxnBound[T](val unbind: Ref[T],
+                                      protected val handle: impl.Handle[T]) extends Ref.Bound[T] {
+
     def context: Option[Txn] = None
 
     def get: T = impl.NonTxn.get(handle)
@@ -274,20 +283,22 @@ trait Ref[T] extends Source[T] with Sink[T] {
 
   /** Provides access to the data and metadata associated with this reference.
    *  This is the only method for which the default <code>Ref</code>
-   *  implementation is not sufficient.
+   *  implementation is not sufficient.  <code>txn</code> will be null for
+   *  non-transactional uses.
    */
-  protected def handle: impl.Handle[T]
+  protected def handle(txn: Txn): impl.Handle[T]
+  private[ccstm] def handle2(txn: Txn) = handle(txn)
 
   //////////////// Source stuff
 
   def unary_!(implicit txn: Txn): T = get
-  def get(implicit txn: Txn): T = txn.get(handle)
-  def map[Z](f: (T) => Z)(implicit txn: Txn): Z = txn.map(handle, f)
+  def get(implicit txn: Txn): T = txn.get(handle(txn))
+  def map[Z](f: (T) => Z)(implicit txn: Txn): Z = txn.map(handle(txn), f)
 
   //////////////// Sink stuff
 
   def :=(v: T)(implicit txn: Txn) { set(v) }
-  def set(v: T)(implicit txn: Txn) { txn.set(handle, v) }
+  def set(v: T)(implicit txn: Txn) { txn.set(handle(txn), v) }
 
   //////////////// Ref functions
 
@@ -298,7 +309,9 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *      <code>txn</code>.
    *  @throws IllegalStateException if <code>txn</code> is not active.
    */
-  def getAndSet(v: T)(implicit txn: Txn): T = txn.getAndSet(handle, v)
+  def getAndSet(v: T)(implicit txn: Txn): T = {
+    txn.getAndSet(handle(txn), v)
+  }
 
   /** Transforms the value referenced by this <code>Ref</code> by applying the
    *  function <code>f</code>.  Acts like <code>ref.set(f(ref.get))</code>, but
@@ -308,7 +321,9 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *      call later during the transaction.
    *  @throws IllegalStateException if <code>txn</code> is not active.
    */
-  def transform(f: T => T)(implicit txn: Txn) { txn.transform(handle, f) }
+  def transform(f: T => T)(implicit txn: Txn) {
+    txn.transform(handle(txn), f)
+  }
 
   /** Transforms the value referenced by this <code>Ref</code> by applying the
    *  <code>pf.apply</code>, but only if <code>pf.isDefinedAt</code> holds for
@@ -322,7 +337,9 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *      current value of this <code>Ref</code> on entry.
    *  @throws IllegalStateException if <code>txn</code> is not active.
    */
-  def transformIfDefined(pf: PartialFunction[T,T])(implicit txn: Txn) = txn.transformIfDefined(handle, pf)
+  def transformIfDefined(pf: PartialFunction[T,T])(implicit txn: Txn) = {
+    txn.transformIfDefined(handle(txn), pf)
+  }
 
   /** Returns this instance, but with only the read-only portion accessible.
    *  Equivalent to <code>asInstanceOf[Source[T]]</code>, but may be more
@@ -345,7 +362,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *  @return a view of this instance that performs all accesses as if from
    *      <code>txn</code>.
    */
-  def bind(implicit txn: Txn): Ref.Bound[T] = new Ref.TxnBound(this, txn)
+  def bind(implicit txn: Txn): Ref.Bound[T] = new Ref.TxnBound(this, handle(txn), txn)
 
   /** Returns a view that can be used to perform individual reads and writes to
    *  this reference outside any transactional context.  Each operation acts as
@@ -354,15 +371,18 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *  @return a view into the value of this <code>Ref</code>, that will perform
    *      each operation as if in its own transaction.
    */
-  def nonTxn: Ref.Bound[T] = new Ref.NonTxnBound(this)
+  def nonTxn: Ref.Bound[T] = new Ref.NonTxnBound(this, handle(null))
 
-  override def hashCode: Int = impl.STMImpl.hash(handle.ref, handle.offset)
+  override def hashCode: Int = {
+    val h = handle(null)
+    impl.STMImpl.hash(h.ref, h.offset)
+  }
 
   override def equals(rhs: Any): Boolean = {
     rhs match {
       case r: Ref[_] => {
-        val h1 = handle
-        val h2 = r.handle
+        val h1 = handle(null)
+        val h2 = r.handle(null)
         (h1.ref eq h2.ref) && (h1.offset == h2.offset)
       }
       case _ => false
