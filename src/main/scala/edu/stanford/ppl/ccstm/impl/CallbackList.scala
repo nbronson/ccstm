@@ -12,14 +12,14 @@ package edu.stanford.ppl.ccstm.impl
  *
  *  @author Nathan Bronson
  */
-private[ccstm] class CallbackList[T] {
-  private val _slotsByPrio = new java.util.TreeMap[Int,CallbackPrioSlot[T]]
+private[ccstm] class CallbackList[T <: AnyRef] {
+  private val _slotsByPrio = new java.util.TreeMap[Int,CallbackPrioSlot]
   private var _size = 0
 
   def add(elem: T, priority: Int) {
     var slot = _slotsByPrio.get(priority)
     if (null == slot) {
-      slot = new CallbackPrioSlot[T]
+      slot = new CallbackPrioSlot
       _slotsByPrio.put(priority, slot)
     }
     slot.add(elem)
@@ -40,7 +40,7 @@ private[ccstm] class CallbackList[T] {
     while (iter.hasNext) {
       val slot = iter.next
       while (slot._visited < slot._count) {
-        block(slot._elems(slot._visited))
+        block(slot._elems(slot._visited).asInstanceOf[T])
         slot._visited += 1
         if (expectedSize != _size) return false
       }
@@ -54,16 +54,15 @@ private[ccstm] class CallbackList[T] {
   }
 }
 
-private class CallbackPrioSlot[T] {
+private class CallbackPrioSlot {
   var _count = 0
-  var _elems = new Array[T](4)
+  // TODO: make _elems an Array[T] without getting a BoxedAnyArray, maybe in 2.8?
+  var _elems = new Array[AnyRef](4)
   var _visited = 0
 
-  def add(elem: T) {
+  def add(elem: AnyRef) {
     if (_count == _elems.length) {
-      val n = new Array[T](_count * 2)
-      Array.copy(_elems, 0, n, 0, _count)
-      _elems = n
+      _elems = java.util.Arrays.copyOf(_elems, _count * 2)
     }
     _elems(_count) = elem
     _count += 1
