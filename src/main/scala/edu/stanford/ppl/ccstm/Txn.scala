@@ -649,6 +649,7 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
           }
         }
       }
+      _callbacks = null
     }
   }
 }

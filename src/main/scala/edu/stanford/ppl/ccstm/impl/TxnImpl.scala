@@ -42,6 +42,11 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   /** True if all reads should be performed as writes. */
   private[ccstm] val barging: Boolean = shouldBarge(failureHistory)
 
+  /** True if the most recent rollback was due to an explicit retry. */
+  private[ccstm] val explicitRetrying: Boolean = {
+    !failureHistory.isEmpty && failureHistory.head.isInstanceOf[ExplicitRetryCause]
+  }
+
   private def shouldBarge(failureHistory: List[Txn.RollbackCause]) = {
     // barge if we have already had 2 failures since the last explicit retry
     var cur = failureHistory
@@ -57,8 +62,8 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     ("Txn@" + hashCode.toHexString + "(" + status +
             ", slot=" + _slot +
             ", priority=" + priority +
-            ", readSet.size=" + _readSet.size +
-            ", writeBuffer.size=" + _writeBuffer.size +
+            ", readSet.size=" + (if (null == _readSet) "discarded" else _readSet.size.toString) +
+            ", writeBuffer.size=" + (if (null == _writeBuffer) "discarded" else _writeBuffer.size.toString) +
             ", readVersion=0x" + _readVersion.toHexString +
             (if (barging) ", barging" else "") + ")")
   }
@@ -224,6 +229,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
       _readSet = null
       _writeBuffer = null
       slotManager.release(_slot)
+      
 
       callAfter()
     }
@@ -427,16 +433,31 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
       val callback = new Txn.ReadResource {
         var _latestRead = u
 
-        def valid(t: Txn) = {
-          if (!_latestRead.stillValid) {
-            // reread, and see if that changes the result
-            // TODO: what if t.status == Validating?
-            _latestRead = unrecordedRead(handle)
-            val reapply = f(_latestRead.value)
-            result == reapply
-          } else {
-            true
+        def valid(t: Txn): Boolean = {
+          if (_latestRead == null || _latestRead.stillValid) return true
+
+          var m1 = handle.meta
+          if (owner(m1) == _slot) {
+            // We know that our original read did not come from the write
+            // buffer, because !u.recorded.  That means that to redo this
+            // read we should go to handle.data, which has the most recent
+            // value from which we should read.
+            _latestRead = null
+            return (result == f(handle.data))
           }
+
+          // reread, and see if that changes the result
+          _latestRead = (if (_status == Validating) {
+            // can't wait or revalidate
+            tryUnrecordedRead(handle) match {
+              case Some(u) => u
+              case None => return false
+            }
+          } else {
+            unrecordedRead(handle)
+          })
+
+          return (result == f(_latestRead.value))
         }
       }
 
@@ -473,16 +494,41 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
       } while (changingAndVersion(m0) != changingAndVersion(m1))
       false
     })
+    createUnrecordedRead(handle, m1, v, rec)
+  }
 
-    // Everything above this line is the same as for get().  Is there a way to
-    // share some of that code without incurring boxing/unboxing penalties?
-
-    return new UnrecordedRead[T] {
+  private def createUnrecordedRead[T](handle: Handle[T], m0: Meta, v: T, rec: Boolean) = {
+    new UnrecordedRead[T] {
       def context: Option[Txn] = Some(TxnImpl.this.asInstanceOf[Txn])
       def value: T = v
-      def stillValid = changingAndVersion(handle.meta) == changingAndVersion(m1)
+      def stillValid = {
+        val m1 = handle.meta
+        version(m1) == version(m0) && (!changing(m1) || owner(m1) == _slot)
+      }
       def recorded = rec
     }
+  }
+
+  def tryUnrecordedRead[T](handle: Handle[T]): Option[UnrecordedRead[T]] = {
+    requireNotCompleted()
+
+    var m1 = handle.meta
+    var v: T = null.asInstanceOf[T]
+    val rec = (if (owner(m1) == _slot) {
+      v = _writeBuffer.get(handle)
+      true
+    } else {
+      var m0 = 0L
+      do {
+        m0 = m1
+        if (changing(m0) || version(m0) > _readVersion) return None
+        v = handle.data
+        m1 = handle.meta
+      } while (changingAndVersion(m0) != changingAndVersion(m1))
+      false
+    })
+
+    return Some(createUnrecordedRead(handle, m1, v, rec))
   }
 
   def releasableRead[T](handle: Handle[T]): ReleasableRead[T] = {

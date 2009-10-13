@@ -5,6 +5,7 @@
 package edu.stanford.ppl.stm
 
 import edu.stanford.ppl.ccstm._
+import edu.stanford.ppl.ccstm.collection._
 import scala.collection.jcl.IdentityHashMap
 
 
@@ -18,7 +19,7 @@ class IsolatedRefSuite extends STMFunSuite {
    *  from a Ref.  The bound views may be reused, or not, and they may be
    *  non-transactional or transactional.
    */
-  trait Binder {
+  sealed trait Binder {
     def apply[T](v: Ref[T]): Ref.Bound[T]
     def reset() {}
   }
@@ -45,10 +46,12 @@ class IsolatedRefSuite extends STMFunSuite {
     }
 
     override def reset() {
-      val s = txn.commit()
-      assert(s === Txn.Committed)
-      txn = null
-      accesses = 0
+      if (null != txn) {
+        val s = txn.commit()
+        assert(s === Txn.Committed)
+        txn = null
+        accesses = 0
+      }
     }
   }
 
@@ -65,32 +68,49 @@ class IsolatedRefSuite extends STMFunSuite {
     }
 
     override def reset() {
-      val s = txn.commit()
-      assert(s === Txn.Committed)
-      txn = null
-      accesses = 0
+      if (null != txn) {
+        val s = txn.commit()
+        assert(s === Txn.Committed)
+        txn = null
+        accesses = 0
+      }
       cache.clear
     }
   }
 
+
+  sealed trait IntRefFactory {
+    def apply(initialValue: Int): Ref[Int]
+  }
+
+  case object TAnyRefFactory extends IntRefFactory {
+    def apply(initialValue: Int): Ref[Int] = new TAnyRef[Int](initialValue)
+  }
+
+  case object TIntRefFactory extends IntRefFactory {
+    def apply(initialValue: Int): Ref[Int] = new TIntRef(initialValue)
+  }
+
+  case object LazyConflictRefFactory extends IntRefFactory {
+    def apply(initialValue: Int): Ref[Int] = new LazyConflictRef[Int](initialValue)
+  }
+
+
   val binders = List(FreshNonTxn, ReuseNonTxn, FreshTxn(1), ReuseTxn(1), FreshTxn(2), ReuseTxn(2), FreshTxn(8), ReuseTxn(8), FreshTxn(1000), ReuseTxn(1000))
+  val factories = List(TAnyRefFactory, TIntRefFactory, LazyConflictRefFactory)
+  for (f <- factories; b <- binders) createTests(b, f)
 
-  // This for loop is a bit clumsy, but as of 2.7.5, scalac throws an exception
-  // if I try to make the call to test()() from inside a closure.
-  val biter = binders.elements
-  while (biter.hasNext) {
-    val binder = biter.next
-
-    test(binder + ": counter") {
-      val x = Ref(1)
+  private def createTests(binder: Binder, fact: IntRefFactory) {
+    test(fact + ": " + binder + ": counter") {
+      val x = fact(1)
       val r = binder(x).get + 1
       binder(x) := r
       assert(binder(x).get === 2)
       binder.reset()
     }
 
-    test(binder + ": counter increment should be fast", ExhaustiveTest) {
-      val x = Ref(1)
+    test(fact + ": " + binder + ": counter increment should be fast", ExhaustiveTest) {
+      val x = fact(1)
       var best = java.lang.Long.MAX_VALUE
       for (pass <- 0 until 100000) {
         val begin = System.nanoTime
@@ -110,36 +130,50 @@ class IsolatedRefSuite extends STMFunSuite {
       binder.reset()
     }
   
-    test(binder + ": map") {
-      val x = Ref(1)
+    test(fact + ": " + binder + ": map") {
+      val x = fact(1)
       assert(binder(x).map(_ * 10) === 10)
       binder.reset()
     }
+
+    test(fact + ": " + binder + ": map + write") {
+      val x = fact(1)
+      binder(x) := 2
+      assert(binder(x).map(_ * 10) === 20)
+      binder.reset()
+    }
   
-    test(binder + ": transform") {
-      val x = Ref(1)
+    test(fact + ": " + binder + ": write + map") {
+      val x = fact(1)
+      assert(binder(x).map(_ * 10) === 10)
+      binder(x) := 2
+      binder.reset()
+    }
+
+    test(fact + ": " + binder + ": transform") {
+      val x = fact(1)
       binder(x).transform(_ + 1)
       assert(binder(x).get === 2)
       binder.reset()
     }
   
-    test(binder + ": successful compareAndSet") {
-      val x = Ref(1)
+    test(fact + ": " + binder + ": successful compareAndSet") {
+      val x = fact(1)
       val f = binder(x).compareAndSet(1, 2)
       assert(f)
       assert(binder(x).get === 2)
       binder.reset()
     }
   
-    test(binder + ": failing compareAndSet") {
-      val x = Ref(1)
+    test(fact + ": " + binder + ": failing compareAndSet") {
+      val x = fact(1)
       val f = binder(x).compareAndSet(2, 3)
       assert(!f)
       assert(binder(x).get === 1)
       binder.reset()
     }
   
-    test(binder + ": successful compareAndSetIdentity") {
+    test(fact + ": " + binder + ": successful compareAndSetIdentity") {
       val ref1 = new java.lang.Integer(3)
       val ref2 = new java.lang.Integer(4)
       val x = Ref(ref1)
@@ -149,7 +183,7 @@ class IsolatedRefSuite extends STMFunSuite {
       binder.reset()
     }
   
-    test(binder + ": failing compareAndSetIdentity") {
+    test(fact + ": " + binder + ": failing compareAndSetIdentity") {
       val ref1 = new java.lang.Integer(3)
       val ref2 = new java.lang.Integer(3)
       val ref3 = new java.lang.Integer(4)
@@ -160,8 +194,8 @@ class IsolatedRefSuite extends STMFunSuite {
       binder.reset()
     }
   
-    test(binder + ": applicable transformIfDefined") {
-      val x = Ref(2)
+    test(fact + ": " + binder + ": applicable transformIfDefined") {
+      val x = fact(2)
       val pf = new PartialFunction[Int,Int] {
         def isDefinedAt(x: Int): Boolean = x < 8
         def apply(x: Int) = x*x
@@ -172,8 +206,8 @@ class IsolatedRefSuite extends STMFunSuite {
       binder.reset()
     }
   
-    test(binder + ": inapplicable transformIfDefined") {
-      val x = Ref(2)
+    test(fact + ": " + binder + ": inapplicable transformIfDefined") {
+      val x = fact(2)
       val pf = new PartialFunction[Int,Int] {
         def isDefinedAt(x: Int): Boolean = x > 8
         def apply(x: Int) = x*x
@@ -184,8 +218,8 @@ class IsolatedRefSuite extends STMFunSuite {
       binder.reset()
     }
   
-    test(binder + ": successful weakCompareAndSet") {
-      val x = Ref(1)
+    test(fact + ": " + binder + ": successful weakCompareAndSet") {
+      val x = fact(1)
       while (!binder(x).weakCompareAndSet(1, 2)) {
         assert(binder(x).get === 1)
       }
@@ -193,15 +227,15 @@ class IsolatedRefSuite extends STMFunSuite {
       binder.reset()
     }
   
-    test(binder + ": failing weakCompareAndSet") {
-      val x = Ref(1)
+    test(fact + ": " + binder + ": failing weakCompareAndSet") {
+      val x = fact(1)
       val f = binder(x).weakCompareAndSet(2, 3)
       assert(!f)
       assert(binder(x).get === 1)
       binder.reset()
     }
   
-    test(binder + ": successful weakCompareAndSetIdentity") {
+    test(fact + ": " + binder + ": successful weakCompareAndSetIdentity") {
       val ref1 = new java.lang.Integer(3)
       val ref2 = new java.lang.Integer(4)
       val x = Ref(ref1)
@@ -212,7 +246,7 @@ class IsolatedRefSuite extends STMFunSuite {
       binder.reset()
     }
   
-    test(binder + ": failing weakCompareAndSetIdentity") {
+    test(fact + ": " + binder + ": failing weakCompareAndSetIdentity") {
       val ref1 = new java.lang.Integer(3)
       val ref2 = new java.lang.Integer(3)
       val ref3 = new java.lang.Integer(4)
@@ -223,16 +257,16 @@ class IsolatedRefSuite extends STMFunSuite {
       binder.reset()
     }
   
-    test(binder + ": unrecordedRead immediate use") {
-      val x = Ref(1)
+    test(fact + ": " + binder + ": unrecordedRead immediate use") {
+      val x = fact(1)
       val u = binder(x).unrecordedRead
       assert(u.value === 1)
       assert(u.stillValid)
       binder.reset()
     }
   
-    test(binder + ": unrecordedRead ABA") {
-      val x = Ref(1)
+    test(fact + ": " + binder + ": unrecordedRead ABA") {
+      val x = fact(1)
       val u = binder(x).unrecordedRead
       for (i <- 0 until 1001) binder(x) := 2
       for (i <- 0 until 1001) binder(x) := 1
@@ -241,9 +275,26 @@ class IsolatedRefSuite extends STMFunSuite {
       assert(!u.stillValid)
       binder.reset()
     }
-  
-    test(binder + ": simple releasableRead") {
-      val x = Ref(1)
+
+    test(fact + ": " + binder + ": txn unrecordedRead/write mix") {
+      val x = fact(1)
+      val b = binder(x)
+      if (!b.context.isEmpty) {
+        val u1 = b.unrecordedRead
+        b := 2
+        val u2 = b.unrecordedRead
+        b := 3
+        val u3 = b.unrecordedRead
+        assert(u1.stillValid)
+        assert(u1.value === 1)
+        assert(u2.stillValid)
+        assert(u2.value === 2)
+      }
+      binder.reset()
+    }
+
+    test(fact + ": " + binder + ": simple releasableRead") {
+      val x = fact(1)
       val r1 = binder(x).releasableRead
       binder(x) := 2
       val r2 = binder(x).releasableRead
@@ -256,8 +307,8 @@ class IsolatedRefSuite extends STMFunSuite {
       binder.reset()
     }
 
-    test(binder + ": tryWrite") {
-      val x = Ref(1)
+    test(fact + ": " + binder + ": tryWrite") {
+      val x = fact(1)
       assert(binder(x).get === 1)
       while (!binder(x).tryWrite(2)) {
         assert(binder(x).get === 1)
