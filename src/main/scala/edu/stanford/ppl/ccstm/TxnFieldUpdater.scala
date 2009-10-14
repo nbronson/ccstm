@@ -101,7 +101,7 @@ abstract class TxnFieldUpdater[T <: MetaHolder,V](tClazz: Class[T], fieldName: S
    *      in <code>instance</code>.
    */
   def apply(instance: T): Ref[V] = new Ref[V] with Handle[V] {
-    protected def handle(txn: Txn): Handle[V] = this
+    protected def handle: Handle[V] = this
 
     private[ccstm] def meta: Long = instance.meta
     private[ccstm] def meta_=(v: Long) { instance.meta = v }

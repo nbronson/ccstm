@@ -14,7 +14,7 @@ package edu.stanford.ppl.ccstm.collection
  */
 class TAnyRef[T](initialValue: T) extends impl.MetaHolder with Ref[T] with impl.Handle[T] {
 
-  protected def handle(txn: Txn): impl.Handle[T] = this
+  protected def handle: impl.Handle[T] = this
 
   private[ccstm] def ref: AnyRef = this
   private[ccstm] def offset: Int = 0

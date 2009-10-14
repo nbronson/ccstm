@@ -420,7 +420,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
 //
 //    // Stable read.  The second read of handle.meta is required for
 //    // opacity, and it also enables the read-only commit optimization.
-//    _readSet.add(handle, version(m))
+//    _readSet.record(handle, version(m))
 //    return value
 //  }
 
@@ -447,15 +447,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
           }
 
           // reread, and see if that changes the result
-          _latestRead = (if (_status == Validating) {
-            // can't wait or revalidate
-            tryUnrecordedRead(handle) match {
-              case Some(u) => u
-              case None => return false
-            }
-          } else {
-            unrecordedRead(handle)
-          })
+          _latestRead = unrecordedRead(handle)
 
           return (result == f(_latestRead.value))
         }
@@ -473,7 +465,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   }
 
   def unrecordedRead[T](handle: Handle[T]): UnrecordedRead[T] = {
-    requireActive()
+    requireActiveOrValidating()
 
     var m1 = handle.meta
     var v: T = null.asInstanceOf[T]
@@ -485,50 +477,37 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
       do {
         m0 = m1
         while (changing(m0)) {
+          if (_status eq Txn.Validating) {
+            // can't wait
+            forceRollback(Txn.InvalidReadCause(handle, "contended unrecordedRead while validating"))
+            throw RollbackError
+          }
           weakAwaitUnowned(handle, m0)
           m0 = handle.meta
         }
-        revalidateIfRequired(version(m0))
+        if (version(m0) > _readVersion) {
+          if (_status eq Txn.Validating) {
+            // can't wait
+            forceRollback(Txn.InvalidReadCause(handle, "unrecordedRead of future value while validating"))
+            throw RollbackError
+          }
+          revalidate(version(m0))
+        }
         v = handle.data
         m1 = handle.meta
       } while (changingAndVersion(m0) != changingAndVersion(m1))
       false
     })
-    createUnrecordedRead(handle, m1, v, rec)
-  }
 
-  private def createUnrecordedRead[T](handle: Handle[T], m0: Meta, v: T, rec: Boolean) = {
     new UnrecordedRead[T] {
       def context: Option[Txn] = Some(TxnImpl.this.asInstanceOf[Txn])
       def value: T = v
       def stillValid = {
-        val m1 = handle.meta
-        version(m1) == version(m0) && (!changing(m1) || owner(m1) == _slot)
+        val m = handle.meta
+        version(m) == version(m1) && (!changing(m) || owner(m) == _slot)
       }
       def recorded = rec
     }
-  }
-
-  def tryUnrecordedRead[T](handle: Handle[T]): Option[UnrecordedRead[T]] = {
-    requireNotCompleted()
-
-    var m1 = handle.meta
-    var v: T = null.asInstanceOf[T]
-    val rec = (if (owner(m1) == _slot) {
-      v = _writeBuffer.get(handle)
-      true
-    } else {
-      var m0 = 0L
-      do {
-        m0 = m1
-        if (changing(m0) || version(m0) > _readVersion) return None
-        v = handle.data
-        m1 = handle.meta
-      } while (changingAndVersion(m0) != changingAndVersion(m1))
-      false
-    })
-
-    return Some(createUnrecordedRead(handle, m1, v, rec))
   }
 
   def releasableRead[T](handle: Handle[T]): ReleasableRead[T] = {
@@ -585,7 +564,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
 
     // This might not be a blind write, because meta might be shared with other
     // values that are subsequently read by the transaction.  We don't need to
-    // add a read set entry, however, because nobody can modify it after we
+    // record a read set entry, however, because nobody can modify it after we
     // grab ownership.  This means it suffices to check against _readVersion.
     // We must put something in the buffer before calling revalidate in case we
     // roll back, so that the ownership gets released.

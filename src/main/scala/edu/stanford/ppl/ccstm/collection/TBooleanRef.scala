@@ -18,7 +18,7 @@ import impl.STMImpl._
 
 class TBooleanRef(initialValue: Boolean) extends impl.MetaHolder(withUserBit(0L, initialValue)) with Ref[Boolean] with impl.Handle[Boolean] {
 
-  protected def handle(txn: Txn): impl.Handle[Boolean] = this
+  protected def handle: impl.Handle[Boolean] = this
 
   private[ccstm] def ref: AnyRef = this
   private[ccstm] def offset: Int = 0
@@ -40,7 +40,7 @@ class TBooleanRef(initialValue: Boolean) extends impl.MetaHolder(withUserBit(0L,
   //  override def get: Boolean = txn.getBooleanInUserData(handle)
   //}
 
-  override def nonTxn: Ref.Bound[Boolean] = new Ref.NonTxnBound[Boolean](this, handle(null)) {
+  override def nonTxn: Ref.Bound[Boolean] = new Ref.NonTxnBound[Boolean](this, handle) {
     //override def get: Boolean = impl.NonTxn.getUserBit(handle)
     override def set(v: Boolean) { impl.NonTxn.setUserBit(handle, v) }
   }
