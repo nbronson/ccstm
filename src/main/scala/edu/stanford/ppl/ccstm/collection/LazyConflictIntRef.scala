@@ -8,8 +8,27 @@ package edu.stanford.ppl.ccstm.collection
 object LazyConflictIntRef {
 
   trait Bound extends Ref.Bound[Int] with Ordered[Int] {
-    def += (delta: Int)
-    def -= (delta: Int)
+    def += (delta: Int) { transform(_ + delta) }
+    def -= (delta: Int) { this += (-delta) }
+
+    def compare(rhs: Int): Int = (get compare rhs)
+
+    override def < (rhs: Int): Boolean = (get < rhs)
+    override def > (rhs: Int): Boolean = (get > rhs)
+    override def <= (rhs: Int): Boolean = !(this > rhs)
+    override def >= (rhs: Int): Boolean = !(this < rhs)
+
+    /** Equivalent to <code>map(_ == ths)</code>, but more concise and more
+     *  efficient.  The pneumonic is that you can replace
+     *  <code>(!ref == rhs)</code> with <code>(ref ==! rhs)</code.
+     */
+    def ==! (rhs: Int): Boolean = (get == rhs)
+
+    /** Equivalent to <code>map(_ != ths)</code>, but more concise and more
+     *  efficient.  The pneumonic is that you can replace
+     *  <code>(!ref != rhs)</code> with <code>(ref !=! rhs)</code.
+     */
+    def !=! (rhs: Int): Boolean = !(this ==! rhs)
   }
 
   
@@ -106,8 +125,8 @@ object LazyConflictIntRef {
     //////////////// Sink
 
     def set(v: Int) {
-      record(new Set(v))
       _value = v
+      record(new Set(v))
     }
 
     def tryWrite(v: Int): Boolean = {
@@ -126,7 +145,7 @@ object LazyConflictIntRef {
     }
 
     def compareAndSet(before: Int, after: Int): Boolean = {
-      if (this == before) {
+      if (this ==! before) {
         set(after)
         true
       } else {
@@ -143,9 +162,14 @@ object LazyConflictIntRef {
       throw new UnsupportedOperationException("identity comparisons are not valid on Int")
     }
 
-    def transform(f: (Int) => Int) = {
-      record(new Transform(f))
+    def transform(f: (Int) => Int) {
       _value = f(_value)
+      record(new Transform(f))
+    }
+
+    def tryTransform(f: (Int) => Int): Boolean = {
+      transform(f)
+      true
     }
 
     def transformIfDefined(pf: PartialFunction[Int, Int]): Boolean = {
@@ -159,19 +183,17 @@ object LazyConflictIntRef {
 
     //////////////// convenience functions for int
 
-    def += (delta: Int) {
+    override def += (delta: Int) {
       if (delta != 0) {
+        _value += delta
         _tail match {
           case incr: Incr => incr.delta += delta
           case _ => record(new Incr(delta))
         }
-        _value += delta
       }
     }
 
-    def -= (delta: Int) { this += -delta }
-
-    def compare(rhs: Int): Int = map((_ compare rhs))
+    override def compare(rhs: Int): Int = map((_ compare rhs))
 
     override def < (rhs: Int): Boolean = {
       if (_value < rhs) {
@@ -193,10 +215,7 @@ object LazyConflictIntRef {
       }
     }
 
-    override def <= (rhs: Int): Boolean = !(this > rhs)
-    override def >= (rhs: Int): Boolean = !(this < rhs)
-
-    def == (rhs: Int): Boolean = {
+    override def ==! (rhs: Int): Boolean = {
       if (_value == rhs) {
         record(new Op_==(rhs))
         true
@@ -205,8 +224,6 @@ object LazyConflictIntRef {
         false
       }
     }
-
-    def != (rhs: Int): Boolean = !(this == rhs)
 
     //////////////// history replay implementation
 
@@ -224,25 +241,31 @@ object LazyConflictIntRef {
     }
 
     private def record(h: Test) {
-      validateIfRequired()
       if (h != _tail) append(h)
+      validateIfRequired()
     }
 
     private def record(h: Update) {
-      validateIfRequired()
-      append(h)
       if (!_updaterRegistered) {
-        _updaterRegistered = true
-        txn.beforeCommit(t => {
-          if (_value != _read.value) {
-            _ubound := _value
-          }
-          // clearing the flaghere means that if a later beforeCommit callback
-          // does another store on this ref, we will register a new handler and
-          // do the underlying update again
-          _updaterRegistered = false
-        }, Math.MAX_INT  / 2)
+        // we can either start doing direct writes or register a deferred
+        // update callback
+        registerUpdater()
       }
+      append(h)
+      validateIfRequired()
+    }
+
+    private def registerUpdater() {
+      _updaterRegistered = true
+      txn.beforeCommit(t => {
+        if (_value != _read.value) {
+          _ubound := _value
+        }
+        // clearing the flag here means that if a later beforeCommit callback
+        // does another store on this ref, we will register a new handler and
+        // do the underlying update again
+        _updaterRegistered = false
+      }, Math.MAX_INT  / 2)      
     }
 
     def valid(txn: Txn): Boolean = {
@@ -287,15 +310,6 @@ class LazyConflictIntRef(initialValue: Int) extends Ref[Int] {
 
   override val nonTxn: LazyConflictIntRef.Bound = {
     new Ref.NonTxnBound(this, underlying.handle2) with LazyConflictIntRef.Bound {
-      def += (delta: Int) { transform(_ + delta) }
-      def -= (delta: Int) { transform(_ - delta) }
-      def compare(rhs: Int): Int = (get compare rhs)
-      override def < (rhs: Int): Boolean = (get < rhs)
-      override def > (rhs: Int): Boolean = (get > rhs)
-      override def <= (rhs: Int): Boolean = (get <= rhs)
-      override def >= (rhs: Int): Boolean = (get >= rhs)
-      def == (rhs: Int): Boolean = (get == rhs)
-      def != (rhs: Int): Boolean = (get != rhs)
     }
   }
 
@@ -309,8 +323,8 @@ class LazyConflictIntRef(initialValue: Int) extends Ref[Int] {
   def >  (rhs: Int)(implicit txn: Txn): Boolean = { bind > rhs }
   def <= (rhs: Int)(implicit txn: Txn): Boolean = { bind <= rhs }
   def >= (rhs: Int)(implicit txn: Txn): Boolean = { bind >= rhs }
-  def == (rhs: Int)(implicit txn: Txn): Boolean = { bind == rhs }
-  def != (rhs: Int)(implicit txn: Txn): Boolean = { bind != rhs }
+  def ==! (rhs: Int)(implicit txn: Txn): Boolean = { bind ==! rhs }
+  def !=! (rhs: Int)(implicit txn: Txn): Boolean = { bind !=! rhs }
 
   //////////////// equality stuff in Ref uses handles, must be overriden:
 
