@@ -394,43 +394,6 @@ object Txn {
    *  changed.
    */
   def awaitRetry(explicitRetries: ExplicitRetryCause*) = impl.STMImpl.awaitRetry(explicitRetries:_*)
-
-  private[Txn] class Callbacks {
-    import impl.CallbackList
-
-    var readResources: CallbackList[ReadResource] = null
-
-    /** Includes WriteResource-s and beforeCommit callbacks. */
-    var writeLikeResources: CallbackList[WriteResource] = null
-    var writeResourcesPresent = false
-    var afterCommit: CallbackList[Txn => Unit] = null
-    var afterRollback: CallbackList[Txn => Unit] = null
-    
-    def addReadResource(res: ReadResource, prio: Int) {
-      if (null == readResources) readResources = new CallbackList[ReadResource]
-      readResources.add(res, prio)
-    }
-
-    def addWriteLikeResource(res: WriteResource, prio: Int) {
-      if (null == writeLikeResources) writeLikeResources = new CallbackList[WriteResource]
-      writeLikeResources.add(res, prio)
-    }
-    
-    def addWriteResource(res: WriteResource, prio: Int) {
-      addWriteLikeResource(res, prio)
-      writeResourcesPresent = true
-    }
-
-    def addAfterCommit(callback: Txn => Unit, prio: Int) {
-      if (null == afterCommit) afterCommit = new CallbackList[Txn => Unit]
-      afterCommit.add(callback, prio)
-    }
-
-    def addAfterRollback(callback: Txn => Unit, prio: Int) {
-      if (null == afterRollback) afterRollback = new CallbackList[Txn => Unit]
-      afterRollback.add(callback, prio)
-    }
-  }
 }
 
 /** An instance representing a single execution attempt for a single atomic
@@ -467,11 +430,7 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
   /** Values of <code>TxnLocal</code>s for this transaction, created lazily. */
   private[ccstm] var locals: java.util.IdentityHashMap[TxnLocal[_],Any] = null
 
-  /** Most txns don't register any callbacks, so we put them behind a layer of
-   *  indirection to slim down the fat <code>Txn</code> object.
-   */
-  private var _callbacks: Callbacks = null
-
+  
   def status: Status = _status
 
   def forceRollback(cause: RollbackCause) {
@@ -500,8 +459,7 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
 
   def beforeCommit(callback: Txn => Unit, prio: Int) {
     requireActive()
-    if (null == _callbacks) _callbacks = new Callbacks
-    _callbacks.addWriteLikeResource(new WriteResource {
+    _callbacks.writeLikeResources.add(new WriteResource {
       def prepare(txn: Txn): Boolean = { callback(txn); true }
       def performCommit(txn: Txn) {}
       def performRollback(txn: Txn) {}
@@ -520,8 +478,7 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
 
   def addReadResource(readResource: ReadResource, prio: Int, checkAfterRegister: Boolean) {
     requireActive()
-    if (null == _callbacks) _callbacks = new Callbacks
-    _callbacks.addReadResource(readResource, prio)
+    _callbacks.readResources.add(readResource, prio)
     if (checkAfterRegister) {
       validateNoThrow(readResource)
       requireActive()
@@ -541,7 +498,7 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
   }
 
   private[ccstm] def readResourcesValidate(): Boolean = {
-    if (null != _callbacks && null != _callbacks.readResources) {
+    if (!_callbacks.readResources.isEmpty) {
       for (res <- _callbacks.readResources) {
         validateNoThrow(res)
         if (!status.mightCommit) return false
@@ -556,14 +513,14 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
 
   def addWriteResource(writeResource: WriteResource, prio: Int) {
     requireActive()
-    if (null == _callbacks) _callbacks = new Callbacks
-    _callbacks.addWriteResource(writeResource, prio)
+    _callbacks.writeLikeResources.add(writeResource, prio)
+    _callbacks.writeResourcesPresent = true
   }
 
-  private[ccstm] def writeResourcesPresent = null != _callbacks && _callbacks.writeResourcesPresent
+  private[ccstm] def writeResourcesPresent = _callbacks.writeResourcesPresent
 
   private[ccstm] def writeLikeResourcesPrepare(): Boolean = {
-    if (null != _callbacks && null != _callbacks.writeLikeResources) {
+    if (!_callbacks.writeLikeResources.isEmpty) {
       for (res <- _callbacks.writeLikeResources) {
         try {
           if (!res.prepare(this)) {
@@ -581,7 +538,7 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
   }
 
   private[ccstm] def writeResourcesPerformCommit() {
-    if (null != _callbacks && null != _callbacks.writeLikeResources) {
+    if (_callbacks.writeLikeResources.isEmpty) {
       for (res <- _callbacks.writeLikeResources) {
         try {
           res.performCommit(this)
@@ -594,7 +551,7 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
   }
 
   private[ccstm] def writeResourcesPerformRollback() {
-    if (null != _callbacks && null != _callbacks.writeLikeResources) {
+    if (_callbacks.writeLikeResources.isEmpty) {
       for (res <- _callbacks.writeLikeResources) {
         try {
           res.performRollback(this)
@@ -608,16 +565,14 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
 
   def afterCommit(callback: Txn => Unit, prio: Int) {
     requireNotCompleted()
-    if (null == _callbacks) _callbacks = new Callbacks
-    _callbacks.addAfterCommit(callback, prio)
+    _callbacks.afterCommit.add(callback, prio)
   }
 
   def afterCommit(callback: Txn => Unit) { afterCommit(callback, 0) }
 
   def afterRollback(callback: Txn => Unit, prio: Int) {
     requireNotCompleted()
-    if (null == _callbacks) _callbacks = new Callbacks
-    _callbacks.addAfterRollback(callback, prio)
+    _callbacks.afterRollback.add(callback, prio)
   }
 
   def afterRollback(callback: Txn => Unit) { afterRollback(callback, 0) }
@@ -630,26 +585,23 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
   }
 
   private[ccstm] def callAfter() {
-    if (null != _callbacks) {
-      val s = status
-      val cb = (if (s == Committed) {
-        if (EnableCounters) commitCounter += 1
-        _callbacks.afterCommit
-      } else {
-        if (EnableCounters) s.rollbackCause.counter += 1
-        _callbacks.afterRollback
-      })
-      if (null != cb) {
-        for (cb <- cb) {
-          try {
-            cb(this)
-          }
-          catch {
-            case x => handlePostDecisionException(this, cb, x)
-          }
+    val s = status
+    val cb = (if (s eq Committed) {
+      if (EnableCounters) commitCounter += 1
+      _callbacks.afterCommit
+    } else {
+      if (EnableCounters) s.rollbackCause.counter += 1
+      _callbacks.afterRollback
+    })
+    if (!cb.isEmpty) {
+      for (cb <- cb) {
+        try {
+          cb(this)
+        }
+        catch {
+          case x => handlePostDecisionException(this, cb, x)
         }
       }
-      _callbacks = null
     }
   }
 }

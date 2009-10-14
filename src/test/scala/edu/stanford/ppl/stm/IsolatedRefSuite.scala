@@ -64,7 +64,13 @@ class IsolatedRefSuite extends STMFunSuite {
       if (accesses == txnLen) reset()
       accesses += 1
       if (null == txn) txn = new Txn
-      cache.getOrElseUpdate(v, v.bind(txn)).asInstanceOf[Ref.Bound[T]]
+      if (cache.contains(v)) {
+        cache(v).asInstanceOf[Ref.Bound[T]]
+      } else {
+        val z = v.bind(txn)
+        cache(v) = z
+        z
+      }
     }
 
     override def reset() {
@@ -109,21 +115,39 @@ class IsolatedRefSuite extends STMFunSuite {
       binder.reset()
     }
 
-    test(fact + ": " + binder + ": counter increment should be fast", ExhaustiveTest) {
+    test(fact + ": " + binder + ": transform(_+1) should be fast", ExhaustiveTest) {
+      runIncrTest((x: Ref[Int]) => {
+        var i = 0
+        while (i < 10) {
+          i += 1
+          binder(x).transform(_ + 1)
+        }
+      })
+    }
+
+    test(fact + ": " + binder + ": x:=!x+1 should be fast", ExhaustiveTest) {
+      runIncrTest((x: Ref[Int]) => {
+        var i = 0
+        while (i < 10) {
+          i += 1
+          val v = !binder(x)
+          binder(x) := v + 1
+        }
+      })
+    }
+
+    def runIncrTest(incrTenTimes: Ref[Int] => Unit) {
       val x = fact(1)
       var best = java.lang.Long.MAX_VALUE
       for (pass <- 0 until 100000) {
         val begin = System.nanoTime
-        for (i <- 0 until 10) {
-          val r = binder(x).get + 1
-          binder(x) := r
-        }
+        incrTenTimes(x)
         val elapsed = System.nanoTime - begin
         best = best min elapsed
       }
       assert(binder(x).get === 1000001)
       println("best was " + (best / 10.0) + " nanos/call")
-  
+
       // We should be able to get less than 5000 nanos, even on a Niagara.
       // On most platforms we should be able to do much better than this.
       assert(best / 10 < 5000)
@@ -157,6 +181,15 @@ class IsolatedRefSuite extends STMFunSuite {
       binder.reset()
     }
   
+    test(fact + ": " + binder + ": tryTransform") {
+      val x = fact(1)
+      while (!binder(x).tryTransform(_ + 1)) {
+        assert(binder(x) === 1)
+      }
+      assert(binder(x).get === 2)
+      binder.reset()
+    }
+
     test(fact + ": " + binder + ": successful compareAndSet") {
       val x = fact(1)
       val f = binder(x).compareAndSet(1, 2)

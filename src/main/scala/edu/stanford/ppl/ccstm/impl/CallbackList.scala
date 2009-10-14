@@ -16,6 +16,9 @@ private[ccstm] class CallbackList[T <: AnyRef] {
   private val _slotsByPrio = new java.util.TreeMap[Int,CallbackPrioSlot]
   private var _size = 0
 
+  def size = _size
+  def isEmpty = _size == 0
+
   def add(elem: T, priority: Int) {
     var slot = _slotsByPrio.get(priority)
     if (null == slot) {
@@ -32,6 +35,11 @@ private[ccstm] class CallbackList[T <: AnyRef] {
     } finally {
       reset
     }
+  }
+
+  def clear() {
+    _slotsByPrio.clear()
+    _size = 0
   }
 
   private def attemptForeach(block: T => Unit): Boolean = {

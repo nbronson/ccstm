@@ -15,12 +15,23 @@ object ThreadContext extends ThreadLocal[ThreadContext] {
  */
 class ThreadContext {
   val rand = new FastPoorRandom
-  
+
+  private var _callbacks: Callbacks = null
   private var _readSet: ReadSet = null
   private var _writeBuffer: WriteBuffer = null
   private var _strongRefSet: StrongRefSet = null
 
   var preferredSlot: STMImpl.Slot = rand.nextInt
+
+  def takeCallbacks: Callbacks = {
+    if (null == _callbacks) {
+      new Callbacks
+    } else {
+      val z = _callbacks
+      _callbacks = null
+      z
+    }
+  }
 
   def takeReadSet: ReadSet = {
     if (null == _readSet) {
@@ -52,7 +63,9 @@ class ThreadContext {
     }
   }
 
-  def put(rs: ReadSet, wb: WriteBuffer, srs: StrongRefSet, slot: STMImpl.Slot) {
+  def put(cb: Callbacks, rs: ReadSet, wb: WriteBuffer, srs: StrongRefSet, slot: STMImpl.Slot) {
+    cb.clear()
+    _callbacks = cb
     rs.clear()
     _readSet = rs
     wb.clear()

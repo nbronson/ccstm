@@ -126,6 +126,39 @@ private[impl] class WriteBuffer {
     throw new Error("unreachable")
   }
 
+  def transform[T](handle: Handle[T], f: T => T) {
+    val ref = handle.ref
+    val offset = handle.offset
+    val hash = STMImpl.hash(ref, offset)
+    var i = hash & (_capacity - 1)
+    while (true) {
+      var r = _entries(refI(i))
+      if (r eq null) {
+        // miss, insert here
+        _lastInsert = i
+        _entries(handleI(i)) = handle
+        _entries(refI(i)) = ref
+        val v = handle.data
+        _entries(specValueI(i)) = f(v).asInstanceOf[AnyRef]
+        _size += 1
+        growIfNeeded()
+        return
+      }
+      if (r eq ref) {
+        val h = _entries(handleI(i))
+        if ((h eq handle) || h.asInstanceOf[Handle[_]].offset == offset) {
+          // hit
+          val v = _entries(specValueI(i)).asInstanceOf[T]
+          _entries(specValueI(i)) = f(v).asInstanceOf[AnyRef]
+          return
+        }
+      }
+
+      // probe
+      i = (i + 1) & (_capacity - 1)
+    }
+  }
+
   def visit(visitor: Visitor): Boolean = {
     var i = _lastInsert
     var remaining = _size

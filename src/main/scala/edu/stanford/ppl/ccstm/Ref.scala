@@ -128,6 +128,18 @@ object Ref {
      */
     def transform(f: T => T)
 
+    /** Either atomically transforms this reference without blocking and
+     *  returns true, or returns false.  <code>transform</code> is to
+     *  <code>tryTransform</code> as <code>set</code> is to
+     *  <code>tryWrite</code>.
+     *  @param f a function that is safe to call multiple times, and safe to
+     *      call later during the bound transaction (if any).
+     *  @returns true if the function was applied, false if it was not.
+     *  @throws IllegalStateException if this view is bound to a transaction
+     *      that is not active.
+     */
+    def tryTransform(f: T => T): Boolean
+
     /** Atomically replaces the value <i>v</i> stored in the <code>Ref</code>
      *  with <code>pf</code>(<i>v</i>) if <code>pf.isDefinedAt</code>(<i>v</i>),
      *  returning true, otherwise leaves the element unchanged and returns
@@ -190,6 +202,9 @@ object Ref {
     def transform(f: T => T) {
       txn.transform(handle, f)
     }
+    def tryTransform(f: T => T): Boolean = {
+      txn.tryTransform(handle, f)
+    }
     def transformIfDefined(pf: PartialFunction[T,T]): Boolean = {
       txn.transformIfDefined(handle, pf)
     }
@@ -229,6 +244,9 @@ object Ref {
     }
     def transform(f: T => T) {
       impl.NonTxn.transform(handle, f)
+    }
+    def tryTransform(f: T => T) = {
+      impl.NonTxn.tryTransform(handle, f)
     }
     def transformIfDefined(pf: PartialFunction[T,T]): Boolean = {
       impl.NonTxn.transformIfDefined(handle, pf)

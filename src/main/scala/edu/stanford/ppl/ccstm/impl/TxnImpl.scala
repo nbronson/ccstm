@@ -13,6 +13,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
 
   // _status and _statusCAS come from StatusHolder via AbstractTxn
 
+  private[ccstm] var _callbacks: Callbacks = null
   private var _readSet: ReadSet = null
   private var _writeBuffer: WriteBuffer = null
   private var _strongRefSet: StrongRefSet = null
@@ -23,6 +24,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
 
   {
     val ctx = ThreadContext.get
+    _callbacks = ctx.takeCallbacks
     _readSet = ctx.takeReadSet
     _writeBuffer = ctx.takeWriteBuffer
     _strongRefSet = ctx.takeStrongRefSet
@@ -90,7 +92,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
 
   /** Returns true if valid. */
   private def revalidateImpl(): Boolean = {
-    _readSet.visit(new ReadSet.Visitor {
+    (_readSet.isEmpty || _readSet.visit(new ReadSet.Visitor {
       def visit(handle: Handle[_], ver: STMImpl.Version): Boolean = {
         var done = false
         while (!done) {
@@ -136,7 +138,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
         }
         return true
       }
-    }) && readResourcesValidate()
+    })) && readResourcesValidate()
   }
 
   /** After this method returns, either the current transaction will have been
@@ -223,15 +225,15 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
       return Committed
       
     } finally {
+      callAfter()
+
       // cleanup
       val ctx = ThreadContext.get
-      ctx.put(_readSet, _writeBuffer, _strongRefSet, _slot)
+      ctx.put(_callbacks, _readSet, _writeBuffer, _strongRefSet, _slot)
+      _callbacks = null
       _readSet = null
       _writeBuffer = null
       slotManager.release(_slot)
-      
-
-      callAfter()
     }
   }
 
@@ -363,6 +365,21 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
       }
     }
     m
+  }
+
+  /** Returns 0L on failure. */
+  private def tryAcquireOwnership(handle: Handle[_], m0: Meta): Meta = {
+    var m = m0
+    if (owner(m) != UnownedSlot) {
+      0L
+    } else {
+      val after = withOwner(m, _slot)
+      if (handle.metaCAS(m, after)) {
+        after
+      } else {
+        0L
+      }
+    }
   }
 
   //////////////// barrier implementations
@@ -560,6 +577,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     }
 
     val m = acquireOwnership(handle, m0)
+
     _writeBuffer.put(handle, v)
 
     // This might not be a blind write, because meta might be shared with other
@@ -577,8 +595,6 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
 
     val m0 = handle.meta
     if (owner(m0) == _slot) {
-      // Self-owned.  This particular ref+offset might not be in the write
-      // buffer, but it's definitely not in anybody else's.
       val z = _writeBuffer.get(handle)
       _writeBuffer.put(handle, v)
       return z
@@ -597,38 +613,30 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     requireActive()
 
     val m0 = handle.meta
-    owner(m0) match {
-      case UnownedSlot => {
-        if (handle.metaCAS(m0, withOwner(m0, _slot))) {
-          _writeBuffer.put(handle, v)
-          revalidateIfRequired(version(m0))
-          true
-        } else {
-          false
-        }
-      }
-      case s if (s == _slot) => {
-        // Self-owned.  This particular ref+offset might not be in the write
-        // buffer, but it's definitely not in anybody else's.
-        _writeBuffer.put(handle, v)
-        true
-      }
-      case _ => {
-        false
-      }
+    if (owner(m0) == _slot) {
+      _writeBuffer.put(handle, v)
+      return true
     }
+
+    val m = tryAcquireOwnership(handle, m0)
+    if (m == 0L) return false
+
+    _writeBuffer.put(handle, v)
+
+    revalidateIfRequired(version(m))
+    return true
   }
 
   def readForWrite[T](handle: Handle[T]): T = {
     requireActive()
 
     val m0 = handle.meta
-    
     if (owner(m0) == _slot) {
       return _writeBuffer.allocatingGet(handle)
     }
 
     val m = acquireOwnership(handle, m0)
+
     val v = _writeBuffer.allocatingGet(handle)
 
     revalidateIfRequired(version(m))
@@ -658,11 +666,41 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     compareAndSetIdentity(handle, before, after)
   }
 
-  def transform[T](handle: Handle[T], f: T => T) = {
-    val v = readForWrite(handle)
-    _writeBuffer.put(handle, f(v))
+  def transform[T](handle: Handle[T], f: T => T) {
+    requireActive()
+
+    val m0 = handle.meta
+    if (owner(m0) == _slot) {
+      _writeBuffer.transform(handle, f)
+      return
+    }
+
+    val m = acquireOwnership(handle, m0)
+
+    _writeBuffer.transform(handle, f)
+
+    revalidateIfRequired(version(m))
   }
-  
+
+  def tryTransform[T](handle: Handle[T], f: T => T): Boolean = {
+    requireActive()
+
+    val m0 = handle.meta
+    if (owner(m0) == _slot) {
+      _writeBuffer.transform(handle, f)
+      return true
+    }
+
+    val m = tryAcquireOwnership(handle, m0)
+    if (m == 0L) return false
+
+    _writeBuffer.transform(handle, f)
+
+    revalidateIfRequired(version(m))
+
+    return true
+  }
+
   def transformIfDefined[T](handle: Handle[T], pf: PartialFunction[T,T]): Boolean = {
     val u = unrecordedRead(handle)
     if (!pf.isDefinedAt(u.value)) {
@@ -686,7 +724,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
       false
     } else {
       val v = readForWrite(handle)
-      if (!pf.isDefinedAt(v)) {
+      if (!u.stillValid && !pf.isDefinedAt(v)) {
         // value changed after unrecordedRead
         false
       } else {
