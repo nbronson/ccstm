@@ -128,6 +128,18 @@ object Ref {
      */
     def transform(f: T => T)
 
+    /** Either atomically transforms this reference without blocking and
+     *  returns true, or returns false.  <code>transform</code> is to
+     *  <code>tryTransform</code> as <code>set</code> is to
+     *  <code>tryWrite</code>.
+     *  @param f a function that is safe to call multiple times, and safe to
+     *      call later during the bound transaction (if any).
+     *  @returns true if the function was applied, false if it was not.
+     *  @throws IllegalStateException if this view is bound to a transaction
+     *      that is not active.
+     */
+    def tryTransform(f: T => T): Boolean
+
     /** Atomically replaces the value <i>v</i> stored in the <code>Ref</code>
      *  with <code>pf</code>(<i>v</i>) if <code>pf.isDefinedAt</code>(<i>v</i>),
      *  returning true, otherwise leaves the element unchanged and returns
@@ -151,10 +163,16 @@ object Ref {
     }
 
     override def hashCode: Int = (context.hashCode * 137) ^ unbind.hashCode ^ 101
+
+    override def toString: String = {
+      val c = (context match { case Some(t) => t.toString; case None => "nonTxn" }) 
+      "Bound(" + unbind + ", " + c + " => " + get + ")"
+    }
   }
 
-  private[ccstm] class TxnBound[T](val unbind: Ref[T], txn: Txn) extends Ref.Bound[T] {
-    protected def handle = unbind.handle
+  private[ccstm] class TxnBound[T](val unbind: Ref[T],
+                                   protected val handle: impl.Handle[T],
+                                   txn: Txn) extends Ref.Bound[T] {
     
     def context: Option[Txn] = Some(txn)
 
@@ -184,14 +202,17 @@ object Ref {
     def transform(f: T => T) {
       txn.transform(handle, f)
     }
+    def tryTransform(f: T => T): Boolean = {
+      txn.tryTransform(handle, f)
+    }
     def transformIfDefined(pf: PartialFunction[T,T]): Boolean = {
       txn.transformIfDefined(handle, pf)
     }
   }
 
-  private[ccstm] class NonTxnBound[T](val unbind: Ref[T]) extends Ref.Bound[T] {
-    protected def handle = unbind.handle
-    
+  private[ccstm] class NonTxnBound[T](val unbind: Ref[T],
+                                      protected val handle: impl.Handle[T]) extends Ref.Bound[T] {
+
     def context: Option[Txn] = None
 
     def get: T = impl.NonTxn.get(handle)
@@ -223,6 +244,9 @@ object Ref {
     }
     def transform(f: T => T) {
       impl.NonTxn.transform(handle, f)
+    }
+    def tryTransform(f: T => T) = {
+      impl.NonTxn.tryTransform(handle, f)
     }
     def transformIfDefined(pf: PartialFunction[T,T]): Boolean = {
       impl.NonTxn.transformIfDefined(handle, pf)
@@ -274,9 +298,11 @@ trait Ref[T] extends Source[T] with Sink[T] {
 
   /** Provides access to the data and metadata associated with this reference.
    *  This is the only method for which the default <code>Ref</code>
-   *  implementation is not sufficient.
+   *  implementation is not sufficient.  <code>txn</code> will be null for
+   *  non-transactional uses.
    */
   protected def handle: impl.Handle[T]
+  private[ccstm] def handle2 = handle
 
   //////////////// Source stuff
 
@@ -298,7 +324,9 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *      <code>txn</code>.
    *  @throws IllegalStateException if <code>txn</code> is not active.
    */
-  def getAndSet(v: T)(implicit txn: Txn): T = txn.getAndSet(handle, v)
+  def getAndSet(v: T)(implicit txn: Txn): T = {
+    txn.getAndSet(handle, v)
+  }
 
   /** Transforms the value referenced by this <code>Ref</code> by applying the
    *  function <code>f</code>.  Acts like <code>ref.set(f(ref.get))</code>, but
@@ -308,7 +336,9 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *      call later during the transaction.
    *  @throws IllegalStateException if <code>txn</code> is not active.
    */
-  def transform(f: T => T)(implicit txn: Txn) { txn.transform(handle, f) }
+  def transform(f: T => T)(implicit txn: Txn) {
+    txn.transform(handle, f)
+  }
 
   /** Transforms the value referenced by this <code>Ref</code> by applying the
    *  <code>pf.apply</code>, but only if <code>pf.isDefinedAt</code> holds for
@@ -322,7 +352,9 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *      current value of this <code>Ref</code> on entry.
    *  @throws IllegalStateException if <code>txn</code> is not active.
    */
-  def transformIfDefined(pf: PartialFunction[T,T])(implicit txn: Txn) = txn.transformIfDefined(handle, pf)
+  def transformIfDefined(pf: PartialFunction[T,T])(implicit txn: Txn) = {
+    txn.transformIfDefined(handle, pf)
+  }
 
   /** Returns this instance, but with only the read-only portion accessible.
    *  Equivalent to <code>asInstanceOf[Source[T]]</code>, but may be more
@@ -345,7 +377,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *  @return a view of this instance that performs all accesses as if from
    *      <code>txn</code>.
    */
-  def bind(implicit txn: Txn): Ref.Bound[T] = new Ref.TxnBound(this, txn)
+  def bind(implicit txn: Txn): Ref.Bound[T] = new Ref.TxnBound(this, handle, txn)
 
   /** Returns a view that can be used to perform individual reads and writes to
    *  this reference outside any transactional context.  Each operation acts as
@@ -354,9 +386,12 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *  @return a view into the value of this <code>Ref</code>, that will perform
    *      each operation as if in its own transaction.
    */
-  def nonTxn: Ref.Bound[T] = new Ref.NonTxnBound(this)
+  def nonTxn: Ref.Bound[T] = new Ref.NonTxnBound(this, handle)
 
-  override def hashCode: Int = impl.STMImpl.hash(handle.ref, handle.offset)
+  override def hashCode: Int = {
+    val h = handle
+    impl.STMImpl.hash(h.ref, h.offset)
+  }
 
   override def equals(rhs: Any): Boolean = {
     rhs match {

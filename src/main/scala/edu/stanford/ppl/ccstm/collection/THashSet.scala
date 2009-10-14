@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap
 //  // How to guarantee:
 //  //
 //
-//  def add(key: A)(implicit txn: Txn): Boolean = {
+//  def record(key: A)(implicit txn: Txn): Boolean = {
 //    val r = getTxnRef(key, txn)
 //    val prev = r.get
 //    if (!prev) r.set(true)

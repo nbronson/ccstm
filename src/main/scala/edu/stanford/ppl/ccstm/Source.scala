@@ -73,7 +73,7 @@ object Source {
 
     /** Returns an <code>UnrecordedRead</code> instance that wraps the value
      *  that would be returned from <code>get</code>.  If this source is bound
-     *  to a transactional context does not add the <code>Ref</code> to the
+     *  to a transactional context does not record the <code>Ref</code> to the
      *  transaction's read set.  The caller is responsible for guaranteeing
      *  that the transaction's behavior is correct even if the
      *  <code>Ref</code> is changed by an outside context before commit.  This
@@ -88,6 +88,13 @@ object Source {
      *  When combining this method with transaction resource callbacks, it is
      *  important to consider the case that the unrecorded read is already
      *  invalid when it is returned from this method.
+     *  <p>
+     *  This method may be called when a transaction is <code>Active</code> or
+     *  when it is <code>Validating</code> (from a <code>ReadResource</code>).
+     *  If the current transaction is <code>Validating</code> and the request
+     *  cannot be satisfied without blocking (due to an obstruction by a
+     *  concurrent commit that is updating this reference) then the current
+     *  transaction will be rolled back.
      *  <p>
      *  Although this method does not add to the read set, the returned value
      *  is consistent with the transaction's previous (recorded) reads.
