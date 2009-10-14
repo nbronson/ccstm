@@ -59,10 +59,10 @@ object STM {
    */
   def atomic[Z](block: Txn => Z): Z = {
     var hist: List[Txn.RollbackCause] = Nil
-    var zt = attemptImpl(block, hist)
-    while (zt._2.status != Txn.Committed) {
-      val cause = zt._2.status.rollbackCause
-      hist = cause :: hist
+    var txn = new Txn(hist)
+    var z = attemptImpl(txn, block)
+    while (txn.status ne Txn.Committed) {
+      val cause = txn.status.rollbackCause
       cause match {
         case x: Txn.ExplicitRetryCause => {
           Txn.awaitRetry(x)
@@ -70,9 +70,11 @@ object STM {
         case _ => {}
       }
       // retry
-      zt = attemptImpl(block, hist)
+      hist = cause :: hist
+      txn = new Txn(hist)
+      z = attemptImpl(txn, block)
     }
-    zt._1
+    z
   }
 
   /** Makes a single attempt to perform the work of <code>block</code> in a
@@ -89,12 +91,12 @@ object STM {
    *  @see #atomic
    */
   def attemptAtomic[Z](block: Txn => Z): Option[Z] = {
-    val (z,txn) = attemptImpl(block, Nil)
+    val txn = new Txn(Nil)
+    val z = attemptImpl(txn, block)
     if (txn.status == Txn.Committed) Some(z) else None
   }
 
-  private def attemptImpl[Z](block: Txn => Z, failureHistory: List[Txn.RollbackCause]): (Z,Txn) = {
-    val txn = new Txn(failureHistory)
+  private def attemptImpl[Z](txn: Txn, block: Txn => Z): Z = {
     var nonLocalReturn: NonLocalReturnException[_] = null
     var result: Z = null.asInstanceOf[Z]
     try {
@@ -111,7 +113,7 @@ object STM {
     }
     txn.commitAndRethrow()
     if (null != nonLocalReturn && txn.status == Txn.Committed) throw nonLocalReturn
-    (result,txn)
+    result
   }
 
   /** Rolls the transaction back, indicating that it should be retried after
