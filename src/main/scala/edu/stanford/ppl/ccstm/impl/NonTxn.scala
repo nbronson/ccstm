@@ -74,6 +74,19 @@ private[ccstm] object NonTxn {
     m1
   }
 
+  /** Returns 0L on failure. */
+  private def tryAcquireLock(handle: Handle[_], exclusive: Boolean): Meta = {
+    val m0 = handle.meta
+    if (owner(m0) != UnownedSlot) return 0L
+
+    val mOwned = withOwner(m0, NonTxnSlot)
+    val m1 = if (exclusive) withChanging(mOwned) else mOwned
+
+    if (!handle.metaCAS(m0, m1)) return 0L
+
+    return m1
+  }
+
   private def upgradeLock(handle: Handle[_], m0: Meta): Meta = {
     var before = m0
     if (!handle.metaCAS(before, withChanging(before))) {
@@ -216,20 +229,14 @@ private[ccstm] object NonTxn {
   }
 
   def tryWrite[T](handle: Handle[T], v: T): Boolean = {
-    // try to acquire
-    val m0 = handle.meta
-    if (owner(m0) != UnownedSlot) {
-      return false
+    val m0 = tryAcquireLock(handle, true)
+    if (m0 == 0L) {
+      false
+    } else {
+      handle.data = v
+      commitLock(handle, m0)
+      true
     }
-    val m1 = withChanging(withOwner(m0, NonTxnSlot))
-    if (!handle.metaCAS(m0, m1)) {
-      return false
-    }
-
-    // acquired, we can set
-    handle.data = v
-    commitLock(handle, m1)
-    return true
   }
 
   def compareAndSet[T](handle: Handle[T], before: T, after: T): Boolean = {
@@ -336,7 +343,20 @@ private[ccstm] object NonTxn {
   }
 
   def transform[T](handle: Handle[T], f: T => T) {
-    val m0 = acquireLock(handle, false)
+    transformImpl(handle, f, acquireLock(handle, false))
+  }
+
+  def tryTransform[T](handle: Handle[T], f: T => T): Boolean = {
+    val m0 = tryAcquireLock(handle, false)
+    if (m0 == 0L) {
+      false
+    } else {
+      transformImpl(handle, f, m0)
+      true
+    }
+  }
+
+  private def transformImpl[T](handle: Handle[T], f: T => T, m0: Meta) {
     val repl = f(handle.data)
     val m1 = upgradeLock(handle, m0)
     handle.data = repl

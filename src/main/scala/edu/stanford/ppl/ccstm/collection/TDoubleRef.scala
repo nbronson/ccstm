@@ -15,7 +15,7 @@ package edu.stanford.ppl.ccstm.collection
 
 class TDoubleRef(initialValue: Double) extends impl.MetaHolder with Ref[Double] with impl.Handle[Double] {
 
-  protected def handle = this
+  protected def handle: impl.Handle[Double] = this
 
   private[ccstm] def ref: AnyRef = this
   private[ccstm] def offset: Int = 0

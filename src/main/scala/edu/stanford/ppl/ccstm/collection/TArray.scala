@@ -71,7 +71,7 @@ class TArray[T](length0: Int)(implicit manifest: scala.reflect.Manifest[T]) {
 
   private def getRef(index: Int): Ref[T] = new Ref[T] with Handle[T] {
 
-    protected def handle = this
+    protected def handle: Handle[T] = this
 
     private[ccstm] def meta = _meta.get(index)
     private[ccstm] def meta_=(v: Long) { _meta.set(index, v) }

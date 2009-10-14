@@ -59,12 +59,6 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
    */
   def commit(): Status
 
-  /** Calls <code>commit</code>, then throws the exception that caused rollback
-   *  if the cause was either <code>UserExceptionCause</code> or
-   *  <code>CallbackExceptionCause</code>.
-   */
-  private[ccstm] def commitAndRethrow()
-
   /** Validates that the transaction is consistent with all other committed
    *  transactions and completed non-transactional accesses, immediately
    *  rolling the transaction back if that is not the case (by throwing an
@@ -122,12 +116,6 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
    */
   def addReadResource(readResource: ReadResource, prio: Int, checkAfterRegister: Boolean)
 
-  /** Calls <code>ReadResource.valid(this)</code> for all read resources,
-   *  unless rollback is required.  Returns true if commit is still possible.
-   *  Captures and handles exceptions.
-   */
-  private[ccstm] def readResourcesValidate(): Boolean
-
   /** Adds a write resource to the transaction, which will participate in the
    *  two-phase commit protocol.  If two write resources have different
    *  priorities then the one with the smaller priority will be invoked first,
@@ -138,28 +126,6 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
 
   /** Adds a write resource with the default priority of <em>100</em>. */
   def addWriteResource(writeResource: WriteResource)
-
-  /** Returns true if there are actual write resources (as opposed to
-   *  write-like resources), false otherwise.
-   */
-  private[ccstm] def writeResourcesPresent: Boolean
-
-  /** Calls <code>WriteResource.prepare(this)</code> for all write resources,
-   *  unless rollback is required.  Returns true if commit is still possible.
-   *  Captures and handles exceptions.  This also has the effect of invoking
-   *  all of the callbacks registered with <code>beforeCommit</code>.
-   */
-  private[ccstm] def writeLikeResourcesPrepare(): Boolean
-
-  /** Calls <code>WriteResource.performCommit(this)</code>, handling
-   *  exceptions.
-   */
-  private[ccstm] def writeResourcesPerformCommit()
-
-  /** Calls <code>WriteResource.performRollback(this)</code>, handling
-   *  exceptions.
-   */
-  private[ccstm] def writeResourcesPerformRollback()
 
   /** Arranges for <code>callback</code> to be executed after transaction
    *  completion, if this transaction commits.  An exception thrown from an
@@ -197,6 +163,45 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
 
   /** Enqueues an after-completionk callback with the default priority of 0. */
   def afterCompletion(callback: Txn => Unit)
+
+  //////////////// internal Txn lifecycle stuff
+
+  /** Calls <code>commit</code>, then throws the exception that caused rollback
+   *  if the cause was either <code>UserExceptionCause</code> or
+   *  <code>CallbackExceptionCause</code>.
+   */
+  private[ccstm] def commitAndRethrow()
+
+
+  private[ccstm] var _callbacks: impl.Callbacks
+
+  /** Calls <code>ReadResource.valid(this)</code> for all read resources,
+   *  unless rollback is required.  Returns true if commit is still possible.
+   *  Captures and handles exceptions.
+   */
+  private[ccstm] def readResourcesValidate(): Boolean
+
+  /** Returns true if there are actual write resources (as opposed to
+   *  write-like resources), false otherwise.
+   */
+  private[ccstm] def writeResourcesPresent: Boolean
+
+  /** Calls <code>WriteResource.prepare(this)</code> for all write resources,
+   *  unless rollback is required.  Returns true if commit is still possible.
+   *  Captures and handles exceptions.  This also has the effect of invoking
+   *  all of the callbacks registered with <code>beforeCommit</code>.
+   */
+  private[ccstm] def writeLikeResourcesPrepare(): Boolean
+
+  /** Calls <code>WriteResource.performCommit(this)</code>, handling
+   *  exceptions.
+   */
+  private[ccstm] def writeResourcesPerformCommit()
+
+  /** Calls <code>WriteResource.performRollback(this)</code>, handling
+   *  exceptions.
+   */
+  private[ccstm] def writeResourcesPerformRollback()
 
   /** Calls the handlers registered with either <code>afterCommit</code> or
    *  <code>afterRollback</code>, as appropriate, handling any exceptions.

@@ -15,7 +15,7 @@ package edu.stanford.ppl.ccstm.collection
 
 class TFloatRef(initialValue: Float) extends impl.MetaHolder with Ref[Float] with impl.Handle[Float] {
 
-  protected def handle = this
+  protected def handle: impl.Handle[Float] = this
 
   private[ccstm] def ref: AnyRef = this
   private[ccstm] def offset: Int = 0
