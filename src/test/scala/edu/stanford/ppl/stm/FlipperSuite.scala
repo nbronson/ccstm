@@ -148,8 +148,10 @@ class FlipperSuite extends STMFunSuite {
             if (config.F(i)) {
               // do some work before storing to A, to increase probability of a conflict
               var h = a
-              for (j <- 0 until 10000) {
+              var j = 0
+              while (j < 10000) {
                 h |= 1+((h >>> 1)^(h*13))
+                j += 1
               }
               if (h == a) println("?")
               write(A(target), a ^ mask)
