@@ -49,6 +49,7 @@ import runtime.NonLocalReturnException
  *  @author Nathan Bronson
  */
 object STM {
+
   /** Repeatedly attempts to perform the work of <code>block</code> in a
    *  transaction, until an attempt is successfully committed or an exception is
    *  thrown by <code>block</code> or a callback registered during the block's
@@ -64,9 +65,7 @@ object STM {
     while (txn.status ne Txn.Committed) {
       val cause = txn.status.rollbackCause
       cause match {
-        case x: Txn.ExplicitRetryCause => {
-          Txn.awaitRetry(x)
-        }
+        case x: Txn.ExplicitRetryCause => Txn.awaitRetryAndDestroy(x)
         case _ => {}
       }
       // retry
@@ -77,23 +76,60 @@ object STM {
     z
   }
 
-  /** Makes a single attempt to perform the work of <code>block</code> in a
-   *  transaction, returning <code>Some(result)</code> if the transaction was
-   *  successfully committed, <code>None</code> if it was rolled back.  If the
-   *  block throws an exception the transaction will be rolled back and the
-   *  exception rethrown from this method.
+  /** Atomically executes a transaction that is composed from
+   *  <code>blocks</code> by joining with a left-biased <em>orElse</em>
+   *  operator.  The first block will be attempted in an optimistic transaction
+   *  until it either succeeds, fails with no retry possible (in which case the
+   *  causing exception will be rethrown), or performs an explicit
+   *  <code>retry</code>.  If a retry is performed, then the next block will
+   *  be attempted in the same fashion.  If all blocks are explicitly retried
+   *  then execution resumes at the first block, after a change has been made
+   *  to one of the values read by any transaction.
    *  <p>
-   *  Repeated calls to <code>attemptAtomic</code> are <em>not</em> the same as
-   *  a call to <code>atomic</code>, because the latter avoids livelock via an
-   *  implementation-specific priority escalation, and the latter can avoid
-   *  futile retries of a transaction that was explicitly retried by
-   *  <code>Txn.retry</code>.
-   *  @see #atomic
+   *  The left-biasing of the <em>orElse</em> composition guarantees that if
+   *  the first block does not call <code>Txn.retry</code>, no other blocks
+   *  will be executed.
+   *  <p>
+   *  The <em>retry</em> and <em>orElse</em> operators are modelled after those
+   *  introduced by T. Harris, S. Marlow, S. P. Jones, and M. Herlihy,
+   *  "Composable Memory Transactions", in PPoPP '05.
+   *  @see edu.stanford.ppl.ccstm.Atomic#orElse
+   *  @see edu.stanford.ppl.ccstm.AtomicFunc#orElse
    */
-  def attemptAtomic[Z](block: Txn => Z): Option[Z] = {
-    val txn = new Txn(Nil)
-    val z = attemptImpl(txn, block)
-    if (txn.status == Txn.Committed) Some(z) else None
+  def atomicOrElse[Z](blocks: (Txn => Z)*): Z = {
+    val hists = new Array[List[Txn.RollbackCause]](blocks.length)
+    while (true) {
+      // give all of the blocks a chance
+      for (i <- 0 until blocks.length) {
+        if (null == hists(i)) hists(i) = Nil
+        attemptUntilRetry(blocks(i), hists(i)) match {
+          case Left(z) => return z
+          case Right(h) => hists(i) = h
+          // exception => pass through
+        }
+      }
+
+      // go to sleep
+      val ers = hists.map(_.head.asInstanceOf[Txn.ExplicitRetryCause])
+      Txn.awaitRetryAndDestroy(ers:_*)
+    }
+    throw new Error("unreachable")
+  }
+
+  private def attemptUntilRetry[Z](block: Txn => Z,
+                                   hist0: List[Txn.RollbackCause]): Either[Z, List[Txn.RollbackCause]] = {
+    var hist = hist0
+    var txn = new Txn(hist)
+    var z = attemptImpl(txn, block)
+    while (txn.status ne Txn.Committed) {
+      val cause = txn.status.rollbackCause
+      hist = cause :: hist
+      if (cause.isInstanceOf[Txn.ExplicitRetryCause]) return Right(hist)
+      // retry
+      txn = new Txn(hist)
+      z = attemptImpl(txn, block)
+    }
+    Left(z)
   }
 
   private def attemptImpl[Z](txn: Txn, block: Txn => Z): Z = {

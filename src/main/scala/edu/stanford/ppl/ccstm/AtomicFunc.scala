@@ -39,29 +39,23 @@ abstract class AtomicFunc[Z] extends (Txn => Z) {
    *  @throws IllegalStateException if the transaction is not active.
    *  @see edu.stanford.ppl.ccstm.Txn#retry
    */
-  def retry = _currentTxn.retry
+  def retry(): Nothing = _currentTxn.retry()
 
-//  /** Returns an atomic block that when run will perform either the actions of
-//   *  this block or the actions of <code>alternative</code>, but not both.
-//   */
-//  def orElse(alternative: Atomic): Atomic = {
-//    val first = this
-//    new Atomic {
-//      def body { throw new Exception("body of joined atomic block should not be executed") }
-//      override def attemptImpl(failureHistory: List[Txn.RollbackCause]): Txn = {
-//        val a = first.attemptImpl(failureHistory)
-//        if (a.committed) return a
-//        val b = alternative.attemptImpl(failureHistory)
-//        if (b.committed) return b
-//        // merge retry sets, if explicit retry
-//      }
-//    }
-//  }
-
-  /** Performs a single attempt to execute this atomic block in a transaction.
-   *  @see edu.stanford.ppl.ccstm.Atomic#attemptAtomic
+  /** Returns an atomic block that when run will perform either the actions of
+   *  this block or the actions of <code>alternative</code>, but not both.
+   *  @see edu.stanford.ppl.ccstm.STM#atomicOrElse
    */
-  def attempt(): Option[Z] = STM.attemptAtomic(this)
+  def orElse(alternative: AtomicFunc[Z]): AtomicFunc[Z] = {
+    val b = bodies ++ alternative.bodies
+    new AtomicFunc[Z] {
+      def body: Z = { throw new IllegalStateException }
+      override def retry(): Nothing = { throw new IllegalStateException }
+      override private[AtomicFunc] def bodies = b
+      override def run(): Z = { STM.atomicOrElse(b:_*) }
+    }
+  }
+
+  private[AtomicFunc] def bodies = List(this)
 
   /** Repeatedly attempts to perform the work of <code>body</code> in a
    *  transaction, until an attempt is successfully committed or an exception is
