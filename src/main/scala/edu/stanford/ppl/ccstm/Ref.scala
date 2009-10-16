@@ -21,6 +21,16 @@ object Ref {
 
   /** Returns a new <code>Ref</code> instance with the specified initial
    *  value.
+   *  <p>
+   *  The returned instance is not part of any transaction's read or write set.
+   *  This is normally not a problem, because transactional references to new
+   *  <code>Ref</code>s are isolated from other contexts.  If a
+   *  non-transactional reference to the new <code>Ref</code> is published,
+   *  however, this can result in unintuitive behavior.  To avoid this problem,
+   *  read from the reference prior to leaking a reference to it from inside
+   *  the constructing transaction.
+   *
+   *  TODO: optional dynamic checks, error if a Ref is first accessed before a constructing txn's commit
    */
   def apply[T](initialValue: T): Ref[T] = new TAnyRef(initialValue)
 
