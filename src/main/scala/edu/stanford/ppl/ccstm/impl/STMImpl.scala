@@ -4,6 +4,8 @@
 
 package edu.stanford.ppl.ccstm.impl
 
+import edu.stanford.ppl.ccstm._
+
 
 /** An STM implementation that uses a TL2-style timestamp system, but that
  *  performs eager acquisition of write locks and that revalidates the

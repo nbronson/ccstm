@@ -4,6 +4,8 @@
 
 package edu.stanford.ppl.ccstm.impl
 
+import edu.stanford.ppl.ccstm._
+
 
 abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends AbstractTxn {
   import STMImpl._

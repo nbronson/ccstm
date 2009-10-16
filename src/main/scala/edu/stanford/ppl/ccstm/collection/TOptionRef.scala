@@ -4,6 +4,8 @@
 
 package edu.stanford.ppl.ccstm.collection
 
+import edu.stanford.ppl.ccstm._
+
 
 private object TOptionRef {
   private[TOptionRef] val SOME_NULL = new AnyRef
