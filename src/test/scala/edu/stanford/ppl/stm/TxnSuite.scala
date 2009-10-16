@@ -67,4 +67,47 @@ class TxnSuite extends STMFunSuite {
     })
     return -1
   }
+
+  test("atomicOrElse") {
+    val x = Ref(false)
+    val y = Ref(false)
+    val z = Ref(false)
+    for ((ref,name) <- List((x,"x"), (y,"y"), (z,"z"))) {
+      new Thread("wakeup") { override def run { Thread.sleep(200) ; ref.nonTxn := true }}.start()
+
+      val result = Ref("")
+      var sleeps = 0
+      STM.atomicOrElse(
+          (txn: Txn) => { result.set("x")(txn) ; if (!x.get(txn)) txn.retry },
+          (txn: Txn) => { if (y.get(txn)) result.set("y")(txn) else txn.retry },
+          (txn: Txn) => { if (z.get(txn)) result.set("z")(txn) else txn.retry },
+          (txn: Txn) => { sleeps += 1; txn.retry }
+        )
+      ref.nonTxn := false
+      assert(result.nonTxn.get === name)
+      assert(sleeps <= 1)
+    }
+  }
+
+  test("Atomic.orElse") {
+    intercept[UserException] {
+      new Atomic { def body {
+        retry
+      }} orElse new Atomic { def body {
+        throw new UserException
+      }} run 
+    }
+  }
+
+  test("AtomicFunc.orElse") {
+    val x = Ref(1)
+    val a = new AtomicFunc[Boolean] { def body = {
+      if (x.get > 1) true else retry
+    }} orElse new AtomicFunc[Boolean] { def body = {
+      false
+    }}
+    assert(a.run() === false)
+    x.nonTxn := 2
+    assert(a.run() === true)
+  }
 }

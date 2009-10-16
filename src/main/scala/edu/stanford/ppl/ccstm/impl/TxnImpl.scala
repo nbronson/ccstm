@@ -172,11 +172,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     }
   }
 
-  private[ccstm] def retryImpl() {
-    if (_readSet.isEmpty && _writeBuffer.isEmpty) {
-      throw new IllegalStateException("retry doesn't make sense with empty read set")
-    }
-
+  private[ccstm] def retryImpl(): Nothing = {
     // writeBuffer entries are part of the conceptual read set
     _writeBuffer.visit(new WriteBuffer.Visitor {
       def visit(handle: Handle[_], specValue: Any): Boolean = {
