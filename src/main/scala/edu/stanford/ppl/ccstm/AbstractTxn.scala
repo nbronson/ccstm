@@ -11,7 +11,7 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
   //////////////// Functions to be implemented in an STM-specific manner
 
   private[ccstm] def requestRollbackImpl(cause: RollbackCause): Boolean
-  private[ccstm] def retryImpl()
+  private[ccstm] def retryImpl(): Nothing
   private[ccstm] def commitImpl(): Status
   private[ccstm] def explicitlyValidateReadsImpl()
   private[ccstm] def addReferenceImpl(ptr: AnyRef)

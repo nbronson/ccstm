@@ -391,9 +391,12 @@ object Txn {
 
   /** Blocks the current thread until some value contained in one of the read
    *  sets of one of the elements of <code>explicitRetries</code> might have
-   *  changed.
+   *  changed.  Each <code>ExplicitRetryCause</code> instance may only be
+   *  passed once to an invocation of this method.
    */
-  def awaitRetry(explicitRetries: ExplicitRetryCause*) = impl.STMImpl.awaitRetry(explicitRetries:_*)
+  def awaitRetryAndDestroy(explicitRetries: ExplicitRetryCause*) = {
+    impl.STMImpl.awaitRetryAndDestroy(explicitRetries:_*)
+  }
 }
 
 /** An instance representing a single execution attempt for a single atomic
@@ -404,7 +407,7 @@ object Txn {
  *  implementation specific way to avoid starvation and livelock.
  *  @param failureHistory a list of the <code>Status.rollbackCause</code>s from
  *      earlier executions of the atomic block that this transaction will be
- *      used to execute, with the most recent first. 
+ *      used to execute, with the most recent first.
  *  @see edu.stanford.ppl.ccstm.Atomic
  *
  *  @author Nathan Bronson
@@ -439,10 +442,13 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
 
   def requestRollback(cause: RollbackCause) = requestRollbackImpl(cause)
 
-  def retry() { retryImpl() }
+  def retry(): Nothing = { retryImpl() }
 
   def commit(): Status = commitImpl()
 
+  /** On return, status.rollbackCause will be either null, ExplicitRetryCause,
+   *  or an OptimisticFailureCause.
+   */
   private[ccstm] def commitAndRethrow() {
     val s = commit()
     s.rollbackCause match {

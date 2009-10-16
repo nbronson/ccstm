@@ -80,6 +80,11 @@ private[impl] class ReadSet private(private var _size: Int,
     _size = 0
   }
 
+  def destroy() {
+    _handles = null
+    _versions = null
+  }
+
   def visit(visitor: ReadSet.Visitor): Boolean = {
     var i = 0
     while (i < _size) {

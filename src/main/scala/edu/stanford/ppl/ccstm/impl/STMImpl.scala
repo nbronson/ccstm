@@ -125,38 +125,46 @@ private[ccstm] object STMImpl extends GV6 {
 
   //////////////// Conditional retry
 
-  def awaitRetry(explicitRetries: Txn.ExplicitRetryCause*) {
-    assert(explicitRetries.exists(_.readSet.asInstanceOf[ReadSet].size > 0))
-
-    // Spin a few times, counting one spin per read set element
-    var spins = 0
-    while (spins < SpinCount + YieldCount) {
-      for (er <- explicitRetries) {
-        val rs = er.readSet.asInstanceOf[ReadSet]
-        if (!readSetStillValid(rs)) return
-        spins += rs.size
+  /** Destroys the read sets. */
+  def awaitRetryAndDestroy(explicitRetries: Txn.ExplicitRetryCause*) {
+    try {
+      // Spin a few times, counting one spin per read set element
+      var spins = 0
+      while (spins < SpinCount + YieldCount) {
+        for (er <- explicitRetries) {
+          val rs = er.readSet.asInstanceOf[ReadSet]
+          if (!readSetStillValid(rs)) return
+          spins += rs.size
+        }
+        if (spins == 0) {
+          // all read sets are empty, we will never wake up!
+          throw new IllegalStateException(
+            "explicit retries cannot succeed because cumulative read set is empty")
+        }
+        if (spins > SpinCount) Thread.`yield`
       }
-      if (spins > SpinCount) Thread.`yield`
-    }
 
-    while (true) {
-      val event = wakeupManager.subscribe
-      for (er <- explicitRetries) {
-        val rs = er.readSet.asInstanceOf[ReadSet]
-        val allRegistered = rs.visit(new ReadSet.Visitor {
-          def visit(handle: Handle[_], ver: STMImpl.Version): Boolean = {
-            if (!event.addSource(handle.ref, handle.offset)) return false
-            var m = 0L
-            do {
-              m = handle.meta
-              if (changing(m) || version(m) != ver) return false
-            } while (!pendingWakeups(m) && !handle.metaCAS(m, withPendingWakeups(m)))
-            return true
-          }
-        })
-        if (!allRegistered) return
+      while (true) {
+        val event = wakeupManager.subscribe
+        for (er <- explicitRetries) {
+          val rs = er.readSet.asInstanceOf[ReadSet]
+          val allRegistered = rs.visit(new ReadSet.Visitor {
+            def visit(handle: Handle[_], ver: STMImpl.Version): Boolean = {
+              if (!event.addSource(handle.ref, handle.offset)) return false
+              var m = 0L
+              do {
+                m = handle.meta
+                if (changing(m) || version(m) != ver) return false
+              } while (!pendingWakeups(m) && !handle.metaCAS(m, withPendingWakeups(m)))
+              return true
+            }
+          })
+          if (!allRegistered) return
+        }
+        event.await
       }
-      event.await
+    } finally {
+      for (er <- explicitRetries) er.readSet.asInstanceOf[ReadSet].destroy()
     }
   }
 
