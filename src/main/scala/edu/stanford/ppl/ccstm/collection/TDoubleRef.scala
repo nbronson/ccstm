@@ -4,6 +4,8 @@
 
 package edu.stanford.ppl.ccstm.collection
 
+import edu.stanford.ppl.ccstm._
+
 
 /** A concrete implementation of <code>Ref[Double]</code>.
  *  <p>

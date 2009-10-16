@@ -5,6 +5,7 @@
 package edu.stanford.ppl.ccstm.impl
 
 
+import edu.stanford.ppl.ccstm._
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater
 
 private[ccstm] object StatusHolder {

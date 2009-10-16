@@ -4,6 +4,8 @@
 
 package edu.stanford.ppl.ccstm.impl
 
+import edu.stanford.ppl.ccstm._
+
 
 /** The object that contains the code for non-transactional read and write
  *  barriers.

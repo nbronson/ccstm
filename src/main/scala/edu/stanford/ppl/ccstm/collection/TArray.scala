@@ -4,7 +4,8 @@
 
 package edu.stanford.ppl.ccstm.collection
 
-import impl.{DefaultValue, MetaHolder, Handle}
+import edu.stanford.ppl.ccstm._
+import edu.stanford.ppl.ccstm.impl.{DefaultValue, Handle}
 import java.util.concurrent.atomic.{AtomicLongArray, AtomicReferenceArray}
 
 // TODO: select backing store based on manifest
