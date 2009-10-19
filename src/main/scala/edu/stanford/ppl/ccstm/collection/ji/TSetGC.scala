@@ -140,7 +140,7 @@ object TSetGC {
  *  provide opacity. Transactional reads may return different values with no
  *  intervening writes inside a transaction that rolls back. 
  */
-class TSetGC[A](removeViaGC: Boolean) {
+class TSetGC[A] {
   import TSetGC._
 
   private val _size = new collection.LazyConflictIntRef(0) // replace with striped version
@@ -177,7 +177,17 @@ class TSetGC[A](removeViaGC: Boolean) {
   }
 
   def contains(key: Any)(implicit txn: Txn): Boolean = {
-    null != getOrCreateToken(key).pred.get
+    val token = getOrCreateToken(key)
+    if (null != token.pred.get) {
+      // ref will survive until a change, so any read by this txn of a new ref
+      // can only happen if the current ref read is invalid, and this txn can't
+      // commit
+      true
+    } else {
+      // we must pin this ref until we commit
+      txn.addReference(token)
+      false
+    }
   }
 
   def add(key: Any)(implicit txn: Txn): Boolean = addImpl(getOrCreateToken(key))
@@ -192,6 +202,7 @@ class TSetGC[A](removeViaGC: Boolean) {
       // already present
       false
     } else {
+      // the strong reference in the write buffer will pin the token
       _size += 1
       token.pred.set(token)
       true
@@ -207,7 +218,8 @@ class TSetGC[A](removeViaGC: Boolean) {
 
   private[ji] def removeImpl(token: Token)(implicit txn: Txn): Boolean = {
     if (null == token.pred.get) {
-      // already absent
+      // already absent, make sure it stays that way
+      txn.addReference(token)
       false
     } else {
       _size -= 1
