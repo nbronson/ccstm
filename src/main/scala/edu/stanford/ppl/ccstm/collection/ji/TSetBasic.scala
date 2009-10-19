@@ -148,7 +148,7 @@ class TSetBasic[A] {
     if (null != ref) {
       ref
     } else {
-      // we must create a ref so that we detect conflicting write-after-read
+      // we must always create a ref
       val fresh = new TBooleanRef(false)
       val race = _predicates.putIfAbsent(key, fresh)
       if (null != race) race else fresh

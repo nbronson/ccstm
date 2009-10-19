@@ -7,6 +7,7 @@ package edu.stanford.ppl.ccstm.collection.ji
 import java.util.concurrent.ConcurrentHashMap
 import java.util._
 import edu.stanford.ppl.ccstm._
+import collection.TAnyRef
 
 
 object TSetGC {
@@ -73,22 +74,20 @@ object TSetGC {
 
     def size: Int = unbind._size.nonTxn.get
 
-    override def contains(key: Any): Boolean = {
-      containsImpl(unbind._predicates.get(key))
-    }
+    override def contains(key: Any): Boolean = containsImpl(unbind._predicates.get(key))
 
-    private def containsImpl(ref: Ref[State]): Boolean = {
-      null != ref && (ref.nonTxn.get eq Present)
+    private def containsImpl(pred: Predicate): Boolean = {
+      null != pred && null != pred.nonTxn.get
     }
 
     override def add(key: A): Boolean = {
-      val ref = unbind._predicates.get(key)
-      !containsImpl(ref) && STM.atomic(t => unbind.addImpl(key, ref)(t))
+      val pred = unbind._predicates.get(key)
+      !containsImpl(pred) && STM.atomic(t => unbind.addImpl(pred)(t))
     }
 
     override def remove(key: Any): Boolean = {
-      val ref = unbind._predicates.get(key)
-      containsImpl(ref) && STM.atomic(t => unbind.removeImpl(key, ref)(t))
+      val pred = unbind._predicates.get(key)
+      containsImpl(pred) && STM.atomic(t => unbind.removeImpl(pred)(t))
     }
 
     def iterator: Iterator[A] = new Iterator[A] {
@@ -101,7 +100,7 @@ object TSetGC {
       private def advance() {
         while (iter.hasNext) {
           val e = iter.next
-          if (e.getValue.nonTxn.get == Present) {
+          if (null != e.getValue.nonTxn.get) {
             avail = Some(e.getKey.asInstanceOf[A])
             return
           }
@@ -125,21 +124,13 @@ object TSetGC {
     }
   }
 
-  trait State
-
-  object Present extends State
-  
-  class Absent(set: TSetGC[_], key: Any) {
-    val observer = new ObservedAbsent(set, key, this)
+  class Token(set: TSetGC[_], key: Any) {
+    val pred = new Predicate(set, key, this)
   }
 
-  case class ObservedAbsent(set: TSetGC[_], key: Any, absent: Absent) extends CleanableRef[Absent](absent) with State {
-    def cleanup() { set.cleanup(this) }
+  class Predicate(set: TSetGC[_], val key: Any, token: Token) extends TAnyRef[Token](null) {
+    val weak = new CleanableRef[Token](token) { def cleanup() { set.cleanup(Predicate.this) } }
   }
-
-  object Invalid extends State
-
-  // unobserved-absent is the implicit state
 }
 
 /** A transactional set that implements a <code>java.util.Set</code>-like
@@ -149,137 +140,84 @@ object TSetGC {
  *  provide opacity. Transactional reads may return different values with no
  *  intervening writes inside a transaction that rolls back. 
  */
-class TSetGC[A] {
+class TSetGC[A](removeViaGC: Boolean) {
   import TSetGC._
 
   private val _size = new collection.LazyConflictIntRef(0) // replace with striped version
-  private val _predicates = new ConcurrentHashMap[Any,Ref[State]]
+  private val _predicates = new ConcurrentHashMap[Any,Predicate]
 
   def size(implicit txn: Txn): Int = _size.get
 
   def bind(implicit txn: Txn): Bound[A] = new TxnBound(this, txn)
   val nonTxn: Bound[A] = new NonTxnBound(this)
 
+  private[ji] def getOrCreateToken(key: AnyRef): Token = {
+    while (true) {
+      val pred = _predicates.get(key)
+      if (null == pred) {
+        // new predicate needed
+        val fresh = new Token(this, key)
+        if (null != _predicates.putIfAbsent(key, fresh.pred)) {
+          return fresh
+        }
+      } else {
+        val token = pred.weak.get
+        if (null == token) {
+          // new predicate needed
+          val fresh = new Token(this, key)
+          if (_predicates.replace(key, pred, fresh.pred)) {
+            return fresh
+          }
+        } else {
+          return token
+        }
+      }
+    }
+    throw new Error
+  }
+
   def contains(key: Any)(implicit txn: Txn): Boolean = {
-    null != containsImpl(key, _predicates.get(key))
+    null != getOrCreateToken(key).pred.get
   }
 
-  private[ji] def createRef(key: Any, initialValue: State)(implicit txn: Txn): Ref[State] = {
-    val fresh = Ref(initialValue)
-    fresh.get
-    fresh
+  def add(key: Any)(implicit txn: Txn): Boolean = addImpl(getOrCreateToken(key))
+
+  private[ji] def addImpl(pred: Predicate)(implicit txn: Txn): Boolean = {
+    val token = pred.weak.get
+    addImpl(if (null != token) token else getOrCreateToken(pred.key))
   }
 
-  /** Returns Ref[Present] or null. */
-  private def containsImpl(key: Any, ref0: Ref[State])(implicit txn: Txn): Ref[State] = {
-    var ref = ref0
-    while (true) {
-      if (null == ref) {
-        // unobserved-absent, make it observed
-        val absent = new Absent(this, key)
-        if (null == _predicates.putIfAbsent(key, createRef(absent.observer))) {
-          txn.addReference(absent)
-          return null
-        }
-      } else {
-        ref.get match {
-          case Present => {
-            // easy
-            return ref
-          }
-          case obs: ObservedAbsent => {
-            val absent = obs.get
-            if (null != absent) {
-              // active observed-absent
-              txn.addReference(absent)
-              return null
-            } else {
-              // We must replace the observer, but we can reuse the Ref
-              val absent = new Absent(this, key)
-              ref.set(absent.observer)
-              txn.addReference(absent)
-              return null
-            }
-          }
-          case Invalid => {
-            // try to transition directly to unobserved-absent, with a new Ref
-            val absent = new Absent(this, key)
-            if (_predicates.replace(key, ref, createRef(absent.observer))) {
-              txn.addReference(absent)
-              return null
-            }
-          }
-        }
-      }
-      ref = _predicates.get(key)
-    }
-    throw new Error("unreachable")
-  }
-
-  def add(key: A)(implicit txn: Txn): Boolean = {
-    addImpl(key, _predicates.get(key))
-  }
-
-  private def addImpl(key: A, ref0: Ref[State])(implicit txn: Txn): Boolean = {
-    var ref = ref0
-    while (true) {
-      if (null == ref) {
-        // unobserved-absent
-        if (null == _predicates.putIfAbsent(key, createRef(Present))) {
-          // success, and not previously present
-          _size += 1
-          return true
-        }
-      } else {
-        ref.get match {
-          case Present => {
-            // success, no change
-            return false
-          }
-          case obs: ObservedAbsent => {
-            // doesn't matter whether or not it is reclaimed
-            ref.set(Present)
-            _size += 1
-            return true
-          }
-          case Invalid => {
-            // try to transition directly to present, with a new Ref
-            if (_predicates.replace(key, ref, createRef(Present))) {
-              _size += 1
-              return true
-            }
-          }
-        }
-      }
-      ref = _predicates.get(key)
-    }
-    throw new Error("unreachable")
-  }
-
-  def remove(key: Any)(implicit txn: Txn): Boolean = {
-    removeImpl(key, _predicates(key))
-  }
-
-  private def removeImpl(key: Any, ref0: Ref[State])(implicit txn: Txn): Boolean = {
-    var ref = containsImpl(key, ref0)
-    if (null != ref) {
-      // TODO: we can't remove immediately
-      // TODO:  option 1: store UnobservedAbsent, defer removal until commit
-      // TODO:  option 2: store ObservedAbsent, let GC remove it later
-      _predicates.remove(key)
-      _size -= 1
-      true
-    } else {
+  private[ji] def addImpl(token: Token)(implicit txn: Txn): Boolean = {
+    if (null != token.pred.get) {
+      // already present
       false
+    } else {
+      _size += 1
+      token.pred.set(token)
+      true
     }
   }
 
-  private def cleanup(obs: ObservedAbsent) {
-    val ref = _predicates.get(obs.key)
-    if (null != ref && ref.nonTxn.compareAndSet(obs, Invalid)) {
-      // we now have permission to remove the Ref, if it is still there
-      _predicates.remove(obs.key, ref)
+  def remove(key: Any)(implicit txn: Txn): Boolean = removeImpl(getOrCreateToken(key))
+
+  private[ji] def removeImpl(pred: Predicate)(implicit txn: Txn): Boolean = {
+    val token = pred.weak.get
+    removeImpl(if (null != token) token else getOrCreateToken(pred.key))
+  }
+
+  private[ji] def removeImpl(token: Token)(implicit txn: Txn): Boolean = {
+    if (null == token.pred.get) {
+      // already absent
+      false
+    } else {
+      _size -= 1
+      token.pred.set(null)
+      true
     }
+  }
+
+  private def cleanup(pred: Predicate) {
+    _predicates.remove(pred.key, pred)
     // no need to retry on failure
   }
 }
