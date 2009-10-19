@@ -1,6 +1,6 @@
 /* CCSTM - (c) 2009 Stanford University - PPL */
 
-// TSetGC
+// TSetLazyGC
 
 package edu.stanford.ppl.ccstm.collection.ji
 
@@ -10,13 +10,13 @@ import edu.stanford.ppl.ccstm._
 import collection.TAnyRef
 
 
-object TSetGC {
+object TSetLazyGC {
   trait Bound[A] extends Set[A] {
-    def unbind: TSetGC[A]
+    def unbind: TSetLazyGC[A]
     def context: Option[Txn]
   }
 
-  private class TxnBound[A](val unbind: TSetGC[A], txn: Txn) extends AbstractSet[A] with Bound[A] {
+  private class TxnBound[A](val unbind: TSetLazyGC[A], txn: Txn) extends AbstractSet[A] with Bound[A] {
     def context = Some(txn)
 
     def size: Int = unbind.size(txn)
@@ -46,7 +46,7 @@ object TSetGC {
           }
         }
         if (apparentSize != size) {
-          txn.forceRollback(Txn.InvalidReadCause(unbind, "TSetGC.Iterator missed elements"))
+          txn.forceRollback(Txn.InvalidReadCause(unbind, "TSetLazyGC.Iterator missed elements"))
         }
         avail = None
         return
@@ -69,7 +69,7 @@ object TSetGC {
     }
   }
 
-  private class NonTxnBound[A](val unbind: TSetGC[A]) extends AbstractSet[A] with Bound[A] {
+  private class NonTxnBound[A](val unbind: TSetLazyGC[A]) extends AbstractSet[A] with Bound[A] {
     def context = None
 
     def size: Int = unbind._size.nonTxn.get
@@ -124,11 +124,11 @@ object TSetGC {
     }
   }
 
-  class Token(set: TSetGC[_], key: Any) {
+  class Token(set: TSetLazyGC[_], key: Any) {
     val pred = new Predicate(set, key, this)
   }
 
-  class Predicate(set: TSetGC[_], val key: Any, token: Token) extends TAnyRef[Token](null) {
+  class Predicate(set: TSetLazyGC[_], val key: Any, token: Token) extends TAnyRef[Token](null) {
     val weak = new CleanableRef[Token](token) { def cleanup() { set.cleanup(Predicate.this) } }
   }
 }
@@ -140,8 +140,8 @@ object TSetGC {
  *  provide opacity. Transactional reads may return different values with no
  *  intervening writes inside a transaction that rolls back. 
  */
-class TSetGC[A] {
-  import TSetGC._
+class TSetLazyGC[A] {
+  import TSetLazyGC._
 
   private val _size = new collection.LazyConflictIntRef(0) // replace with striped version
   private val _predicates = new ConcurrentHashMap[Any,Predicate]

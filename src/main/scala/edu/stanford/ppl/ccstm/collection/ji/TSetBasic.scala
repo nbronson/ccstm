@@ -75,18 +75,18 @@ object TSetBasic {
     def size: Int = unbind._size.nonTxn.get
 
     override def contains(key: Any): Boolean = {
-      unbind.ref(txn).nonTxn.get
+      unbind.ref(key).nonTxn.get
     }
 
     override def add(key: A): Boolean = {
       // need to atomically update the size and the pred
-      val r = unbind.ref(txn)
+      val r = unbind.ref(key)
       !r.nonTxn.get && STM.atomic(t => unbind.addImpl(r)(t))
     }
 
     override def remove(key: Any): Boolean = {
       // need to atomically update the size and the pred
-      val r = unbind.ref(txn)
+      val r = unbind.ref(key)
       r.nonTxn.get && STM.atomic(t => unbind.removeImpl(r)(t))
     }
 
@@ -145,6 +145,7 @@ class TSetBasic[A] {
   }
 
   private def ref(key: Any): TBooleanRef = {
+    val ref = _predicates.get(key)
     if (null != ref) {
       ref
     } else {
