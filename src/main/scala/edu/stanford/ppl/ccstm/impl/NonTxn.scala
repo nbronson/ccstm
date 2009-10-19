@@ -384,4 +384,54 @@ private[ccstm] object NonTxn {
       false
     }
   }
+
+  def transform2[A,B,Z](handleA: Handle[A], handleB: Handle[B], f: (A,B) => (A,B,Z)): Z = {
+    var mA0: Long = 0L
+    var mB0: Long = 0L
+    var tries = 0
+    do {
+      mA0 = acquireLock(handleA, false)
+      mB0 = tryAcquireLock(handleB, false)
+      if (mB0 == 0) {
+        // tryAcquire failed
+        discardLock(handleA, mA0)
+        mA0 = 0
+
+        // did it fail because the handles are equal?
+        if (handleA == handleB) throw new IllegalArgumentException("transform2 targets must be distinct")
+
+        // try it in the opposite direction
+        mB0 = acquireLock(handleB, false)
+        mA0 = tryAcquireLock(handleA, false)
+
+        if (mA0 == 0) {
+          // tryAcquire failed
+          discardLock(handleB, mB0)
+          mB0 = 0
+
+          tries += 1
+          if (tries > 10) {
+            // fall back to a txn, which is guaranteed to eventually succeed
+            return STM.atomic((t: Txn) => {
+              val refA = new Ref.TxnBound(null, handleA, t)
+              val refB = new Ref.TxnBound(null, handleB, t)
+              val (a,b,z) = f(refA.readForWrite, refB.readForWrite)
+              refA := a
+              refB := b
+              z
+            })
+          }
+        }
+      }
+    } while (mB0 == 0)
+
+    val (a,b,z) = f(handleA.data, handleB.data)
+    val mA1 = upgradeLock(handleA, mA0)
+    val mB1 = upgradeLock(handleB, mB0)
+    handleA.data = a
+    handleB.data = b
+    commitLock(handleA, mA1)
+    commitLock(handleB, mB1)
+    return z
+  }
 }

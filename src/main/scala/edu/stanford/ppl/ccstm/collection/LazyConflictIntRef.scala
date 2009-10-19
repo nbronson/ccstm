@@ -289,6 +289,7 @@ object LazyConflictIntRef {
 class LazyConflictIntRef(initialValue: Int) extends Ref[Int] {
 
   private val underlying = new TIntRef(initialValue)
+
   private val bound = new TxnLocal[LazyConflictIntRef.TxnBound] {
     override def initialValue(txn: Txn) = {
       val b = new LazyConflictIntRef.TxnBound(txn, LazyConflictIntRef.this)
@@ -298,6 +299,7 @@ class LazyConflictIntRef(initialValue: Int) extends Ref[Int] {
   }
 
   protected def handle: impl.Handle[Int] = throw new UnsupportedOperationException
+  override private[ccstm] def nonTxnHandle = underlying.nonTxnHandle
 
   override def get(implicit txn: Txn): Int = bind.get
   override def map[Z](f: (Int) => Z)(implicit txn: Txn): Z = bind.map(f)
@@ -311,8 +313,7 @@ class LazyConflictIntRef(initialValue: Int) extends Ref[Int] {
   override def bind(implicit txn: Txn): LazyConflictIntRef.Bound = bound.get
 
   override val nonTxn: LazyConflictIntRef.Bound = {
-    new Ref.NonTxnBound(this, underlying.handle2) with LazyConflictIntRef.Bound {
-    }
+    new Ref.NonTxnBound(this, nonTxnHandle) with LazyConflictIntRef.Bound {}
   }
 
   //////////////// convenience functions for ints
