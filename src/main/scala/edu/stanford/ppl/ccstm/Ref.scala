@@ -308,11 +308,12 @@ trait Ref[T] extends Source[T] with Sink[T] {
 
   /** Provides access to the data and metadata associated with this reference.
    *  This is the only method for which the default <code>Ref</code>
-   *  implementation is not sufficient.  <code>txn</code> will be null for
-   *  non-transactional uses.
+   *  implementation is not sufficient.
    */
   protected def handle: impl.Handle[T]
-  private[ccstm] def handle2 = handle
+
+  /** Provides access to the handle for use by non-transactional direct access. */ 
+  private[ccstm] def nonTxnHandle = handle
 
   //////////////// Source stuff
 
