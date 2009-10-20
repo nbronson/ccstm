@@ -7,6 +7,7 @@ package edu.stanford.ppl.ccstm.impl
 
 import org.scalatest.FunSuite
 import edu.stanford.ppl.ParUtil._
+import edu.stanford.ppl.ExhaustiveTest
 
 class TxnSlotManagerSuite extends FunSuite {
 

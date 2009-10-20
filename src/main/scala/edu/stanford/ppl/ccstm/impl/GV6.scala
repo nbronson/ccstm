@@ -4,9 +4,7 @@
 
 package edu.stanford.ppl.ccstm.impl
 
-
-import java.util.concurrent.atomic.{AtomicReference, AtomicLong}
-
+import java.util.concurrent.atomic.AtomicLong
 
 
 private[impl] trait GV6 {
@@ -38,12 +36,12 @@ private[impl] trait GV6 {
 
   private val silentCommitRand = FastPoorRandom
 
-  /** Guarantees that <code>globalVersion</code> is greater than
-   *  or equal to <code>prevVersion</code>, and returns a value greater than
-   *  the value of <code>globalVersion</code> present on entry and greater
-   *  than <code>prevVersion</code>.
+  /** Returns a value that is greater than <code>prevVersion</code> and greater
+   *  than the value of <code>globalVersion</code> on entry.  May increase
+   *  <code>globalVersion</code>.
    */
   private[impl] def nonTxnWriteVersion(prevVersion: Long): Long = {
+    // TODO: do a GV6-style thing, and only increment globalVersion some of the time 
     freshReadVersion(prevVersion) + 1
   }
 
