@@ -50,6 +50,7 @@ private[ccstm] object NonTxn {
         return
       }
 
+      // not changing, so okay to set PW bit
       if (pendingWakeups(m) || handle.metaCAS(m, withPendingWakeups(m))) {
         // after the block, things will have changed with reasonably high
         // likelihood (spurious wakeups are okay)
@@ -94,10 +95,7 @@ private[ccstm] object NonTxn {
     if (!handle.metaCAS(before, withChanging(before))) {
       // must have been a concurrent set of pendingWakeups
       before = withPendingWakeups(before)
-      if (!handle.metaCAS(before, withChanging(before))) {
-        // should never happen
-        throw new Error
-      }
+      handle.meta = withChanging(before)
     }
     withChanging(before)
   }
@@ -111,16 +109,11 @@ private[ccstm] object NonTxn {
   }
 
   private def releaseLock(handle: Handle[_], m0: Meta, newVersion: Version) {
-    var m = m0
-    while (!handle.metaCAS(m, withCommit(m, newVersion))) {
-      // There can be a concurrent pendingWakeups <- true, and there can also
-      // be a twiddle of the userBit by this thread between when m0 was sampled
-      // and now.
-      m = handle.meta
-    }
-
-    // trigger any required wakeups
-    if (pendingWakeups(m)) {
+    // If pendingWakeups is set, then we are not racing with any other updates.
+    // If the CAS fails, then we lost a race with pendingWakeups <- true, so we
+    // can just assume that it's true.
+    if (pendingWakeups(m0) || !handle.metaCAS(m0, withCommit(m0, newVersion))) {
+      handle.meta = withCommit(withPendingWakeups(m0), newVersion)
       wakeupManager.trigger(wakeupManager.prepareToTrigger(handle.ref, handle.offset))
     }
   }
@@ -142,15 +135,6 @@ private[ccstm] object NonTxn {
       // TODO: fall back to pessimistic if we are starving
     } while (changingAndVersion(m0) != changingAndVersion(m1))
     v
-  }
-
-  def getUserBit(handle: Handle[_]): Boolean = {
-    var m = handle.meta
-    while (changing(m)) {
-      weakAwaitUnowned(handle, m)
-      m = handle.meta
-    }
-    userBit(m)
   }
 
   def await[T](handle: Handle[T], pred: T => Boolean) {
@@ -209,25 +193,6 @@ private[ccstm] object NonTxn {
     handle.data = v
     commitLock(handle, m0)
     z
-  }
-
-  def setUserBit(handle: Handle[_], v: Boolean) {
-    while (true) {
-      val m = handle.meta
-      if (!changing(m) && userBit(m) == v) {
-        // we can just linearize before the change
-        return
-      } else if (owner(m) != UnownedSlot) {
-        weakAwaitUnowned(handle, m)
-        // try again
-      } else if (handle.metaCAS(m, withCommit(withUserBit(m, v), nonTxnWriteVersion(version(m))))) {
-        // successful change, trigger any required wakeups
-        if (pendingWakeups(m)) {
-          wakeupManager.trigger(wakeupManager.prepareToTrigger(handle.ref, handle.offset))
-        }
-        return
-      }
-    }
   }
 
   def tryWrite[T](handle: Handle[T], v: T): Boolean = {
