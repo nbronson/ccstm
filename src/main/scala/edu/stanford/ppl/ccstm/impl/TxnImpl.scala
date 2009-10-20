@@ -413,32 +413,6 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     return value
   }
 
-  // currently unused, see TBooleanRef
-//  def getBooleanInUserData(handle: Handle[Boolean]): Boolean = {
-//    if (barging) return readForWrite(handle)
-//
-//    requireActive()
-//
-//    var m = handle.meta
-//    if (owner(m) == _slot) {
-//      // Self-owned.  This particular ref+offset might not be in the write
-//      // buffer, but it's definitely not in anybody else's.
-//      return _writeBuffer.get(handle)
-//    }
-//
-//    while (changing(m)) {
-//      weakAwaitUnowned(handle, m)
-//      m = handle.meta
-//    }
-//    revalidateIfRequired(version(m))
-//    val value = userBit(m)
-//
-//    // Stable read.  The second read of handle.meta is required for
-//    // opacity, and it also enables the read-only commit optimization.
-//    _readSet.record(handle, version(m))
-//    return value
-//  }
-
   def map[T,Z](handle: Handle[T], f: T => Z): Z = {
     if (barging) return f(readForWrite(handle))
 

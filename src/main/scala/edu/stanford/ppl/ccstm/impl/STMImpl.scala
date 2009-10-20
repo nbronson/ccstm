@@ -17,14 +17,13 @@ import edu.stanford.ppl.ccstm._
  *  lookups may miss only if metadata is shared.)
  *  <p>
  *  Metadata is a 64 bit long, of which 1 bit records whether any pending
- *  wakeups should be triggered if the associated data is changed, 10 bits
+ *  wakeups should be triggered if the associated data is changed, 11 bits
  *  record the write permission owner (0 means no owner, 1 means non-txn
- *  owner), 1 bit flags values that are committing and may not be accessed, 1
- *  bit is available for the user of a Handle, and 51 bits record the version
- *  number.  2^51 is a bit more than 2*10^15.  On a hypothetical computer that
- *  could perform a non-transactional write in 10 nanoseconds (each of which
- *  requires at least 3 CAS-s), version numbers would not overflow for 250 days
- *  of continuous writes.
+ *  owner), 1 bit flags values that are committing and may not be accessed, and
+ *  51 bits record the version number.  2^51 is a bit more than 2*10^15.  On a
+ *  hypothetical computer that could perform a non-transactional write in 10
+ *  nanoseconds (each of which requires at least 2 atomic CAS-s), version
+ *  numbers would not overflow for 250 days of continuous writes.
  *
  *  @author Nathan Bronson
  */
@@ -48,7 +47,7 @@ private[ccstm] object STMImpl extends GV6 {
    */
   val YieldCount = System.getProperty("ccstm.yield", "2").toInt
 
-  val slotManager = new TxnSlotManager[TxnImpl](1024, 2)
+  val slotManager = new TxnSlotManager[TxnImpl](2048, 2)
   val wakeupManager = new WakeupManager // default size
 
   /** Hashes <code>ref</code> with <code>offset</code>, mixing the resulting
@@ -76,8 +75,7 @@ private[ccstm] object STMImpl extends GV6 {
   // metadata bits are:
   //  63 = locked for change
   //  62 = pending wakeups
-  //  61 = user bit
-  //  51..60 = owner slot
+  //  51..61 = owner slot
   //  0..50 = version
   type Meta = Long
   type Slot = Int
@@ -96,17 +94,16 @@ private[ccstm] object STMImpl extends GV6 {
 
   // TODO: clean up the following mess
   
-  def owner(m: Meta): Slot = (m >> 51).asInstanceOf[Int] & 1023
+  def owner(m: Meta): Slot = (m >> 51).asInstanceOf[Int] & 2047
   def version(m: Meta): Version = (m & ((1L << 51) - 1))
   def pendingWakeups(m: Meta): Boolean = (m & (1L << 62)) != 0
   def changing(m: Meta): Boolean = m < 0
-  def userBit(m: Meta): Boolean = (m & (1L << 61)) != 0
 
-  // masks off userBit, owner, and pendingWakeups
+  // masks off owner and pendingWakeups
   def changingAndVersion(m: Meta) = m & ((1L << 63) | ((1L << 51) - 1))
-  def ownerAndVersion(m: Meta) = m & ((1023L << 51) | ((1L << 51) - 1))
+  def ownerAndVersion(m: Meta) = m & ((2047L << 51) | ((1L << 51) - 1))
 
-  def withOwner(m: Meta, o: Slot): Meta = (m & ~(1023L << 51)) | (o.asInstanceOf[Long] << 51)
+  def withOwner(m: Meta, o: Slot): Meta = (m & ~(2047L << 51)) | (o.asInstanceOf[Long] << 51)
   def withUnowned(m: Meta): Meta = withOwner(m, UnownedSlot)
   def withVersion(m: Meta, ver: Version) = (m & ~((1L << 51) - 1)) | ver
 
@@ -115,10 +112,9 @@ private[ccstm] object STMImpl extends GV6 {
   def withNoPendingWakeups(m: Meta): Meta = m & ~(1L << 62)
   def withChanging(m: Meta): Meta = m | (1L << 63)
   def withUnchanging(m: Meta): Meta = m & ~(1L << 63)
-  def withUserBit(m: Meta, bit: Boolean): Meta = if (bit) m | (1L << 61) else m & ~(1L << 61)
 
-  /** Includes withUnowned, withNoPendingWakeups, withUnchanging, and withVersion. */
-  def withCommit(m: Meta, ver: Version) = (m & (1L << 61)) | ver
+  /** Clears all of the bits except the version. */
+  def withCommit(m: Meta, ver: Version) = ver
 
   /** Includes withUnowned and withUnchanging. */
   def withRollback(m: Meta) = withUnowned(withUnchanging(m))
