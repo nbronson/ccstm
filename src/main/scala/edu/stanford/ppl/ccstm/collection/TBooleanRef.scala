@@ -5,7 +5,6 @@
 package edu.stanford.ppl.ccstm.collection
 
 import edu.stanford.ppl.ccstm._
-import edu.stanford.ppl.ccstm.impl.STMImpl._
 
 
 /** A concrete implementation of <code>Ref[Boolean]</code>.  More efficient
