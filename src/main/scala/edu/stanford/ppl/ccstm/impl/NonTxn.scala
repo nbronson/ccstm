@@ -309,8 +309,8 @@ private[ccstm] object NonTxn {
     compareAndSetIdentity(handle, before, after)
   }
 
-  def transform[T](handle: Handle[T], f: T => T) {
-    transformImpl(handle, f, acquireLock(handle, false))
+  def getAndTransform[T](handle: Handle[T], f: T => T): T = {
+    getAndTransformImpl(handle, f, acquireLock(handle, false))
   }
 
   def tryTransform[T](handle: Handle[T], f: T => T): Boolean = {
@@ -318,16 +318,18 @@ private[ccstm] object NonTxn {
     if (m0 == 0L) {
       false
     } else {
-      transformImpl(handle, f, m0)
+      getAndTransformImpl(handle, f, m0)
       true
     }
   }
 
-  private def transformImpl[T](handle: Handle[T], f: T => T, m0: Meta) {
-    val repl = try { f(handle.data) } catch { case x => discardLock(handle, m0) ; throw x }
+  private def getAndTransformImpl[T](handle: Handle[T], f: T => T, m0: Meta): T = {
+    val v0 = handle.data
+    val repl = try { f(v0) } catch { case x => discardLock(handle, m0) ; throw x }
     val m1 = upgradeLock(handle, m0)
     handle.data = repl
     commitLock(handle, m1)
+    v0
   }
 
   def transformIfDefined[T](handle: Handle[T], pf: PartialFunction[T,T]): Boolean = {

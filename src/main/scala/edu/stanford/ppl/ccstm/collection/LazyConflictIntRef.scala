@@ -169,6 +169,12 @@ object LazyConflictIntRef {
       record(new Transform(f))
     }
 
+    def getAndTransform(f: (Int) => Int): Int = {
+      val z = get
+      set(f(z))
+      z
+    }
+
     def tryTransform(f: (Int) => Int): Boolean = {
       transform(f)
       true
