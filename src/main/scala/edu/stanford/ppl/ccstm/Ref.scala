@@ -138,8 +138,16 @@ object Ref {
      */
     def transform(f: T => T)
 
+    /** Atomically replaces the value <i>v</i> stored in the <code>Ref</code>
+     *  with <code>f</code>(<i>v</i>), returning the old value.
+     *  <code>getAndTransform</code> should be preferred in a transactional context,
+     *  since when implementing <code>getAndTransform</code> the STM cannot
+     *  defer execution of <code>f</code> to reduce transaction conflicts.
+     */
+    def getAndTransform(f: T => T): T
+
     /** Either atomically transforms this reference without blocking and
-     *  returns true, or returns false.  <code>transform</code> is to
+     *  returns true, or returns false.  <code>getAndTransform</code> is to
      *  <code>tryTransform</code> as <code>set</code> is to
      *  <code>tryWrite</code>.
      *  @param f a function that is safe to call multiple times, and safe to
@@ -210,7 +218,12 @@ object Ref {
       txn.weakCompareAndSetIdentity(handle, before, after)
     }
     def transform(f: T => T) {
-      txn.transform(handle, f)
+      // this isn't as silly as it seems, because some Bound implementations
+      // override getAndTransform()
+      txn.getAndTransform(handle, f)
+    }
+    def getAndTransform(f: T => T): T = {
+      txn.getAndTransform(handle, f)
     }
     def tryTransform(f: T => T): Boolean = {
       txn.tryTransform(handle, f)
@@ -253,7 +266,10 @@ object Ref {
       impl.NonTxn.weakCompareAndSetIdentity(handle, before, after)
     }
     def transform(f: T => T) {
-      impl.NonTxn.transform(handle, f)
+      impl.NonTxn.getAndTransform(handle, f)
+    }
+    def getAndTransform(f: T => T): T = {
+      impl.NonTxn.getAndTransform(handle, f)
     }
     def tryTransform(f: T => T) = {
       impl.NonTxn.tryTransform(handle, f)
@@ -348,7 +364,9 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *  @throws IllegalStateException if <code>txn</code> is not active.
    */
   def transform(f: T => T)(implicit txn: Txn) {
-    txn.transform(handle, f)
+    // only sub-types of Ref actually perform deferral, the base implementation
+    // evaluates f immediately
+    txn.getAndTransform(handle, f)
   }
 
   /** Transforms the value referenced by this <code>Ref</code> by applying the
@@ -363,7 +381,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *      current value of this <code>Ref</code> on entry.
    *  @throws IllegalStateException if <code>txn</code> is not active.
    */
-  def transformIfDefined(pf: PartialFunction[T,T])(implicit txn: Txn) = {
+  def transformIfDefined(pf: PartialFunction[T,T])(implicit txn: Txn): Boolean = {
     txn.transformIfDefined(handle, pf)
   }
 

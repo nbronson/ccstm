@@ -52,7 +52,7 @@ trait TMap[A,B] {
 // Size is implemented with striped counters.  Note that the actual
 // insertion and removal operations on the map do not change its actual
 // size, all size changes are the result of Ref updates.  Updates to
-// the stripes are handled using transform() to increase commit rates.
+// the stripes are handled using getAndTransform() to increase commit rates.
 // Some sort of automatic splitting/joining of the stripes is desirable
 // to adapt to the actual contention levels.  Reads may have to fall
 // back to pessimistic conflict management to succeed.

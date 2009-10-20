@@ -638,20 +638,21 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     compareAndSetIdentity(handle, before, after)
   }
 
-  def transform[T](handle: Handle[T], f: T => T) {
+  def getAndTransform[T](handle: Handle[T], f: T => T): T = {
     requireActive()
 
     val m0 = handle.meta
     if (owner(m0) == _slot) {
-      _writeBuffer.transform(handle, f)
-      return
+      return _writeBuffer.getAndTransform(handle, f)
     }
 
     val m = acquireOwnership(handle, m0)
 
-    _writeBuffer.transform(handle, f)
+    val v0 = _writeBuffer.getAndTransform(handle, f)
 
     revalidateIfRequired(version(m))
+
+    return v0
   }
 
   def tryTransform[T](handle: Handle[T], f: T => T): Boolean = {
@@ -659,14 +660,14 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
 
     val m0 = handle.meta
     if (owner(m0) == _slot) {
-      _writeBuffer.transform(handle, f)
+      _writeBuffer.getAndTransform(handle, f)
       return true
     }
 
     val m = tryAcquireOwnership(handle, m0)
     if (m == 0L) return false
 
-    _writeBuffer.transform(handle, f)
+    _writeBuffer.getAndTransform(handle, f)
 
     revalidateIfRequired(version(m))
 
@@ -700,7 +701,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
         // value changed after unrecordedRead
         false
       } else {
-        // still defined, do the actual transform
+        // still defined, do the actual getAndTransform
         set(handle, pf(v))
         true
       }
