@@ -4,6 +4,7 @@
 
 package edu.stanford.ppl.stm
 
+import edu.stanford.ppl.ExhaustiveTest
 import edu.stanford.ppl.ccstm._
 import edu.stanford.ppl.ccstm.collection._
 import scala.collection.jcl.IdentityHashMap
@@ -180,11 +181,37 @@ class IsolatedRefSuite extends STMFunSuite {
       assert(binder(x).get === 2)
       binder.reset()
     }
+
+    class UserException extends Exception
   
+    test(fact + ": " + binder + ": excepting transform") {
+      val x = fact(1)
+      intercept[UserException] {
+        binder(x).transform(v => throw new UserException)
+      }
+      assert(binder(x).get === 1)
+      binder(x).transform(_ + 1)
+      assert(binder(x).get === 2)
+      binder.reset()
+    }
+
     test(fact + ": " + binder + ": tryTransform") {
       val x = fact(1)
       while (!binder(x).tryTransform(_ + 1)) {
         assert(binder(x) === 1)
+      }
+      assert(binder(x).get === 2)
+      binder.reset()
+    }
+
+    test(fact + ": " + binder + ": excepting tryTransform") {
+      val x = fact(1)
+      intercept[UserException] {
+        binder(x).tryTransform(v => throw new UserException)
+      }
+      assert(binder(x).get === 1)
+      while (!binder(x).tryTransform(_ + 1)) {
+        assert(binder(x).get === 1)
       }
       assert(binder(x).get === 2)
       binder.reset()
@@ -251,6 +278,29 @@ class IsolatedRefSuite extends STMFunSuite {
       binder.reset()
     }
   
+    test(fact + ": " + binder + ": excepting transformIfDefined") {
+      val x = fact(1)
+      val pfThrowEarly = new PartialFunction[Int,Int] {
+        def isDefinedAt(x: Int): Boolean = throw new UserException
+        def apply(x: Int) = x*x
+      }
+      intercept[UserException] {
+        binder(x).transformIfDefined(pfThrowEarly)
+      }
+      assert(binder(x).get === 1)
+      val pfThrowLate = new PartialFunction[Int,Int] {
+        def isDefinedAt(x: Int): Boolean = true
+        def apply(x: Int) = throw new UserException
+      }
+      intercept[UserException] {
+        binder(x).transformIfDefined(pfThrowLate)
+      }
+      assert(binder(x).get === 1)
+      binder(x) := 2
+      assert(binder(x).get === 2)
+      binder.reset()
+    }
+
     test(fact + ": " + binder + ": successful weakCompareAndSet") {
       val x = fact(1)
       while (!binder(x).weakCompareAndSet(1, 2)) {
