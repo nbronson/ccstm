@@ -169,6 +169,8 @@ object STM {
    *      z
    *    }}.run()
    *  </pre>
+   *  Because this method is only presented as an optimization, it is assumed
+   *  that the evaluation of <code>f</code> will be quick.
    */
   def transform2[A,B,Z](refA: Ref[A], refB: Ref[B], f: (A,B) => (A,B,Z)): Z = {
     impl.NonTxn.transform2(refA.nonTxnHandle, refB.nonTxnHandle, f)

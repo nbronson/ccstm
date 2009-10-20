@@ -324,7 +324,7 @@ private[ccstm] object NonTxn {
   }
 
   private def transformImpl[T](handle: Handle[T], f: T => T, m0: Meta) {
-    val repl = f(handle.data)
+    val repl = try { f(handle.data) } catch { case x => discardLock(handle, m0) ; throw x }
     val m1 = upgradeLock(handle, m0)
     handle.data = repl
     commitLock(handle, m1)
@@ -334,8 +334,8 @@ private[ccstm] object NonTxn {
     if (pf.isDefinedAt(get(handle))) {
       val m0 = acquireLock(handle, false)
       val v = handle.data
-      if (pf.isDefinedAt(v)) {
-        val repl = pf(v)
+      if (try { pf.isDefinedAt(v) } catch { case x => discardLock(handle, m0) ; throw x }) {
+        val repl = try { pf(v) } catch { case x => discardLock(handle, m0) ; throw x }
         val m1 = upgradeLock(handle, m0)
         handle.data = repl
         commitLock(handle, m1)
@@ -355,8 +355,8 @@ private[ccstm] object NonTxn {
     var mB0: Long = 0L
     var tries = 0
     do {
-      mA0 = acquireLock(handleA, false)
-      mB0 = tryAcquireLock(handleB, false)
+      mA0 = acquireLock(handleA, true)
+      mB0 = tryAcquireLock(handleB, true)
       if (mB0 == 0) {
         // tryAcquire failed
         discardLock(handleA, mA0)
@@ -366,8 +366,8 @@ private[ccstm] object NonTxn {
         if (handleA == handleB) throw new IllegalArgumentException("transform2 targets must be distinct")
 
         // try it in the opposite direction
-        mB0 = acquireLock(handleB, false)
-        mA0 = tryAcquireLock(handleA, false)
+        mB0 = acquireLock(handleB, true)
+        mA0 = tryAcquireLock(handleA, true)
 
         if (mA0 == 0) {
           // tryAcquire failed
@@ -390,13 +390,22 @@ private[ccstm] object NonTxn {
       }
     } while (mB0 == 0)
 
-    val (a,b,z) = f(handleA.data, handleB.data)
-    val mA1 = upgradeLock(handleA, mA0)
-    val mB1 = upgradeLock(handleB, mB0)
+    val (a,b,z) = try {
+      f(handleA.data, handleB.data)
+    } catch {
+      case x => {
+        discardLock(handleA, mA0)
+        discardLock(handleB, mB0)
+        throw x
+      }
+    }
+
     handleA.data = a
     handleB.data = b
-    commitLock(handleA, mA1)
-    commitLock(handleB, mB1)
+
+    val wv = STMImpl.nonTxnWriteVersion(Math.max(version(mA0), version(mB0)))
+    releaseLock(handleA, mA0, wv)
+    releaseLock(handleB, mB0, wv)
     return z
   }
 }
