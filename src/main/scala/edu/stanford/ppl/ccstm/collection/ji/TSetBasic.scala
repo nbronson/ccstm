@@ -81,13 +81,17 @@ object TSetBasic {
     override def add(key: A): Boolean = {
       // need to atomically update the size and the pred
       val r = unbind.ref(key)
-      !r.nonTxn.get && STM.atomic(t => unbind.addImpl(r)(t))
+      !r.nonTxn.get && STM.transform2(r, unbind._size, (p: Boolean, s: Int) => {
+        if (!p) (true, s + 1, true) else (true, s, false)
+      })
     }
 
     override def remove(key: Any): Boolean = {
       // need to atomically update the size and the pred
       val r = unbind.ref(key)
-      r.nonTxn.get && STM.atomic(t => unbind.removeImpl(r)(t))
+      r.nonTxn.get && STM.transform2(r, unbind._size, (p: Boolean, s: Int) => {
+        if (p) (false, s - 1, true) else (false, s, false)
+      })
     }
 
     def iterator: Iterator[A] = new Iterator[A] {
