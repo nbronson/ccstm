@@ -134,12 +134,13 @@ private[impl] class WriteBuffer {
     while (true) {
       var r = _entries(refI(i))
       if (r eq null) {
-        // miss, insert here
+        // Miss, insert here.  Do the call first so that an exception leaves
+        // things in an okay state.
+        val v1 = f(handle.data).asInstanceOf[AnyRef]
         _lastInsert = i
         _entries(handleI(i)) = handle
         _entries(refI(i)) = ref
-        val v = handle.data
-        _entries(specValueI(i)) = f(v).asInstanceOf[AnyRef]
+        _entries(specValueI(i)) = v1
         _size += 1
         growIfNeeded()
         return
@@ -148,8 +149,8 @@ private[impl] class WriteBuffer {
         val h = _entries(handleI(i))
         if ((h eq handle) || h.asInstanceOf[Handle[_]].offset == offset) {
           // hit
-          val v = _entries(specValueI(i)).asInstanceOf[T]
-          _entries(specValueI(i)) = f(v).asInstanceOf[AnyRef]
+          val v0 = _entries(specValueI(i))
+          _entries(specValueI(i)) = f(v0.asInstanceOf[T]).asInstanceOf[AnyRef]
           return
         }
       }
