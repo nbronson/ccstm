@@ -312,7 +312,7 @@ class LazyConflictIntRef(initialValue: Int) extends Ref[Int] {
 
   override def bind(implicit txn: Txn): LazyConflictIntRef.Bound = bound.get
 
-  override val nonTxn: LazyConflictIntRef.Bound = {
+  override def nonTxn: LazyConflictIntRef.Bound = {
     new Ref.NonTxnBound(this, nonTxnHandle) with LazyConflictIntRef.Bound {}
   }
 
