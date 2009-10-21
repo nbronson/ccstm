@@ -36,13 +36,27 @@ private[impl] trait GV6 {
 
   private val silentCommitRand = FastPoorRandom
 
+  /** The maximum value of <code>nonTxnWriteVersion - globalVersion</code> that
+   *  will be allowed before a non-transactional store attempts to increase
+   *  <code>globalVersion</code>.  Any value larger than zero admits the
+   *  possibility that a non-transactional write will leave a version number
+   *  that forces revalidation of a transaction that discovers it (like a
+   *  silently-committed txn under GV6).  Larger values can help amortize the
+   *  cost of updating the counter.
+   */
+  private val nonTxnSilentRunAhead = System.getProperty("ccstm.nontxn.runahead", "8").toInt
+
   /** Returns a value that is greater than <code>prevVersion</code> and greater
    *  than the value of <code>globalVersion</code> on entry.  May increase
    *  <code>globalVersion</code>.
    */
   private[impl] def nonTxnWriteVersion(prevVersion: Long): Long = {
-    // TODO: do a GV6-style thing, and only increment globalVersion some of the time 
-    freshReadVersion(prevVersion) + 1
+    val g = globalVersion.get
+    val result = Math.max(g, prevVersion) + 1
+    if (result > g + nonTxnSilentRunAhead) {
+      globalVersion.compareAndSet(g, prevVersion + 1)
+    }
+    result
   }
 
   /** Returns a version to use for reading in a new transaction. */
@@ -63,14 +77,15 @@ private[impl] trait GV6 {
     return g
   }
 
-  /** Returns a value that is greater than <code>gvSnap</code>, possibly
-   *  incrementing <code>globalVersion</code>.
+  /** Returns a value that is greater than <code>gvSnap</code> and greater than
+   *  <code>readVersion</code>, possibly increasing<code>globalVersion</code>.
    */
-  private[impl] def freshCommitVersion(gvSnap: Long): Long = {
+  private[impl] def freshCommitVersion(readVersion: Long, gvSnap: Long): Long = {
+    val result = Math.max(readVersion, gvSnap) + 1
     if (silentCommitRatio <= 1 || silentCommitRand.nextInt <= silentCommitCutoff) {
-      globalVersion.compareAndSet(gvSnap, gvSnap + 1)
-      // no need to retry on failure, because somebody else succeeded
+      globalVersion.compareAndSet(gvSnap, result)
+      // ignore failure
     }
-    gvSnap + 1
+    result
   }  
 }
