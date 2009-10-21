@@ -82,7 +82,7 @@ object TSetBasic {
       // need to atomically update the size and the pred
       val r = unbind.ref(key)
       !r.nonTxn.get && STM.transform2(r, unbind._size, (p: Boolean, s: Int) => {
-        if (!p) (true, s + 1, true) else (true, s, false)
+        (true, (if (p) s else s + 1), !p)
       })
     }
 
@@ -90,7 +90,7 @@ object TSetBasic {
       // need to atomically update the size and the pred
       val r = unbind.ref(key)
       r.nonTxn.get && STM.transform2(r, unbind._size, (p: Boolean, s: Int) => {
-        if (p) (false, s - 1, true) else (false, s, false)
+        (false, (if (p) s - 1 else s), p)
       })
     }
 
