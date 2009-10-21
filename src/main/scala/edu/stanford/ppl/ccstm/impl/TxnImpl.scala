@@ -207,7 +207,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
       if (!acquireLocks()) return completeRollback()
 
       // this is our linearization point
-      val cv = freshCommitVersion(globalVersion.get)
+      val cv = freshCommitVersion(_readVersion, globalVersion.get)
 
       // if the reads are still valid, then they were valid at the linearization
       // point
