@@ -75,11 +75,11 @@ object TSetBasic {
     def size: Int = unbind._size.nonTxn.get
 
     override def contains(key: Any): Boolean = {
-      unbind.ref(key).nonTxn.get
+      val r = unbind._predicates.get(key)
+      null != r && r.nonTxn.get
     }
 
     override def add(key: A): Boolean = {
-      // need to atomically update the size and the pred
       val r = unbind.ref(key)
       !r.nonTxn.get && STM.transform2(r, unbind._size, (p: Boolean, s: Int) => {
         (true, (if (p) s else s + 1), !p)
@@ -87,9 +87,8 @@ object TSetBasic {
     }
 
     override def remove(key: Any): Boolean = {
-      // need to atomically update the size and the pred
-      val r = unbind.ref(key)
-      r.nonTxn.get && STM.transform2(r, unbind._size, (p: Boolean, s: Int) => {
+      val r = unbind._predicates.get(key)
+      null != r && r.nonTxn.get && STM.transform2(r, unbind._size, (p: Boolean, s: Int) => {
         (false, (if (p) s - 1 else s), p)
       })
     }
@@ -150,21 +149,17 @@ class TSetBasic[A] {
 
   private def ref(key: Any): TBooleanRef = {
     val ref = _predicates.get(key)
-    if (null != ref) {
-      ref
-    } else {
-      // we must always create a ref
-      val fresh = new TBooleanRef(false)
-      val race = _predicates.putIfAbsent(key, fresh)
-      if (null != race) race else fresh
-    }
+    if (null != ref) ref else missingRef(key)
+  }
+
+  private def missingRef(key: Any): TBooleanRef = {
+    val fresh = new TBooleanRef(false)
+    val race = _predicates.putIfAbsent(key, fresh)
+    if (null != race) race else fresh
   }
 
   def add(key: A)(implicit txn: Txn): Boolean = {
-    addImpl(ref(key))
-  }
-
-  private def addImpl(r: TBooleanRef)(implicit txn: Txn): Boolean = {
+    val r = ref(key)
     if (!r.get) {
       r := true
       _size += 1
@@ -175,10 +170,7 @@ class TSetBasic[A] {
   }
 
   def remove(key: Any)(implicit txn: Txn): Boolean = {
-    removeImpl(ref(key))
-  }
-
-  private def removeImpl(r: TBooleanRef)(implicit txn: Txn): Boolean = {
+    val r = ref(key)
     if (r.get) {
       r := false
       _size -= 1
