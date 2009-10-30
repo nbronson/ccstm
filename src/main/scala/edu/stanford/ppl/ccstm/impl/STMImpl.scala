@@ -84,12 +84,12 @@ private[ccstm] object STMImpl extends GV6 {
   /** The slot number used when a memory location has not been reserved or
    *  locked for writing.
    */
-  val UnownedSlot: Slot = 0
+  def UnownedSlot: Slot = 0
 
   /** The slot number used by non-transactional code that reserves or locks
    *  a location for writing.
    */
-  val NonTxnSlot: Slot = 1
+  def NonTxnSlot: Slot = 1
 
 
   // TODO: clean up the following mess
@@ -227,9 +227,10 @@ private[ccstm] object STMImpl extends GV6 {
    *  called before waiting for a transaction.
    */
   private[impl] def weakAwaitUnowned(handle: Handle[_], m0: Meta, currentTxn: TxnImpl) {
-    owner(m0) match {
-      case NonTxnSlot => weakAwaitNonTxnUnowned(handle, m0, currentTxn)
-      case _ => weakAwaitTxnUnowned(handle, m0, currentTxn)
+    if (owner(m0) == NonTxnSlot) {
+      weakAwaitNonTxnUnowned(handle, m0, currentTxn)
+    } else {
+      weakAwaitTxnUnowned(handle, m0, currentTxn)
     }
   }
 

@@ -5,10 +5,13 @@
 package edu.stanford.ppl.ccstm.collection
 
 import edu.stanford.ppl.ccstm._
+import java.util.concurrent.atomic.AtomicLongFieldUpdater
 
 
 private object TOptionRef {
-  private[TOptionRef] val SOME_NULL = new AnyRef
+  val SOME_NULL = new AnyRef
+
+  val metaUpdater = (new TOptionRef(None)).newMetaUpdater
 }
 
 /** A <code>Ref</code> implementation that holds only non-null
@@ -20,10 +23,18 @@ private object TOptionRef {
  *
  *  @author Nathan Bronson
  */
-class TOptionRef[T](initialValue: Option[T]) extends impl.MetaHolder with Ref[Option[T]] with impl.Handle[Option[T]] {
+class TOptionRef[T](initialValue: Option[T]) extends Ref[Option[T]] with impl.Handle[Option[T]] {
   import TOptionRef._
 
   protected def handle: impl.Handle[Option[T]] = this
+
+  @volatile private[ccstm] var meta: Long = 0L
+  private[ccstm] def metaCAS(before: Long, after: Long) = {
+    metaUpdater.compareAndSet(this, before, after)
+  }
+  private[TOptionRef] def newMetaUpdater = {
+    AtomicLongFieldUpdater.newUpdater(classOf[TOptionRef[_]], "meta")
+  }
 
   private[ccstm] def ref: AnyRef = this
   private[ccstm] def offset: Int = 0

@@ -169,6 +169,12 @@ object LazyConflictIntRef {
       record(new Transform(f))
     }
 
+    def getAndTransform(f: (Int) => Int): Int = {
+      val z = get
+      set(f(z))
+      z
+    }
+
     def tryTransform(f: (Int) => Int): Boolean = {
       transform(f)
       true
@@ -313,7 +319,7 @@ class LazyConflictIntRef(initialValue: Int) extends Ref[Int] {
   override def bind(implicit txn: Txn): LazyConflictIntRef.Bound = bound.get
 
   override def nonTxn: LazyConflictIntRef.Bound = {
-    new Ref.NonTxnBound(this, nonTxnHandle) with LazyConflictIntRef.Bound {}
+    new impl.NonTxnBound(this, nonTxnHandle) with LazyConflictIntRef.Bound {}
   }
 
   //////////////// convenience functions for ints

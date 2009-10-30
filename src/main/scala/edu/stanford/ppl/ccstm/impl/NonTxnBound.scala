@@ -1,27 +1,25 @@
 /* CCSTM - (c) 2009 Stanford University - PPL */
 
-// NonTxn
+// NonTxnBound
 
 package edu.stanford.ppl.ccstm.impl
 
+
 import edu.stanford.ppl.ccstm._
 
-
-/** The object that contains the code for non-transactional read and write
- *  barriers.
- */
-private[ccstm] object NonTxn {
+private[ccstm] class NonTxnBound[T](val unbind: Ref[T],
+                                    protected val handle: Handle[T]) extends Ref.Bound[T] {
   import STMImpl._
 
   //////////////// lock waiting
 
-  private def weakAwaitUnowned(handle: Handle[_], m0: Meta) {
+  private def weakAwaitUnowned(m0: Meta) {
     STMImpl.weakAwaitUnowned(handle, m0, null)
   }
 
   //////////////// value waiting
 
-  private def weakAwaitNewVersion(handle: Handle[_], m0: Meta) {
+  private def weakAwaitNewVersion(m0: Meta) {
     // spin a bit
     var m = 0L
     var spins = 0
@@ -34,13 +32,13 @@ private[ccstm] object NonTxn {
     } while (spins < SpinCount + YieldCount)
 
     if (changing(m)) {
-      weakAwaitUnowned(handle, m)
+      weakAwaitUnowned(m)
     } else {
-      weakNoSpinAwaitNewVersion(handle, m)
+      weakNoSpinAwaitNewVersion(m)
     }
   }
 
-  private def weakNoSpinAwaitNewVersion(handle: Handle[_], m0: Meta) {
+  private def weakNoSpinAwaitNewVersion(m0: Meta) {
     val event = wakeupManager.subscribe
     event.addSource(handle.ref, handle.offset)
     do {
@@ -62,13 +60,13 @@ private[ccstm] object NonTxn {
 
   //////////////// lock acquisition
 
-  private def acquireLock(handle: Handle[_], exclusive: Boolean): Meta = {
+  private def acquireLock(exclusive: Boolean): Meta = {
     var m0 = 0L
     var m1 = 0L
     do {
       m0 = handle.meta
       while (owner(m0) != UnownedSlot) {
-        weakAwaitUnowned(handle, m0)
+        weakAwaitUnowned(m0)
         m0 = handle.meta
       }
       val mOwned = withOwner(m0, NonTxnSlot)
@@ -78,7 +76,7 @@ private[ccstm] object NonTxn {
   }
 
   /** Returns 0L on failure. */
-  private def tryAcquireLock(handle: Handle[_], exclusive: Boolean): Meta = {
+  private def tryAcquireLock(exclusive: Boolean): Meta = {
     val m0 = handle.meta
     if (owner(m0) != UnownedSlot) return 0L
 
@@ -90,7 +88,7 @@ private[ccstm] object NonTxn {
     return m1
   }
 
-  private def upgradeLock(handle: Handle[_], m0: Meta): Meta = {
+  private def upgradeLock(m0: Meta): Meta = {
     var before = m0
     if (!handle.metaCAS(before, withChanging(before))) {
       // must have been a concurrent set of pendingWakeups
@@ -100,15 +98,15 @@ private[ccstm] object NonTxn {
     withChanging(before)
   }
 
-  private def commitLock(handle: Handle[_], m0: Meta) {
-    releaseLock(handle, m0, STMImpl.nonTxnWriteVersion(version(m0)))
+  private def commitLock(m0: Meta) {
+    releaseLock(m0, STMImpl.nonTxnWriteVersion(version(m0)))
   }
 
-  private def discardLock(handle: Handle[_], m0: Meta) {
-    releaseLock(handle, m0, version(m0))
+  private def discardLock(m0: Meta) {
+    releaseLock(m0, version(m0))
   }
 
-  private def releaseLock(handle: Handle[_], m0: Meta, newVersion: Version) {
+  private def releaseLock(m0: Meta, newVersion: Version) {
     // If pendingWakeups is set, then we are not racing with any other updates.
     // If the CAS fails, then we lost a race with pendingWakeups <- true, so we
     // can just assume that it's true.
@@ -120,14 +118,16 @@ private[ccstm] object NonTxn {
 
   //////////////// public interface
 
-  def get[T](handle: Handle[T]): T = {
+  def context: Option[Txn] = None
+
+  def get: T = {
     var m0 = 0L
     var m1 = 0L
     var v: T = null.asInstanceOf[T]
     do {
       m0 = handle.meta
       while (changing(m0)) {
-        weakAwaitUnowned(handle, m0)
+        weakAwaitUnowned(m0)
         m0 = handle.meta
       }
       v = handle.data
@@ -137,11 +137,13 @@ private[ccstm] object NonTxn {
     v
   }
 
-  def await[T](handle: Handle[T], pred: T => Boolean) {
+  def map[Z](f: (T) => Z): Z = f(get)
+
+  def await(pred: T => Boolean) {
     while (true) {
       val m0 = handle.meta
       if (changing(m0)) {
-        weakAwaitUnowned(handle, m0)
+        weakAwaitUnowned(m0)
       } else {
         val v = handle.data
         val m1 = handle.meta
@@ -153,17 +155,17 @@ private[ccstm] object NonTxn {
           }
 
           // wait for a new version
-          weakAwaitNewVersion(handle, m1)
+          weakAwaitNewVersion(m1)
         }
       }
     }
   }
 
-  def unrecordedRead[T](handle: Handle[T]): UnrecordedRead[T] = {
+  def unrecordedRead: UnrecordedRead[T] = {
     while (true) {
       val m0 = handle.meta
       if (changing(m0)) {
-        weakAwaitUnowned(handle, m0)
+        weakAwaitUnowned(m0)
       } else {
         val v = handle.data
         val m1 = handle.meta
@@ -181,54 +183,62 @@ private[ccstm] object NonTxn {
     throw new Error
   }
 
-  def set[T](handle: Handle[T], v: T) {
-    val m0 = acquireLock(handle, true)
-    handle.data = v
-    commitLock(handle, m0)
+  def releasableRead: ReleasableRead[T] = new ReleasableRead[T] {
+    def context: Option[Txn] = None
+    val value: T = get
+    def release() {}
   }
 
-  def getAndSet[T](handle: Handle[T], v: T): T = {
-    val m0 = acquireLock(handle, true)
+  def set(v: T) {
+    val m0 = acquireLock(true)
+    handle.data = v
+    commitLock(m0)
+  }
+
+  def getAndSet(v: T): T = {
+    val m0 = acquireLock(true)
     val z = handle.data
     handle.data = v
-    commitLock(handle, m0)
+    commitLock(m0)
     z
   }
 
-  def tryWrite[T](handle: Handle[T], v: T): Boolean = {
-    val m0 = tryAcquireLock(handle, true)
+  def tryWrite(v: T): Boolean = {
+    val m0 = tryAcquireLock(true)
     if (m0 == 0L) {
       false
     } else {
       handle.data = v
-      commitLock(handle, m0)
+      commitLock(m0)
       true
     }
   }
 
-  def compareAndSet[T](handle: Handle[T], before: T, after: T): Boolean = {
+  def readForWrite: T = get
+
+  def compareAndSet(before: T, after: T): Boolean = {
     // try to acquire ownership
     val m0 = handle.meta
     if (owner(m0) != UnownedSlot) {
-      return invisibleCAS(handle, before, after)
+      return invisibleCAS(before, after)
     }
     val m1 = withOwner(m0, NonTxnSlot)
     if (!handle.metaCAS(m0, m1)) {
-      return invisibleCAS(handle, before, after)
+      return invisibleCAS(before, after)
     }
 
     if (before == handle.data) {
-      val m2 = upgradeLock(handle, m1)
+      val m2 = upgradeLock(m1)
       handle.data = after
-      commitLock(handle, m2)
+      commitLock(m2)
       true
     } else {
-      discardLock(handle, m1)
+      discardLock(m1)
       false
     }
   }
 
-  private def invisibleCAS[T](handle: Handle[T], before: T, after: T): Boolean = {
+  private def invisibleCAS(before: T, after: T): Boolean = {
     // this is the code from get, inlined so that we have access to the version
     // number as well with no boxing
     var m0 = 0L
@@ -237,7 +247,7 @@ private[ccstm] object NonTxn {
     do {
       m0 = handle.meta
       while (changing(m0)) {
-        weakAwaitUnowned(handle, m0)
+        weakAwaitUnowned(m0)
         m0 = handle.meta
       }
       v = handle.data
@@ -249,50 +259,50 @@ private[ccstm] object NonTxn {
 
     // don't go directly to changing, because we can't run user code
     // (before.equals) there
-    val m2 = acquireLock(handle, false)
+    val m2 = acquireLock(false)
     if (version(m2) == version(m1) || before == handle.data) {
-      val m3 = upgradeLock(handle, m2)
+      val m3 = upgradeLock(m2)
       handle.data = after
-      commitLock(handle, m3)
+      commitLock(m3)
       true
     } else {
-      discardLock(handle, m2)
+      discardLock(m2)
       false
     }
   }
 
-  def compareAndSetIdentity[T,R <: AnyRef with T](handle: Handle[T], before: R, after: T): Boolean = {
+  def compareAndSetIdentity[R <: AnyRef with T](before: R, after: T): Boolean = {
     // try to acquire exclusive ownership
     val m0 = handle.meta
     if (owner(m0) != UnownedSlot) {
-      return invisibleCASI(handle, before, after)
+      return invisibleCASI(before, after)
     }
     val m1 = withChanging(withOwner(m0, NonTxnSlot))
     if (!handle.metaCAS(m0, m1)) {
-      return invisibleCASI(handle, before, after)
+      return invisibleCASI(before, after)
     }
 
     if (before eq handle.data.asInstanceOf[AnyRef]) {
       handle.data = after
-      commitLock(handle, m1)
+      commitLock(m1)
       true
     } else {
-      discardLock(handle, m1)
+      discardLock(m1)
       false
     }
   }
 
-  private def invisibleCASI[T,R <: T with AnyRef](handle: Handle[T], before: R, after: T): Boolean = {
-    if (before eq get(handle).asInstanceOf[AnyRef]) {
+  private def invisibleCASI[R <: T with AnyRef](before: R, after: T): Boolean = {
+    if (before eq get.asInstanceOf[AnyRef]) {
       // CASI is different than CAS, because we don't have to invoke user code to
       // perform the comparison
-      val m0 = acquireLock(handle, true)
+      val m0 = acquireLock(true)
       if (before eq handle.data.asInstanceOf[AnyRef]) {
         handle.data = after
-        commitLock(handle, m0)
+        commitLock(m0)
         true
       } else {
-        discardLock(handle, m0)
+        discardLock(m0)
         false
       }
     } else {
@@ -301,49 +311,53 @@ private[ccstm] object NonTxn {
     }
   }
 
-  def weakCompareAndSet[T](handle: Handle[T], before: T, after: T): Boolean = {
-    compareAndSet(handle, before, after)
+  def weakCompareAndSet(before: T, after: T): Boolean = {
+    compareAndSet(before, after)
   }
 
-  def weakCompareAndSetIdentity[T,R <: AnyRef with T](handle: Handle[T], before: R, after: T): Boolean = {
-    compareAndSetIdentity(handle, before, after)
+  def weakCompareAndSetIdentity[R <: AnyRef with T](before: R, after: T): Boolean = {
+    compareAndSetIdentity(before, after)
   }
 
-  def getAndTransform[T](handle: Handle[T], f: T => T): T = {
-    getAndTransformImpl(handle, f, acquireLock(handle, false))
+  def transform(f: T => T) {
+    getAndTransform(f)
   }
 
-  def tryTransform[T](handle: Handle[T], f: T => T): Boolean = {
-    val m0 = tryAcquireLock(handle, false)
+  def getAndTransform(f: T => T): T = {
+    getAndTransformImpl(f, acquireLock(false))
+  }
+
+  def tryTransform(f: T => T): Boolean = {
+    val m0 = tryAcquireLock(false)
     if (m0 == 0L) {
       false
     } else {
-      getAndTransformImpl(handle, f, m0)
+      getAndTransformImpl(f, m0)
       true
     }
   }
 
-  private def getAndTransformImpl[T](handle: Handle[T], f: T => T, m0: Meta): T = {
+  private def getAndTransformImpl(f: T => T, m0: Meta): T = {
     val v0 = handle.data
-    val repl = try { f(v0) } catch { case x => discardLock(handle, m0) ; throw x }
-    val m1 = upgradeLock(handle, m0)
+    val repl = try { f(v0) } catch { case x => discardLock(m0) ; throw x }
+    val m1 = upgradeLock(m0)
     handle.data = repl
-    commitLock(handle, m1)
+    commitLock(m1)
     v0
   }
 
-  def transformIfDefined[T](handle: Handle[T], pf: PartialFunction[T,T]): Boolean = {
-    if (pf.isDefinedAt(get(handle))) {
-      val m0 = acquireLock(handle, false)
+  def transformIfDefined(pf: PartialFunction[T,T]): Boolean = {
+    if (pf.isDefinedAt(get)) {
+      val m0 = acquireLock(false)
       val v = handle.data
-      if (try { pf.isDefinedAt(v) } catch { case x => discardLock(handle, m0) ; throw x }) {
-        val repl = try { pf(v) } catch { case x => discardLock(handle, m0) ; throw x }
-        val m1 = upgradeLock(handle, m0)
+      if (try { pf.isDefinedAt(v) } catch { case x => discardLock(m0) ; throw x }) {
+        val repl = try { pf(v) } catch { case x => discardLock(m0) ; throw x }
+        val m1 = upgradeLock(m0)
         handle.data = repl
-        commitLock(handle, m1)
+        commitLock(m1)
         true
       } else {
-        discardLock(handle, m0)
+        discardLock(m0)
         false
       }
     } else {
@@ -351,63 +365,5 @@ private[ccstm] object NonTxn {
       false
     }
   }
-
-  def transform2[A,B,Z](handleA: Handle[A], handleB: Handle[B], f: (A,B) => (A,B,Z)): Z = {
-    var mA0: Long = 0L
-    var mB0: Long = 0L
-    var tries = 0
-    do {
-      mA0 = acquireLock(handleA, true)
-      mB0 = tryAcquireLock(handleB, true)
-      if (mB0 == 0) {
-        // tryAcquire failed
-        discardLock(handleA, mA0)
-        mA0 = 0
-
-        // did it fail because the handles are equal?
-        if (handleA == handleB) throw new IllegalArgumentException("transform2 targets must be distinct")
-
-        // try it in the opposite direction
-        mB0 = acquireLock(handleB, true)
-        mA0 = tryAcquireLock(handleA, true)
-
-        if (mA0 == 0) {
-          // tryAcquire failed
-          discardLock(handleB, mB0)
-          mB0 = 0
-
-          tries += 1
-          if (tries > 10) {
-            // fall back to a txn, which is guaranteed to eventually succeed
-            return STM.atomic((t: Txn) => {
-              val refA = new Ref.TxnBound(null, handleA, t)
-              val refB = new Ref.TxnBound(null, handleB, t)
-              val (a,b,z) = f(refA.readForWrite, refB.readForWrite)
-              refA := a
-              refB := b
-              z
-            })
-          }
-        }
-      }
-    } while (mB0 == 0)
-
-    val (a,b,z) = try {
-      f(handleA.data, handleB.data)
-    } catch {
-      case x => {
-        discardLock(handleA, mA0)
-        discardLock(handleB, mB0)
-        throw x
-      }
-    }
-
-    handleA.data = a
-    handleB.data = b
-
-    val wv = STMImpl.nonTxnWriteVersion(Math.max(version(mA0), version(mB0)))
-    releaseLock(handleA, mA0, wv)
-    releaseLock(handleB, mB0, wv)
-    return z
-  }
+  
 }

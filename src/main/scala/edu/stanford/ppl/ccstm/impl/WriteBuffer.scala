@@ -126,38 +126,43 @@ private[impl] class WriteBuffer {
     throw new Error("unreachable")
   }
 
-  def transform[T](handle: Handle[T], f: T => T) {
+  def getAndTransform[T](handle: Handle[T], f: T => T): T = {
     val ref = handle.ref
     val offset = handle.offset
     val hash = STMImpl.hash(ref, offset)
     var i = hash & (_capacity - 1)
-    while (true) {
+    var done = false
+    var v0: T = null.asInstanceOf[T]
+    while (!done) {
       var r = _entries(refI(i))
       if (r eq null) {
         // Miss, insert here.  Do the call first so that an exception leaves
         // things in an okay state.
-        val v1 = f(handle.data).asInstanceOf[AnyRef]
+        v0 = handle.data
+        val v1 = f(v0)
         _lastInsert = i
         _entries(handleI(i)) = handle
         _entries(refI(i)) = ref
-        _entries(specValueI(i)) = v1
+        _entries(specValueI(i)) = v1.asInstanceOf[AnyRef]
         _size += 1
         growIfNeeded()
-        return
+        done = true
       }
-      if (r eq ref) {
+      else if (r eq ref) {
         val h = _entries(handleI(i))
         if ((h eq handle) || h.asInstanceOf[Handle[_]].offset == offset) {
           // hit
-          val v0 = _entries(specValueI(i))
-          _entries(specValueI(i)) = f(v0.asInstanceOf[T]).asInstanceOf[AnyRef]
-          return
+          val v0 = _entries(specValueI(i)).asInstanceOf[T]
+          val v1 = f(v0)
+          _entries(specValueI(i)) = v1.asInstanceOf[AnyRef]
+          done = true
         }
       }
 
       // probe
       i = (i + 1) & (_capacity - 1)
     }
+    v0
   }
 
   def visit(visitor: Visitor): Boolean = {
