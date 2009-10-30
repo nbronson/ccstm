@@ -9,19 +9,21 @@ import edu.stanford.ppl.ccstm.impl.MetaHolder
 import edu.stanford.ppl.ccstm._
 
 
-object RedBlackTreeMap {
-  private val BLACK = true
-  private val RED = false
-}
-
 class RedBlackTreeMap[A <% Ordered[A],B] {
-  import RedBlackTreeMap._
+
+  private def BLACK = true
+  private def RED = false
 
   private def root(implicit txn: Txn): Node[A,B] = rootRef.get
   private def root_=(v: Node[A,B])(implicit txn: Txn) { rootRef.set(v) }
   private val rootRef = Ref[Node[A,B]](null)
 
   //////////////// public interface
+
+  def clear()(implicit txn: Txn) {
+    root = null
+    // TODO: size = 0
+  }
 
   def containsKey(key: A)(implicit txn: Txn) = null != getNode(key)
 
@@ -269,12 +271,13 @@ class RedBlackTreeMap[A <% Ordered[A],B] {
   private def deleteNode(x: Node[A,B])(implicit txn: Txn) {
     // TODO: size -= 1
 
-    if (null != x.left && null != x.right) {
+    val xp = x.parent
+    val xl = x.left
+    val xr = x.right
+
+    if (null != xl && null != xr) {
       val s = successor(x)
-      val xp = x.parent
-      val xl = x.left
-      val xr = x.right
-      val repl = new Node(s.key, s.value, xp, xl, xr)
+      val repl = new Node(x.color, s.key, s.value, xp, xl, xr)
       if (null != xp) {
         if (x == xp.left) {
           xp.left = repl
@@ -282,6 +285,8 @@ class RedBlackTreeMap[A <% Ordered[A],B] {
           assert(x == xp.right)
           xp.right = repl
         }
+      } else {
+        root = repl
       }
       if (null != xl) {
         xl.parent = repl
@@ -293,9 +298,7 @@ class RedBlackTreeMap[A <% Ordered[A],B] {
       return
     }
 
-    val xp = x.parent
-    val xl = x.left
-    val repl = if (null != xl) xl else x.right
+    val repl = if (null != xl) xl else xr
 
     if (null != repl) {
       repl.parent = xp
@@ -414,12 +417,12 @@ class RedBlackTreeMap[A <% Ordered[A],B] {
 }
 
 
-private class Node[A,B](val key: A, value0: B, parent0: Node[A,B], left0: Node[A,B], right0: Node[A,B]) extends MetaHolder {
+private class Node[A,B](color0: Boolean, val key: A, value0: B, parent0: Node[A,B], left0: Node[A,B], right0: Node[A,B]) extends MetaHolder {
   import Node._
 
-  def this(key0: A, value0: B, parent0: Node[A,B]) = this(key0, value0, parent0, null, null)
+  def this(key0: A, value0: B, parent0: Node[A,B]) = this(true, key0, value0, parent0, null, null)
 
-  @volatile private var _color: Boolean = true
+  @volatile private var _color: Boolean = color0
   @volatile private var _value: B = value0
   @volatile private var _parent: Node[A,B] = parent0
   @volatile private var _left: Node[A,B] = left0
