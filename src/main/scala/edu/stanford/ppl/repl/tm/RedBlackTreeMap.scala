@@ -69,6 +69,17 @@ class RedBlackTreeMap[A <% Ordered[A],B] {
     return None
   }
 
+  def remove(key: A)(implicit txn: Txn): Option[B] = {
+    val x = getNode(key)
+    if (null == x) {
+      None
+    } else {
+      val z = x.value
+      deleteNode(x)
+      Some(z)
+    }
+  }
+  
   //////////////// internal implementation
 
   private def getNode(key: A)(implicit txn: Txn): Node[A,B] = {
@@ -255,132 +266,164 @@ class RedBlackTreeMap[A <% Ordered[A],B] {
     setColor(root, BLACK)
   }
 
-//  /**
-//   * Delete node p, and then rebalance the tree.
-//   */
-//  private void deleteEntry(Node[A,B] p) {
-//      modCount++;
-//      size--;
-//
-//      // If strictly internal, copy successor's element to p and then make p
-//      // point to successor.
-//      if (p.left != null && p.right != null) {
-//          Node[A,B] s = successor (p);
-//          p.key = s.key;
-//          p.value = s.value;
-//          p = s;
-//      } // p has 2 children
-//
-//      // Start fixup at replacement node, if it exists.
-//      Node[A,B] replacement = (p.left != null  p.left : p.right);
-//
-//      if (replacement != null) {
-//          // Link replacement to parent
-//          replacement.parent = p.parent;
-//          if (p.parent == null)
-//              root = replacement;
-//          else if (p == p.parent.left)
-//              p.parent.left  = replacement;
-//          else
-//              p.parent.right = replacement;
-//
-//          // Null out links so they are OK to use by fixAfterDeletion.
-//          p.left = p.right = p.parent = null;
-//
-//          // Fix replacement
-//          if (p.color == BLACK)
-//              fixAfterDeletion(replacement);
-//      } else if (p.parent == null) { // return if we are the only node.
-//          root = null;
-//      } else { //  No children. Use self as phantom replacement and unlink.
-//          if (p.color == BLACK)
-//              fixAfterDeletion(p);
-//
-//          if (p.parent != null) {
-//              if (p == p.parent.left)
-//                  p.parent.left = null;
-//              else if (p == p.parent.right)
-//                  p.parent.right = null;
-//              p.parent = null;
-//          }
-//      }
-//  }
-//
-//  /** From CLR */
-//  private void fixAfterDeletion(Node[A,B] x) {
-//      while (x != root && colorOf(x) == BLACK) {
-//          if (x == leftOf(parentOf(x))) {
-//              Node[A,B] sib = rightOf(parentOf(x));
-//
-//              if (colorOf(sib) == RED) {
-//                  setColor(sib, BLACK);
-//                  setColor(parentOf(x), RED);
-//                  rotateLeft(parentOf(x));
-//                  sib = rightOf(parentOf(x));
-//              }
-//
-//              if (colorOf(leftOf(sib))  == BLACK &&
-//                  colorOf(rightOf(sib)) == BLACK) {
-//                  setColor(sib, RED);
-//                  x = parentOf(x);
-//              } else {
-//                  if (colorOf(rightOf(sib)) == BLACK) {
-//                      setColor(leftOf(sib), BLACK);
-//                      setColor(sib, RED);
-//                      rotateRight(sib);
-//                      sib = rightOf(parentOf(x));
-//                  }
-//                  setColor(sib, colorOf(parentOf(x)));
-//                  setColor(parentOf(x), BLACK);
-//                  setColor(rightOf(sib), BLACK);
-//                  rotateLeft(parentOf(x));
-//                  x = root;
-//              }
-//          } else { // symmetric
-//              Node[A,B] sib = leftOf(parentOf(x));
-//
-//              if (colorOf(sib) == RED) {
-//                  setColor(sib, BLACK);
-//                  setColor(parentOf(x), RED);
-//                  rotateRight(parentOf(x));
-//                  sib = leftOf(parentOf(x));
-//              }
-//
-//              if (colorOf(rightOf(sib)) == BLACK &&
-//                  colorOf(leftOf(sib)) == BLACK) {
-//                  setColor(sib, RED);
-//                  x = parentOf(x);
-//              } else {
-//                  if (colorOf(leftOf(sib)) == BLACK) {
-//                      setColor(rightOf(sib), BLACK);
-//                      setColor(sib, RED);
-//                      rotateLeft(sib);
-//                      sib = leftOf(parentOf(x));
-//                  }
-//                  setColor(sib, colorOf(parentOf(x)));
-//                  setColor(parentOf(x), BLACK);
-//                  setColor(leftOf(sib), BLACK);
-//                  rotateRight(parentOf(x));
-//                  x = root;
-//              }
-//          }
-//      }
-//
-//      setColor(x, BLACK);
-//  }
-//
+  private def deleteNode(x: Node[A,B])(implicit txn: Txn) {
+    // TODO: size -= 1
 
+    if (null != x.left && null != x.right) {
+      val s = successor(x)
+      val xp = x.parent
+      val xl = x.left
+      val xr = x.right
+      val repl = new Node(s.key, s.value, xp, xl, xr)
+      if (null != xp) {
+        if (x == xp.left) {
+          xp.left = repl
+        } else {
+          assert(x == xp.right)
+          xp.right = repl
+        }
+      }
+      if (null != xl) {
+        xl.parent = repl
+      }
+      if (null != xr) {
+        xr.parent = repl
+      }
+      deleteNode(s)
+      return
+    }
+
+    val xp = x.parent
+    val xl = x.left
+    val repl = if (null != xl) xl else x.right
+
+    if (null != repl) {
+      repl.parent = xp
+      if (null == xp) {
+        root = repl
+      } else if (x == xp.left) {
+        xp.left = repl
+      } else {
+        xp.right = repl
+      }
+
+      x.left = null
+      x.right = null
+      x.parent = null
+
+      if (x.color == BLACK) {
+        fixAfterDeletion(repl)
+      }
+    } else if (null == xp) {
+      root = null
+    } else {
+      if (x.color == BLACK) {
+        fixAfterDeletion(x)
+      }
+
+      if (null != xp) {
+        if (x == xp.left) {
+          xp.left = null
+        } else {
+          assert(x == xp.right)
+          xp.right = null
+        }
+        x.parent = null
+      }
+    }
+  }
+
+  private def fixAfterDeletion(x0: Node[A,B])(implicit txn: Txn) {
+    var x = x0
+    assert(x != null || root == null)
+    while (x != root && colorOf(x) == BLACK) {
+      var xp = parentOf(x)
+      if (x == leftOf(xp)) {
+        var sib = rightOf(xp)
+
+        if (colorOf(sib) == RED) {
+          sib.color = BLACK
+          setColor(xp, RED)
+          rotateLeft(xp)
+          xp = parentOf(x)
+          sib = rightOf(xp)
+        }
+
+        val sl = leftOf(sib)
+        var sr = rightOf(sib)
+        val src = colorOf(sr)
+        if (colorOf(sl) == BLACK && src == BLACK) {
+          setColor(sib, RED)
+          x = xp
+          assert(x != null || root == null)
+        } else {
+          if (src == BLACK) {
+            setColor(sl, BLACK)
+            setColor(sib, RED)
+            rotateRight(sib)
+            xp = parentOf(x)
+            sib = rightOf(xp)
+            sr = rightOf(sib)
+          }
+          setColor(sib, colorOf(xp))
+          setColor(xp, BLACK)
+          setColor(sr, BLACK)
+          rotateLeft(xp)
+          x = root
+          assert(x != null || root == null)
+        }
+      } else {
+        var sib = leftOf(xp)
+
+        if (colorOf(sib) == RED) {
+          sib.color = BLACK
+          setColor(xp, RED)
+          rotateRight(xp)
+          xp = parentOf(x)
+          sib = leftOf(xp)
+        }
+
+        val sr = rightOf(sib)
+        var sl = leftOf(sib)
+        val slc = colorOf(sl)
+        if (colorOf(sr) == BLACK && slc == BLACK) {
+          setColor(sib, RED)
+          x = xp
+          assert(x != null || root == null)
+        } else {
+          if (slc == BLACK) {
+            setColor(sr, BLACK)
+            setColor(sib, RED)
+            rotateLeft(sib)
+            xp = parentOf(x)
+            sib = leftOf(xp)
+            sl = leftOf(sib)
+          }
+          setColor(sib, colorOf(xp))
+          setColor(xp, BLACK)
+          setColor(sl, BLACK)
+          rotateRight(xp)
+          x = root
+          assert(x != null || root == null)
+        }
+      }
+    }
+
+    setColor(x, BLACK)
+  }
 }
 
 
-private class Node[A,B](val key: A, initialValue: B, initialParent: Node[A,B]) extends MetaHolder {
+private class Node[A,B](val key: A, value0: B, parent0: Node[A,B], left0: Node[A,B], right0: Node[A,B]) extends MetaHolder {
   import Node._
 
+  def this(key0: A, value0: B, parent0: Node[A,B]) = this(key0, value0, parent0, null, null)
+
   @volatile private var _color: Boolean = true
-  @volatile private var _value: B = initialValue
-  @volatile private var _parent: Node[A,B] = initialParent
-  @volatile private var _left: Node[A,B] = null
-  @volatile private var _right: Node[A,B] = null
+  @volatile private var _value: B = value0
+  @volatile private var _parent: Node[A,B] = parent0
+  @volatile private var _left: Node[A,B] = left0
+  @volatile private var _right: Node[A,B] = right0
 
   def color(implicit txn: Txn): Boolean = colorRef.get
   def color_=(v: Boolean)(implicit txn: Txn) { colorRef.set(v) }
