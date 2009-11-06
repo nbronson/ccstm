@@ -6,14 +6,15 @@ package edu.stanford.ppl.stm
 
 import edu.stanford.ppl.ccstm.collection.TArray
 import edu.stanford.ppl.ccstm._
+import edu.stanford.ppl.ExhaustiveTest
 import java.util.concurrent.CyclicBarrier
-import org.scalatest.Group
+import org.scalatest.Tag
 
 
 class HistogramSuite extends STMFunSuite {
 
-  for ((opsPerTest, name, groups) <- List((10000, "10K", List[Group]()),
-                                          (1000000, "1M", List[Group](ExhaustiveTest)))) {
+  for ((opsPerTest, name, groups) <- List((10000, "10K", List[Tag]()),
+                                          (1000000, "1M", List[Tag](ExhaustiveTest)))) {
     for (buckets <- List(1, 30, 10000)) {
       for (threads <- List(1, 2, 4, 8, 16, 32, 64, 128, 256, 512) if (threads <= 2*Runtime.getRuntime.availableProcessors)) {
         for (useTArray <- List(false, true)) {
@@ -36,7 +37,7 @@ class HistogramSuite extends STMFunSuite {
     }
   }
 
-  private def addTest(name: String, groups: Group*)(block: => Unit) { test(name, groups:_*)(block) }
+  private def addTest(name: String, tags: Tag*)(block: => Unit) { test(name, tags:_*)(block) }
 
   def histogram(bucketCount: Int,
                 workerCount: Int,

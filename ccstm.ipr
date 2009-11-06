@@ -32,7 +32,6 @@
   </component>
   <component name="CompilerConfiguration">
     <option name="DEFAULT_COMPILER" value="Javac" />
-    <option name="DEPLOY_AFTER_MAKE" value="0" />
     <resourceExtensions>
       <entry name=".+\.(properties|xml|html|dtd|tld)" />
       <entry name=".+\.(gif|png|jpeg|jpg)" />
@@ -163,6 +162,24 @@
   </component>
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
+  </component>
+  <component name="libraryTable">
+    <library name="SBT-managed libs">
+      <CLASSES>
+        <root url="file://$PROJECT_DIR$/lib_managed/compile" />
+      </CLASSES>
+      <JAVADOC />
+      <SOURCES />
+      <jarDirectory url="file://$PROJECT_DIR$/lib_managed/compile" recursive="false" />
+    </library>
+    <library name="SBT-managed scala">
+      <CLASSES>
+        <root url="jar://$PROJECT_DIR$/project/boot/scala-2.7.7/lib/scala-compiler.jar!/" />
+        <root url="jar://$PROJECT_DIR$/project/boot/scala-2.7.7/lib/scala-library.jar!/" />
+      </CLASSES>
+      <JAVADOC />
+      <SOURCES />
+    </library>
   </component>
 </project>
 
