@@ -129,6 +129,7 @@ object TSetLazyGC {
   }
 
   class Predicate(set: TSetLazyGC[_], val key: Any, token: Token) extends TAnyRef[Token](null) {
+    var weak: CleanableRef[Token]
     val weak = new CleanableRef[Token](token) { def cleanup() { set.cleanup(Predicate.this) } }
   }
 }

@@ -74,20 +74,25 @@ object TSetGC {
 
     def size: Int = unbind._size.nonTxn.get
 
-    override def contains(key: Any): Boolean = containsImpl(unbind._predicates.get(key))
-
-    private def containsImpl(pred: Predicate): Boolean = {
-      null != pred && null != pred.nonTxn.get
+    override def contains(key: Any): Boolean = {
+      val r = unbind._predicates.get(key)
+      null != r && null != r.nonTxn.get
     }
 
     override def add(key: A): Boolean = {
-      val pred = unbind._predicates.get(key)
-      !containsImpl(pred) && STM.atomic(t => unbind.addImpl(pred)(t))
+      //!containsImpl(pred) && STM.atomic(t => unbind.addImpl(pred)(t))
+      val r = unbind.ref(key)
+      null == r.nonTxn.get && STM.transform2(r, unbind._size, (p: Boolean, s: Int) => {
+        (true, (if (p) s else s + 1), !p)
+      })
     }
 
     override def remove(key: Any): Boolean = {
-      val pred = unbind._predicates.get(key)
-      containsImpl(pred) && STM.atomic(t => unbind.removeImpl(pred)(t))
+      //containsImpl(pred) && STM.atomic(t => unbind.removeImpl(pred)(t))
+      val r = unbind._predicates.get(key)
+      null != r && null != r.nonTxn.get && STM.transform2(r, unbind._size, (p: Boolean, s: Int) => {
+        (false, (if (p) s - 1 else s), p)
+      })
     }
 
     def iterator: Iterator[A] = new Iterator[A] {
