@@ -1,6 +1,6 @@
 /* CCSTM - (c) 2009 Stanford University - PPL */
 
-// TSetLazyGC
+// PredicatedSetLazyGC
 
 package edu.stanford.ppl.ccstm.collection.ji
 
@@ -10,13 +10,13 @@ import edu.stanford.ppl.ccstm._
 import collection.TAnyRef
 
 
-object TSetLazyGC {
+object PredicatedSetLazyGC {
   trait Bound[A] extends Set[A] {
-    def unbind: TSetLazyGC[A]
+    def unbind: PredicatedSetLazyGC[A]
     def context: Option[Txn]
   }
 
-  private class TxnBound[A](val unbind: TSetLazyGC[A], txn: Txn) extends AbstractSet[A] with Bound[A] {
+  private class TxnBound[A](val unbind: PredicatedSetLazyGC[A], txn: Txn) extends AbstractSet[A] with Bound[A] {
     def context = Some(txn)
 
     def size: Int = unbind.size(txn)
@@ -46,7 +46,7 @@ object TSetLazyGC {
           }
         }
         if (apparentSize != size) {
-          txn.forceRollback(Txn.InvalidReadCause(unbind, "TSetLazyGC.Iterator missed elements"))
+          txn.forceRollback(Txn.InvalidReadCause(unbind, "PredicatedSetLazyGC.Iterator missed elements"))
         }
         avail = None
         return
@@ -69,7 +69,7 @@ object TSetLazyGC {
     }
   }
 
-  private class NonTxnBound[A](val unbind: TSetLazyGC[A]) extends AbstractSet[A] with Bound[A] {
+  private class NonTxnBound[A](val unbind: PredicatedSetLazyGC[A]) extends AbstractSet[A] with Bound[A] {
     def context = None
 
     def size: Int = unbind._size.nonTxn.get
@@ -124,13 +124,55 @@ object TSetLazyGC {
     }
   }
 
-  class Token(set: TSetLazyGC[_], key: Any) {
-    val pred = new Predicate(set, key, this)
+  class Token(set: PredicatedSetLazyGC[_], key: Any, inserting: Boolean) {
+    val pred = new Predicate(set, key, this, inserting)
   }
 
-  class Predicate(set: TSetLazyGC[_], val key: Any, token: Token) extends TAnyRef[Token](null) {
-    var weak: CleanableRef[Token]
-    val weak = new CleanableRef[Token](token) { def cleanup() { set.cleanup(Predicate.this) } }
+  class TokenRef(token: Token, set: PredicatedSetLazyGC[_], pred: Predicate) extends CleanableRef[Token](token) {
+    def cleanup() {
+      set.weakCleanup(pred)
+    }
+  }
+
+  class Predicate(set: PredicatedSetLazyGC[_], val key: Any, token: Token, inserting: Boolean) extends TAnyRef[Token](null) {
+
+    @volatile var ref: AnyRef = { if (inserting) token else new TokenRef(token, this) }
+
+    def token(inserting: Boolean): Token = {
+      // TODO: use inserting
+      ref match {
+        case null => {
+          // predicate is pending removal, can't be reused
+          null
+        }
+        case t: Token => {
+          if (inserting) {
+            t
+          } else {
+            // token has so far only been used by observers that think that the
+            // predicate is true
+            synchronized {
+              ref match {
+                case null => {
+                  null
+                }
+                case t: Token => {
+                  ref = new TokenRef(t, set, pred)
+                  t
+                }
+                case r: TokenRef => {
+                  r.get
+                }
+              }
+            }
+          }
+        }
+        case r: TokenRef => {
+          // already weakened
+          r.get
+        }
+      }
+    }
   }
 }
 
@@ -141,8 +183,8 @@ object TSetLazyGC {
  *  provide opacity. Transactional reads may return different values with no
  *  intervening writes inside a transaction that rolls back. 
  */
-class TSetLazyGC[A] {
-  import TSetLazyGC._
+class PredicatedSetLazyGC[A] {
+  import PredicatedSetLazyGC._
 
   private val _size = new collection.LazyConflictIntRef(0) // replace with striped version
   private val _predicates = new ConcurrentHashMap[Any,Predicate]
@@ -152,20 +194,20 @@ class TSetLazyGC[A] {
   def bind(implicit txn: Txn): Bound[A] = new TxnBound(this, txn)
   val nonTxn: Bound[A] = new NonTxnBound(this)
 
-  private[ji] def getOrCreateToken(key: Any): Token = {
+  private[ji] def getOrCreateToken(key: Any, inserting: Boolean): Token = {
     while (true) {
       val pred = _predicates.get(key)
       if (null == pred) {
         // new predicate needed
-        val fresh = new Token(this, key)
+        val fresh = new Token(this, key, inserting)
         if (null != _predicates.putIfAbsent(key, fresh.pred)) {
           return fresh
         }
       } else {
-        val token = pred.weak.get
+        val token = pred.token(inserting)
         if (null == token) {
           // new predicate needed
-          val fresh = new Token(this, key)
+          val fresh = new Token(this, key, inserting)
           if (_predicates.replace(key, pred, fresh.pred)) {
             return fresh
           }
@@ -178,7 +220,7 @@ class TSetLazyGC[A] {
   }
 
   def contains(key: Any)(implicit txn: Txn): Boolean = {
-    val token = getOrCreateToken(key)
+    val token = getOrCreateToken(key, false)
     if (null != token.pred.get) {
       // ref will survive until a change, so any read by this txn of a new ref
       // can only happen if the current ref read is invalid, and this txn can't
@@ -191,21 +233,30 @@ class TSetLazyGC[A] {
     }
   }
 
-  def add(key: Any)(implicit txn: Txn): Boolean = addImpl(getOrCreateToken(key))
+  def add(key: Any)(implicit txn: Txn): Boolean = addImpl(getOrCreateToken(key, true))
 
   private[ji] def addImpl(pred: Predicate)(implicit txn: Txn): Boolean = {
-    val token = pred.weak.get
-    addImpl(if (null != token) token else getOrCreateToken(pred.key))
+    val token = pred.token(true)
+    addImpl(if (null != token) token else getOrCreateToken(pred.key, true))
   }
 
   private[ji] def addImpl(token: Token)(implicit txn: Txn): Boolean = {
-    if (null != token.pred.get) {
+    val pred = token.pred
+    if (null != pred.get) {
       // already present
       false
     } else {
       // the strong reference in the write buffer will pin the token
       _size += 1
-      token.pred.set(token)
+      pred.set(token)
+
+      // if we have avoided making a weak reference to the token, then we are
+      // responsible for removing the key if this txn rolls back
+      if (pred.ref eq token) {
+        txn.afterRollback((t: Txn) => {
+          tryStrongCleanup(pred)
+        })
+      }
       true
     }
   }
@@ -229,7 +280,16 @@ class TSetLazyGC[A] {
     }
   }
 
-  private def cleanup(pred: Predicate) {
+  private def tryStrongCleanup(pred: Predicate) {
+    if (!pred.ref.isInstanceOf[Token]) return
+    pred.synchronized {
+      if (!pred.ref.isInstanceOf[Token]) return
+      pred.ref = null
+    }
+    _predicates.remove(pred.key, pred)
+  }
+
+  private def weakCleanup(pred: Predicate) {
     _predicates.remove(pred.key, pred)
     // no need to retry on failure
   }

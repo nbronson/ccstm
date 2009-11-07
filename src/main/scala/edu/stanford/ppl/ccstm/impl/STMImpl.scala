@@ -56,13 +56,6 @@ private[ccstm] object STMImpl extends GV6 {
    *  @throw NullPointerException if <code>ref</code> is null. 
    */
   def hash(ref: AnyRef, offset: Int): Int = {
-    // Hopscotch will fail if there are more than H entries that end up in the
-    // same bucket.  This can lead to a pathological case if a single instance
-    // is used with offsets that are strided by a power-of-two, because if we
-    // use a simple hashCode(ref) op M*offset, we will fail to get any unique
-    // bits from the M*offset portion.  Our solution is to use the bit-mixing
-    // function from java.util.HashMap after merging with the system identity
-    // hash code.
     if (null == ref) throw new NullPointerException
     var h = System.identityHashCode(ref) ^ (0x40108097 * offset)
     h ^= (h >>> 20) ^ (h >>> 12)

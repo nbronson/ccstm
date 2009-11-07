@@ -1,6 +1,6 @@
 /* CCSTM - (c) 2009 Stanford University - PPL */
 
-// TSetBasic
+// PredicatedSetBasic
 
 package edu.stanford.ppl.ccstm.collection.ji
 
@@ -10,13 +10,13 @@ import edu.stanford.ppl.ccstm._
 import collection.TBooleanRef
 
 
-object TSetBasic {
+object PredicatedSetBasic {
   trait Bound[A] extends Set[A] {
-    def unbind: TSetBasic[A]
+    def unbind: PredicatedSetBasic[A]
     def context: Option[Txn]
   }
 
-  private class TxnBound[A](val unbind: TSetBasic[A], txn: Txn) extends AbstractSet[A] with Bound[A] {
+  private class TxnBound[A](val unbind: PredicatedSetBasic[A], txn: Txn) extends AbstractSet[A] with Bound[A] {
     def context = Some(txn)
 
     def size: Int = unbind.size(txn)
@@ -46,7 +46,7 @@ object TSetBasic {
           }
         }
         if (apparentSize != size) {
-          txn.forceRollback(Txn.InvalidReadCause(unbind, "TSetBasic.Iterator missed elements"))
+          txn.forceRollback(Txn.InvalidReadCause(unbind, "PredicatedSetBasic.Iterator missed elements"))
         }
         avail = None
         return
@@ -69,7 +69,7 @@ object TSetBasic {
     }
   }
 
-  private class NonTxnBound[A](val unbind: TSetBasic[A]) extends AbstractSet[A] with Bound[A] {
+  private class NonTxnBound[A](val unbind: PredicatedSetBasic[A]) extends AbstractSet[A] with Bound[A] {
     def context = None
 
     def size: Int = unbind._size.nonTxn.get
@@ -132,8 +132,8 @@ object TSetBasic {
  *  interface using Transactional Predication, but that performs no garbage
  *  collection of entries that have been accessed but that are empty.
  */
-class TSetBasic[A] {
-  import TSetBasic._
+class PredicatedSetBasic[A] {
+  import PredicatedSetBasic._
 
   private val _size = new collection.LazyConflictIntRef(0) // replace with striped version
   private val _predicates = new ConcurrentHashMap[Any,TBooleanRef]

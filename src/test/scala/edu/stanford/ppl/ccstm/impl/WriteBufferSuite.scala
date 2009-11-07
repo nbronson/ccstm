@@ -5,9 +5,10 @@
 package edu.stanford.ppl.ccstm.impl
 
 
-import _root_.scala.collection.jcl.IdentityHashMap
-import _root_.scala.collection.mutable.HashMap
+import scala.collection.jcl.IdentityHashMap
+import scala.collection.mutable.HashMap
 import org.scalatest.FunSuite
+import edu.stanford.ppl.ExhaustiveTest
 
 
 class WriteBufferSuite extends FunSuite {
