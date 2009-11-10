@@ -18,4 +18,27 @@ private[impl] object NullValue {
   def decodeOption[B](packed: AnyRef): Option[B] = {
     if (null eq packed) None else Some(decode(packed))
   }
+
+  def decodeEntrySetSnapshot[A,B](map: java.util.Map[A,AnyRef]): Iterator[(A,B)] = {
+    val a = new Array[(A,B)](map.size())
+    var i = 0
+    val iter = map.entrySet().iterator()
+    while (iter.hasNext()) {
+      val e = iter.next()
+      a(i) = (e.getKey(), NullValue.decode[B](e.getValue()))
+      i += 1
+    }
+    a
+    return new Iterator[(A,B)] {
+      private var pos = 0
+
+      def hasNext: Boolean = pos < a.length
+
+      def next: (A,B) = {
+        val z = a(pos)
+        pos += 1
+        z
+      }
+    }    
+  }
 }

@@ -5,6 +5,7 @@
 package edu.stanford.ppl.ccstm.experimental.impl
 
 import edu.stanford.ppl.ccstm.Txn
+import edu.stanford.ppl.ccstm.experimental.TMap
 
 
 class LockedHashMap[A,B] extends TMap.Bound[A,B] {
@@ -75,21 +76,7 @@ class LockedHashMap[A,B] extends TMap.Bound[A,B] {
     }
   }
 
-  def elements: Iterator[(A,B)] = {
-    // we must copy to get a thread-safe iterator
-    val entries = underlying.synchronized {
-      underlying.entrySet().toArray()
-    }
-    return new Iterator[(A,B)] {
-      private var pos = 0
-
-      def hasNext: Boolean = pos < entries.length
-
-      def next: (A,B) = {
-        val e = entries(pos).asInstanceOf[java.util.Map.Entry[A,AnyRef]]
-        pos += 1
-        (e.getKey(), NullValue.decode[B](e.getValue()))
-      }
-    }
+  def elements: Iterator[(A,B)] = underlying.synchronized {
+    NullValue.decodeEntrySetSnapshot(underlying)
   }
 }
