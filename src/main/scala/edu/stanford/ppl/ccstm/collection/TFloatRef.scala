@@ -33,5 +33,6 @@ class TFloatRef(initialValue: Float) extends Ref[Float] with impl.Handle[Float] 
 
   private[ccstm] def ref: AnyRef = this
   private[ccstm] def offset: Int = 0
+  private[ccstm] def metaOffset: Int = 0
   @volatile private[ccstm] var data = initialValue
 }

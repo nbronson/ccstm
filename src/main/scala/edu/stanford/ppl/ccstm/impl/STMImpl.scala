@@ -242,7 +242,7 @@ private[ccstm] object STMImpl extends GV6 {
 
     // to wait for a non-txn owner, we use pendingWakeups
     val event = wakeupManager.subscribe
-    event.addSource(handle.ref, handle.offset)
+    event.addSource(handle.ref, handle.metaOffset)
     do {
       val m = handle.meta
       if (ownerAndVersion(m) != ownerAndVersion(m0)) {

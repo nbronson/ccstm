@@ -40,7 +40,7 @@ private[ccstm] class NonTxnBound[T](val unbind: Ref[T],
 
   private def weakNoSpinAwaitNewVersion(m0: Meta) {
     val event = wakeupManager.subscribe
-    event.addSource(handle.ref, handle.offset)
+    event.addSource(handle.ref, handle.metaOffset)
     do {
       val m = handle.meta
       if (version(m) != version(m0) || changing(m)) {
@@ -112,7 +112,12 @@ private[ccstm] class NonTxnBound[T](val unbind: Ref[T],
     // can just assume that it's true.
     if (pendingWakeups(m0) || !handle.metaCAS(m0, withCommit(m0, newVersion))) {
       handle.meta = withCommit(withPendingWakeups(m0), newVersion)
-      wakeupManager.trigger(wakeupManager.prepareToTrigger(handle.ref, handle.offset))
+      val r = handle.ref
+      val o1 = handle.offset
+      val o2 = handle.metaOffset
+      var wakeups = wakeupManager.prepareToTrigger(r, o1)
+      if (o1 != o2) wakeups |= wakeupManager.prepareToTrigger(r, o2)
+      wakeupManager.trigger(wakeups)
     }
   }
 

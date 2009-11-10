@@ -111,10 +111,19 @@ private[ccstm] object NonTxn {
   private def releaseLock(handle: Handle[_], m0: Meta, newVersion: Version) {
     // If pendingWakeups is set, then we are not racing with any other updates.
     // If the CAS fails, then we lost a race with pendingWakeups <- true, so we
-    // can just assume that it's true.
+    // can just assume that it's true.  When a non-transactional thread holds a
+    // lock there is no txn on which to wait for completion, so we overload by
+    // waiting for a wakeup.  Metadata may be shared between multiple offsets,
+    // though, so we need to have a single channel to wake up those waiters,
+    // which is the metaOffset.
     if (pendingWakeups(m0) || !handle.metaCAS(m0, withCommit(m0, newVersion))) {
       handle.meta = withCommit(withPendingWakeups(m0), newVersion)
-      wakeupManager.trigger(wakeupManager.prepareToTrigger(handle.ref, handle.offset))
+      val r = handle.ref
+      val o1 = handle.offset
+      val o2 = handle.metaOffset
+      var wakeups = wakeupManager.prepareToTrigger(r, o1)
+      if (o1 != o2) wakeups |= wakeupManager.prepareToTrigger(r, o2)
+      wakeupManager.trigger(wakeups)
     }
   }
 
