@@ -2,7 +2,7 @@
 
 // BoostedMap
 
-package edu.stanford.ppl.repl.boosted
+package edu.stanford.ppl.ccstm.experimental
 
 import edu.stanford.ppl.ccstm._
 
