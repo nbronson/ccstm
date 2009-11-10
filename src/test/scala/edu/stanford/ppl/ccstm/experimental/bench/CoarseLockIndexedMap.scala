@@ -5,7 +5,7 @@
 package edu.stanford.ppl.ccstm.experimental.bench
 
 
-private object CoarseLockedIndexedMap {
+private object CoarseLockIndexedMap {
   val ImmSet = scala.collection.immutable.Set
   type ImmSet[A] = scala.collection.immutable.Set[A]
   type ROMap[A,B] = scala.collection.Map[A,B]
@@ -88,7 +88,7 @@ private object CoarseLockedIndexedMap {
  *  to protect access to normal hash tables.
  */
 class CoarseLockIndexedMap[K,V] extends IndexedMap[K,V] {
-  import CoarseLockedIndexedMap._
+  import CoarseLockIndexedMap._
 
   private val main = new java.util.HashMap[K,AnyRef]
   private var indices: List[Index[K,V,_]] = Nil
