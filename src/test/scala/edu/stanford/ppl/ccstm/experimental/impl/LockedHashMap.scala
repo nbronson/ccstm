@@ -2,7 +2,7 @@
 
 // LockedHashMap
 
-package edu.stanford.ppl.ccstm.experimental
+package edu.stanford.ppl.ccstm.experimental.impl
 
 import edu.stanford.ppl.ccstm.Txn
 

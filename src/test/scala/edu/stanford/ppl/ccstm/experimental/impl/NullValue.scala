@@ -2,10 +2,10 @@
 
 // NullValue
 
-package edu.stanford.ppl.ccstm.experimental
+package edu.stanford.ppl.ccstm.experimental.impl
 
 
-private[experimental] object NullValue {
+private[impl] object NullValue {
   def encode[B](value: B): AnyRef = {
     val v = value.asInstanceOf[AnyRef]
     if (null eq v) this else v

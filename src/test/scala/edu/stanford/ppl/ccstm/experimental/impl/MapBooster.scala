@@ -2,7 +2,7 @@
 
 // MapBooster
 
-package edu.stanford.ppl.ccstm.experimental
+package edu.stanford.ppl.ccstm.experimental.impl
 
 import edu.stanford.ppl.ccstm._
 import java.lang.ref.{WeakReference, ReferenceQueue}
@@ -11,7 +11,7 @@ import java.util.concurrent.{TimeUnit, ConcurrentHashMap}
 import java.util.{IdentityHashMap, HashMap}
 
 
-private[experimental] object MapBooster {
+private[impl] object MapBooster {
 
   private val LockTimeoutMillis = 10
   private val UndoAndUnlockPriority = -10
@@ -24,7 +24,7 @@ private[experimental] object MapBooster {
   }
 }
 
-private[experimental] class MapBooster[A] {
+private[impl] class MapBooster[A] {
   import MapBooster._
 
   private val lockRefsByKey = new ConcurrentHashMap[A,LockRef[A]]
