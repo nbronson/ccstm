@@ -109,6 +109,7 @@ abstract class TxnFieldUpdater[T <: MetaHolder,V](tClazz: Class[T], fieldName: S
 
     private[ccstm] def ref: AnyRef = instance
     private[ccstm] def offset: Int = TxnFieldUpdater.this.offset
+    private[ccstm] def metaOffset: Int = 0
 
     private[ccstm] def data: V = getField(instance)
     private[ccstm] def data_=(v: V) { setField(instance, v) }

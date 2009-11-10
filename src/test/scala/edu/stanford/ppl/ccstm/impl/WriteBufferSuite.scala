@@ -19,6 +19,7 @@ class WriteBufferSuite extends FunSuite {
     private[ccstm] def meta: Long = 0L
     private[ccstm] def meta_=(v: Long) {}
     private[ccstm] def metaCAS(before: Long, after: Long): Boolean = false
+    private[ccstm] def metaOffset = offset
     private[ccstm] def data: T = null.asInstanceOf[T]
     private[ccstm] def data_=(v: T) {}
   }

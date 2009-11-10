@@ -33,5 +33,6 @@ class TBooleanRef(initialValue: Boolean) extends Ref[Boolean] with impl.Handle[B
 
   private[ccstm] def ref: AnyRef = this
   private[ccstm] def offset: Int = 0
+  private[ccstm] def metaOffset: Int = 0
   @volatile private[ccstm] var data = initialValue
 }

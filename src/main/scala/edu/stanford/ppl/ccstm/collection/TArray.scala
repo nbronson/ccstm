@@ -19,10 +19,36 @@ object TArray {
     def update(index: Int, v: T)
     def refs: RandomAccessSeq[Ref.Bound[T]]
   }
+
+  /** <code>MetaMapping</code> defines the mapping from elements of the array
+   *  to the metadata entries used by the STM to protect those elements.
+   *  Elements of the array that share a metadata entry may cause conflicts or
+   *  contention if accessed by concurrent transactions, at least one of which
+   *  is writing.  Minimal contention is realized by having a separate metadata
+   *  entry for each array element, but this also maximizes the storage
+   *  overhead introduced by <code>TArray</code>.  Minimal storage overhead is
+   *  realized by having only a single metadata element, but this prevents
+   *  concurrent writes to any element of the array.
+   *  <p>
+   *  A <code>MetaMapping</code> is defined by three parameters,
+   *  <code>dataPerMeta</code>, <code>maxMeta</code>, and
+   *  <code>neighboringDataPerMeta</code>.  The first two are used to determine
+   *  the number of metadata entries that will be allocated, the last is used
+   *  to map indices in the data array to indices in the metadata array.
+   */
+  sealed case class MetaMapping(dataPerMeta: Int, maxMeta: Int, neighboringDataPerMeta: Int)
+
+  val MaximizeParallelism = MetaMapping(1, Math.MAX_INT, 1)
+  val MinimizeSpace = MetaMapping(1, 1, 1)
+  def Striped(stripeCount: Int) = MetaMapping(1, stripeCount, 1)
+  def Chunked(chunkSize: Int) = MetaMapping(chunkSize, Math.MAX_INT, chunkSize)
+  val DefaultMetaMapping = Striped(16)
 }
 
-class TArray[T](length0: Int)(implicit manifest: scala.reflect.Manifest[T]) {
+class TArray[T](length0: Int, metaMapping: TArray.MetaMapping)(implicit manifest: scala.reflect.Manifest[T]) {
   import TArray._
+
+  def this(length0: Int)(implicit manifest: scala.reflect.Manifest[T]) = this(length0, TArray.DefaultMetaMapping)  
 
   def length = length0
 
@@ -58,7 +84,14 @@ class TArray[T](length0: Int)(implicit manifest: scala.reflect.Manifest[T]) {
 
   /////////////// Internal implementation
 
-  private val _meta = new AtomicLongArray(length0)
+  private val _metaIndexShift = { var i = 0 ; while ((1L << i) < metaMapping.neighboringDataPerMeta) i += 1 ; i }
+  private val _metaIndexMask = {
+    val n = Math.min(length0 / metaMapping.dataPerMeta, metaMapping.maxMeta)
+    var m = 1 ; while (m < n) m = (m << 2) + 1 ; m
+  }
+
+  private val _meta = new AtomicLongArray(Math.min(_metaIndexMask + 1, length0))
+  private def _metaIndex(i: Int) = (i >> _metaIndexShift) & _metaIndexMask
   private val _data = ({
     val dv = DefaultValue[T]
     if (null == dv) {
@@ -74,9 +107,11 @@ class TArray[T](length0: Int)(implicit manifest: scala.reflect.Manifest[T]) {
 
     protected def handle: Handle[T] = this
 
-    private[ccstm] def meta = _meta.get(index)
-    private[ccstm] def meta_=(v: Long) { _meta.set(index, v) }
-    private[ccstm] def metaCAS(before: Long, after: Long) = _meta.compareAndSet(index, before, after)
+    private[ccstm] def metaOffset = _metaIndex(index)
+
+    private[ccstm] def meta = _meta.get(metaOffset)
+    private[ccstm] def meta_=(v: Long) { _meta.set(metaOffset, v) }
+    private[ccstm] def metaCAS(before: Long, after: Long) = _meta.compareAndSet(metaOffset, before, after)
     private[ccstm] def ref = TArray.this
     private[ccstm] def offset = index
     private[ccstm] def data = _data.get(index)

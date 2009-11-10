@@ -21,6 +21,7 @@ private[ccstm] trait Handle[T] {
   private[ccstm] def metaCAS(before: Long, after: Long): Boolean
   private[ccstm] def ref: AnyRef
   private[ccstm] def offset: Int
+  private[ccstm] def metaOffset: Int
   private[ccstm] def data: T
   private[ccstm] def data_=(v: T)
 }

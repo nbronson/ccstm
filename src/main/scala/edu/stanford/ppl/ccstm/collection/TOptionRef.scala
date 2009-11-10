@@ -38,6 +38,7 @@ class TOptionRef[T](initialValue: Option[T]) extends Ref[Option[T]] with impl.Ha
 
   private[ccstm] def ref: AnyRef = this
   private[ccstm] def offset: Int = 0
+  private[ccstm] def metaOffset: Int = 0
 
   @volatile private var _packed = pack(initialValue)
   private[ccstm] def data = unpack(_packed)
