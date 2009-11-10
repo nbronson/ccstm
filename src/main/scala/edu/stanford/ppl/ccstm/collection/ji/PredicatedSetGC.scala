@@ -81,17 +81,18 @@ object PredicatedSetGC {
 
     override def add(key: A): Boolean = {
       //!containsImpl(pred) && STM.atomic(t => unbind.addImpl(pred)(t))
-      val r = unbind.ref(key)
-      null == r.nonTxn.get && STM.transform2(r, unbind._size, (p: Boolean, s: Int) => {
-        (true, (if (p) s else s + 1), !p)
+      val t = unbind.getOrCreateToken(key)
+      val r = t.pred
+      null == r.nonTxn.get && STM.transform2(r, unbind._size, (p: Token, s: Int) => {
+        (t, (if (null != p) s else s + 1), null == p)
       })
     }
 
     override def remove(key: Any): Boolean = {
       //containsImpl(pred) && STM.atomic(t => unbind.removeImpl(pred)(t))
       val r = unbind._predicates.get(key)
-      null != r && null != r.nonTxn.get && STM.transform2(r, unbind._size, (p: Boolean, s: Int) => {
-        (false, (if (p) s - 1 else s), p)
+      null != r && null != r.nonTxn.get && STM.transform2(r, unbind._size, (p: Token, s: Int) => {
+        (null, (if (null != p) s - 1 else s), null != p)
       })
     }
 

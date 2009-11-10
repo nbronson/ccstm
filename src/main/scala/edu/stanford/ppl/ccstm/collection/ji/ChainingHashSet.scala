@@ -5,7 +5,8 @@
 package edu.stanford.ppl.ccstm.collection.ji
 
 import edu.stanford.ppl.ccstm.collection.{TAnyRef, TArray}
-import edu.stanford.ppl.ccstm.Txn
+import edu.stanford.ppl.ccstm.{Ref, Txn}
+import reflect.Manifest
 
 object ChainingHashSet {
   private class Bucket[K,V](val hash: Int, val key: K, val value: V, val next: Bucket[K,V]) {
@@ -29,12 +30,12 @@ object ChainingHashSet {
   }
 }
 
-class ChainingHashSet[K,V] {
+class ChainingHashSet[K,V](implicit km: Manifest[K], vm: Manifest[V]) {
   import ChainingHashSet._
 
-  private val buckets: TAnyRef[TArray[Bucket[K,V]]]
+  private val buckets = Ref(new TArray[Bucket[K,V]](16))
 
-  private def hash(key: K) {
+  private def hash(key: K) = {
     // this is the bit mixing code from java.util.HashMap
     var h = key.hashCode
     h ^= (h >>> 20) ^ (h >>> 12)
@@ -48,11 +49,11 @@ class ChainingHashSet[K,V] {
     val i = h & (array.length - 1)
     val head = array(i)
     if (null == head) {
-      null
+      null.asInstanceOf[V]
     } else {
       val bucket = head.find(h, key)
       if (null == bucket) {
-        null
+        null.asInstanceOf[V]
       } else {
         bucket.value
       }
@@ -65,11 +66,11 @@ class ChainingHashSet[K,V] {
     val i = h & (array.length - 1)
     var head = array(i)
     val prev = (if (null == head) {
-      null
+      null.asInstanceOf[V]
     } else {
       val bucket = head.find(h, key)
       if (null == bucket) {
-        null
+        null.asInstanceOf[V]
       } else {
         head = head.remove(bucket)
         bucket.value
@@ -85,11 +86,11 @@ class ChainingHashSet[K,V] {
     val i = h & (array.length - 1)
     var head = array(i)
     if (null == head) {
-      null
+      null.asInstanceOf[V]
     } else {
       val bucket = head.find(h, key)
       if (null == bucket) {
-        null
+        null.asInstanceOf[V]
       } else {
         head = head.remove(bucket)
         bucket.value
