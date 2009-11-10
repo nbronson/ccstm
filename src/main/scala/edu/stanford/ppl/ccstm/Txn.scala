@@ -136,7 +136,7 @@ object Txn {
      *  implementation dependent, but will provide at least a reasonable
      *  attempt at a useful <code>.toString()</code> method.
      */
-    val trigger: AnyRef
+    val trigger: Any
   }
 
   /** The <code>RollbackCause</code> recorded for an explicit
@@ -188,7 +188,7 @@ object Txn {
    *  contention manager may record extra information about its choice in
    *  <code>extraInfo</code>.
    */
-  case class WriteConflictCause(trigger: AnyRef, extraInfo: String) extends OptimisticFailureCause {
+  case class WriteConflictCause(trigger: Any, extraInfo: String) extends OptimisticFailureCause {
     private[ccstm] def counter = writeConflictCounter
   }
 
