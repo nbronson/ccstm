@@ -2,7 +2,7 @@
 
 // RedBlackTreeMap
 
-package edu.stanford.ppl.stm
+package edu.stanford.ppl.ccstm.experimental
 
 
 import edu.stanford.ppl.ccstm.impl.MetaHolder
@@ -14,9 +14,9 @@ class RedBlackTreeMap[A <% Ordered[A],B] {
   private def BLACK = true
   private def RED = false
 
-  private def root(implicit txn: Txn): Node[A,B] = rootRef.get
-  private def root_=(v: Node[A,B])(implicit txn: Txn) { rootRef.set(v) }
-  private val rootRef = Ref[Node[A,B]](null)
+  private def root(implicit txn: Txn): RBNode[A,B] = rootRef.get
+  private def root_=(v: RBNode[A,B])(implicit txn: Txn) { rootRef.set(v) }
+  private val rootRef = Ref[RBNode[A,B]](null)
 
   //////////////// public interface
 
@@ -40,14 +40,14 @@ class RedBlackTreeMap[A <% Ordered[A],B] {
     var t = root
     if (null == t) {
       // easy
-      root = new Node(key, value, null)
+      root = new RBNode(key, value, null)
       //TODO: size = 1
       return None
     }
 
     val k: Ordered[A] = key
     var cmp = 0
-    var parent: Node[A,B] = null
+    var parent: RBNode[A,B] = null
     do {
       parent = t
       cmp = k.compare(t.key)
@@ -60,7 +60,7 @@ class RedBlackTreeMap[A <% Ordered[A],B] {
       }
     } while (null != t)
 
-    val n = new Node(key, value, parent)
+    val n = new RBNode(key, value, parent)
     if (cmp < 0) {
       parent.left = n
     } else {
@@ -84,7 +84,7 @@ class RedBlackTreeMap[A <% Ordered[A],B] {
   
   //////////////// internal implementation
 
-  private def getNode(key: A)(implicit txn: Txn): Node[A,B] = {
+  private def getNode(key: A)(implicit txn: Txn): RBNode[A,B] = {
     val k: Ordered[A] = key
     var p = root
     while (null != p) {
@@ -100,7 +100,7 @@ class RedBlackTreeMap[A <% Ordered[A],B] {
     return null
   }
 
-  private def successor(x: Node[A,B])(implicit txn: Txn) = {
+  private def successor(x: RBNode[A,B])(implicit txn: Txn) = {
     if (null == x) {
       null
     } else {
@@ -125,7 +125,7 @@ class RedBlackTreeMap[A <% Ordered[A],B] {
     }
   }
 
-  private def predecessor(x: Node[A,B])(implicit txn: Txn) = {
+  private def predecessor(x: RBNode[A,B])(implicit txn: Txn) = {
     if (null == x) {
       null
     } else {
@@ -151,27 +151,27 @@ class RedBlackTreeMap[A <% Ordered[A],B] {
   }
 
 
-  private def colorOf(p: Node[A,B])(implicit txn: Txn) = {
+  private def colorOf(p: RBNode[A,B])(implicit txn: Txn) = {
     if (null == p) BLACK else p.color
   }
 
-  private def parentOf(p: Node[A,B])(implicit txn: Txn) = {
+  private def parentOf(p: RBNode[A,B])(implicit txn: Txn) = {
     if (null == p) null else p.parent
   }
 
-  private def setColor(p: Node[A,B], c: Boolean)(implicit txn: Txn) {
+  private def setColor(p: RBNode[A,B], c: Boolean)(implicit txn: Txn) {
     if (null != p && p.color != c) p.color = c
   }
 
-  private def leftOf(p: Node[A,B])(implicit txn: Txn) = {
+  private def leftOf(p: RBNode[A,B])(implicit txn: Txn) = {
     if (null == p) null else p.left
   }
 
-  private def rightOf(p: Node[A,B])(implicit txn: Txn) = {
+  private def rightOf(p: RBNode[A,B])(implicit txn: Txn) = {
     if (null == p) null else p.right
   }
 
-  private def rotateLeft(p: Node[A,B])(implicit txn: Txn) {
+  private def rotateLeft(p: RBNode[A,B])(implicit txn: Txn) {
     if (null != p) {
       val r = p.right
       val rl = r.left
@@ -193,7 +193,7 @@ class RedBlackTreeMap[A <% Ordered[A],B] {
     }
   }
 
-  private def rotateRight(p: Node[A,B])(implicit txn: Txn) {
+  private def rotateRight(p: RBNode[A,B])(implicit txn: Txn) {
     if (null != p) {
       val l = p.left
       val lr = l.right
@@ -215,7 +215,7 @@ class RedBlackTreeMap[A <% Ordered[A],B] {
     }
   }
 
-  private def fixAfterInsertion(x0: Node[A,B])(implicit txn: Txn) {
+  private def fixAfterInsertion(x0: RBNode[A,B])(implicit txn: Txn) {
     var x = x0
     x.color = RED
 
@@ -268,7 +268,7 @@ class RedBlackTreeMap[A <% Ordered[A],B] {
     setColor(root, BLACK)
   }
 
-  private def deleteNode(x: Node[A,B])(implicit txn: Txn) {
+  private def deleteNode(x: RBNode[A,B])(implicit txn: Txn) {
     // TODO: size -= 1
 
     val xp = x.parent
@@ -277,7 +277,7 @@ class RedBlackTreeMap[A <% Ordered[A],B] {
 
     if (null != xl && null != xr) {
       val s = successor(x)
-      val repl = new Node(x.color, s.key, s.value, xp, xl, xr)
+      val repl = new RBNode(x.color, s.key, s.value, xp, xl, xr)
       if (null != xp) {
         if (x == xp.left) {
           xp.left = repl
@@ -336,7 +336,7 @@ class RedBlackTreeMap[A <% Ordered[A],B] {
     }
   }
 
-  private def fixAfterDeletion(x0: Node[A,B])(implicit txn: Txn) {
+  private def fixAfterDeletion(x0: RBNode[A,B])(implicit txn: Txn) {
     var x = x0
     assert(x != null || root == null)
     while (x != root && colorOf(x) == BLACK) {
@@ -417,16 +417,16 @@ class RedBlackTreeMap[A <% Ordered[A],B] {
 }
 
 
-private class Node[A,B](color0: Boolean, val key: A, value0: B, parent0: Node[A,B], left0: Node[A,B], right0: Node[A,B]) extends MetaHolder {
-  import Node._
+private class RBNode[A,B](color0: Boolean, val key: A, value0: B, parent0: RBNode[A,B], left0: RBNode[A,B], right0: RBNode[A,B]) extends MetaHolder {
+  import RBNode._
 
-  def this(key0: A, value0: B, parent0: Node[A,B]) = this(true, key0, value0, parent0, null, null)
+  def this(key0: A, value0: B, parent0: RBNode[A,B]) = this(true, key0, value0, parent0, null, null)
 
   @volatile private var _color: Boolean = color0
   @volatile private var _value: B = value0
-  @volatile private var _parent: Node[A,B] = parent0
-  @volatile private var _left: Node[A,B] = left0
-  @volatile private var _right: Node[A,B] = right0
+  @volatile private var _parent: RBNode[A,B] = parent0
+  @volatile private var _left: RBNode[A,B] = left0
+  @volatile private var _right: RBNode[A,B] = right0
 
   def color(implicit txn: Txn): Boolean = colorRef.get
   def color_=(v: Boolean)(implicit txn: Txn) { colorRef.set(v) }
@@ -442,62 +442,62 @@ private class Node[A,B](color0: Boolean, val key: A, value0: B, parent0: Node[A,
     Some(prev)
   }
 
-  def parent(implicit txn: Txn): Node[A,B] = parentRef.get
-  def parent_=(v: Node[A,B])(implicit txn: Txn) { parentRef.set(v) }
+  def parent(implicit txn: Txn): RBNode[A,B] = parentRef.get
+  def parent_=(v: RBNode[A,B])(implicit txn: Txn) { parentRef.set(v) }
   def parentRef = Parent[A,B](this)
 
-  def left(implicit txn: Txn): Node[A,B] = leftRef.get
-  def left_=(v: Node[A,B])(implicit txn: Txn) { leftRef.set(v) }
+  def left(implicit txn: Txn): RBNode[A,B] = leftRef.get
+  def left_=(v: RBNode[A,B])(implicit txn: Txn) { leftRef.set(v) }
   def leftRef = Left[A,B](this)
 
-  def right(implicit txn: Txn): Node[A,B] = rightRef.get
-  def right_=(v: Node[A,B])(implicit txn: Txn) { rightRef.set(v) }
+  def right(implicit txn: Txn): RBNode[A,B] = rightRef.get
+  def right_=(v: RBNode[A,B])(implicit txn: Txn) { rightRef.set(v) }
   def rightRef = Right[A,B](this)
 }
 
-private object Node {
-  val Color = new TxnFieldUpdater[Node[_,_],Boolean](classOf[Node[_,_]], "color") {
-    protected def getField(instance: Node[_,_]): Boolean = instance._color
-    protected def setField(instance: Node[_,_], v: Boolean) { instance._color = v }
+private object RBNode {
+  val Color = new TxnFieldUpdater[RBNode[_,_],Boolean](classOf[RBNode[_,_]], "color") {
+    protected def getField(instance: RBNode[_,_]): Boolean = instance._color
+    protected def setField(instance: RBNode[_,_], v: Boolean) { instance._color = v }
   }
 
-//  def Value[B] = new TxnFieldUpdater[Node[_,B],B](classOf[Node[_,B]], "value") {
-//    protected def getField(instance: Node[_,B]): B = instance._value
-//    protected def setField(instance: Node[_,B], v: B) { instance._value = v }
+//  def Value[B] = new TxnFieldUpdater[RBNode[_,B],B](classOf[RBNode[_,B]], "value") {
+//    protected def getField(instance: RBNode[_,B]): B = instance._value
+//    protected def setField(instance: RBNode[_,B], v: B) { instance._value = v }
 //  }
-  private val UntypedValue = new TxnFieldUpdater[Node[_,Any],Any](classOf[Node[_,Any]], "value") {
-    protected def getField(instance: Node[_,Any]): Any = instance._value
-    protected def setField(instance: Node[_,Any], v: Any) { instance._value = v }
+  private val UntypedValue = new TxnFieldUpdater[RBNode[_,Any],Any](classOf[RBNode[_,Any]], "value") {
+    protected def getField(instance: RBNode[_,Any]): Any = instance._value
+    protected def setField(instance: RBNode[_,Any], v: Any) { instance._value = v }
   }
-  def Value[B] = UntypedValue.asInstanceOf[TxnFieldUpdater[Node[_,B],B]]
+  def Value[B] = UntypedValue.asInstanceOf[TxnFieldUpdater[RBNode[_,B],B]]
   
-//  def Parent[A,B] = new TxnFieldUpdater[Node[A,B],Node[A,B]](classOf[Node[A,B]], "parent") {
-//    protected def getField(instance: Node[A,B]): Node[A,B] = instance._parent
-//    protected def setField(instance: Node[A,B], v: Node[A,B]) { instance._parent = v }
+//  def Parent[A,B] = new TxnFieldUpdater[RBNode[A,B],RBNode[A,B]](classOf[RBNode[A,B]], "parent") {
+//    protected def getField(instance: RBNode[A,B]): RBNode[A,B] = instance._parent
+//    protected def setField(instance: RBNode[A,B], v: RBNode[A,B]) { instance._parent = v }
 //  }
-    private val UntypedParent = new TxnFieldUpdater[Node[Any,Any],Node[Any,Any]](classOf[Node[Any,Any]], "parent") {
-      protected def getField(instance: Node[Any,Any]): Node[Any,Any] = instance._parent
-      protected def setField(instance: Node[Any,Any], v: Node[Any,Any]) { instance._parent = v }
+    private val UntypedParent = new TxnFieldUpdater[RBNode[Any,Any],RBNode[Any,Any]](classOf[RBNode[Any,Any]], "parent") {
+      protected def getField(instance: RBNode[Any,Any]): RBNode[Any,Any] = instance._parent
+      protected def setField(instance: RBNode[Any,Any], v: RBNode[Any,Any]) { instance._parent = v }
     }
-    def Parent[A,B] = UntypedParent.asInstanceOf[TxnFieldUpdater[Node[A,B],Node[A,B]]]
+    def Parent[A,B] = UntypedParent.asInstanceOf[TxnFieldUpdater[RBNode[A,B],RBNode[A,B]]]
 
-//  def Left[A,B] = new TxnFieldUpdater[Node[A,B],Node[A,B]](classOf[Node[A,B]], "left") {
-//    protected def getField(instance: Node[A,B]): Node[A,B] = instance._left
-//    protected def setField(instance: Node[A,B], v: Node[A,B]) { instance._left = v }
+//  def Left[A,B] = new TxnFieldUpdater[RBNode[A,B],RBNode[A,B]](classOf[RBNode[A,B]], "left") {
+//    protected def getField(instance: RBNode[A,B]): RBNode[A,B] = instance._left
+//    protected def setField(instance: RBNode[A,B], v: RBNode[A,B]) { instance._left = v }
 //  }
-  private val UntypedLeft = new TxnFieldUpdater[Node[Any,Any],Node[Any,Any]](classOf[Node[Any,Any]], "left") {
-    protected def getField(instance: Node[Any,Any]): Node[Any,Any] = instance._left
-    protected def setField(instance: Node[Any,Any], v: Node[Any,Any]) { instance._left = v }
+  private val UntypedLeft = new TxnFieldUpdater[RBNode[Any,Any],RBNode[Any,Any]](classOf[RBNode[Any,Any]], "left") {
+    protected def getField(instance: RBNode[Any,Any]): RBNode[Any,Any] = instance._left
+    protected def setField(instance: RBNode[Any,Any], v: RBNode[Any,Any]) { instance._left = v }
   }
-  def Left[A,B] = UntypedLeft.asInstanceOf[TxnFieldUpdater[Node[A,B],Node[A,B]]]
+  def Left[A,B] = UntypedLeft.asInstanceOf[TxnFieldUpdater[RBNode[A,B],RBNode[A,B]]]
 
-//  def Right[A,B] = new TxnFieldUpdater[Node[A,B],Node[A,B]](classOf[Node[A,B]], "right") {
-//    protected def getField(instance: Node[A,B]): Node[A,B] = instance._right
-//    protected def setField(instance: Node[A,B], v: Node[A,B]) { instance._right = v }
+//  def Right[A,B] = new TxnFieldUpdater[RBNode[A,B],RBNode[A,B]](classOf[RBNode[A,B]], "right") {
+//    protected def getField(instance: RBNode[A,B]): RBNode[A,B] = instance._right
+//    protected def setField(instance: RBNode[A,B], v: RBNode[A,B]) { instance._right = v }
 //  }
-  private val UntypedRight = new TxnFieldUpdater[Node[Any,Any],Node[Any,Any]](classOf[Node[Any,Any]], "right") {
-    protected def getField(instance: Node[Any,Any]): Node[Any,Any] = instance._right
-    protected def setField(instance: Node[Any,Any], v: Node[Any,Any]) { instance._right = v }
+  private val UntypedRight = new TxnFieldUpdater[RBNode[Any,Any],RBNode[Any,Any]](classOf[RBNode[Any,Any]], "right") {
+    protected def getField(instance: RBNode[Any,Any]): RBNode[Any,Any] = instance._right
+    protected def setField(instance: RBNode[Any,Any], v: RBNode[Any,Any]) { instance._right = v }
   }
-  def Right[A,B] = UntypedRight.asInstanceOf[TxnFieldUpdater[Node[A,B],Node[A,B]]]
+  def Right[A,B] = UntypedRight.asInstanceOf[TxnFieldUpdater[RBNode[A,B],RBNode[A,B]]]
 }

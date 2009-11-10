@@ -2,7 +2,7 @@
 
 // PredicatedSetGC
 
-package edu.stanford.ppl.ccstm.collection.ji
+package edu.stanford.ppl.ccstm.experimental
 
 import java.util.concurrent.ConcurrentHashMap
 import java.util._
@@ -157,7 +157,7 @@ class PredicatedSetGC[A] {
   def bind(implicit txn: Txn): Bound[A] = new TxnBound(this, txn)
   val nonTxn: Bound[A] = new NonTxnBound(this)
 
-  private[ji] def getOrCreateToken(key: Any): Token = {
+  private[experimental] def getOrCreateToken(key: Any): Token = {
     while (true) {
       val pred = _predicates.get(key)
       if (null == pred) {
@@ -198,12 +198,12 @@ class PredicatedSetGC[A] {
 
   def add(key: Any)(implicit txn: Txn): Boolean = addImpl(getOrCreateToken(key))
 
-  private[ji] def addImpl(pred: Predicate)(implicit txn: Txn): Boolean = {
+  private[experimental] def addImpl(pred: Predicate)(implicit txn: Txn): Boolean = {
     val token = pred.weak.get
     addImpl(if (null != token) token else getOrCreateToken(pred.key))
   }
 
-  private[ji] def addImpl(token: Token)(implicit txn: Txn): Boolean = {
+  private[experimental] def addImpl(token: Token)(implicit txn: Txn): Boolean = {
     if (null != token.pred.get) {
       // already present
       false
@@ -217,12 +217,12 @@ class PredicatedSetGC[A] {
 
   def remove(key: Any)(implicit txn: Txn): Boolean = removeImpl(getOrCreateToken(key))
 
-  private[ji] def removeImpl(pred: Predicate)(implicit txn: Txn): Boolean = {
+  private[experimental] def removeImpl(pred: Predicate)(implicit txn: Txn): Boolean = {
     val token = pred.weak.get
     removeImpl(if (null != token) token else getOrCreateToken(pred.key))
   }
 
-  private[ji] def removeImpl(token: Token)(implicit txn: Txn): Boolean = {
+  private[experimental] def removeImpl(token: Token)(implicit txn: Txn): Boolean = {
     if (null == token.pred.get) {
       // already absent, make sure that we can't commit unless it stays that
       // way, by making sure that the token is alive until completion

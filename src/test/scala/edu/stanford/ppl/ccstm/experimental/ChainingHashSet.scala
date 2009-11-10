@@ -2,7 +2,7 @@
 
 // ChainingHashSet
 
-package edu.stanford.ppl.ccstm.collection.ji
+package edu.stanford.ppl.ccstm.experimental
 
 import edu.stanford.ppl.ccstm.collection.{TAnyRef, TArray}
 import edu.stanford.ppl.ccstm.{Ref, Txn}

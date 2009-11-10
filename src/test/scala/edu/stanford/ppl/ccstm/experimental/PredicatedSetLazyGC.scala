@@ -2,7 +2,7 @@
 
 // PredicatedSetLazyGC
 
-package edu.stanford.ppl.ccstm.collection.ji
+package edu.stanford.ppl.ccstm.experimental
 
 import java.util.concurrent.ConcurrentHashMap
 import java.util._
@@ -194,7 +194,7 @@ import collection.TAnyRef
 //  def bind(implicit txn: Txn): Bound[A] = new TxnBound(this, txn)
 //  val nonTxn: Bound[A] = new NonTxnBound(this)
 //
-//  private[ji] def getOrCreateToken(key: Any, inserting: Boolean): Token = {
+//  private[experimental] def getOrCreateToken(key: Any, inserting: Boolean): Token = {
 //    while (true) {
 //      val pred = _predicates.get(key)
 //      if (null == pred) {
@@ -235,12 +235,12 @@ import collection.TAnyRef
 //
 //  def add(key: Any)(implicit txn: Txn): Boolean = addImpl(getOrCreateToken(key, true))
 //
-//  private[ji] def addImpl(pred: Predicate)(implicit txn: Txn): Boolean = {
+//  private[experimental] def addImpl(pred: Predicate)(implicit txn: Txn): Boolean = {
 //    val token = pred.token(true)
 //    addImpl(if (null != token) token else getOrCreateToken(pred.key, true))
 //  }
 //
-//  private[ji] def addImpl(token: Token)(implicit txn: Txn): Boolean = {
+//  private[experimental] def addImpl(token: Token)(implicit txn: Txn): Boolean = {
 //    val pred = token.pred
 //    if (null != pred.get) {
 //      // already present
@@ -263,12 +263,12 @@ import collection.TAnyRef
 //
 //  def remove(key: Any)(implicit txn: Txn): Boolean = removeImpl(getOrCreateToken(key))
 //
-//  private[ji] def removeImpl(pred: Predicate)(implicit txn: Txn): Boolean = {
+//  private[experimental] def removeImpl(pred: Predicate)(implicit txn: Txn): Boolean = {
 //    val token = pred.weak.get
 //    removeImpl(if (null != token) token else getOrCreateToken(pred.key))
 //  }
 //
-//  private[ji] def removeImpl(token: Token)(implicit txn: Txn): Boolean = {
+//  private[experimental] def removeImpl(token: Token)(implicit txn: Txn): Boolean = {
 //    if (null == token.pred.get) {
 //      // already absent, make sure it stays that way
 //      txn.addReference(token)

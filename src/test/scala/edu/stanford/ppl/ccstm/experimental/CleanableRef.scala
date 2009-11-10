@@ -2,7 +2,7 @@
 
 // CleanableRef
 
-package edu.stanford.ppl.ccstm.collection.ji
+package edu.stanford.ppl.ccstm.experimental
 
 import java.lang.ref._
 

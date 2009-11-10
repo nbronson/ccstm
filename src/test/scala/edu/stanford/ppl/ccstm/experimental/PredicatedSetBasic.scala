@@ -2,7 +2,7 @@
 
 // PredicatedSetBasic
 
-package edu.stanford.ppl.ccstm.collection.ji
+package edu.stanford.ppl.ccstm.experimental
 
 import java.util.concurrent.ConcurrentHashMap
 import java.util._
