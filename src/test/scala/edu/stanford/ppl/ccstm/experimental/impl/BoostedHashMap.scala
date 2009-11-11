@@ -266,7 +266,7 @@ class BoostedHashMap[A,B](lockHolder: BoostedHashMap.LockHolder[A], enumLock: Re
       val lock = lockHolder.writeLock(key)
       lock.lock()
       val prev = (try {
-        if (null != enumLock && !underlying.contains(key)) {
+        if (null != enumLock && !underlying.containsKey(key)) {
           enumLock.readLock.lock()
           try {
             underlying.put(key, NullValue.encode(value))
@@ -287,7 +287,7 @@ class BoostedHashMap[A,B](lockHolder: BoostedHashMap.LockHolder[A], enumLock: Re
       lock.lock()
       val prev = (try {
         if (null != enumLock) {
-          if (!underlying.contains(key)) {
+          if (!underlying.containsKey(key)) {
             null
           } else {
             enumLock.readLock.lock()

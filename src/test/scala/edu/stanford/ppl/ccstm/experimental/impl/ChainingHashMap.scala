@@ -59,6 +59,10 @@ class ChainingHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TM
       STM.atomic(unbind.put(key, value)(_))
     }
 
+    override def removeKey(key: K): Option[V] = {
+      STM.atomic(unbind.removeKey(key)(_))
+    }
+
     protected def transformIfDefined(key: K,
                                      pfOrNull: PartialFunction[Option[V],Option[V]],
                                      f: Option[V] => Option[V]): Boolean = {
