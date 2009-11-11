@@ -11,6 +11,13 @@ private[impl] object NullValue {
     if (null eq v) this else v
   }
 
+  def encodeOption[B](vOpt: Option[B]): AnyRef = {
+    vOpt match {
+      case Some(v) => encode(v)
+      case None => null
+    }
+  }
+
   def decode[B](packed: AnyRef): B = {
     (if (packed eq this) null else packed).asInstanceOf[B]
   }

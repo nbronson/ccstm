@@ -16,7 +16,13 @@ object TMap {
     def isEmpty(implicit txn: Txn): Boolean
     def size(implicit txn: Txn): Int
 
-    def apply(key: A)(implicit txn: Txn): B
+    def apply(key: A)(implicit txn: Txn): B = {
+      get(key) match {
+        case Some(v) => v
+        case None => default(key)
+      }
+    }
+
     def get(key: A)(implicit txn: Txn): Option[B]
 
     def default(key: A): B = {
@@ -59,6 +65,25 @@ object TMap {
     def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]]): Boolean
   }
 
+  private[experimental] abstract class AbstractNonTxnBound[A,B,M <: TMap[A,B]](val unbind: M) extends Bound[A,B] {
+    def context = None
+
+    override def isEmpty: Boolean = !elements.hasNext
+    def size: Int = {
+      var n = 0
+      elements.foreach(e => n += 1)
+      n
+    }
+
+    def update(key: A, value: B) { put(key, value) }
+    def -= (key: A) { removeKey(key) }
+
+    def transform(key: A, f: Option[B] => Option[B]) { transformIfDefined(key, null, f) }
+    def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]]): Boolean = transformIfDefined(key, pf, pf)
+
+    protected def transformIfDefined(key: A, pfOrNull: PartialFunction[Option[B],Option[B]], f: Option[B] => Option[B]): Boolean
+  }
+
   private[experimental] abstract class AbstractTxnBound[A,B,M <: TMap[A,B]](val txn: Txn, val unbind: M) extends Bound[A,B] {
     def context = Some(txn)
 
@@ -73,6 +98,13 @@ object TMap {
 
     override def removeKey(key: A): Option[B] = unbind.removeKey(key)(txn)
     def -=(key: A) { unbind.-=(key)(txn) }
+
+    def transform(key: A, f: (Option[B]) => Option[B]) {
+      unbind.transform(key, f)(txn)
+    }
+    def transformIfDefined(key: A, pf: PartialFunction[Option[B], Option[B]]): Boolean = {
+      unbind.transformIfDefined(key, pf)(txn)
+    }
   }
 }
 
@@ -85,4 +117,21 @@ trait TMap[A,B] extends TMap.Source[A,B] with TMap.Sink[A,B] {
 
   def put(key: A, value: B)(implicit txn: Txn): Option[B]
   def removeKey(key: A)(implicit txn: Txn): Option[B]
+
+  def transform(key: A, f: Option[B] => Option[B])(implicit txn: Txn) {
+    transformIfDefined(key, null, f)
+  }
+
+  def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]])(implicit txn: Txn): Boolean = {
+    transformIfDefined(key, pf, pf)
+  }
+
+  protected def transformIfDefined(key: A,
+                                   pfOrNull: PartialFunction[Option[B],Option[B]],
+                                   f: Option[B] => Option[B])(implicit txn: Txn): Boolean
+
+  //////////////// default implementations
+
+  def update(key: A, value: B)(implicit txn: Txn) { put(key, value) }
+  def -= (key: A)(implicit txn: Txn) { removeKey(key) }
 }
