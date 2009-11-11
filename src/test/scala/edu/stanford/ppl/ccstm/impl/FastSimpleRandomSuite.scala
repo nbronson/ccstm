@@ -1,21 +1,22 @@
 /* CCSTM - (c) 2009 Stanford University - PPL */
 
-// FastPoorRandomSuite
+// FastSimpleRandomSuite
 
 package edu.stanford.ppl.ccstm.impl
 
 
 import org.scalatest.FunSuite
+import edu.stanford.ppl.ExhaustiveTest
 
-class FastPoorRandomSuite extends FunSuite {
+class FastSimpleRandomSuite extends FunSuite {
 
-  test("FastPoorRandom should return a value") {
-    val rand = FastPoorRandom
+  test("FastSimpleRandom should return a value") {
+    val rand = FastSimpleRandom
     rand.nextInt
   }
 
-  test("FastPoorRandom should eventually get reasonable coverage") {
-    val rand = FastPoorRandom
+  test("FastSimpleRandom should eventually get reasonable coverage") {
+    val rand = FastSimpleRandom
     val bigEndBuckets = new Array[Boolean](64)
     var bigEndEmpty = 64
     val smallEndBuckets = new Array[Boolean](64)
@@ -43,8 +44,8 @@ class FastPoorRandomSuite extends FunSuite {
     }
   }
 
-  test("FastPoorRandom should be fast", ExhaustiveTest) {
-    val rand = FastPoorRandom
+  test("FastSimpleRandom should be fast", ExhaustiveTest) {
+    val rand = FastSimpleRandom
     var best = Math.MAX_LONG
     for (pass <- 0 until 1000) {
       val begin = System.nanoTime

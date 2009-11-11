@@ -14,7 +14,7 @@ object ThreadContext extends ThreadLocal[ThreadContext] {
  *  transactions that execute on the same thread.
  */
 class ThreadContext {
-  val rand = new FastPoorRandom
+  val rand = new FastSimpleRandom
 
   private var _callbacks: Callbacks = null
   private var _readSet: ReadSet = null

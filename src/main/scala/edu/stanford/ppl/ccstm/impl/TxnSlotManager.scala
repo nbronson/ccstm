@@ -22,7 +22,7 @@ private[impl] class TxnSlotManager[T <: AnyRef](range: Int, reservedSlots: Int) 
   private def nextSlot(tries: Int) = {
     var s = 0
     do {
-      s = ((FastPoorRandom.nextInt << 4) | ((-tries >> 1) & 0xf)) & (range - 1)
+      s = ((FastSimpleRandom.nextInt << 4) | ((-tries >> 1) & 0xf)) & (range - 1)
     } while (s < reservedSlots)
     s
   }

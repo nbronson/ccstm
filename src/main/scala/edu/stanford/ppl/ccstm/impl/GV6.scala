@@ -34,7 +34,7 @@ private[impl] trait GV6 {
     ((1 << 31) + ((1L << 32) / silentCommitRatio) - 1).asInstanceOf[Int]
   }
 
-  private val silentCommitRand = FastPoorRandom
+  private val silentCommitRand = FastSimpleRandom
 
   /** The maximum value of <code>nonTxnWriteVersion - globalVersion</code> that
    *  will be allowed before a non-transactional store attempts to increase

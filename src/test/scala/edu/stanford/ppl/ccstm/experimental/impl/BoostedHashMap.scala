@@ -34,33 +34,32 @@ import java.util.concurrent.locks._
  */
 class BoostedHashMap_Basic[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.BasicLockHolder[A], null)
 
+/** Adds an abstract lock to coordinate transactional enumeration to
+ *  <code>BoostedHashMap_Basic</code>.  The best implementation of this lock
+ *  would use a multi-mode lock where enumeration was mode S and size change IX
+ *  (see Y. Ni, V. Menon, A. Adl-Tabatabai, A. Hosking, R. Hudson, J. Moss, B.
+ *  Saha, and T. Shpeisman, <em>Open Nesting in Software Transactional
+ *  Memory</em>, PPoPP 2007).  Since we don't have a multi-mode lock handy, we
+ *  use a ReentrantReadWriteLock in read mode during membership changes and in
+ *  write mode during enumeration.  This yields no concurrency during
+ *  enumeration, so be careful not to benchmark that.
+ */
+class BoostedHashMap_Enum[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.BasicLockHolder[A], new ReentrantReadWriteLock)
+
 /** Adds garbage collection of unused abstract locks to
  *  <code>BoostedHashMap_Basic</code>.  Uses weak references.
  */
 class BoostedHashMap_GC[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.GCLockHolder[A], null)
 
 /** Uses read/write locks to guard access to keys, rather than the mutexes of
- *  <code>BoostedHashMap_GC</code>.  This potentially allows greater concurrency
- *  during reads, but may have higher overheads.
+ *  <code>BoostedHashMap_Basic</code>.  This potentially allows greater
+ *  concurrency during reads, but may have higher overheads.
  */
+class BoostedHashMap_RW[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.RWLockHolder[A], null)
+
+class BoostedHashMap_Enum_RW[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.RWLockHolder[A], new ReentrantReadWriteLock)
 class BoostedHashMap_GC_RW[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.GCRWLockHolder[A], null)
-
-/** Adds an abstract lock to coordinate transactional enumeration to
- *  <code>BoostedHashMap_GC</code>.  The best implementation of this lock would use
- *  a multi-mode lock where enumeration was mode S and size change IX (see
- *  Y. Ni, V. Menon, A. Adl-Tabatabai, A. Hosking, R. Hudson, J. Moss, B. Saha,
- *  and T. Shpeisman, <em>Open Nesting in Software Transactional Memory</em>,
- *  PPoPP 2007).  Since we don't have a multi-mode lock handy, we use a
- *  ReentrantReadWriteLock in read mode during membership changes and in write
- *  mode during enumeration.  This yields no concurrency during enumeration, so
- *  be careful not to benchmark that.
- */
 class BoostedHashMap_GC_Enum[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.GCLockHolder[A], new ReentrantReadWriteLock)
-
-/** Uses read/write locks to guard access to keys, rather than the mutexes of
- *  <code>BoostedHashMap_Enum</code>.  This potentially allows greater concurrency
- *  during reads, but may have higher overheads.
- */
 class BoostedHashMap_GC_Enum_RW[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.GCRWLockHolder[A], new ReentrantReadWriteLock)
 
 object BoostedHashMap {
@@ -146,8 +145,16 @@ object BoostedHashMap {
     def writeLock(key: A) = this(key)
   }
 
+  /** A read/write lock per key, without garbage collection. */
+  class RWLockHolder[A] extends OnDemandMap[A,ReadWriteLock] with LockHolder[A] {
+    def newValue = new ReentrantReadWriteLock
+
+    def readLock(key: A) = this(key).readLock
+    def writeLock(key: A) = this(key).writeLock
+  }
+
   /** A single mutex for reads and writes, with garbage collection. */
-  class GCLockHolder[A] extends OnDemandMap[A,Lock] with LockHolder[A] {
+  class GCLockHolder[A] extends WeakOnDemandMap[A,Lock] with LockHolder[A] {
     def newValue = new ReentrantLock
 
     def readLock(key: A) = this(key)
@@ -155,7 +162,7 @@ object BoostedHashMap {
   }
 
   /** A read/write lock per key, with garbage collection. */
-  class GCRWLockHolder[A] extends OnDemandMap[A,ReadWriteLock] with LockHolder[A] {
+  class GCRWLockHolder[A] extends WeakOnDemandMap[A,ReadWriteLock] with LockHolder[A] {
     def newValue = new ReentrantReadWriteLock
 
     def readLock(key: A) = this(key).readLock

@@ -10,80 +10,36 @@ import java.util.concurrent.ConcurrentHashMap
 import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm.{STM, Txn}
 
-// TODO: switch to encoded value instead of TOptionRef, and use CASI instead of CAS
 
 class PredicatedHashMap_Basic[A,B] extends TMap[A,B] {
-  private val sizeRef = new LazyConflictIntRef(0)
   private val predicates = new ConcurrentHashMap[A,TOptionRef[B]]
 
   def nonTxn: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_Basic[A,B]](this) {
-
-    override def size(): Int = {
-      sizeRef.nonTxn.get
-    }
 
     def get(key: A): Option[B] = {
       pred(key).nonTxn.get
     }
 
     override def put(key: A, value: B): Option[B] = {
-      val p = pred(key)
-      val pn = p.nonTxn
-      val before = pn.get
-      if (!before.isEmpty) {
-        // try to update (no size change)
-        if (pn.compareAndSet(before, Some(value))) {
-          // success
-          return before
-        }
-        // failure goes to the transform2 implementation
-      }
-      return STM.transform2(p, sizeRef, (vo: Option[B], s: Int) => {
-        (Some(value), (if (vo.isEmpty) s + 1 else s), vo)
-      })
+      pred(key).nonTxn.getAndSet(Some(value))
     }
 
     override def removeKey(key: A): Option[B] = {
-      val p = pred(key)
-      val before = p.nonTxn.get
-      if (before.isEmpty) {
-        // let's linearize right here!
-        return None
-      }
-      return STM.transform2(p, unbind.sizeRef, (vo: Option[B], s: Int) => {
-        (None, (if (vo.isEmpty) s else s - 1), vo)
-      })
+      pred(key).nonTxn.getAndSet(None)
+    }
+
+    override def transform(key: A, f: (Option[B]) => Option[B]) {
+      pred(key).nonTxn.transform(f)
+    }
+
+    override def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]]): Boolean = {
+      pred(key).nonTxn.transformIfDefined(pf)
     }
 
     protected def transformIfDefined(key: A,
                                      pfOrNull: PartialFunction[Option[B],Option[B]],
                                      f: Option[B] => Option[B]): Boolean = {
-      val p = pred(key)
-      val pn = p.nonTxn
-      val before = pn.get
-      if (null != pfOrNull && !pfOrNull.isDefinedAt(before)) {
-        // no change
-        return false
-      }
-      // make a CAS attempt
-      val after = f(before)
-      if (!before.isEmpty) {
-        if (!after.isEmpty && pn.compareAndSet(before, after)) {
-          // CAS success, and no size change
-          return true
-        }
-        // failure goes to the transform2 implementation
-      }
-      return STM.transform2(p, sizeRef, (vo: Option[B], s: Int) => {
-        if (null != pfOrNull && (vo ne before) && !pfOrNull.isDefinedAt(vo)) {
-          // do nothing and return false
-          (vo, s, false)
-        } else {
-          // can we use the precomputed after?
-          val a = if (vo eq before) after else f(vo)
-          (a, s + (if (a.isEmpty) 0 else 1) - (if (vo.isEmpty) 0 else 1), true)
-        }
-      })
+      throw new Error
     }
 
     def elements: Iterator[(A,B)] = new Iterator[(A,B)] {
@@ -115,80 +71,38 @@ class PredicatedHashMap_Basic[A,B] extends TMap[A,B] {
   }
 
   def bind(implicit txn0: Txn): Bound[A, B] = new TMap.AbstractTxnBound[A,B,PredicatedHashMap_Basic[A,B]](txn0, this) {
-    def elements: Iterator[(A,B)] = new Iterator[(A,B)] {
-      private var apparentSize = 0
-      private val iter = predicates.entrySet().iterator
-      private var avail: (A,B) = null
-
-      advance()
-      if (txn.barging) {
-        // auto-readForWrite will prevent the size from changing in another txn
-        size
-      }
-
-      private def advance() {
-        while (iter.hasNext) {
-          val e = iter.next()
-          e.getValue.get match {
-            case Some(v) => {
-              apparentSize += 1
-              avail = (e.getKey, v)
-              return
-            }
-            case None => // keep looking
-          }
-        }
-
-        // end of iteration
-        if (apparentSize != size) {
-          txn.forceRollback(Txn.InvalidReadCause(unbind, "PredicatedHashMap_Basic.Iterator missed elements"))
-        }
-        avail = null
-      }
-
-      def hasNext: Boolean = null != avail
-
-      def next(): (A,B) = {
-        val z = avail
-        advance()
-        z
-      }
-    }
+    def elements: Iterator[(A,B)] = throw new UnsupportedOperationException
   }
 
-  def isEmpty(implicit txn: Txn): Boolean = sizeRef > 0
+  def isEmpty(implicit txn: Txn): Boolean = throw new UnsupportedOperationException
 
-  def size(implicit txn: Txn): Int = sizeRef.get
+  def size(implicit txn: Txn): Int = throw new UnsupportedOperationException
 
   def get(key: A)(implicit txn: Txn): Option[B] = {
     pred(key).get
   }
 
   def put(key: A, value: B)(implicit txn: Txn): Option[B] = {
-    val prev = pred(key).getAndSet(Some(value))
-    if (prev.isEmpty) sizeRef += 1
-    prev
+    pred(key).getAndSet(Some(value))
   }
 
   def removeKey(key: A)(implicit txn: Txn): Option[B] = {
-    val prev = pred(key).getAndSet(None)
-    if (!prev.isEmpty) sizeRef -= 1
-    prev
+    pred(key).getAndSet(None)
+  }
+
+
+  override def transform(key: A, f: (Option[B]) => Option[B])(implicit txn: Txn) {
+    pred(key).transform(f)
+  }
+
+  override def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]])(implicit txn: Txn): Boolean = {
+    pred(key).transformIfDefined(pf)
   }
 
   protected def transformIfDefined(key: A,
                                    pfOrNull: PartialFunction[Option[B],Option[B]],
                                    f: Option[B] => Option[B])(implicit txn: Txn): Boolean = {
-    val p = pred(key)
-    val prev = p.get
-    if (null != pfOrNull && !pfOrNull.isDefinedAt(prev)) {
-      false
-    } else {
-      val after = f(prev)
-      p.set(after)
-      sizeRef += (if (after.isEmpty) 0 else 1) - (if (prev.isEmpty) 0 else 1)
-      true
-    }
+    throw new Error
   }
 
   private def pred(key: A): TOptionRef[B] = {

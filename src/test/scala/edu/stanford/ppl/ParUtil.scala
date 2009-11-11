@@ -4,6 +4,8 @@
 
 package edu.stanford.ppl
 
+import java.util.concurrent.CyclicBarrier
+
 
 object ParUtil {
   case class Precursor(from: Int) {
@@ -35,4 +37,23 @@ object ParUtil {
       block
     }
   }
+
+  /** Returns the elapsed milliseconds. */
+  def timeParallel(numThreads: Int)(block: Int => Unit): Long = {
+    var t0 = 0L
+    var t1 = 0L
+    val barrier = new CyclicBarrier(numThreads, new Runnable {
+      def run() {
+        t0 = t1
+        t1 = System.currentTimeMillis
+      }
+    })
+    for (i <- 0 par_until numThreads) {
+      barrier.await
+      block(i)
+      barrier.await
+    }
+    t1 - t0
+  }
+
 }
