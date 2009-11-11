@@ -10,6 +10,8 @@ import java.util.concurrent.ConcurrentHashMap
 import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm.{STM, Txn}
 
+// TODO: switch to encoded value instead of TOptionRef, and use CASI instead of CAS
+
 class PredicatedHashMap_Basic[A,B] extends TMap[A,B] {
   private val sizeRef = new LazyConflictIntRef(0)
   private val predicates = new ConcurrentHashMap[A,TOptionRef[B]]

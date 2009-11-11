@@ -43,18 +43,19 @@ class TOptionRef[T](initialValue: Option[T]) extends Ref[Option[T]] with impl.Ha
   private[ccstm] def data_=(v: Option[T]) { _packed = pack(v) }
 
   private def unpack(v: AnyRef): Option[T] = {
-    v match {
-      case null => None
-      case TOptionRef => Some(null.asInstanceOf[T])
-      case _ => Some(v.asInstanceOf[T])
+    if (v eq null) {
+      None
+    } else {
+      Some((if (v eq TOptionRef) null else v).asInstanceOf[T])
     }
   }
 
   private def pack(o: Option[T]): AnyRef = {
-    o match {
-      case null => throw new NullPointerException("TOptionRef does not allow null Option references")
-      case None => null
-      case Some(v) => if (null == v) TOptionRef else v.asInstanceOf[AnyRef]
+    if (o.isEmpty) {
+      null
+    } else {
+      val v = o.get.asInstanceOf[AnyRef]
+      if (null == v) TOptionRef else v
     }
   }
 }

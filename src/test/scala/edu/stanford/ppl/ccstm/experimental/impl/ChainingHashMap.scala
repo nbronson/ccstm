@@ -52,7 +52,19 @@ class ChainingHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TM
     override def size: Int = sizeRef.nonTxn.get
 
     def get(key: K): Option[V] = {
-      STM.atomic(unbind.get(key)(_))
+      // attempt an ad-hoc txn first
+      val h = hash(key)
+      val unrecorded = bucketsRef.nonTxn.unrecordedRead
+      val buckets = unrecorded.value
+      val head = buckets.nonTxn(h & (buckets.length - 1))
+      if (unrecorded.stillValid) {
+        // coherent read of bucketsRef and buckets(i)
+        val bucket = if (null == head) null else head.find(h, key)
+        if (null == bucket) None else Some(bucket.value)
+      } else {
+        // fall back to a txn
+        STM.atomic(unbind.get(key)(_))
+      }
     }
 
     override def put(key: K, value: V): Option[V] = {
