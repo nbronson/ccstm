@@ -35,7 +35,7 @@ class PhoneBook(n: Int, mapName: String) {
       var i = index
       while (i < numLinks) {
         val r = rands(i & (NumRands - 1))
-        imap.put(i, (names(r.nextInt(n)), numbers(r.nextInt(n))))
+        imap.put(r.nextInt(), (names(r.nextInt(n)), numbers(r.nextInt(n))))
         i += numThreads
       }
     })
