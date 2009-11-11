@@ -8,31 +8,6 @@ import edu.stanford.ppl.ccstm._
 
 
 object LazyConflictIntRef {
-
-  trait Bound extends Ref.Bound[Int] with Ordered[Int] {
-    def += (delta: Int) { transform(_ + delta) }
-    def -= (delta: Int) { this += (-delta) }
-
-    def compare(rhs: Int): Int = (get compare rhs)
-
-    override def < (rhs: Int): Boolean = (get < rhs)
-    override def > (rhs: Int): Boolean = (get > rhs)
-    override def <= (rhs: Int): Boolean = !(this > rhs)
-    override def >= (rhs: Int): Boolean = !(this < rhs)
-
-    /** Equivalent to <code>map(_ == ths)</code>, but more concise and more
-     *  efficient.  The pneumonic is that you can replace
-     *  <code>(!ref == rhs)</code> with <code>(ref ==! rhs)</code.
-     */
-    def ==! (rhs: Int): Boolean = (get == rhs)
-
-    /** Equivalent to <code>map(_ != ths)</code>, but more concise and more
-     *  efficient.  The pneumonic is that you can replace
-     *  <code>(!ref != rhs)</code> with <code>(ref !=! rhs)</code.
-     */
-    def !=! (rhs: Int): Boolean = !(this ==! rhs)
-  }
-
   
   private abstract class HistoryNode extends PartialFunction[Int,Int] {
     var next: HistoryNode = null
@@ -72,7 +47,7 @@ object LazyConflictIntRef {
   private class Transform(f: Int => Int)       extends Update { def apply(v: Int) = f(v) }
 
 
-  class TxnBound(txn: Txn, val unbind: LazyConflictIntRef) extends Bound with Txn.ReadResource {
+  class TxnBound(txn: Txn, val unbind: LazyConflictIntRef) extends IntCounter.Bound with Txn.ReadResource {
     private val _ubound = unbind.underlying.bind(txn)
     private var _read: UnrecordedRead[Int] = _ubound.unrecordedRead
     private var _value: Int = _read.value
@@ -292,7 +267,7 @@ object LazyConflictIntRef {
   }
 }
 
-class LazyConflictIntRef(initialValue: Int) extends Ref[Int] {
+class LazyConflictIntRef(initialValue: Int) extends IntCounter {
 
   private val underlying = new TIntRef(initialValue)
 
@@ -316,24 +291,11 @@ class LazyConflictIntRef(initialValue: Int) extends Ref[Int] {
     bind.transformIfDefined(pf)
   }
 
-  override def bind(implicit txn: Txn): LazyConflictIntRef.Bound = bound.get
+  override def bind(implicit txn: Txn): IntCounter.Bound = bound.get
 
-  override def nonTxn: LazyConflictIntRef.Bound = {
-    new impl.NonTxnBound(this, nonTxnHandle) with LazyConflictIntRef.Bound {}
+  override def nonTxn: IntCounter.Bound = {
+    new impl.NonTxnBound(this, nonTxnHandle) with IntCounter.Bound {}
   }
-
-  //////////////// convenience functions for ints
-
-  def += (delta: Int)(implicit txn: Txn) { bind += delta }
-  def -= (delta: Int)(implicit txn: Txn) { bind -= delta }
-
-  def compare(rhs: Int)(implicit txn: Txn): Int = { bind.compare(rhs) }
-  def <  (rhs: Int)(implicit txn: Txn): Boolean = { bind < rhs }
-  def >  (rhs: Int)(implicit txn: Txn): Boolean = { bind > rhs }
-  def <= (rhs: Int)(implicit txn: Txn): Boolean = { bind <= rhs }
-  def >= (rhs: Int)(implicit txn: Txn): Boolean = { bind >= rhs }
-  def ==! (rhs: Int)(implicit txn: Txn): Boolean = { bind ==! rhs }
-  def !=! (rhs: Int)(implicit txn: Txn): Boolean = { bind !=! rhs }
 
   //////////////// equality stuff in Ref uses handles, must be overriden:
 
