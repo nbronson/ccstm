@@ -9,8 +9,6 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater
 
 
 private object TOptionRef {
-  val SOME_NULL = new AnyRef
-
   val metaUpdater = (new TOptionRef(None)).newMetaUpdater
 }
 
@@ -47,7 +45,7 @@ class TOptionRef[T](initialValue: Option[T]) extends Ref[Option[T]] with impl.Ha
   private def unpack(v: AnyRef): Option[T] = {
     v match {
       case null => None
-      case SOME_NULL => Some(null.asInstanceOf[T])
+      case TOptionRef => Some(null.asInstanceOf[T])
       case _ => Some(v.asInstanceOf[T])
     }
   }
@@ -56,7 +54,7 @@ class TOptionRef[T](initialValue: Option[T]) extends Ref[Option[T]] with impl.Ha
     o match {
       case null => throw new NullPointerException("TOptionRef does not allow null Option references")
       case None => null
-      case Some(v) => if (null == v) SOME_NULL else v.asInstanceOf[AnyRef]
+      case Some(v) => if (null == v) TOptionRef else v.asInstanceOf[AnyRef]
     }
   }
 }
