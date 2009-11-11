@@ -1,6 +1,6 @@
 /* CCSTM - (c) 2009 Stanford University - PPL */
 
-// BoostedMap
+// BoostedHashMap
 
 package edu.stanford.ppl.ccstm.experimental.impl
 
@@ -27,26 +27,26 @@ import java.util.concurrent.locks._
  *
  *  @author Nathan Bronson
  *
- *  @see edu.stanford.ppl.ccstm.experimental.impl.BoostedMap_GC
- *  @see edu.stanford.ppl.ccstm.experimental.impl.BoostedMap_GC_RW
- *  @see edu.stanford.ppl.ccstm.experimental.impl.BoostedMap_GC_Enum
- *  @see edu.stanford.ppl.ccstm.experimental.impl.BoostedMap_GC_Enum_RW
+ *  @see edu.stanford.ppl.ccstm.experimental.impl.BoostedHashMap_GC
+ *  @see edu.stanford.ppl.ccstm.experimental.impl.BoostedHashMap_GC_RW
+ *  @see edu.stanford.ppl.ccstm.experimental.impl.BoostedHashMap_GC_Enum
+ *  @see edu.stanford.ppl.ccstm.experimental.impl.BoostedHashMap_GC_Enum_RW
  */
-class BoostedMap_Basic[A,B] extends BoostedMap[A,B](new BoostedMap.BasicLockHolder[A], null)
+class BoostedHashMap_Basic[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.BasicLockHolder[A], null)
 
 /** Adds garbage collection of unused abstract locks to
- *  <code>BoostedMap_Basic</code>.  Uses weak references.
+ *  <code>BoostedHashMap_Basic</code>.  Uses weak references.
  */
-class BoostedMap_GC[A,B] extends BoostedMap[A,B](new BoostedMap.GCLockHolder[A], null)
+class BoostedHashMap_GC[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.GCLockHolder[A], null)
 
 /** Uses read/write locks to guard access to keys, rather than the mutexes of
- *  <code>BoostedMap_GC</code>.  This potentially allows greater concurrency
+ *  <code>BoostedHashMap_GC</code>.  This potentially allows greater concurrency
  *  during reads, but may have higher overheads.
  */
-class BoostedMap_GC_RW[A,B] extends BoostedMap[A,B](new BoostedMap.GCRWLockHolder[A], null)
+class BoostedHashMap_GC_RW[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.GCRWLockHolder[A], null)
 
 /** Adds an abstract lock to coordinate transactional enumeration to
- *  <code>BoostedMap_GC</code>.  The best implementation of this lock would use
+ *  <code>BoostedHashMap_GC</code>.  The best implementation of this lock would use
  *  a multi-mode lock where enumeration was mode S and size change IX (see
  *  Y. Ni, V. Menon, A. Adl-Tabatabai, A. Hosking, R. Hudson, J. Moss, B. Saha,
  *  and T. Shpeisman, <em>Open Nesting in Software Transactional Memory</em>,
@@ -55,15 +55,15 @@ class BoostedMap_GC_RW[A,B] extends BoostedMap[A,B](new BoostedMap.GCRWLockHolde
  *  mode during enumeration.  This yields no concurrency during enumeration, so
  *  be careful not to benchmark that.
  */
-class BoostedMap_GC_Enum[A,B] extends BoostedMap[A,B](new BoostedMap.GCLockHolder[A], new ReentrantReadWriteLock)
+class BoostedHashMap_GC_Enum[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.GCLockHolder[A], new ReentrantReadWriteLock)
 
 /** Uses read/write locks to guard access to keys, rather than the mutexes of
- *  <code>BoostedMap_Enum</code>.  This potentially allows greater concurrency
+ *  <code>BoostedHashMap_Enum</code>.  This potentially allows greater concurrency
  *  during reads, but may have higher overheads.
  */
-class BoostedMap_GC_Enum_RW[A,B] extends BoostedMap[A,B](new BoostedMap.GCRWLockHolder[A], new ReentrantReadWriteLock)
+class BoostedHashMap_GC_Enum_RW[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.GCRWLockHolder[A], new ReentrantReadWriteLock)
 
-object BoostedMap {
+object BoostedHashMap {
 
   val LockTimeoutMillis = 10
   val UndoAndUnlockPriority = -10
@@ -242,15 +242,15 @@ object BoostedMap {
   }
 }
 
-class BoostedMap[A,B](lockHolder: BoostedMap.LockHolder[A], enumLock: ReadWriteLock) extends TMap[A, B] {
-  import BoostedMap._
+class BoostedHashMap[A,B](lockHolder: BoostedHashMap.LockHolder[A], enumLock: ReadWriteLock) extends TMap[A, B] {
+  import BoostedHashMap._
 
   private val underlying = new java.util.concurrent.ConcurrentHashMap[A,AnyRef]
   private val booster = new MapBooster[A](lockHolder,
                                           if (null == enumLock) null else enumLock.writeLock,
                                           if (null == enumLock) null else enumLock.readLock)
 
-  val nonTxn: TMap.Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,BoostedMap[A,B]](BoostedMap.this) {
+  val nonTxn: TMap.Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,BoostedHashMap[A,B]](BoostedHashMap.this) {
 
     def get(key: A): Option[B] = {
       val lock = lockHolder.readLock(key)
@@ -386,7 +386,7 @@ class BoostedMap[A,B](lockHolder: BoostedMap.LockHolder[A], enumLock: ReadWriteL
     }
   }
 
-  def bind(implicit txn0: Txn): TMap.Bound[A,B] = new TMap.AbstractTxnBound[A,B,BoostedMap[A,B]](txn0, BoostedMap.this) {
+  def bind(implicit txn0: Txn): TMap.Bound[A,B] = new TMap.AbstractTxnBound[A,B,BoostedHashMap[A,B]](txn0, BoostedHashMap.this) {
     def elements: Iterator[(A,B)] = {
       return new Iterator[(A,B)] {
         val iter = underlying.keySet().iterator
