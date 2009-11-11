@@ -4,6 +4,9 @@
 
 package edu.stanford.ppl.ccstm.experimental.bench
 
+import reflect.Manifest
+import edu.stanford.ppl.ccstm.experimental.TMap
+import edu.stanford.ppl.ccstm.experimental.impl._
 
 /** An <code>IndexedMap</code> is a map from keys of type <i>K</i> to values of
  *  type <i>V</i> that additionally maintains zero or more indices.  These
@@ -44,5 +47,27 @@ trait IndexedMap[K,V] extends scala.collection.mutable.Map[K,V] {
    *  This method may not be called after any values have been inserted into
    *  the indexed map.
    */
-  def addIndex[C](f: V => Option[C]): scala.collection.Map[C,scala.collection.immutable.Set[(K,V)]]
+  def addIndex[C](f: V => Option[C])(implicit cm: Manifest[C]): scala.collection.Map[C,scala.collection.immutable.Set[(K,V)]]
+}
+
+object IndexedMap {
+  def createByName[K,V](name: String)(implicit km: Manifest[K], vm: Manifest[V]): IndexedMap[K,V] = {
+    if (name == "l_h") {
+      new CoarseLockIndexedMap[K,V]
+    } else {
+      new STMIndexedMap[K,V](new STMIndexedMap.TMapFactory {
+        def newInstance[A, B](implicit am: Manifest[A], bm: Manifest[B]): TMap[A,B] = {
+          name match {
+            case "b_h_basic" => new BoostedHashMap_Basic[A,B]
+            case "b_h_gc" => new BoostedHashMap_GC[A,B]
+            case "b_h_gc_rw" => new BoostedHashMap_GC_RW[A,B]
+            case "b_h_gc_enum" => new BoostedHashMap_GC_Enum[A,B]
+            case "b_h_gc_enum_rw" => new BoostedHashMap_GC_Enum_RW[A,B]
+            case "p_h_basic" => new PredicatedHashMap_Basic[A,B]
+            case "t_h" => new ChainingHashMap[A,B]
+          }
+        }
+      })
+    }
+  }
 }

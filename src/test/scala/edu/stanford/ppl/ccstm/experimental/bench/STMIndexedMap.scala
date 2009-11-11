@@ -6,16 +6,22 @@ package edu.stanford.ppl.ccstm.experimental.bench
 
 import edu.stanford.ppl.ccstm.experimental.TMap
 import edu.stanford.ppl.ccstm.{Txn, STM}
+import reflect.Manifest
 
-private object STMIndexedMap {
-  val ImmSet = scala.collection.immutable.Set
-  type ImmSet[A] = scala.collection.immutable.Set[A]
-  type ROMap[A,B] = scala.collection.Map[A,B]
-  type MutMap[A,B] = scala.collection.mutable.Map[A,B]
+object STMIndexedMap {
+
+  trait TMapFactory {
+    def newInstance[A,B](implicit am: Manifest[A], bm: Manifest[B]): TMap[A,B]
+  }
 
   
-  class Index[K,V,C](lock: AnyRef, val func: V => Option[C], mapClass: Class[TMap[_,_]]) extends ROMap[C,ImmSet[(K,V)]] {
-    private val data = mapClass.newInstance().asInstanceOf[TMap[C,ImmSet[(K,V)]]]
+  private val ImmSet = scala.collection.immutable.Set
+  private type ImmSet[A] = scala.collection.immutable.Set[A]
+  private type ROMap[A,B] = scala.collection.Map[A,B]
+  private type MutMap[A,B] = scala.collection.mutable.Map[A,B]
+
+  private class Index[K,V,C](lock: AnyRef, val func: V => Option[C], fact: TMapFactory)(implicit cm: Manifest[C], kvm: Manifest[ImmSet[(K,V)]]) extends ROMap[C,ImmSet[(K,V)]] {
+    private val data = fact.newInstance(cm, kvm)
 
     //////////// index maintenance
 
@@ -67,10 +73,10 @@ private object STMIndexedMap {
 /** A simple implementation of <code>IndexedMap</code> that uses a single lock
  *  to protect access to normal hash tables.
  */
-class STMIndexedMap[K,V](mapClass: Class[TMap[_,_]]) extends IndexedMap[K,V] {
+class STMIndexedMap[K,V](fact: STMIndexedMap.TMapFactory)(implicit km: Manifest[K], vm: Manifest[V]) extends IndexedMap[K,V] {
   import STMIndexedMap._
 
-  private val main = mapClass.newInstance.asInstanceOf[TMap[K,V]]
+  private val main: TMap[K,V] = fact.newInstance(km, vm)
   private var indices: List[Index[K,V,_]] = Nil
 
 
@@ -114,8 +120,8 @@ class STMIndexedMap[K,V](mapClass: Class[TMap[_,_]]) extends IndexedMap[K,V] {
     main.bind.clone.elements
   }
 
-  def addIndex[C](f: V => Option[C]): scala.collection.Map[C,scala.collection.immutable.Set[(K,V)]] = {
-    val idx = new Index[K,V,C](this, f, mapClass)
+  def addIndex[C](f: V => Option[C])(implicit cm: Manifest[C]): scala.collection.Map[C,scala.collection.immutable.Set[(K,V)]] = {
+    val idx = new Index[K,V,C](this, f, fact)
     indices ::= idx
     idx
   }

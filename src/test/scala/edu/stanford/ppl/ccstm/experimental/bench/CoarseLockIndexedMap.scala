@@ -4,6 +4,8 @@
 
 package edu.stanford.ppl.ccstm.experimental.bench
 
+import reflect.Manifest
+
 
 private object CoarseLockIndexedMap {
   val ImmSet = scala.collection.immutable.Set
@@ -131,7 +133,7 @@ class CoarseLockIndexedMap[K,V] extends IndexedMap[K,V] {
     entrySetSnapshot(main)
   }
 
-  def addIndex[C](f: V => Option[C]): scala.collection.Map[C,scala.collection.immutable.Set[(K,V)]] = {
+  def addIndex[C](f: V => Option[C])(implicit cm: Manifest[C]): scala.collection.Map[C,scala.collection.immutable.Set[(K,V)]] = {
     val idx = new Index[K,V,C](this, f)
     indices ::= idx
     idx
