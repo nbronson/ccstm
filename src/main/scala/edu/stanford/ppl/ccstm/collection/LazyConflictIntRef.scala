@@ -90,13 +90,7 @@ object LazyConflictIntRef {
     }
 
     def unrecordedRead: UnrecordedRead[Int] = {
-      // TODO: check stillValid with partial replay?
-      new UnrecordedRead[Int] {
-        def context: Option[Txn] = Some(txn)
-        val value: Int = get
-        def recorded: Boolean = true
-        def stillValid: Boolean = _read.stillValid
-      }
+      _read
     }
 
     //////////////// Sink

@@ -48,7 +48,16 @@ object TArray {
 class TArray[T](length0: Int, metaMapping: TArray.MetaMapping)(implicit manifest: scala.reflect.Manifest[T]) {
   import TArray._
 
-  def this(length0: Int)(implicit manifest: scala.reflect.Manifest[T]) = this(length0, TArray.DefaultMetaMapping)  
+  def this(length0: Int)(implicit manifest: scala.reflect.Manifest[T]) = this(length0, TArray.DefaultMetaMapping)
+  def this(data0: Array[T], metaMapping: TArray.MetaMapping)(implicit manifest: scala.reflect.Manifest[T]) = {
+    this(data0.length, metaMapping)
+    var i = 0
+    while (i < data0.length) {
+      _data.set(i, data0(i))
+      i += 1
+    }
+  }
+  def this(data0: Array[T])(implicit manifest: scala.reflect.Manifest[T]) = this(data0, TArray.DefaultMetaMapping)
 
   def length = length0
 
