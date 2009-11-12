@@ -89,8 +89,11 @@ object LazyConflictIntRef {
       }
     }
 
-    def unrecordedRead: UnrecordedRead[Int] = {
-      _read
+    def unrecordedRead: UnrecordedRead[Int] = new UnrecordedRead[Int] {
+      def context: Option[Txn] = Some(txn)
+      val value = _value
+      def stillValid = _read.stillValid
+      def recorded = _read.recorded
     }
 
     //////////////// Sink

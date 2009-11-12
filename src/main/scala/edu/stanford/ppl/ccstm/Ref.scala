@@ -368,7 +368,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *  @return a view into the value of this <code>Ref</code>, that will perform
    *      each operation as if in its own transaction.
    */
-  def nonTxn: Ref.Bound[T] = new impl.NonTxnBound(this, handle)
+  def nonTxn: Ref.Bound[T] = new impl.NonTxnBound(this, nonTxnHandle)
 
   override def hashCode: Int = {
     val h = handle

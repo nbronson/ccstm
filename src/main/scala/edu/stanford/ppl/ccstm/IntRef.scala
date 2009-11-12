@@ -50,7 +50,7 @@ trait IntRef extends Ref[Int] {
     override val unbind: IntRef = IntRef.this
   }
 
-  override def nonTxn: IntRef.Bound = new impl.NonTxnBound(this, handle) with IntRef.Bound {
+  override def nonTxn: IntRef.Bound = new impl.NonTxnBound(this, nonTxnHandle) with IntRef.Bound {
     override val unbind: IntRef = IntRef.this
   }
 

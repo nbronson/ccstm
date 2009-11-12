@@ -81,7 +81,7 @@ class StripedIntRef(initialValue: Int) extends IntRef {
 
     override def += (delta: Int) {
       if (delta != 0) {
-        stripes(System.identityHashCode(Thread.currentThread) & (NumStripes - 1)).nonTxn += delta
+        stripeRef.nonTxn += delta
       }
     }
   }
@@ -247,9 +247,7 @@ class StripedIntRef(initialValue: Int) extends IntRef {
     //////// IntRef-specific stuff
 
     override def += (delta: Int) {
-      if (delta != 0) {
-        stripes(txn.hashCode & (NumStripes - 1)) += delta
-      }
+      unbind += delta
     }
   }
   
@@ -307,8 +305,18 @@ class StripedIntRef(initialValue: Int) extends IntRef {
 
   override def += (delta: Int)(implicit txn: Txn) {
     if (delta != 0) {
-      stripes(txn.hashCode & (NumStripes - 1)) += delta
+      stripeRef += delta
     }
+  }
+
+  //////////////// access to an element
+
+  /** Provides access to one of the underlying stripes.  The caller may
+   *  correctly apply transformations that use only addition, and that do not
+   *  depend on the actual value.
+   */
+  def stripeRef: TIntRef = {
+    stripes(System.identityHashCode(Thread.currentThread) & (NumStripes - 1))
   }
   
   //////////////// equality stuff in Ref uses handles, must be overriden:
