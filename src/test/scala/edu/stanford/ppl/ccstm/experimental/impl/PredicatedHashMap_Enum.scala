@@ -8,26 +8,20 @@ import edu.stanford.ppl.ccstm.experimental.TMap
 import java.util.concurrent.ConcurrentHashMap
 import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm.{STM, Txn}
-import edu.stanford.ppl.ccstm.collection.{TIntRef, TOptionRef, LazyConflictIntRef}
+import edu.stanford.ppl.ccstm.collection.{StripedIntRef, TIntRef, TOptionRef, LazyConflictIntRef}
 
 class PredicatedHashMap_Enum[A,B] extends TMap[A,B] {
-  def NumSizeStripes = 16
-
-  private val sizeStripes = Array.fromFunction(i => new TIntRef(0))(NumSizeStripes)
+  private val sizeRef = new StripedIntRef(0)
   private val predicates = new ConcurrentHashMap[A,TOptionRef[B]]
 
   def nonTxn: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_Enum[A,B]](this) {
 
     override def size(): Int = {
-      STM.atomic(unbind.size(_))
+      sizeRef.nonTxn.get
     }
 
     def get(key: A): Option[B] = {
       pred(key).nonTxn.get
-    }
-
-    private def myStripe: TIntRef = {
-      sizeStripes(System.identityHashCode(Thread.currentThread) & (NumSizeStripes - 1))
     }
 
     override def put(key: A, value: B): Option[B] = {
@@ -42,7 +36,7 @@ class PredicatedHashMap_Enum[A,B] extends TMap[A,B] {
         }
         // failure goes to the transform2 implementation
       }
-      return STM.transform2(p, myStripe, (vo: Option[B], s: Int) => {
+      return STM.transform2(p, sizeRef.aStripe, (vo: Option[B], s: Int) => {
         (Some(value), (if (vo.isEmpty) s + 1 else s), vo)
       })
     }
@@ -54,7 +48,7 @@ class PredicatedHashMap_Enum[A,B] extends TMap[A,B] {
         // let's linearize right here!
         return None
       }
-      return STM.transform2(p, myStripe, (vo: Option[B], s: Int) => {
+      return STM.transform2(p, sizeRef.aStripe, (vo: Option[B], s: Int) => {
         (None, (if (vo.isEmpty) s else s - 1), vo)
       })
     }
@@ -78,7 +72,7 @@ class PredicatedHashMap_Enum[A,B] extends TMap[A,B] {
         }
         // failure goes to the transform2 implementation
       }
-      return STM.transform2(p, myStripe, (vo: Option[B], s: Int) => {
+      return STM.transform2(p, sizeRef.aStripe, (vo: Option[B], s: Int) => {
         if (null != pfOrNull && (vo ne before) && !pfOrNull.isDefinedAt(vo)) {
           // do nothing and return false
           (vo, s, false)
@@ -161,37 +155,26 @@ class PredicatedHashMap_Enum[A,B] extends TMap[A,B] {
   }
 
   def isEmpty(implicit txn: Txn): Boolean = {
-    // TODO: something better
-    size > 0
+    sizeRef > 0
   }
 
   def size(implicit txn: Txn): Int = {
-    var i = 0
-    var s = 0
-    while (i < NumSizeStripes) {
-      s += sizeStripes(i).get
-      i += 1
-    }
-    s
+    sizeRef.get
   }
 
   def get(key: A)(implicit txn: Txn): Option[B] = {
     pred(key).get
   }
 
-  private def myStripe(implicit txn: Txn): TIntRef = {
-    sizeStripes(System.identityHashCode(txn) & (NumSizeStripes - 1))
-  }
-
   def put(key: A, value: B)(implicit txn: Txn): Option[B] = {
     val prev = pred(key).getAndSet(Some(value))
-    if (prev.isEmpty) myStripe.transform(_ + 1)
+    if (prev.isEmpty) sizeRef += 1
     prev
   }
 
   def removeKey(key: A)(implicit txn: Txn): Option[B] = {
     val prev = pred(key).getAndSet(None)
-    if (!prev.isEmpty) myStripe.transform(_ - 1)
+    if (!prev.isEmpty) sizeRef -= 1
     prev
   }
 
@@ -205,8 +188,7 @@ class PredicatedHashMap_Enum[A,B] extends TMap[A,B] {
     } else {
       val after = f(prev)
       p.set(after)
-      val delta = (if (after.isEmpty) 0 else 1) - (if (prev.isEmpty) 0 else 1)
-      if (delta != 0) myStripe.transform(_ + delta)
+      sizeRef += (if (after.isEmpty) 0 else 1) - (if (prev.isEmpty) 0 else 1)
       true
     }
   }

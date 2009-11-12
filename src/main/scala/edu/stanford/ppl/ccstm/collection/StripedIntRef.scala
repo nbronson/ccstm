@@ -81,7 +81,7 @@ class StripedIntRef(initialValue: Int) extends IntRef {
 
     override def += (delta: Int) {
       if (delta != 0) {
-        stripeRef.nonTxn += delta
+        aStripe.nonTxn += delta
       }
     }
   }
@@ -305,7 +305,7 @@ class StripedIntRef(initialValue: Int) extends IntRef {
 
   override def += (delta: Int)(implicit txn: Txn) {
     if (delta != 0) {
-      stripeRef += delta
+      aStripe += delta
     }
   }
 
@@ -315,7 +315,7 @@ class StripedIntRef(initialValue: Int) extends IntRef {
    *  correctly apply transformations that use only addition, and that do not
    *  depend on the actual value.
    */
-  def stripeRef: TIntRef = {
+  def aStripe: TIntRef = {
     stripes(System.identityHashCode(Thread.currentThread) & (NumStripes - 1))
   }
   
