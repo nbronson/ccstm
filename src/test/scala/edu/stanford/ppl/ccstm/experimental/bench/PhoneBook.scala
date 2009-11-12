@@ -60,15 +60,21 @@ class PhoneBook(n: Int, mapName: String) {
   private def randomName(rand: FastSimpleRandom): String = {
     val cs = "bcdfghjklmnpqrstvwxz"
     val vs = "aeiouy"
-    def c = cs(rand.nextInt(cs.length))
-    def v = vs(rand.nextInt(vs.length))
+    def c = cs.charAt(rand.nextInt(cs.length))
+    def v = vs.charAt(rand.nextInt(vs.length))
 
-    ""+c+v+c+" "+c+v+c+c+v+c
+    val buf = new StringBuilder(10)
+    (buf.append(c).append(v).append(c).append(' ')
+        .append(c).append(v).append(c)
+        .append(c).append(v).append(c)).toString
   }
 
   private def randomNumber(rand: FastSimpleRandom): String = {
     def d = ('0'+rand.nextInt(10)).toChar
 
-    ""+d+d+d+"-"+d+d+d+"-"+d+d+d+d
+    val buf = new StringBuilder(12)
+    (buf.append(d).append(d).append(d).append('-')
+        .append(d).append(d).append(d).append('-')
+        .append(d).append(d).append(d).append(d)).toString
   }
 }
