@@ -102,9 +102,13 @@ class IsolatedRefSuite extends STMFunSuite {
     def apply(initialValue: Int): Ref[Int] = new LazyConflictIntRef(initialValue)
   }
 
+  case object StripedIntRefFactory extends IntRefFactory {
+    def apply(initialValue: Int): Ref[Int] = new StripedIntRef(initialValue)
+  }
+
 
   val binders = List(FreshNonTxn, ReuseNonTxn, FreshTxn(1), ReuseTxn(1), FreshTxn(2), ReuseTxn(2), FreshTxn(8), ReuseTxn(8), FreshTxn(1000), ReuseTxn(1000))
-  val factories = List(TAnyRefFactory, TIntRefFactory, LazyConflictIntRefFactory)
+  val factories = List(TAnyRefFactory, TIntRefFactory, LazyConflictIntRefFactory, StripedIntRefFactory)
   for (f <- factories; b <- binders) createTests(b, f)
 
   private def createTests(binder: Binder, fact: IntRefFactory) {

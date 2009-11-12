@@ -47,7 +47,7 @@ object LazyConflictIntRef {
   private class Transform(f: Int => Int)       extends Update { def apply(v: Int) = f(v) }
 
 
-  class TxnBound(txn: Txn, val unbind: LazyConflictIntRef) extends IntCounter.Bound with Txn.ReadResource {
+  class TxnBound(txn: Txn, val unbind: LazyConflictIntRef) extends IntRef.Bound with Txn.ReadResource {
     private val _ubound = unbind.underlying.bind(txn)
     private var _read: UnrecordedRead[Int] = _ubound.unrecordedRead
     private var _value: Int = _read.value
@@ -261,7 +261,7 @@ object LazyConflictIntRef {
   }
 }
 
-class LazyConflictIntRef(initialValue: Int) extends IntCounter {
+class LazyConflictIntRef(initialValue: Int) extends IntRef {
 
   private val underlying = new TIntRef(initialValue)
 
@@ -285,11 +285,15 @@ class LazyConflictIntRef(initialValue: Int) extends IntCounter {
     bind.transformIfDefined(pf)
   }
 
-  override def bind(implicit txn: Txn): IntCounter.Bound = bound.get
+  override def bind(implicit txn: Txn): IntRef.Bound = bound.get
 
-  override def nonTxn: IntCounter.Bound = {
-    new impl.NonTxnBound(this, nonTxnHandle) with IntCounter.Bound {}
-  }
+  //////////////// txn int functions forward to bound versions
+
+  override def +=  (delta: Int)(implicit txn: Txn) { bind += delta }
+  override def compare(rhs: Int)(implicit txn: Txn): Int = { bind compare rhs }
+  override def <   (rhs: Int)(implicit txn: Txn): Boolean = { bind < rhs }
+  override def >   (rhs: Int)(implicit txn: Txn): Boolean = { bind > rhs }
+  override def ==! (rhs: Int)(implicit txn: Txn): Boolean = { bind ==! rhs }
 
   //////////////// equality stuff in Ref uses handles, must be overriden:
 

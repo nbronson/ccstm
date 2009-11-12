@@ -4,9 +4,10 @@
 
 package edu.stanford.ppl.stm
 
-import ccstm.collection.{LazyConflictIntRef, TBooleanRef}
-import ccstm.{Atomic, Txn, Ref}
+import edu.stanford.ppl.ccstm.{Atomic, Txn, Ref}
 import java.util.concurrent.CyclicBarrier
+import edu.stanford.ppl.ExhaustiveTest
+import edu.stanford.ppl.ccstm.collection.{StripedIntRef, LazyConflictIntRef, TBooleanRef}
 
 
 class FlipperSuite extends STMFunSuite {
@@ -42,6 +43,18 @@ class FlipperSuite extends STMFunSuite {
       () => new LazyConflictIntRef(0)).runTest
   }
 
+  test("small striped flipper test") {
+    Config(
+      DEFAULT_SYNC_COUNT,
+      DEFAULT_TRANS_COUNT / 2,
+      DEFAULT_INSTR_COUNT / 2,
+      DEFAULT_THREAD_COUNT / 2,
+      DEFAULT_WORD_COUNT / 2,
+      DEFAULT_FLIP_PROB,
+      0,
+      () => new StripedIntRef(0)).runTest
+  }
+
   test("default flipper test", ExhaustiveTest) {
     Config(
       DEFAULT_SYNC_COUNT,
@@ -64,6 +77,18 @@ class FlipperSuite extends STMFunSuite {
       DEFAULT_FLIP_PROB,
       0,
       () => new LazyConflictIntRef(0)).runTest
+  }
+
+  test("striped flipper test", ExhaustiveTest) {
+    Config(
+      DEFAULT_SYNC_COUNT,
+      DEFAULT_TRANS_COUNT,
+      DEFAULT_INSTR_COUNT,
+      DEFAULT_THREAD_COUNT,
+      DEFAULT_WORD_COUNT,
+      DEFAULT_FLIP_PROB,
+      0,
+      () => new StripedIntRef(0)).runTest
   }
 
   test("random flipper test", ExhaustiveTest) {

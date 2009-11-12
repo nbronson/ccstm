@@ -5,6 +5,7 @@
 package edu.stanford.ppl.ccstm.experimental.impl
 
 import edu.stanford.ppl.ccstm._
+import experimental.TMap
 
 
 class ConcHashMap[A,B] extends TMap.Bound[A,B] {
