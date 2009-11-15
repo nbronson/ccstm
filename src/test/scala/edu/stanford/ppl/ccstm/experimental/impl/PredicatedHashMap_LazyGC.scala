@@ -9,9 +9,7 @@ import java.util.concurrent.ConcurrentHashMap
 import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm.{STM, Txn}
 import edu.stanford.ppl.ccstm.collection.TPairRef
-import java.lang.ref.WeakReference
-import java.util.concurrent.atomic.AtomicReference
-
+import java.util.concurrent.atomic.{AtomicReferenceFieldUpdater, AtomicReference}
 
 private object PredicatedHashMap_LazyGC {
 
@@ -40,9 +38,17 @@ private object PredicatedHashMap_LazyGC {
     def isWeak = false
   }
 
-  // we extend from AtomicReference opportunistically
-  private class Predicate[A,B](tokenRef: TokenRef[A,B]) extends AtomicReference[TokenRef[A,B]](tokenRef) {
-    val txnRef = new TPairRef[Token[A,B],B]((null, null.asInstanceOf[B]))
+  private val predicateTokenRefUpdater = new Predicate[Int,Int](null).newUpdater()
+
+  // we extend from TPairRef opportunistically
+  private class Predicate[A,B](tokenRef0: TokenRef[A,B]) extends TPairRef[Token[A,B],B]((null, null.asInstanceOf[B])) {
+    @volatile private var _tokenRef: TokenRef[A,B] = tokenRef0
+    def newUpdater() = AtomicReferenceFieldUpdater.newUpdater(classOf[Predicate[_,_]], classOf[TokenRef[_,_]], "_tokenRef")
+
+    def tokenRef = _tokenRef
+    def tokenRefCAS(before: TokenRef[A,B], after: TokenRef[A,B]) = {
+      predicateTokenRefUpdater.compareAndSet(this, before, after)
+    }
   }
 }
 
@@ -122,18 +128,18 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
 
   def put(key: A, value: B)(implicit txn: Txn): Option[B] = {
     val (tok, pred, prev) = access(key, true)
-    pred.txnRef.set((tok, value))
+    pred.set((tok, value))
     prev
   }
 
   def removeKey(key: A)(implicit txn: Txn): Option[B] = {
     val (tok, pred, prev) = access(key, false)
     if (!prev.isEmpty) {
-      pred.txnRef.set((null, null.asInstanceOf[B]))
-      if (!pred.get.isWeak) {
+      pred.set((null, null.asInstanceOf[B]))
+      if (!pred.tokenRef.isWeak) {
         txn.afterCommit(t => {
-          val r = pred.get
-          if (!r.isWeak && pred.compareAndSet(r, null)) {
+          val r = pred.tokenRef
+          if (!r.isWeak && pred.tokenRefCAS(r, null)) {
             // successfully made it stale
             predicates.remove(key, pred)
           }
@@ -210,10 +216,10 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
 
   private def access(key: A, createAsStrong: Boolean, pred: Predicate[A,B])(implicit txn: Txn): (Token[A,B], Predicate[A,B], Option[B]) = {
     if (null != pred) {
-      val txnState = pred.txnRef.get
+      val txnState = pred.get
       if (null != txnState._1) {
         // we are observing presence, no weak ref necessary
-        assert (pred.get.get eq txnState._1)
+        assert (pred.tokenRef.get eq txnState._1)
         return (txnState._1, pred, Some(txnState._2))
       }
 
@@ -221,7 +227,7 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
       // weak, and record a strong reference to it
       var predKnownStale = false
       while (!predKnownStale) {
-        val tokenRef = pred.get
+        val tokenRef = pred.tokenRef
         if (null == tokenRef) {
           // this predicate is stale and must be replaced
           predKnownStale = true
@@ -242,7 +248,7 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
           // absence
           val weakRef = new WeakTokenRef(this, key, tokenRef.get)
           weakRef.pred = pred
-          if (pred.compareAndSet(tokenRef, weakRef)) {
+          if (pred.tokenRefCAS(tokenRef, weakRef)) {
             // success!
             txn.addReference(tokenRef.get)
             return (tokenRef.get, pred, None)
@@ -274,7 +280,7 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
         // another txn may have already updated it.  We don't, however, have to
         // do all of the normal work, because there is no way that the
         // predicate could have become stale.
-        return (freshToken, freshToken.pred, decodePair(freshToken.pred.txnRef.get))
+        return (freshToken, freshToken.pred, decodePair(freshToken.pred.get))
       } else {
         // try to read from the racing predicate
         return access(key, createAsStrong, race)
@@ -282,64 +288,11 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
     } else {
       // existing stale predicate
       if (predicates.replace(key, pred, freshToken.pred)) {
-        return (freshToken, freshToken.pred, decodePair(freshToken.pred.txnRef.get))
+        return (freshToken, freshToken.pred, decodePair(freshToken.pred.get))
       } else {
         // there was a race, but we don't have the new predicate's value
         return access(key, createAsStrong)
       }
     }
   }
-//
-//  // must
-//
-//  // When we get a token, we can get it from either a strong or weak ref in the
-//  // predicate.
-//  //
-//  //   Any txn that observes absence must guarantee that the token
-//  // survives until the end of the txn.  If it observes absence during put,
-//  // then the write buffer handles this.  If it observes absence during get or
-//  // removeKey, then this requires calling txn.addReference().  If no call to
-//  // txn.addReference() has ever been made, then the transactions that may have
-//  // a reference to the Token are exactly those that have actually changed the
-//  // state.  A WriteResource, during the commit of a removeKey, while the locks
-//  // are held, can prevent the strong->weak transition (with a CAS), then
-//  // remove the predicate.  Any other txn that may have a reference to the
-//  // token must also be a mutating reference, and hence those txns are doomed.
-//
-//  private def existingPred(key: A): Predicate[A,B] = predicates.get(key)
-//
-//  private def activeToken(key: A): Token[A,B] = activeToken(key, predicates.get(key))
-//
-//  private def activeToken(key: A, pred: Predicate[A,B]): Token[A,B] = {
-//    val token = if (null == pred) null else pred.weakRef.get
-//    if (null != token) token else createToken(key, pred)
-//  }
-//
-//  private def createToken(key: A, existing: Predicate[A,B]): Token[A,B] = {
-//    val freshToken = new Token[A,B]
-//    val tokenRef = new TokenRef(this, key, freshToken)
-//    val pred = new Predicate(tokenRef)
-//    tokenRef.pred = pred
-//    freshToken.pred = pred
-//    freshToken
-//
-//    if (null == existing) {
-//      val racingPred = predicates.putIfAbsent(key, freshToken.pred)
-//      if (null == racingPred) {
-//        // successful
-//        freshToken
-//      } else {
-//        // we've got the predicate that beat us to it, try with that one
-//        activeToken(key, racingPred)
-//      }
-//    } else {
-//      if (predicates.replace(key, existing, freshToken.pred)) {
-//        // successful
-//        freshToken
-//      } else {
-//        // failure, but replace doesn't give us the old one
-//        activeToken(key)
-//      }
-//    }
-//  }
 }
