@@ -1,6 +1,6 @@
 /* CCSTM - (c) 2009 Stanford University - PPL */
 
-// PredicatedHashMap_Basic
+// PredicatedHashMap_Enum
 
 package edu.stanford.ppl.ccstm.experimental.impl
 
@@ -8,7 +8,7 @@ import edu.stanford.ppl.ccstm.experimental.TMap
 import java.util.concurrent.ConcurrentHashMap
 import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm.{STM, Txn}
-import edu.stanford.ppl.ccstm.collection.{StripedIntRef, TIntRef, TOptionRef, LazyConflictIntRef}
+import edu.stanford.ppl.ccstm.collection.{StripedIntRef, TOptionRef}
 
 class PredicatedHashMap_Enum[A,B] extends TMap[A,B] {
   private val sizeRef = new StripedIntRef(0)

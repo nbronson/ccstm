@@ -17,7 +17,9 @@ class PredicatedHashMap_Basic[A,B] extends TMap[A,B] {
   def nonTxn: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_Basic[A,B]](this) {
 
     def get(key: A): Option[B] = {
-      pred(key).nonTxn.get
+      // if no predicate exists, then we don't need to create one
+      val p = existingPred(key)
+      if (null == p) None else p.nonTxn.get
     }
 
     override def put(key: A, value: B): Option[B] = {
@@ -25,7 +27,9 @@ class PredicatedHashMap_Basic[A,B] extends TMap[A,B] {
     }
 
     override def removeKey(key: A): Option[B] = {
-      pred(key).nonTxn.getAndSet(None)
+      // if no predicate exists, then we don't need to create one
+      val p = existingPred(key)
+      if (null == p) None else p.nonTxn.getAndSet(None)
     }
 
     override def transform(key: A, f: (Option[B]) => Option[B]) {
@@ -104,6 +108,8 @@ class PredicatedHashMap_Basic[A,B] extends TMap[A,B] {
                                    f: Option[B] => Option[B])(implicit txn: Txn): Boolean = {
     throw new Error
   }
+
+  private def existingPred(key: A): TOptionRef[B] = predicates.get(key)
 
   private def pred(key: A): TOptionRef[B] = {
     val pred = predicates.get(key)
