@@ -121,6 +121,12 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
 
   def get(key: A)(implicit txn: Txn): Option[B] = {
     val (tok, pred, prev) = access(key, false)
+
+    // We could equivalently call access(key, true), and then perform the
+    // weakening ourself if we observed prev == None (as is done inside
+    // transformIfDefined).  The way we do it here allows us to create the
+    // Predicate in a pre-weakened state, which saves a CAS.
+
     prev
   }
 
@@ -135,17 +141,19 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
     if (!prev.isEmpty) {
       pred.set((null, null.asInstanceOf[B]))
       if (!pred.tokenRef.isWeak) {
-        txn.afterCommit(t => {
-          val r = pred.tokenRef
-          if (!r.isWeak && pred.tokenRefCAS(r, null)) {
-            // successfully made it stale
-            predicates.remove(key, pred)
-            // no need to retry on remove failure, somebody else did it for us
-          }
-        })
+        txn.afterCommit(deferredCleanup(key, pred))
       }
     }
     prev
+  }
+
+  private def deferredCleanup(key: A, pred: Predicate[A,B]) = (t: Txn) => {
+    val r = pred.tokenRef
+    if (!r.isWeak && pred.tokenRefCAS(r, null)) {
+      // successfully made it stale
+      predicates.remove(key, pred)
+      // no need to retry on remove failure, somebody else did it for us
+    }
   }
 
   protected def transformIfDefined(key: A,
@@ -178,14 +186,7 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
           // This is like removeKey.
           pred.set((null, null.asInstanceOf[B]))
           if (!pred.tokenRef.isWeak) {
-            txn.afterCommit(t => {
-              val r = pred.tokenRef
-              if (!r.isWeak && pred.tokenRefCAS(r, null)) {
-                // successfully made it stale
-                predicates.remove(key, pred)
-                // no need to retry on remove failure, somebody else did it for us
-              }
-            })
+            txn.afterCommit(deferredCleanup(key, pred))
           }
         }
       }
@@ -287,7 +288,14 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
     // There is either no predicate or the predicate is stale.  Make a new one.
     val freshToken = new Token[A,B]
     val freshPred = (if (createAsStrong) {
-      new Predicate(freshToken)
+      val p = new Predicate(freshToken)
+
+      // If this txn rolls back and nobody has done the strong -> weak
+      // conversion, then we must either do that or remove the predicate.  It
+      // is likely that the next txn attempt will reinsert the key, but for now
+      // we remove and let it reinsert as strong.
+      txn.afterRollback(deferredCleanup(key, p))
+      p
     } else {
       txn.addReference(freshToken)
       val tokenRef = new WeakTokenRef(this, key, freshToken)
