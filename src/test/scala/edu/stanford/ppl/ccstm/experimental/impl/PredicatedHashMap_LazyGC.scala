@@ -32,8 +32,6 @@ private object PredicatedHashMap_LazyGC {
   // predicate.tokenRef: Either[Token,WeakRef[Token]], but then we would have
   // an extra Left or Right instance for each ref.
   private class Token[A,B] extends TokenRef[A,B] {
-    var pred: Predicate[A,B] = null
-
     def get = this
     def isWeak = false
   }
@@ -122,20 +120,19 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
   def size(implicit txn: Txn): Int = throw new UnsupportedOperationException
 
   def get(key: A)(implicit txn: Txn): Option[B] = {
-    val (tok, prev) = access(key, false)
+    val (tok, pred, prev) = access(key, false)
     prev
   }
 
   def put(key: A, value: B)(implicit txn: Txn): Option[B] = {
-    val (tok, prev) = access(key, true)
-    tok.pred.set((tok, value))
+    val (tok, pred, prev) = access(key, true)
+    pred.set((tok, value))
     prev
   }
 
   def removeKey(key: A)(implicit txn: Txn): Option[B] = {
-    val (tok, prev) = access(key, false)
+    val (tok, pred, prev) = access(key, false)
     if (!prev.isEmpty) {
-      val pred = tok.pred
       pred.set((null, null.asInstanceOf[B]))
       if (!pred.tokenRef.isWeak) {
         txn.afterCommit(t => {
@@ -154,8 +151,7 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
   protected def transformIfDefined(key: A,
                                    pfOrNull: PartialFunction[Option[B],Option[B]],
                                    f: Option[B] => Option[B])(implicit txn: Txn): Boolean = {
-    val (tok, prev) = access(key, true)
-    val pred = tok.pred
+    val (tok, pred, prev) = access(key, true)
     val defined = null == pfOrNull || pfOrNull.isDefinedAt(prev)
     val after = if (!defined) prev else f(prev)
     after match {
@@ -238,17 +234,17 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
   // and that sees that the strong ref is still in use, must perform a
   // strong->weak transition.
 
-  private def access(key: A, createAsStrong: Boolean)(implicit txn: Txn): (Token[A,B], Option[B]) = {
+  private def access(key: A, createAsStrong: Boolean)(implicit txn: Txn): (Token[A,B], Predicate[A,B], Option[B]) = {
     access(key, createAsStrong, predicates.get(key))
   }
 
-  private def access(key: A, createAsStrong: Boolean, pred: Predicate[A,B])(implicit txn: Txn): (Token[A,B], Option[B]) = {
+  private def access(key: A, createAsStrong: Boolean, pred: Predicate[A,B])(implicit txn: Txn): (Token[A,B], Predicate[A,B], Option[B]) = {
     if (null != pred) {
       val txnState = pred.get
       if (null != txnState._1) {
         // we are observing presence, no weak ref necessary
         assert (pred.tokenRef.get eq txnState._1)
-        return (txnState._1, Some(txnState._2))
+        return (txnState._1, pred, Some(txnState._2))
       }
 
       // we are observing absence, so we must both make sure that the token is
@@ -269,7 +265,7 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
           } else {
             // make sure this weakly-referenced token outlives this txn
             txn.addReference(token)
-            return (token, None)
+            return (token, pred, None)
           }
         } else {
           // we must perform a strong->weak transition before we can observe
@@ -279,7 +275,7 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
           if (pred.tokenRefCAS(tokenRef, weakRef)) {
             // success!
             txn.addReference(tokenRef.get)
-            return (tokenRef.get, None)
+            return (tokenRef.get, pred, None)
           }
           // there was a racing strong->weak or a racing strong->stale, try
           // again with the same pred
@@ -290,26 +286,25 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
 
     // There is either no predicate or the predicate is stale.  Make a new one.
     val freshToken = new Token[A,B]
-    if (createAsStrong) {
-      freshToken.pred = new Predicate(freshToken)
+    val freshPred = (if (createAsStrong) {
+      new Predicate(freshToken)
     } else {
-      val tokenRef = new WeakTokenRef(this, key, freshToken)
-      val pred = new Predicate(tokenRef)
-      tokenRef.pred = pred
-      freshToken.pred = pred
       txn.addReference(freshToken)
-    }
+      val tokenRef = new WeakTokenRef(this, key, freshToken)
+      tokenRef.pred = new Predicate(tokenRef)
+      tokenRef.pred
+    })
 
     if (null == pred) {
       // no previous predicate
-      val race = predicates.putIfAbsent(key, freshToken.pred)
+      val race = predicates.putIfAbsent(key, freshPred)
       if (null != race) {
         // CAS failed, access the predicate that beat us
         return access(key, createAsStrong, race)
       }
     } else {
       // existing stale predicate
-      if (!predicates.replace(key, pred, freshToken.pred)) {
+      if (!predicates.replace(key, pred, freshPred)) {
         // CAS failed, try again 
         return access(key, createAsStrong)
       }
@@ -319,6 +314,6 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
     // txn may have already updated it.  We don't, however, have to do all of
     // the normal work, because there is no way that the predicate could have
     // become stale.
-    return (freshToken, decodePair(freshToken.pred.get))
+    return (freshToken, freshPred, decodePair(freshPred.get))
   }
 }
