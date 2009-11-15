@@ -9,7 +9,7 @@ import java.util.concurrent.ConcurrentHashMap
 import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm.{STM, Txn}
 import edu.stanford.ppl.ccstm.collection.TPairRef
-import java.util.concurrent.atomic.{AtomicReferenceFieldUpdater, AtomicReference}
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater
 
 private object PredicatedHashMap_LazyGC {
 
@@ -58,15 +58,113 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
   def nonTxn: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_LazyGC[A,B]](this) {
 
     def get(key: A): Option[B] = {
-      STM.atomic(unbind.get(key)(_))
+      val p = existingPred(key)
+      if (p == null) None else decodePair(p.nonTxn.get)
     }
 
     override def put(key: A, value: B): Option[B] = {
-      STM.atomic(unbind.put(key, value)(_))
+      putImpl(key, value, existingPred(key))
+    }
+
+    private def putImpl(key: A, value: B, p: Predicate[A,B]): Option[B] = {
+      if (null != p) {
+        val tokenRef = p.tokenRef
+        if (null != tokenRef) {
+          val token = tokenRef.get
+          if (null != token) {
+            // the predicate is still active (or was two lines ago)
+            if (tokenRef.isWeak) {
+              // this predicate is already in its most general state, and it is
+              // active, so we will always succeed
+              return decodePair(p.nonTxn.getAndSet((token, value)))
+            } else {
+              // the predicate is strong, but we can still perform a Some -> Some
+              // transition
+              val prevPair = p.nonTxn.get
+              if (null != prevPair._1 && p.nonTxn.compareAndSetIdentity(prevPair, (token, value))) {
+                // success
+                return Some(prevPair._2)
+              } else if (null != ensureWeak(key, p)) {
+                return decodePair(p.nonTxn.getAndSet((token, value)))
+              }
+              // else p is stale and must be replaced
+            }
+          }
+          // else p is stale and must be replaced
+        }
+        // else p is stale and must be replaced
+      }
+      // else there is no p, so we must create one
+
+      val freshToken = new Token[A,B]
+      val freshPred = new Predicate(freshToken)
+
+      if (null == p) {
+        // no previous predicate
+        val race = predicates.putIfAbsent(key, freshPred)
+        if (null != race) {
+          // CAS failed, try again using the predicate that beat us
+          return putImpl(key, value, race)
+        }
+      } else {
+        // existing stale predicate
+        if (!predicates.replace(key, p, freshPred)) {
+          // someone else already removed the predicate, can we still use the
+          // fresh one we just created?
+          var race = predicates.get(key)
+          if (null == race) {
+            // second try, afterward race will be null on success
+            race = predicates.putIfAbsent(key, freshPred)
+          }
+          if (null != race) {
+            return putImpl(key, value, race)
+          }
+          // else second-try success
+        }
+      }
+      
+      decodePair(freshPred.nonTxn.getAndSet(freshToken, value))
     }
 
     override def removeKey(key: A): Option[B] = {
-      STM.atomic(unbind.removeKey(key)(_))
+      removeKeyImpl(key, existingPred(key))
+    }
+
+    private def removeKeyImpl(key: A, p: Predicate[A,B]): Option[B] = {
+      if (null == p) {
+        // no predicate means no entry, as for get()
+        return None
+      }
+
+      val tokenRef = p.tokenRef
+      if (null == tokenRef) {
+        // stale predicate means no entry, as for get()
+        return None
+      }
+
+      val token = tokenRef.get
+      if (null == token) {
+        // stale predicate means no entry, as for get()
+        return None
+      }
+
+      // We don't need to weaken to observe absence or presence here.  If we
+      // see a strong pred then every thread that has already observed the
+      // predicate will conflict with the -> None transition, and threads that
+      // have not yet observed the pred must serialize after us anyway.  The
+      // only wrinkle is that we can't clean up the strong ref if we observe
+      // absence, because another txn may have created the predicate but not
+      // yet done the store to populate it.
+      val prevPair = p.nonTxn.getAndSet((null, null.asInstanceOf[B]))
+      if (null == prevPair._1) {
+        // not previously present, somebody else's cleanup problem or future
+        // strong ref
+        return None
+      } else {
+        // the committed state was Some(v), so it falls to us to clean up
+        immediateCleanup(key, p)
+        return Some(prevPair._2)
+      }
     }
 
     override def transform(key: A, f: (Option[B]) => Option[B]) {
@@ -147,7 +245,9 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
     prev
   }
 
-  private def deferredCleanup(key: A, pred: Predicate[A,B]) = (t: Txn) => {
+  private def deferredCleanup(key: A, pred: Predicate[A,B]) = (t: Txn) => immediateCleanup(key, pred)
+  
+  private def immediateCleanup(key: A, pred: Predicate[A,B]) {
     val r = pred.tokenRef
     if (!r.isWeak && pred.tokenRefCAS(r, null)) {
       // successfully made it stale
@@ -230,6 +330,8 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
 
   //////////////// predicate management
 
+  private def existingPred(key: A) = predicates.get(key)
+
   // Our invariant for strong vs. weak ref is that any txn that observes 
   // absence (in the transactional state), that didn't create the predicate,
   // and that sees that the strong ref is still in use, must perform a
@@ -250,38 +352,10 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
 
       // we are observing absence, so we must both make sure that the token is
       // weak, and record a strong reference to it
-      var predKnownStale = false
-      while (!predKnownStale) {
-        val tokenRef = pred.tokenRef
-        if (null == tokenRef) {
-          // this predicate is stale and must be replaced
-          predKnownStale = true
-          // <-- FALLTHROUGH
-        } else if (tokenRef.isWeak) {
-          val token = tokenRef.get
-          if (null == token) {
-            // this predicate is stale and must be replaced
-            predKnownStale = true
-            // <-- FALLTHROUGH
-          } else {
-            // make sure this weakly-referenced token outlives this txn
-            txn.addReference(token)
-            return (token, pred, None)
-          }
-        } else {
-          // we must perform a strong->weak transition before we can observe
-          // absence
-          val weakRef = new WeakTokenRef(this, key, tokenRef.get)
-          weakRef.pred = pred
-          if (pred.tokenRefCAS(tokenRef, weakRef)) {
-            // success!
-            txn.addReference(tokenRef.get)
-            return (tokenRef.get, pred, None)
-          }
-          // there was a racing strong->weak or a racing strong->stale, try
-          // again with the same pred
-          // <-- CONTINUE
-        }
+      val token = ensureWeak(key, pred)
+      if (null != token) {
+        txn.addReference(token)
+        return (token, pred, None)
       }
     }
 
@@ -313,8 +387,17 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
     } else {
       // existing stale predicate
       if (!predicates.replace(key, pred, freshPred)) {
-        // CAS failed, try again 
-        return access(key, createAsStrong)
+        // someone else already removed the predicate, can we still use the
+        // fresh one we just created?
+        var race = predicates.get(key)
+        if (null == race) {
+          // second try, afterward race will be null on success
+          race = predicates.putIfAbsent(key, freshPred)
+        }
+        if (null != race) {
+          return access(key, createAsStrong, race)
+        }
+        // else second-try success
       }
     }
 
@@ -323,5 +406,30 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
     // the normal work, because there is no way that the predicate could have
     // become stale.
     return (freshToken, freshPred, decodePair(freshPred.get))
+  }
+
+  // returns null if unsuccessful
+  private def ensureWeak(key: A, pred: Predicate[A,B]): Token[A,B] = {
+    val tokenRef = pred.tokenRef
+    if (null == tokenRef) {
+      // this predicate is stale and must be replaced
+      null
+    } else if (tokenRef.isWeak) {
+      // possible success, but not of our doing
+      tokenRef.get
+    } else {
+      // try the strong->weak transition
+      val token = tokenRef.get
+      val weakRef = new WeakTokenRef(this, key, token)
+      weakRef.pred = pred
+      if (pred.tokenRefCAS(tokenRef, weakRef)) {
+        // success!
+        token
+      } else {
+        // another thread either did our work for us (strong -> weak) or
+        // prevented us from succeeding (strong -> stale)
+        if (null != pred.tokenRef) token else null
+      }
+    }
   }
 }
