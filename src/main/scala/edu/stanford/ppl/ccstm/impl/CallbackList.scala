@@ -13,23 +13,31 @@ package edu.stanford.ppl.ccstm.impl
  *  @author Nathan Bronson
  */
 private[ccstm] class CallbackList[T <: AnyRef] {
+  private val _zeroSlot = new CallbackPrioSlot
   private val _slotsByPrio = new java.util.TreeMap[Int,CallbackPrioSlot]
   private var _size = 0
 
-  def size = _size
-  def isEmpty = _size == 0
+  def size = _size + _zeroSlot.size
+  def isEmpty = size == 0
 
   def add(elem: T, priority: Int) {
-    var slot = _slotsByPrio.get(priority)
-    if (null == slot) {
-      slot = new CallbackPrioSlot
-      _slotsByPrio.put(priority, slot)
+    if (priority == 0) {
+      _zeroSlot.add(elem)
+    } else {
+      var slot = _slotsByPrio.get(priority)
+      if (null == slot) {
+        slot = new CallbackPrioSlot
+        _slotsByPrio.put(priority, slot)
+      }
+      slot.add(elem)
+      _size += 1
     }
-    slot.add(elem)
-    _size += 1
   }
 
   def foreach(block: T => Unit) {
+    if (_zeroSlot.size > 0) {
+      _slotsByPrio.put(0, _zeroSlot)
+    }
     try {
       while (!attemptForeach(block)) {}
     } finally {
@@ -38,6 +46,7 @@ private[ccstm] class CallbackList[T <: AnyRef] {
   }
 
   def clear() {
+    _zeroSlot.clear()
     _slotsByPrio.clear()
     _size = 0
   }
@@ -62,17 +71,31 @@ private[ccstm] class CallbackList[T <: AnyRef] {
   }
 }
 
+// TODO: move magic numbers to the top of this file
+
 private class CallbackPrioSlot {
   var _count = 0
   // TODO: make _elems an Array[T] without getting a BoxedAnyArray, maybe in 2.8?
-  var _elems = new Array[AnyRef](4)
+  var _elems = new Array[AnyRef](8)
   var _visited = 0
 
+  def size = _count
+
   def add(elem: AnyRef) {
-    if (_count == _elems.length) {
+    if (_count >= _elems.length) {
       _elems = java.util.Arrays.copyOf(_elems, _count * 2)
     }
     _elems(_count) = elem
     _count += 1
+  }
+
+  def clear() {
+    if (_elems.length > 512) {
+      // complete reset
+      _elems = new Array[AnyRef](8)
+    } else {
+      java.util.Arrays.fill(_elems, 0, _count, null)
+      _count = 0
+    }
   }
 }

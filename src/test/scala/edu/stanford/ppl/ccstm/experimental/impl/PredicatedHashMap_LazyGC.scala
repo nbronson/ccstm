@@ -255,9 +255,54 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
   }
 
   def put(key: A, value: B)(implicit txn: Txn): Option[B] = {
-    val (tok, pred, prev) = access(key, true)
-    pred.set((tok, value))
-    prev
+    putImpl(key, value, predicates.get(key))
+  }
+
+  private def putImpl(key: A, value: B, pred: Predicate[A,B])(implicit txn: Txn): Option[B] = {
+    if (null != pred) {
+      val txnState = pred.get
+      if (null != txnState._1) {
+        // we are observing presence, no weak ref necessary
+        assert (pred.tokenRef.get eq txnState._1)
+        pred.set((txnState._1, value))
+        return Some(txnState._2)
+      }
+
+      // we are observing absence, so we must both make sure that the token is
+      // weak, and record a strong reference to it
+      val token = ensureWeak(key, pred)
+      if (null != token) {
+        txn.addReference(token)
+        pred.set((token, value))
+        return None
+      }
+    }
+
+    // There is either no predicate or the predicate is stale.  Make a new one.
+    val freshToken = new Token[A,B]
+    val freshPred = new Predicate(freshToken)
+
+    // If this txn rolls back and nobody has done the strong -> weak
+    // conversion, then we must either do that or remove the predicate.  It
+    // is likely that the next txn attempt will reinsert the key, but for now
+    // we remove and let it reinsert as strong.
+    txn.afterRollback(deferredCleanup(key, freshPred))
+
+    if (null == pred || !predicates.replace(key, pred, freshPred)) {
+      // No previous predicate, or predicate we think is previous is no longer
+      // there (and most likely removed by the thread that made it stale).
+      val race = predicates.putIfAbsent(key, freshPred)
+      if (null != race) {
+        // CAS failed, access the predicate that beat us
+        return putImpl(key, value, race)
+      }
+    }
+
+    // We have to perform a txn read from the new predicate, because another
+    // txn may have already updated it.  We don't, however, have to do all of
+    // the normal work, because there is no way that the predicate could have
+    // become stale.
+    decodePair(freshPred.getAndSet((freshToken, value)))
   }
 
   def removeKey(key: A)(implicit txn: Txn): Option[B] = {

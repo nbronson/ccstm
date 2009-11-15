@@ -68,6 +68,8 @@ object IndexedMap {
             case "b_h_rw" => new BoostedHashMap_RW[A,B]
             case "p_h_basic" => new PredicatedHashMap_Basic[A,B]
             case "p_h_enum" => new PredicatedHashMap_Enum[A,B]
+            case "p_h_gc" => new PredicatedHashMap_GC[A,B]
+            case "p_h_lazy" => new PredicatedHashMap_LazyGC[A,B]
             case "t_h" => new ChainingHashMap[A,B]
           }
         }
