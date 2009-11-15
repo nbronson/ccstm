@@ -12,35 +12,26 @@ import edu.stanford.ppl.ccstm.collection.TPairRef
 import java.lang.ref.WeakReference
 
 
-/*private*/ object PredicatedHashMap_GC {
-  /*private*/ class TokenRef[A,B](map: PredicatedHashMap_GC[A,B], key: A, token: Token[A,B]) extends CleanableRef[Token[A,B]](token) {
+private object PredicatedHashMap_GC {
+  private class TokenRef[A,B](map: PredicatedHashMap_GC[A,B], key: A, token: Token[A,B]) extends CleanableRef[Token[A,B]](token) {
     var pred: Predicate[A,B] = null
     def cleanup(): Unit = map.predicates.remove(key, pred)
   }
 
-  /*private*/ class Token[A,B] {
+  private class Token[A,B] {
     var pred: Predicate[A,B] = null
   }
 
   // we extend from TPairRef opportunistically
-  /*private*/ class Predicate[A,B](val weakRef: WeakReference[Token[A,B]]
+  private class Predicate[A,B](val weakRef: WeakReference[Token[A,B]]
           ) extends TPairRef[Token[A,B],B]((null, null.asInstanceOf[B])) {
-  }
-
-  def newToken[A,B](map: PredicatedHashMap_GC[A,B], key: A) = {
-    val token = new Token[A,B]
-    val tokenRef = new TokenRef(map, key, token)
-    val pred = new Predicate(tokenRef)
-    tokenRef.pred = pred
-    token.pred = pred
-    token
   }
 }
 
 class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
   import PredicatedHashMap_GC._
 
-  /*private*/ val predicates = new ConcurrentHashMap[A,Predicate[A,B]]
+  private val predicates = new ConcurrentHashMap[A,Predicate[A,B]]
 
   def nonTxn: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_GC[A,B]](this) {
 
@@ -179,7 +170,13 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
   }
 
   private def createToken(key: A, existing: Predicate[A,B]): Token[A,B] = {
-    val freshToken = newToken(this, key)
+    val freshToken = new Token[A,B]
+    val tokenRef = new TokenRef(this, key, freshToken)
+    val pred = new Predicate(tokenRef)
+    tokenRef.pred = pred
+    freshToken.pred = pred
+    freshToken
+
     if (null == existing) {
       val racingPred = predicates.putIfAbsent(key, freshToken.pred)
       if (null == racingPred) {
