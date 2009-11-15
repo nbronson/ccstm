@@ -109,26 +109,32 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
   def size(implicit txn: Txn): Int = throw new UnsupportedOperationException
 
   def get(key: A)(implicit txn: Txn): Option[B] = {
-    decodePair(activeToken(key).pred.get)
+    val tok = activeToken(key)
+    decodePairAndPin(tok, tok.pred.get)
   }
 
   def put(key: A, value: B)(implicit txn: Txn): Option[B] = {
     val tok = activeToken(key)
+    // write buffer will pin tok
     decodePair(tok.pred.getAndSet((tok, value)))
   }
 
   def removeKey(key: A)(implicit txn: Txn): Option[B] = {
     val tok = activeToken(key)
-    decodePair(tok.pred.getAndSet((null, null.asInstanceOf[B])))
+    decodePairAndPin(tok, tok.pred.getAndSet((null, null.asInstanceOf[B])))
   }
 
   override def transform(key: A, f: (Option[B]) => Option[B])(implicit txn: Txn) {
     val tok = activeToken(key)
+    // in some cases this is overkill, but it is always correct
+    txn.addReference(tok)
     tok.pred.transform(liftF(tok, f))
   }
 
   override def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]])(implicit txn: Txn): Boolean = {
     val tok = activeToken(key)
+    // in some cases this is overkill, but it is always correct
+    txn.addReference(tok)
     tok.pred.transformIfDefined(liftPF(tok, pf))
   }
 
@@ -149,6 +155,20 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
 
   private def decodePair(pair: (Token[A,B],B)): Option[B] = {
     if (null == pair._1) None else Some(pair._2)
+  }
+
+  private def decodePairAndPin(token: Token[A,B], pair: (Token[A,B],B))(implicit txn: Txn): Option[B] = {
+    if (null == pair._1) {
+      // We need to make sure that this TPairRef survives until the end of the
+      // transaction.
+      txn.addReference(token)
+      None
+    } else {
+      // The token will survive on its own until the commit of a removeKey,
+      // because it is has a strong ref via the transactional state.  If the
+      // removal does happen it will invalidate this txn correctly.
+      Some(pair._2)
+    }
   }
 
   private def liftF(token: Token[A,B], f: Option[B] => Option[B]) = (pair: (Token[A,B],B)) => encodePair(token, f(decodePair(pair)))
