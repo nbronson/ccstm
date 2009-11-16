@@ -18,10 +18,16 @@ private object TPairRef {
  *  <code>TOptionRef</code> have lower storage overhead (the wrapping
  *  <code>Option</code> objects are discarded and recreated as needed), but a
  *  slightly higher runtime cost when accessing.
+ *  <p>
+ *  To avoid object creation during initialization, <code>initialValue</code>
+ *  of null implies the pair <code>(null, null)</code>.
  *
  *  @author Nathan Bronson
  */
-class TPairRef[A,B](initialValue: (A,B)) extends Ref[(A,B)] with impl.Handle[(A,B)] {
+class TPairRef[A,B](initialA: A, initialB: B) extends Ref[(A,B)] with impl.Handle[(A,B)] {
+
+  def this(initialPair: (A,B)) = this(initialPair._1, initialPair._2)
+
   import TPairRef._
 
   protected def handle: impl.Handle[(A,B)] = this
@@ -38,8 +44,8 @@ class TPairRef[A,B](initialValue: (A,B)) extends Ref[(A,B)] with impl.Handle[(A,
   private[ccstm] def offset: Int = 0
   private[ccstm] def metaOffset: Int = 0
 
-  @volatile private var _first = initialValue._1
-  @volatile private var _second = initialValue._2
+  @volatile private var _first = initialA
+  @volatile private var _second = initialB
   private[ccstm] def data = (_first, _second)
   private[ccstm] def data_=(v: (A,B)) { _first = v._1 ; _second = v._2 }
 }
