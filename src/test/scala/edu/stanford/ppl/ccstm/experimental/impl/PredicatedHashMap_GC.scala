@@ -24,7 +24,7 @@ private object PredicatedHashMap_GC {
 
   // we extend from TPairRef opportunistically
   private class Predicate[A,B](val weakRef: WeakReference[Token[A,B]]
-          ) extends TPairRef[Token[A,B],B]((null, null.asInstanceOf[B])) {
+          ) extends TPairRef[Token[A,B],B](null, null.asInstanceOf[B]) {
   }
 }
 

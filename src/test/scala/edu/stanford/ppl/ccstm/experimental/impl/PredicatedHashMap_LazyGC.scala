@@ -39,7 +39,7 @@ private object PredicatedHashMap_LazyGC {
   private val predicateTokenRefUpdater = new Predicate[Int,Int](null).newUpdater()
 
   // we extend from TPairRef opportunistically
-  private class Predicate[A,B](tokenRef0: TokenRef[A,B]) extends TPairRef[Token[A,B],B]((null, null.asInstanceOf[B])) {
+  private class Predicate[A,B](tokenRef0: TokenRef[A,B]) extends TPairRef[Token[A,B],B](null, null.asInstanceOf[B]) {
     @volatile private var _tokenRef: TokenRef[A,B] = tokenRef0
     def newUpdater() = AtomicReferenceFieldUpdater.newUpdater(classOf[Predicate[_,_]], classOf[TokenRef[_,_]], "_tokenRef")
 
@@ -260,7 +260,7 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
 
   private def putImpl(key: A, value: B, pred: Predicate[A,B])(implicit txn: Txn): Option[B] = {
     if (null != pred) {
-      val txnState = pred.get
+      val txnState = pred.bind.readForWrite
       if (null != txnState._1) {
         // we are observing presence, no weak ref necessary
         assert (pred.tokenRef.get eq txnState._1)
@@ -291,10 +291,10 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
     if (null == pred || !predicates.replace(key, pred, freshPred)) {
       // No previous predicate, or predicate we think is previous is no longer
       // there (and most likely removed by the thread that made it stale).
-      val race = predicates.putIfAbsent(key, freshPred)
-      if (null != race) {
+      val existing = predicates.putIfAbsent(key, freshPred)
+      if (null != existing) {
         // CAS failed, access the predicate that beat us
-        return putImpl(key, value, race)
+        return putImpl(key, value, existing)
       }
     }
 
@@ -306,14 +306,39 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
   }
 
   def removeKey(key: A)(implicit txn: Txn): Option[B] = {
-    val (tok, pred, prev) = access(key, false)
-    if (!prev.isEmpty) {
-      pred.set((null, null.asInstanceOf[B]))
-      if (!pred.tokenRef.isWeak) {
-        txn.afterCommit(deferredCleanup(key, pred))
+    val pred = predicates.get(key)
+    if (null != pred) {
+      val txnState = pred.bind.readForWrite
+      if (null != txnState._1) {
+        // we are observing presence, no weak ref necessary
+        assert (pred.tokenRef.get eq txnState._1)
+        pred.set((null, null.asInstanceOf[B]))
+        if (!pred.tokenRef.isWeak) {
+          // we are responsible for cleanup 
+          txn.afterCommit(deferredCleanup(key, pred))
+        }
+        return Some(txnState._2)
+      }
+
+      // we are observing absence, so we must both make sure that the token is
+      // weak, and record a strong reference to it
+      val token = ensureWeak(key, pred)
+      if (null != token) {
+        txn.addReference(token)
+        return None
       }
     }
-    prev
+
+    // There is no predicate present, which means (at least right now) there is
+    // nothing to remove.  Let's try to reuse the code from getImpl.
+    val result = getImpl(key, null)
+    if (!result.isEmpty) {
+      // guess we have to remove after all
+      return removeKey(key)
+    } else {
+      // expected
+      return None
+    }
   }
 
   private def deferredCleanup(key: A, pred: Predicate[A,B]) = (t: Txn) => immediateCleanup(key, pred)
