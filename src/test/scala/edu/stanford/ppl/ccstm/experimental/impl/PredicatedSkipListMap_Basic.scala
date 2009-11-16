@@ -10,6 +10,7 @@ import edu.stanford.ppl.ccstm.{STM, Txn}
 import java.util.concurrent.ConcurrentSkipListMap
 import edu.stanford.ppl.ccstm.collection.{TIntRef, TOptionRef}
 
+// TODO: use Ordered or Ordering
 
 object PredicatedSkipListMap_Basic {
   class Predicate[B] extends TOptionRef[B](None) {
@@ -18,15 +19,26 @@ object PredicatedSkipListMap_Basic {
     val succInsCount = new TIntRef(0)
   }
 
-  val entryIterNextValueField = {
+  val iterNextValueField = {
     val f = Class.forName("java.util.concurrent.ConcurrentSkipListMap$Iter").getDeclaredField("nextValue")
     f.setAccessible(true)
     f
   }
 
-  def entryIterPeek[A,B](iter: java.util.Iterator[java.util.Map.Entry[A,B]]): B = {
+  val subMapIterNextValueField = {
+    val f = Class.forName("java.util.concurrent.ConcurrentSkipListMap$SubMap$SubMapIter").getDeclaredField("nextValue")
+    f.setAccessible(true)
+    f
+  }
+
+  def iterPeek[A,B](iter: java.util.Iterator[java.util.Map.Entry[A,B]]): B = {
     // look for a field named "nextValue"
-    entryIterNextValueField.get(iter).asInstanceOf[B]
+    iterNextValueField.get(iter).asInstanceOf[B]
+  }
+
+  def subMapIterPeek[A,B](iter: java.util.Iterator[java.util.Map.Entry[A,B]]): B = {
+    // look for a field named "nextValue"
+    subMapIterNextValueField.get(iter).asInstanceOf[B]
   }
 }
 
@@ -53,6 +65,12 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
       // if no predicate exists, then we don't need to create one
       val p = existingPred(key)
       if (null == p) None else p.nonTxn.getAndSet(None)
+    }
+
+    def higher(key: A): Option[(A,B)] = {
+      // we use a txn, because both the value read must be consistent with the
+      // protecting insCount reads
+      STM.atomic(unbind.higher(key)(_))
     }
 
     override def transform(key: A, f: (Option[B]) => Option[B]) {
@@ -124,7 +142,7 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
             // Before iter.next() returns X, it will first find X's successor.
             // We need to perform the read of X.succInsCount before it does
             // that.
-            val succPred = entryIterPeek(iter)
+            val succPred = iterPeek(iter)
             succPred.succInsCount.get
             val succEntry = iter.next
             assert (succPred eq succEntry.getValue)
@@ -170,6 +188,45 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
     predicateForRead(key).getAndSet(None)
   }
 
+  def higher(key: A)(implicit txn: Txn): Option[(A,B)] = {
+    // There's a bit of a catch-22, because we can't find the insCount that
+    // protects our range access until we've performed the access.  Also, we
+    // may have to skip one or more predicates until we find one that actually
+    // contains a value.
+    val tail = predicates.tailMap(key, false)
+
+    val first = tail.firstEntry
+    if (null == first) {
+      // changes to the tail must adjust lastInsCount
+      lastInsCount.get
+    } else {
+      // changes to the head of the tail must change the predInsCount of first
+      first.getValue.predInsCount.get
+    }
+
+    // for the second (protected) read we will use an iterator, so that we can
+    // keep going if we see absent entries
+    val iter = tail.entrySet.iterator
+    var availValue = subMapIterPeek(iter)
+    if (availValue ne (if (null == first) null else first.getValue)) {
+      // the insCount we read was not the right one, try again
+      return higher(key)
+    }
+
+    // we can now iterate as in bind.elements
+    while (null != availValue) {
+      availValue.get match {
+        case Some(v) => {
+          // no protection for iter.next needed, because we just want the key
+          return Some((iter.next.getKey, v))
+        }
+        case None => {} // keep searching
+      }
+      availValue.succInsCount.get
+      iter.next
+    }
+    return None
+  }
 
   override def transform(key: A, f: (Option[B]) => Option[B])(implicit txn: Txn) {
     predicateForPut(key).transform(f)
@@ -202,13 +259,17 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
     // vOptRef can't be non-None until after the pred and succ mod counts are
     // incremented.  This is true whether we created it or found it.
     val p = predicateForRead(key)
-    if (!p.ready) {
-      val before = predicates.lowerEntry(key)
-      (if (null != before) before.getValue.succInsCount else firstInsCount).nonTxn += 1
-      val after = predicates.higherEntry(key)
-      (if (null != after) after.getValue.predInsCount else lastInsCount).nonTxn += 1
-      p.ready = true
-    }
-    p
+    if (p.ready) return p
+
+    val before = predicates.lowerEntry(key)
+    if (p.ready) return p
+    (if (null != before) before.getValue.succInsCount else firstInsCount).nonTxn += 1
+
+    val after = predicates.higherEntry(key)
+    if (p.ready) return p
+    (if (null != after) after.getValue.predInsCount else lastInsCount).nonTxn += 1
+
+    p.ready = true
+    return p
   }
 }

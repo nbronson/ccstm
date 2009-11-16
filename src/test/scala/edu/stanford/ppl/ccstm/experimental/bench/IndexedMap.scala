@@ -71,6 +71,7 @@ object IndexedMap {
             case "p_h_rc" => new PredicatedHashMap_RC[A,B]
             case "p_h_gc" => new PredicatedHashMap_GC[A,B]
             case "p_h_lazy" => new PredicatedHashMap_LazyGC[A,B]
+            case "p_sl_basic" => new PredicatedSkipListMap_Basic[A,B]
             case "t_h" => new ChainingHashMap[A,B]
           }
         }
