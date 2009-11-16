@@ -5,7 +5,7 @@
 package edu.stanford.ppl.stm.bank
 
 
-import ccstm.{Ref, Txn}
+import edu.stanford.ppl.ccstm.{Ref, Txn}
 
 class CheckingAccount(val name: String, initialBalance: Float) extends Account {
 
@@ -15,7 +15,7 @@ class CheckingAccount(val name: String, initialBalance: Float) extends Account {
 
   def deposit(amount: Float)(implicit txn: Txn) {
     assert(amount >= 0)
-    _balance.transform(_ + amount)
+    _balance := !_balance + amount
   }
 
   def withdraw(amount: Float)(implicit txn: Txn) {
@@ -23,7 +23,7 @@ class CheckingAccount(val name: String, initialBalance: Float) extends Account {
     if (_balance.get < amount) {
       throw new OverdraftException("Cannot withdraw $" + amount + " from $" + _balance.get)
     }
-    _balance.transform(_ - amount)
+    _balance := !_balance - amount
   }
 
 }
