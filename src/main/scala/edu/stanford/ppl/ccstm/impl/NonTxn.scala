@@ -419,4 +419,12 @@ private[ccstm] object NonTxn {
     releaseLock(handleB, mB0, wv)
     return z
   }
+
+  def getAndAdd(handle: Handle[Int], delta: Int): Int = {
+    val m0 = acquireLock(handle, true)
+    val v0 = handle.data
+    handle.data = v0 + delta
+    commitLock(handle, m0)
+    v0
+  }
 }

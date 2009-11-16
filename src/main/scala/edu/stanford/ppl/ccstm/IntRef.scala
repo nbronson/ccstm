@@ -4,6 +4,8 @@
 
 package edu.stanford.ppl.ccstm
 
+import impl.NonTxn
+
 
 object IntRef {
 
@@ -52,6 +54,8 @@ trait IntRef extends Ref[Int] {
 
   override def nonTxn: IntRef.Bound = new impl.NonTxnBound(this, nonTxnHandle) with IntRef.Bound {
     override val unbind: IntRef = IntRef.this
+
+    override def += (delta: Int): Unit = NonTxn.getAndAdd(handle, delta)
   }
 
   //////////////// convenience functions for ints
