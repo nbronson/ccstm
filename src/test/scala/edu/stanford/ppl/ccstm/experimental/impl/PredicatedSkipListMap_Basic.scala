@@ -12,9 +12,8 @@ import edu.stanford.ppl.ccstm.collection.{TIntRef, TOptionRef}
 
 
 object PredicatedSkipListMap_Basic {
-  class Predicate[B] {
+  class Predicate[B] extends TOptionRef[B](None) {
     @volatile var ready = false
-    val vOpt = new TOptionRef[B](None)
     val predInsCount = new TIntRef(0)
     val succInsCount = new TIntRef(0)
   }
@@ -43,25 +42,25 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
     def get(key: A): Option[B] = {
       // if no predicate exists, then we don't need to create one
       val p = existingPred(key)
-      if (null == p) None else p.vOpt.nonTxn.get
+      if (null == p) None else p.nonTxn.get
     }
 
     override def put(key: A, value: B): Option[B] = {
-      predicateForPut(key).vOpt.nonTxn.getAndSet(Some(value))
+      predicateForPut(key).nonTxn.getAndSet(Some(value))
     }
 
     override def removeKey(key: A): Option[B] = {
       // if no predicate exists, then we don't need to create one
       val p = existingPred(key)
-      if (null == p) None else p.vOpt.nonTxn.getAndSet(None)
+      if (null == p) None else p.nonTxn.getAndSet(None)
     }
 
     override def transform(key: A, f: (Option[B]) => Option[B]) {
-      predicateForPut(key).vOpt.nonTxn.transform(f)
+      predicateForPut(key).nonTxn.transform(f)
     }
 
     override def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]]): Boolean = {
-      predicateForPut(key).vOpt.nonTxn.transformIfDefined(pf)
+      predicateForPut(key).nonTxn.transformIfDefined(pf)
     }
 
     protected def transformIfDefined(key: A,
@@ -129,7 +128,7 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
             succPred.succInsCount.get
             val succEntry = iter.next
             assert (succPred eq succEntry.getValue)
-            succPred.vOpt.get match {
+            succPred.get match {
               case Some(v) => {
                 avail = (succEntry.getKey, v)
                 return
@@ -160,24 +159,24 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
   }
 
   def get(key: A)(implicit txn: Txn): Option[B] = {
-    predicateForRead(key).vOpt.get
+    predicateForRead(key).get
   }
 
   def put(key: A, value: B)(implicit txn: Txn): Option[B] = {
-    predicateForPut(key).vOpt.getAndSet(Some(value))
+    predicateForPut(key).getAndSet(Some(value))
   }
 
   def removeKey(key: A)(implicit txn: Txn): Option[B] = {
-    predicateForRead(key).vOpt.getAndSet(None)
+    predicateForRead(key).getAndSet(None)
   }
 
 
   override def transform(key: A, f: (Option[B]) => Option[B])(implicit txn: Txn) {
-    predicateForPut(key).vOpt.transform(f)
+    predicateForPut(key).transform(f)
   }
 
   override def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]])(implicit txn: Txn): Boolean = {
-    predicateForPut(key).vOpt.transformIfDefined(pf)
+    predicateForPut(key).transformIfDefined(pf)
   }
 
   protected def transformIfDefined(key: A,
