@@ -165,6 +165,17 @@ private[impl] class WriteBuffer {
     v0
   }
 
+  def visitBegin: Int = _lastInsert
+  def visitHandle(pos: Int) = _entries(handleI(pos)).asInstanceOf[Handle[_]]
+  def visitSpecValue(pos: Int) = _entries(specValueI(pos))
+  def visitNext(pos: Int): Int = {
+    var i = pos
+    do {
+      i = (i + 1) & (_capacity - 1)
+    } while (_entries(handleI(i)) eq null)
+    i
+  }
+
   def visit(visitor: Visitor): Boolean = {
     var i = _lastInsert
     var remaining = _size

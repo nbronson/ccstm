@@ -246,36 +246,55 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   private def rollbackWrites() {
     assert(_status.isInstanceOf[RollingBack])
 
-    _writeBuffer.visit(new WriteBuffer.Visitor {
-      def visit(handle: Handle[_], specValue: Any): Boolean = {
-        var m = handle.meta
-        while (owner(m) == _slot) {
-          // we must use CAS because there can be concurrent pendingWaiter adds
-          // and concurrent "helpers" that release the lock
-          if (handle.metaCAS(m, withRollback(m))) return true
-          m = handle.meta
-        }
-        return true
-      }
-    })
+    val wbSize = _writeBuffer.size
+    var i = 0
+    var pos = -1
+    while (i < wbSize) {
+      pos = if (i == 0) _writeBuffer.visitBegin else _writeBuffer.visitNext(pos)
+      i += 1
+      val handle = _writeBuffer.visitHandle(pos)
+      
+      rollbackWrite(handle)
+    }
+  }
+
+  private def rollbackWrite(handle: Handle[_]) {
+    var m = handle.meta
+    while (owner(m) == _slot) {
+      // we must use CAS because there can be concurrent pendingWaiter adds
+      // and concurrent "helpers" that release the lock
+      if (handle.metaCAS(m, withRollback(m))) return
+      m = handle.meta
+    }
   }
 
   private def acquireLocks(): Boolean = {
-    _writeBuffer.visit(new WriteBuffer.Visitor {
-      def visit(handle: Handle[_], specValue: Any): Boolean = {
-        var m = handle.meta
-        if (!changing(m)) {
-          // remote requestRollback might have doomed us, followed by a steal
-          // of this handle, so we must verify ownership each try
-          while (owner(m) == _slot) {
-            if (handle.metaCAS(m, withChanging(m))) return true
-            m = handle.meta
-          }
-          return false
-        }
-        return true
+    var wakeups = 0L
+    val wbSize = _writeBuffer.size
+    var i = 0
+    var pos = -1
+    while (i < wbSize) {
+      pos = if (i == 0) _writeBuffer.visitBegin else _writeBuffer.visitNext(pos)
+      i += 1
+      val handle = _writeBuffer.visitHandle(pos)
+
+      if (!acquireLock(handle)) return false
+    }
+    return _status == Validating
+  }
+
+  private def acquireLock(handle: Handle[_]): Boolean = {
+    var m = handle.meta
+    if (!changing(m)) {
+      // remote requestRollback might have doomed us, followed by a steal
+      // of this handle, so we must verify ownership each try
+      while (owner(m) == _slot) {
+        if (handle.metaCAS(m, withChanging(m))) return true
+        m = handle.meta
       }
-    }) && (_status == Validating)    
+      return false
+    }
+    return true
   }
 
   private def commitWrites(cv: Long) {
@@ -285,32 +304,39 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
 
     // first pass
     var wakeups = 0L
-    _writeBuffer.visit(new WriteBuffer.Visitor {
-      def visit(handle: Handle[_], specValue: Any): Boolean = {
-        // update the values
-        handle.asInstanceOf[Handle[Any]].data = specValue
+    val wbSize = _writeBuffer.size
+    var i = 0
+    var pos = -1
+    while (i < wbSize) {
+      pos = if (i == 0) _writeBuffer.visitBegin else _writeBuffer.visitNext(pos)
+      i += 1
+      val handle = _writeBuffer.visitHandle(pos)
+      val specValue = _writeBuffer.visitSpecValue(pos)
 
-        // We must accumulate the pending wakeups during this pass, because
-        // during the second pass we clear the PW bit on the first handle that
-        // references a particular metadata.
-        if (pendingWakeups(handle.meta)) {
-          wakeups |= wakeupManager.prepareToTrigger(handle.ref, handle.offset)
-        }
-        true
+      // update the value
+      handle.asInstanceOf[Handle[Any]].data = specValue
+
+      // We must accumulate the pending wakeups during this pass, because
+      // during the second pass we clear the PW bit on the first handle that
+      // references a particular metadata.
+      if (pendingWakeups(handle.meta)) {
+        wakeups |= wakeupManager.prepareToTrigger(handle.ref, handle.offset)
       }
-    })
+    }
 
     // second pass
-    _writeBuffer.visit(new WriteBuffer.Visitor {
-      def visit(handle: Handle[_], specValue: Any): Boolean = {
-        val m = handle.meta
-        if (owner(m) == _slot) {
-          // release the lock, clear the PW bit, and update the version
-          handle.meta = withCommit(m, cv)
-        }
-        true
+    i = 0
+    while (i < wbSize) {
+      pos = if (i == 0) _writeBuffer.visitBegin else _writeBuffer.visitNext(pos)
+      i += 1
+      val handle = _writeBuffer.visitHandle(pos)
+
+      val m = handle.meta
+      if (owner(m) == _slot) {
+        // release the lock, clear the PW bit, and update the version
+        handle.meta = withCommit(m, cv)
       }
-    })
+    }
 
     // unblock anybody waiting on a value change that has just occurred
     wakeupManager.trigger(wakeups)

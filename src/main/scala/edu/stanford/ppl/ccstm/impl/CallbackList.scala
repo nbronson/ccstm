@@ -35,9 +35,6 @@ private[ccstm] class CallbackList[T <: AnyRef] {
   }
 
   def foreach(block: T => Unit) {
-    if (_zeroSlot.size > 0) {
-      _slotsByPrio.put(0, _zeroSlot)
-    }
     try {
       while (!attemptForeach(block)) {}
     } finally {
@@ -52,22 +49,34 @@ private[ccstm] class CallbackList[T <: AnyRef] {
   }
 
   private def attemptForeach(block: T => Unit): Boolean = {
-    val expectedSize = _size
-    val iter = _slotsByPrio.values().iterator
-    while (iter.hasNext) {
-      val slot = iter.next
-      while (slot._visited < slot._count) {
-        block(slot._elems(slot._visited).asInstanceOf[T])
-        slot._visited += 1
-        if (expectedSize != _size) return false
+    val expectedSize = size
+    if (_size == 0) {
+      if (!attemptSlot(block, expectedSize, _zeroSlot)) return false
+    } else {
+      _slotsByPrio.put(0, _zeroSlot)
+      val iter = _slotsByPrio.values().iterator
+      while (iter.hasNext) {
+        if (!attemptSlot(block, expectedSize, iter.next)) return false
       }
     }
     return true
   }
 
+  private def attemptSlot(block: T => Unit, expectedSize: Int, slot: CallbackPrioSlot): Boolean = {
+    while (slot._visited < slot._count) {
+      block(slot._elems(slot._visited).asInstanceOf[T])
+      slot._visited += 1
+      if (expectedSize != size) return false
+    }
+    return true
+  }
+
   private def reset {
-    val iter = _slotsByPrio.values().iterator
-    while (iter.hasNext) iter.next._visited = 0
+    _zeroSlot._visited = 0
+    if (_size > 0) {
+      val iter = _slotsByPrio.values().iterator
+      while (iter.hasNext) iter.next._visited = 0
+    }
   }
 }
 
