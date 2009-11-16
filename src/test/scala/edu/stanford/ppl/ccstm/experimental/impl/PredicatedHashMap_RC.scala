@@ -112,48 +112,48 @@ class PredicatedHashMap_RC[A,B] extends TMap[A,B] {
 
   def size(implicit txn: Txn): Int = throw new UnsupportedOperationException
 
-  def get(key: A)(implicit txn: Txn): Option[B] = {
+  def get(key: A)(implicit txn: Txn) = {
     val pred = enter(key)
     txn.afterCompletion(t => exit(key, pred, 1))
     pred.get
   }
 
-  def put(key: A, value: B)(implicit txn: Txn): Option[B] = {
-    val pred = enter(key)
+  def put(k: A, v: B)(implicit txn: Txn): Option[B] = {
+    val p = enter(k)
     try {
-      val prev = pred.getAndSet(Some(value))
+      val prev = p.getAndSet(Some(v))
       if (prev.isEmpty) {
         // None -> Some.  On commit, we leave +1 on the reference count
-        txn.afterRollback(t => exit(key, pred, 1))
+        txn.afterRollback(t => exit(k, p, 1))
       } else {
         // Some -> Some
-        txn.afterCompletion(t => exit(key, pred, 1))
+        txn.afterCompletion(t => exit(k, p, 1))
       }
       prev
     } catch {
       case x => {
-        exit(key, pred, 1)
+        exit(k, p, 1)
         throw x
       }
     }
   }
 
-  def removeKey(key: A)(implicit txn: Txn): Option[B] = {
-    val pred = enter(key)
+  def removeKey(k: A)(implicit txn: Txn): Option[B] = {
+    val p = enter(k)
     try {
-      val prev = pred.getAndSet(None)
+      val prev = p.getAndSet(None)
       if (!prev.isEmpty) {
         // Some -> None.  On commit, we erase the +1 that was left by the
         // None -> Some transition
-        txn.afterCompletion(t => exit(key, pred, (if (txn.status == Txn.Committed) 2 else 1)))
+        txn.afterCompletion(t => exit(k, p, (if (txn.status == Txn.Committed) 2 else 1)))
       } else {
         // None -> None
-        txn.afterCompletion(t => exit(key, pred, 1))
+        txn.afterCompletion(t => exit(k, p, 1))
       }
       prev
     } catch {
       case x => {
-        exit(key, pred, 1)
+        exit(k, p, 1)
         throw x
       }
     }
