@@ -9,15 +9,14 @@ import java.util.concurrent.ConcurrentHashMap
 import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm.{STM, Txn}
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater
-import edu.stanford.ppl.ccstm.collection.{StripedIntRef, TOptionRef, LazyConflictIntRef}
-
+import edu.stanford.ppl.ccstm.collection.{TAnyRef, StripedIntRef, TOptionRef, LazyConflictIntRef}
 
 object PredicatedHashMap_RC_Enum {
-  private val refCountUpdater = (new Pred[Int](0)).newUpdater
+  private val refCountUpdater = (new Pred[Int]).newUpdater
 
-  class Pred[B](initialRC: Int) extends TOptionRef[B](None) {
+  class Pred[B] extends TAnyRef[AnyRef](null) {
     def newUpdater = AtomicIntegerFieldUpdater.newUpdater(classOf[Pred[_]], "_refCount")
-    @volatile private var _refCount = initialRC
+    @volatile private var _refCount = 1
 
     def refCount = _refCount
     def refCountCAS(before: Int, after: Int) = refCountUpdater.compareAndSet(this, before, after)
@@ -38,62 +37,62 @@ class PredicatedHashMap_RC_Enum[A,B] extends TMap[A,B] {
 
     def get(key: A): Option[B] = {
       // if no predicate exists, or the one we get is stale, we can still read None
-      val p = existingPred(key)
-      if (null == p) None else p.nonTxn.get
+      val p = predicates.get(key)
+      if (null == p) None else NullValue.decodeOption(p.nonTxn.get)
     }
 
     override def put(key: A, value: B): Option[B] = {
       val p = enter(key)
       val pn = p.nonTxn
       val before = pn.get
-      if (!before.isEmpty) {
+      if (null != before) {
         // try to update (no size change)
-        if (pn.compareAndSet(before, Some(value))) {
+        if (pn.compareAndSet(before, NullValue.encode(value))) {
           // success
           exit(key, p, 1)
-          return before
+          return Some(NullValue.decode(before))
         }
         // failure goes to the transform2 implementation
       }
-      val prev = STM.transform2(p, sizeRef.aStripe, (vo: Option[B], s: Int) => {
-        (Some(value), (if (vo.isEmpty) s + 1 else s), vo)
+      val prev = STM.transform2(p, sizeRef.aStripe, (v: AnyRef, s: Int) => {
+        (NullValue.encode(value), (if (null == v) s + 1 else s), v)
       })
-      if (!prev.isEmpty) {
+      if (null != prev) {
         exit(key, p, 1)
       }
-      prev
+      NullValue.decodeOption(prev)
     }
 
     override def removeKey(key: A): Option[B] = {
-      val p = existingPred(key)
-      if (null == p || p.nonTxn.get.isEmpty) {
+      val p = predicates.get(key)
+      if (null == p || null == p.nonTxn.get) {
         // no need to create a predicate
         return None
       }
-      val prev = STM.transform2(p, sizeRef.aStripe, (vo: Option[B], s: Int) => {
-        (None, (if (vo.isEmpty) s else s - 1), vo)
+      val prev = STM.transform2(p, sizeRef.aStripe, (v: AnyRef, s: Int) => {
+        (null, (if (null == v) s else s - 1), v)
       })
-      if (!prev.isEmpty) {
+      if (null != prev) {
         exit(key, p, 1)
       }
-      prev
+      NullValue.decodeOption(prev)
     }
 
-    override def transform(key: A, f: (Option[B]) => Option[B]) {
-      // TODO: implement directly
-      STM.atomic(unbind.transform(key, f)(_))
-    }
-
-    override def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]]): Boolean = {
-      // TODO: implement directly
-      STM.atomic(unbind.transformIfDefined(key, pf)(_))
-    }
-
-    protected def transformIfDefined(key: A,
-                                     pfOrNull: PartialFunction[Option[B],Option[B]],
-                                     f: Option[B] => Option[B]): Boolean = {
-      throw new Error
-    }
+//    override def transform(key: A, f: (Option[B]) => Option[B]) {
+//      // TODO: implement directly
+//      STM.atomic(unbind.transform(key, f)(_))
+//    }
+//
+//    override def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]]): Boolean = {
+//      // TODO: implement directly
+//      STM.atomic(unbind.transformIfDefined(key, pf)(_))
+//    }
+//
+//    protected def transformIfDefined(key: A,
+//                                     pfOrNull: PartialFunction[Option[B],Option[B]],
+//                                     f: Option[B] => Option[B]): Boolean = {
+//      throw new Error
+//    }
 
     def elements: Iterator[(A,B)] = new Iterator[(A,B)] {
       val iter = predicates.keySet().iterator
@@ -138,13 +137,11 @@ class PredicatedHashMap_RC_Enum[A,B] extends TMap[A,B] {
       private def advance() {
         while (iter.hasNext) {
           val e = iter.next()
-          e.getValue.get match {
-            case Some(v) => {
-              apparentSize += 1
-              avail = (e.getKey, v)
-              return
-            }
-            case None => // keep looking
+          val v = e.getValue.get
+          if (null != v) {
+            apparentSize += 1
+            avail = (e.getKey, NullValue.decode(v))
+            return
           }
         }
 
@@ -176,14 +173,14 @@ class PredicatedHashMap_RC_Enum[A,B] extends TMap[A,B] {
   def get(key: A)(implicit txn: Txn) = {
     val pred = enter(key)
     txn.afterCompletion(t => exit(key, pred, 1))
-    pred.get
+    NullValue.decodeOption(pred.get)
   }
 
   def put(k: A, v: B)(implicit txn: Txn): Option[B] = {
     val p = enter(k)
     try {
-      val prev = p.getAndSet(Some(v))
-      if (prev.isEmpty) {
+      val prev = p.getAndSet(NullValue.encode(v))
+      if (null == prev) {
         // None -> Some.  On commit, we leave +1 on the reference count
         sizeRef += 1
         txn.afterRollback(t => exit(k, p, 1))
@@ -191,7 +188,7 @@ class PredicatedHashMap_RC_Enum[A,B] extends TMap[A,B] {
         // Some -> Some
         txn.afterCompletion(t => exit(k, p, 1))
       }
-      prev
+      NullValue.decodeOption(prev)
     } catch {
       case x => {
         exit(k, p, 1)
@@ -203,8 +200,8 @@ class PredicatedHashMap_RC_Enum[A,B] extends TMap[A,B] {
   def removeKey(k: A)(implicit txn: Txn): Option[B] = {
     val p = enter(k)
     try {
-      val prev = p.getAndSet(None)
-      if (!prev.isEmpty) {
+      val prev = p.getAndSet(null)
+      if (null != prev) {
         // Some -> None.  On commit, we erase the +1 that was left by the
         // None -> Some transition
         sizeRef -= 1
@@ -213,7 +210,7 @@ class PredicatedHashMap_RC_Enum[A,B] extends TMap[A,B] {
         // None -> None
         txn.afterCompletion(t => exit(k, p, 1))
       }
-      prev
+      NullValue.decodeOption(prev)
     } catch {
       case x => {
         exit(k, p, 1)
@@ -222,47 +219,44 @@ class PredicatedHashMap_RC_Enum[A,B] extends TMap[A,B] {
     }
   }
 
-
-  override def transform(key: A, f: (Option[B]) => Option[B])(implicit txn: Txn) {
-    val p = enter(key)
-    var sizeDelta = 0
-    try {
-      val before = p.get
-      val after = f(before)
-      p.set(after)
-      sizeDelta = (if (after.isEmpty) 0 else 1) - (if (before.isEmpty) 0 else 1)
-      sizeRef += sizeDelta
-    } finally {
-      txn.afterCompletion(t => exit(key, p, (if (txn.status == Txn.Committed) 1 - sizeDelta else 1)))
-    }
-  }
-
-  override def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]])(implicit txn: Txn): Boolean = {
-    val p = enter(key)
-    var sizeDelta = 0
-    try {
-      val before = p.get
-      if (pf.isDefinedAt(before)) {
-        val after = pf(before)
-        p.set(after)
-        sizeDelta = (if (after.isEmpty) 0 else 1) - (if (before.isEmpty) 0 else 1)
-        sizeRef += sizeDelta
-        true
-      } else {
-        false
-      }
-    } finally {
-      txn.afterCompletion(t => exit(key, p, (if (txn.status == Txn.Committed) 1 - sizeDelta else 1)))
-    }
-  }
-
-  protected def transformIfDefined(key: A,
-                                   pfOrNull: PartialFunction[Option[B],Option[B]],
-                                   f: Option[B] => Option[B])(implicit txn: Txn): Boolean = {
-    throw new Error
-  }
-
-  private def existingPred(key: A): Pred[B] = predicates.get(key)
+//  override def transform(key: A, f: (Option[B]) => Option[B])(implicit txn: Txn) {
+//    val p = enter(key)
+//    var sizeDelta = 0
+//    try {
+//      val before = p.get
+//      val after = f(before)
+//      p.set(after)
+//      sizeDelta = (if (after.isEmpty) 0 else 1) - (if (before.isEmpty) 0 else 1)
+//      sizeRef += sizeDelta
+//    } finally {
+//      txn.afterCompletion(t => exit(key, p, (if (txn.status == Txn.Committed) 1 - sizeDelta else 1)))
+//    }
+//  }
+//
+//  override def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]])(implicit txn: Txn): Boolean = {
+//    val p = enter(key)
+//    var sizeDelta = 0
+//    try {
+//      val before = p.get
+//      if (pf.isDefinedAt(before)) {
+//        val after = pf(before)
+//        p.set(after)
+//        sizeDelta = (if (after.isEmpty) 0 else 1) - (if (before.isEmpty) 0 else 1)
+//        sizeRef += sizeDelta
+//        true
+//      } else {
+//        false
+//      }
+//    } finally {
+//      txn.afterCompletion(t => exit(key, p, (if (txn.status == Txn.Committed) 1 - sizeDelta else 1)))
+//    }
+//  }
+//
+//  protected def transformIfDefined(key: A,
+//                                   pfOrNull: PartialFunction[Option[B],Option[B]],
+//                                   f: Option[B] => Option[B])(implicit txn: Txn): Boolean = {
+//    throw new Error
+//  }
 
   private def enter(k: A): Pred[B] = {
     var p = predicates.get(k)
@@ -277,7 +271,7 @@ class PredicatedHashMap_RC_Enum[A,B] extends TMap[A,B] {
         }
         predicates.remove(k, p)
       }
-      fresh = new Pred[B](1)
+      fresh = new Pred[B]
       p = predicates.putIfAbsent(k, fresh)
     } while (null != p)
     fresh

@@ -56,21 +56,21 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
       if (null == p) None else decodePair(p.nonTxn.getAndSet((null, null.asInstanceOf[B])))
     }
 
-    override def transform(key: A, f: (Option[B]) => Option[B]) {
-      val tok = activeToken(key)
-      tok.pred.nonTxn.transform(liftF(tok, f))
-    }
-
-    override def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]]): Boolean = {
-      val tok = activeToken(key)
-      tok.pred.nonTxn.transformIfDefined(liftPF(tok, pf))
-    }
-
-    protected def transformIfDefined(key: A,
-                                     pfOrNull: PartialFunction[Option[B],Option[B]],
-                                     f: Option[B] => Option[B]): Boolean = {
-      throw new Error
-    }
+//    override def transform(key: A, f: (Option[B]) => Option[B]) {
+//      val tok = activeToken(key)
+//      tok.pred.nonTxn.transform(liftF(tok, f))
+//    }
+//
+//    override def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]]): Boolean = {
+//      val tok = activeToken(key)
+//      tok.pred.nonTxn.transformIfDefined(liftPF(tok, pf))
+//    }
+//
+//    protected def transformIfDefined(key: A,
+//                                     pfOrNull: PartialFunction[Option[B],Option[B]],
+//                                     f: Option[B] => Option[B]): Boolean = {
+//      throw new Error
+//    }
 
     def elements: Iterator[(A,B)] = new Iterator[(A,B)] {
       val iter = predicates.keySet().iterator
@@ -124,25 +124,25 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
     decodePairAndPin(tok, tok.pred.getAndSet((null, null.asInstanceOf[B])))
   }
 
-  override def transform(key: A, f: (Option[B]) => Option[B])(implicit txn: Txn) {
-    val tok = activeToken(key)
-    // in some cases this is overkill, but it is always correct
-    txn.addReference(tok)
-    tok.pred.transform(liftF(tok, f))
-  }
-
-  override def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]])(implicit txn: Txn): Boolean = {
-    val tok = activeToken(key)
-    // in some cases this is overkill, but it is always correct
-    txn.addReference(tok)
-    tok.pred.transformIfDefined(liftPF(tok, pf))
-  }
-
-  protected def transformIfDefined(key: A,
-                                   pfOrNull: PartialFunction[Option[B],Option[B]],
-                                   f: Option[B] => Option[B])(implicit txn: Txn): Boolean = {
-    throw new Error
-  }
+//  override def transform(key: A, f: (Option[B]) => Option[B])(implicit txn: Txn) {
+//    val tok = activeToken(key)
+//    // in some cases this is overkill, but it is always correct
+//    txn.addReference(tok)
+//    tok.pred.transform(liftF(tok, f))
+//  }
+//
+//  override def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]])(implicit txn: Txn): Boolean = {
+//    val tok = activeToken(key)
+//    // in some cases this is overkill, but it is always correct
+//    txn.addReference(tok)
+//    tok.pred.transformIfDefined(liftPF(tok, pf))
+//  }
+//
+//  protected def transformIfDefined(key: A,
+//                                   pfOrNull: PartialFunction[Option[B],Option[B]],
+//                                   f: Option[B] => Option[B])(implicit txn: Txn): Boolean = {
+//    throw new Error
+//  }
 
   //////////////// encoding and decoding into the pair
 

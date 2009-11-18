@@ -73,19 +73,19 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
       STM.atomic(unbind.higher(key)(_))
     }
 
-    override def transform(key: A, f: (Option[B]) => Option[B]) {
-      predicateForPut(key).nonTxn.transform(f)
-    }
-
-    override def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]]): Boolean = {
-      predicateForPut(key).nonTxn.transformIfDefined(pf)
-    }
-
-    protected def transformIfDefined(key: A,
-                                     pfOrNull: PartialFunction[Option[B],Option[B]],
-                                     f: Option[B] => Option[B]): Boolean = {
-      throw new Error
-    }
+//    override def transform(key: A, f: (Option[B]) => Option[B]) {
+//      predicateForPut(key).nonTxn.transform(f)
+//    }
+//
+//    override def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]]): Boolean = {
+//      predicateForPut(key).nonTxn.transformIfDefined(pf)
+//    }
+//
+//    protected def transformIfDefined(key: A,
+//                                     pfOrNull: PartialFunction[Option[B],Option[B]],
+//                                     f: Option[B] => Option[B]): Boolean = {
+//      throw new Error
+//    }
 
     def elements: Iterator[(A,B)] = new Iterator[(A,B)] {
       val iter = predicates.keySet().iterator
@@ -228,19 +228,19 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
     return None
   }
 
-  override def transform(key: A, f: (Option[B]) => Option[B])(implicit txn: Txn) {
-    predicateForPut(key).transform(f)
-  }
-
-  override def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]])(implicit txn: Txn): Boolean = {
-    predicateForPut(key).transformIfDefined(pf)
-  }
-
-  protected def transformIfDefined(key: A,
-                                   pfOrNull: PartialFunction[Option[B],Option[B]],
-                                   f: Option[B] => Option[B])(implicit txn: Txn): Boolean = {
-    throw new Error
-  }
+//  override def transform(key: A, f: (Option[B]) => Option[B])(implicit txn: Txn) {
+//    predicateForPut(key).transform(f)
+//  }
+//
+//  override def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]])(implicit txn: Txn): Boolean = {
+//    predicateForPut(key).transformIfDefined(pf)
+//  }
+//
+//  protected def transformIfDefined(key: A,
+//                                   pfOrNull: PartialFunction[Option[B],Option[B]],
+//                                   f: Option[B] => Option[B])(implicit txn: Txn): Boolean = {
+//    throw new Error
+//  }
 
   private def existingPred(key: A): Predicate[B] = predicates.get(key)
 

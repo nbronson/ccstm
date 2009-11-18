@@ -183,19 +183,19 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
       }
     }
 
-    override def transform(key: A, f: (Option[B]) => Option[B]) {
-      STM.atomic(unbind.transform(key, f)(_))
-    }
-
-    override def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]]): Boolean = {
-      STM.atomic(unbind.transformIfDefined(key, pf)(_))
-    }
-
-    protected def transformIfDefined(key: A,
-                                     pfOrNull: PartialFunction[Option[B],Option[B]],
-                                     f: Option[B] => Option[B]): Boolean = {
-      throw new Error
-    }
+//    override def transform(key: A, f: (Option[B]) => Option[B]) {
+//      STM.atomic(unbind.transform(key, f)(_))
+//    }
+//
+//    override def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]]): Boolean = {
+//      STM.atomic(unbind.transformIfDefined(key, pf)(_))
+//    }
+//
+//    protected def transformIfDefined(key: A,
+//                                     pfOrNull: PartialFunction[Option[B],Option[B]],
+//                                     f: Option[B] => Option[B]): Boolean = {
+//      throw new Error
+//    }
 
     def elements: Iterator[(A,B)] = new Iterator[(A,B)] {
       val iter = predicates.keySet().iterator

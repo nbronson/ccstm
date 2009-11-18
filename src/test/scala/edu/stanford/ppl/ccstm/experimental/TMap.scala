@@ -61,8 +61,8 @@ object TMap {
   trait Bound[A,B] extends BoundSource[A,B] with BoundSink[A,B] with scala.collection.mutable.Map[A,B] {
     def unbind: TMap[A,B]
 
-    def transform(key: A, f: Option[B] => Option[B])
-    def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]]): Boolean
+//    def transform(key: A, f: Option[B] => Option[B])
+//    def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]]): Boolean
   }
 
   private[experimental] abstract class AbstractNonTxnBound[A,B,M <: TMap[A,B]](val unbind: M) extends Bound[A,B] {
@@ -78,10 +78,10 @@ object TMap {
     def update(key: A, value: B) { put(key, value) }
     def -= (key: A) { removeKey(key) }
 
-    def transform(key: A, f: Option[B] => Option[B]) { transformIfDefined(key, null, f) }
-    def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]]): Boolean = transformIfDefined(key, pf, pf)
-
-    protected def transformIfDefined(key: A, pfOrNull: PartialFunction[Option[B],Option[B]], f: Option[B] => Option[B]): Boolean
+//    def transform(key: A, f: Option[B] => Option[B]) { transformIfDefined(key, null, f) }
+//    def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]]): Boolean = transformIfDefined(key, pf, pf)
+//
+//    protected def transformIfDefined(key: A, pfOrNull: PartialFunction[Option[B],Option[B]], f: Option[B] => Option[B]): Boolean
   }
 
   private[experimental] abstract class AbstractTxnBound[A,B,M <: TMap[A,B]](val txn: Txn, val unbind: M) extends Bound[A,B] {
@@ -99,12 +99,12 @@ object TMap {
     override def removeKey(key: A): Option[B] = unbind.removeKey(key)(txn)
     def -=(key: A) { unbind.-=(key)(txn) }
 
-    def transform(key: A, f: (Option[B]) => Option[B]) {
-      unbind.transform(key, f)(txn)
-    }
-    def transformIfDefined(key: A, pf: PartialFunction[Option[B], Option[B]]): Boolean = {
-      unbind.transformIfDefined(key, pf)(txn)
-    }
+//    def transform(key: A, f: (Option[B]) => Option[B]) {
+//      unbind.transform(key, f)(txn)
+//    }
+//    def transformIfDefined(key: A, pf: PartialFunction[Option[B], Option[B]]): Boolean = {
+//      unbind.transformIfDefined(key, pf)(txn)
+//    }
   }
 }
 
@@ -118,17 +118,17 @@ trait TMap[A,B] extends TMap.Source[A,B] with TMap.Sink[A,B] {
   def put(key: A, value: B)(implicit txn: Txn): Option[B]
   def removeKey(key: A)(implicit txn: Txn): Option[B]
 
-  def transform(key: A, f: Option[B] => Option[B])(implicit txn: Txn) {
-    transformIfDefined(key, null, f)
-  }
-
-  def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]])(implicit txn: Txn): Boolean = {
-    transformIfDefined(key, pf, pf)
-  }
-
-  protected def transformIfDefined(key: A,
-                                   pfOrNull: PartialFunction[Option[B],Option[B]],
-                                   f: Option[B] => Option[B])(implicit txn: Txn): Boolean
+//  def transform(key: A, f: Option[B] => Option[B])(implicit txn: Txn) {
+//    transformIfDefined(key, null, f)
+//  }
+//
+//  def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]])(implicit txn: Txn): Boolean = {
+//    transformIfDefined(key, pf, pf)
+//  }
+//
+//  protected def transformIfDefined(key: A,
+//                                   pfOrNull: PartialFunction[Option[B],Option[B]],
+//                                   f: Option[B] => Option[B])(implicit txn: Txn): Boolean
 
   //////////////// default implementations
 

@@ -82,21 +82,21 @@ class PredicatedHashMap_GC_Enum[A,B] extends TMap[A,B] {
       decodePair(prev)
     }
 
-    override def transform(key: A, f: (Option[B]) => Option[B]) {
-      val tok = activeToken(key)
-      tok.pred.nonTxn.transform(liftF(tok, f))
-    }
-
-    override def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]]): Boolean = {
-      val tok = activeToken(key)
-      tok.pred.nonTxn.transformIfDefined(liftPF(tok, pf))
-    }
-
-    protected def transformIfDefined(key: A,
-                                     pfOrNull: PartialFunction[Option[B],Option[B]],
-                                     f: Option[B] => Option[B]): Boolean = {
-      throw new Error
-    }
+//    override def transform(key: A, f: (Option[B]) => Option[B]) {
+//      val tok = activeToken(key)
+//      tok.pred.nonTxn.transform(liftF(tok, f))
+//    }
+//
+//    override def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]]): Boolean = {
+//      val tok = activeToken(key)
+//      tok.pred.nonTxn.transformIfDefined(liftPF(tok, pf))
+//    }
+//
+//    protected def transformIfDefined(key: A,
+//                                     pfOrNull: PartialFunction[Option[B],Option[B]],
+//                                     f: Option[B] => Option[B]): Boolean = {
+//      throw new Error
+//    }
 
     def elements: Iterator[(A,B)] = new Iterator[(A,B)] {
       val iter = predicates.keySet().iterator
@@ -194,12 +194,12 @@ class PredicatedHashMap_GC_Enum[A,B] extends TMap[A,B] {
     decodePairAndPin(tok, prev)
   }
 
-  protected def transformIfDefined(key: A,
-                                   pfOrNull: PartialFunction[Option[B],Option[B]],
-                                   f: Option[B] => Option[B])(implicit txn: Txn): Boolean = {
-    // TODO: implement
-    throw new UnsupportedOperationException
-  }
+//  protected def transformIfDefined(key: A,
+//                                   pfOrNull: PartialFunction[Option[B],Option[B]],
+//                                   f: Option[B] => Option[B])(implicit txn: Txn): Boolean = {
+//    // TODO: implement
+//    throw new UnsupportedOperationException
+//  }
 
   //////////////// encoding and decoding into the pair
 
