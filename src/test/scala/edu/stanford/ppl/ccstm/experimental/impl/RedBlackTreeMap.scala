@@ -7,9 +7,75 @@ package edu.stanford.ppl.ccstm.experimental.impl
 
 import edu.stanford.ppl.ccstm.impl.MetaHolder
 import edu.stanford.ppl.ccstm._
+import experimental.TMap
+import experimental.TMap.Bound
 
 
-class RedBlackTreeMap[A <% Ordered[A],B] {
+class RedBlackTreeMap[A,B] extends TMap[A,B] {
+
+  //////////////// TMap stuff
+
+  def isEmpty(implicit txn: Txn): Boolean = (null != root)
+
+  def size(implicit txn: Txn): Int = {
+    var s = 0
+    val iter = bind.elements
+    while (iter.hasNext) { s += 1; iter.next() }
+    s
+  }
+
+  protected def transformIfDefined(key: A,
+                                   pfOrNull: PartialFunction[Option[B],Option[B]],
+                                   f: Option[B] => Option[B])(implicit txn: Txn): Boolean = {
+    val v0 = get(key)
+    if (null != pfOrNull && !pfOrNull.isDefinedAt(v0)) {
+      false
+    } else {
+      f(v0) match {
+        case Some(v) => put(key, v)
+        case None => removeKey(key)
+      }
+      false
+    }
+  }
+
+
+  def bind(implicit txn0: Txn): Bound[A, B] = new TMap.AbstractTxnBound[A,B,RedBlackTreeMap[A,B]](txn0, this) {
+    def elements: Iterator[(A,B)] = new Iterator[(A,B)] {
+      var avail = firstNode
+
+      def hasNext = null != avail
+      def next() = {
+        val z = (avail.key, avail.value)
+        avail = successor(avail)
+        z
+      }
+    }
+  }
+
+  def nonTxn: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,RedBlackTreeMap[A,B]](this) {
+
+    override def isEmpty = null != rootRef.nonTxn.get
+    override def size = STM.atomic(unbind.size(_))
+
+    def get(key: A): Option[B] = STM.atomic(unbind.get(key)(_))
+    override def put(key: A, value: B): Option[B] = STM.atomic(unbind.put(key, value)(_))
+    override def removeKey(key: A): Option[B] = STM.atomic(unbind.removeKey(key)(_))
+
+    protected def transformIfDefined(key: A,
+                                     pfOrNull: PartialFunction[Option[B],Option[B]],
+                                     f: Option[B] => Option[B]): Boolean = {
+      STM.atomic(unbind.transformIfDefined(key, pfOrNull, f)(_))
+    }
+
+    def elements: Iterator[Tuple2[A,B]] = {
+      STM.atomic(unbind.bind(_).toArray).elements
+    }
+  }
+
+
+
+  //////////////// internal state
 
   private def BLACK = true
   private def RED = false
@@ -18,7 +84,7 @@ class RedBlackTreeMap[A <% Ordered[A],B] {
   private def root_=(v: RBNode[A,B])(implicit txn: Txn) { rootRef.set(v) }
   private val rootRef = Ref[RBNode[A,B]](null)
 
-  //////////////// public interface
+  //////////////// core public interface
 
   def clear()(implicit txn: Txn) {
     root = null
@@ -45,12 +111,12 @@ class RedBlackTreeMap[A <% Ordered[A],B] {
       return None
     }
 
-    val k: Ordered[A] = key
+    val k = key.asInstanceOf[Comparable[A]]
     var cmp = 0
     var parent: RBNode[A,B] = null
     do {
       parent = t
-      cmp = k.compare(t.key)
+      cmp = k.compareTo(t.key)
       if (cmp < 0) {
         t = t.left
       } else if (cmp > 0) {
@@ -71,7 +137,7 @@ class RedBlackTreeMap[A <% Ordered[A],B] {
     return None
   }
 
-  def remove(key: A)(implicit txn: Txn): Option[B] = {
+  def removeKey(key: A)(implicit txn: Txn): Option[B] = {
     val x = getNode(key)
     if (null == x) {
       None
@@ -85,10 +151,10 @@ class RedBlackTreeMap[A <% Ordered[A],B] {
   //////////////// internal implementation
 
   private def getNode(key: A)(implicit txn: Txn): RBNode[A,B] = {
-    val k: Ordered[A] = key
+    val k = key.asInstanceOf[Comparable[A]]
     var p = root
     while (null != p) {
-      val cmp = k.compare(p.key)
+      val cmp = k.compareTo(p.key)
         if (cmp < 0) {
           p = p.left
         } else if (cmp > 0) {
@@ -98,6 +164,18 @@ class RedBlackTreeMap[A <% Ordered[A],B] {
         }
     }
     return null
+  }
+
+  private def firstNode(implicit txn: Txn) = {
+    var x = root
+    if (null != x) {
+      var xl = x.left
+      while (null != xl) {
+        x = xl
+        xl = x.left
+      }
+    }
+    x
   }
 
   private def successor(x: RBNode[A,B])(implicit txn: Txn) = {
@@ -115,7 +193,7 @@ class RedBlackTreeMap[A <% Ordered[A],B] {
         p
       } else {
         var p = x.parent
-        var ch = tmp
+        var ch = x
         while (null != p && ch == p.right) {
           ch = p
           p = p.parent
@@ -140,7 +218,7 @@ class RedBlackTreeMap[A <% Ordered[A],B] {
         p
       } else {
         var p = x.parent
-        var ch = tmp
+        var ch = x
         while (null != p && ch == p.left) {
           ch = p
           p = p.parent
