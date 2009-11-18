@@ -11,6 +11,12 @@ import reflect.Manifest
 object TMapFactory {
   def apply[A,B](name: String)(implicit am: Manifest[A], bm: Manifest[B]): TMap[A,B] = {
     name match {
+      case "l_h" => new LockedNonTxnMap[A,B](new java.util.HashMap[A,AnyRef])
+      case "l_t" => new LockedNonTxnMap[A,B](new java.util.TreeMap[A,AnyRef])
+      case "u_h" => new UnlockedNonTxnMap[A,B](new java.util.HashMap[A,AnyRef])
+      case "u_t" => new UnlockedNonTxnMap[A,B](new java.util.TreeMap[A,AnyRef])
+      case "u_ch" => new UnlockedNonTxnMap[A,B](new java.util.concurrent.ConcurrentHashMap[A,AnyRef])
+      case "u_csl" => new UnlockedNonTxnMap[A,B](new java.util.concurrent.ConcurrentSkipListMap[A,AnyRef])
       case "b_h_basic" => new BoostedHashMap_Basic[A,B]
       case "b_h_enum" => new BoostedHashMap_Enum[A,B]
       case "b_h_enum_rw" => new BoostedHashMap_Enum_RW[A,B]
