@@ -4,10 +4,10 @@
 
 package edu.stanford.ppl.ccstm.impl
 
+import edu.stanford.ppl.ccstm.Txn
+
 
 private[ccstm] class Callbacks {
-  import impl.CallbackList
-
   val readResources: CallbackList[Txn.ReadResource] = new CallbackList[Txn.ReadResource]
 
   /** Includes WriteResource-s and beforeCommit callbacks. */
@@ -23,6 +23,4 @@ private[ccstm] class Callbacks {
     afterCommit.clear()
     afterRollback.clear()
   }
-
-  
 }

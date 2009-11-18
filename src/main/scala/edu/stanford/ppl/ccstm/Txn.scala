@@ -592,15 +592,15 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
 
   private[ccstm] def callAfter() {
     val s = status
-    val cb = (if (s eq Committed) {
+    val callbacks = (if (s eq Committed) {
       if (EnableCounters) commitCounter += 1
       _callbacks.afterCommit
     } else {
       if (EnableCounters) s.rollbackCause.counter += 1
       _callbacks.afterRollback
     })
-    if (!cb.isEmpty) {
-      for (cb <- cb) {
+    if (!callbacks.isEmpty) {
+      for (cb <- callbacks) {
         try {
           cb(this)
         }

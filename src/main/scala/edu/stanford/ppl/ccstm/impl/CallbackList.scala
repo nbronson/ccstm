@@ -21,6 +21,9 @@ private[ccstm] class CallbackList[T <: AnyRef] {
   def isEmpty = size == 0
 
   def add(elem: T, priority: Int) {
+    if (null == elem) {
+      throw new NullPointerException
+    }
     if (priority == 0) {
       _zeroSlot.add(elem)
     } else {
@@ -104,7 +107,7 @@ private class CallbackPrioSlot {
       _elems = new Array[AnyRef](8)
     } else {
       java.util.Arrays.fill(_elems, 0, _count, null)
-      _count = 0
     }
+    _count = 0
   }
 }
