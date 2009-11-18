@@ -9,8 +9,7 @@ import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm.{STM, Txn}
 import java.lang.ref.WeakReference
 import java.util.concurrent.{ConcurrentMap, ConcurrentHashMap}
-import edu.stanford.ppl.ccstm.collection.{TAnyRef, TPairRef}
-
+import edu.stanford.ppl.ccstm.collection.{IdentityPair, TIdentityPairRef}
 
 private object PredicatedHashMap_GC {
   private class TokenRef[A,B](map: PredicatedHashMap_GC[A,B], key: A, token: Token[A,B]) extends CleanableRef[Token[A,B]](token) {
@@ -24,7 +23,7 @@ private object PredicatedHashMap_GC {
 
   // we extend from TPairRef opportunistically
   private class Predicate[A,B](val weakRef: WeakReference[Token[A,B]]
-          ) extends TPairRef[Token[A,B],B](null, null.asInstanceOf[B]) {
+          ) extends TIdentityPairRef[Token[A,B],B](null, null.asInstanceOf[B]) {
   }
 }
 
@@ -46,14 +45,14 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
 
     override def put(key: A, value: B): Option[B] = {
       val tok = activeToken(key)
-      decodePair(tok.pred.nonTxn.getAndSet((tok, value)))
+      decodePair(tok.pred.nonTxn.getAndSet(IdentityPair(tok, value)))
     }
 
     override def removeKey(key: A): Option[B] = {
       // if the pred is stale, then getAndSet(None) is a no-op and doesn't harm
       // anything
       val p = existingPred(key)
-      if (null == p) None else decodePair(p.nonTxn.getAndSet((null, null.asInstanceOf[B])))
+      if (null == p) None else decodePair(p.nonTxn.getAndSet(IdentityPair(null, null.asInstanceOf[B])))
     }
 
 //    override def transform(key: A, f: (Option[B]) => Option[B]) {
@@ -116,12 +115,12 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
   def put(key: A, value: B)(implicit txn: Txn): Option[B] = {
     val tok = activeToken(key)
     // write buffer will pin tok
-    decodePair(tok.pred.getAndSet((tok, value)))
+    decodePair(tok.pred.getAndSet(IdentityPair(tok, value)))
   }
 
   def removeKey(key: A)(implicit txn: Txn): Option[B] = {
     val tok = activeToken(key)
-    decodePairAndPin(tok, tok.pred.getAndSet((null, null.asInstanceOf[B])))
+    decodePairAndPin(tok, tok.pred.getAndSet(IdentityPair(null, null.asInstanceOf[B])))
   }
 
 //  override def transform(key: A, f: (Option[B]) => Option[B])(implicit txn: Txn) {
@@ -146,18 +145,18 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
 
   //////////////// encoding and decoding into the pair
 
-  private def encodePair(token: Token[A,B], vOpt: Option[B]): (Token[A,B],B) = {
+  private def encodePair(token: Token[A,B], vOpt: Option[B]): IdentityPair[Token[A,B],B] = {
     vOpt match {
-      case Some(v) => (token, v)
-      case None => (null, null.asInstanceOf[B])
+      case Some(v) => IdentityPair(token, v)
+      case None => IdentityPair(null, null.asInstanceOf[B])
     }
   }
 
-  private def decodePair(pair: (Token[A,B],B)): Option[B] = {
+  private def decodePair(pair: IdentityPair[Token[A,B],B]): Option[B] = {
     if (null == pair._1) None else Some(pair._2)
   }
 
-  private def decodePairAndPin(token: Token[A,B], pair: (Token[A,B],B))(implicit txn: Txn): Option[B] = {
+  private def decodePairAndPin(token: Token[A,B], pair: IdentityPair[Token[A,B],B])(implicit txn: Txn): Option[B] = {
     if (null == pair._1) {
       // We need to make sure that this TPairRef survives until the end of the
       // transaction.
@@ -171,12 +170,12 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
     }
   }
 
-  private def liftF(token: Token[A,B], f: Option[B] => Option[B]) = (pair: (Token[A,B],B)) => encodePair(token, f(decodePair(pair)))
-
-  private def liftPF(token: Token[A,B], pf: PartialFunction[Option[B],Option[B]]) = new PartialFunction[(Token[A,B],B),(Token[A,B],B)] {
-    def isDefinedAt(pair: (Token[A,B],B)) = pf.isDefinedAt(decodePair(pair))
-    def apply(pair: (Token[A,B],B)) = encodePair(token, pf(decodePair(pair)))
-  }
+//  private def liftF(token: Token[A,B], f: Option[B] => Option[B]) = (pair: Token[A,B],B)) => encodePair(token, f(decodePair(pair)))
+//
+//  private def liftPF(token: Token[A,B], pf: PartialFunction[Option[B],Option[B]]) = new PartialFunction[(Token[A,B],B),(Token[A,B],B)] {
+//    def isDefinedAt(pair: (Token[A,B],B)) = pf.isDefinedAt(decodePair(pair))
+//    def apply(pair: (Token[A,B],B)) = encodePair(token, pf(decodePair(pair)))
+//  }
 
   //////////////// predicate management
 

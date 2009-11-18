@@ -13,14 +13,11 @@ private object TPairRef {
 }
 
 /** A <code>Ref</code> implementation that holds only non-null
- *  <code>Option</code> instances.  When compared to
- *  <code>TAnyRef[Option[T]]</code> instances, instances of
- *  <code>TOptionRef</code> have lower storage overhead (the wrapping
- *  <code>Option</code> objects are discarded and recreated as needed), but a
+ *  <code>Tuple2</code> instances.  When compared to
+ *  <code>TAnyRef[Tuple2[A,B]]</code> instances, instances of
+ *  <code>TPairRef</code> have lower storage overhead (the wrapping
+ *  <code>Tuple2</code> objects are discarded and recreated as needed), but a
  *  slightly higher runtime cost when accessing.
- *  <p>
- *  To avoid object creation during initialization, <code>initialValue</code>
- *  of null implies the pair <code>(null, null)</code>.
  *
  *  @author Nathan Bronson
  */
