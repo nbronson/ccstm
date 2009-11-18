@@ -18,6 +18,8 @@ object RandomOp {
   println("RandomOp.AddPct = " + AddPct)
   println("RandomOp.RemovePct = " + RemovePct)
   println("RandomOp.GetPct = " + GetPct)
+
+  val Values = Array.fromFunction(i => "x"+i)(1024)
 }
 
 class RandomOp extends Perf.Worker {
@@ -36,8 +38,9 @@ class RandomOp extends Perf.Worker {
     for (i <- 0 until 1000000) {
       val r = rng.nextInt(100)
       val k = rng.nextInt(size)
+      val v = Values(rng.nextInt(Values.length))
       if (r < AddPct || i < LeadingAdds) {
-        doPut(k, "value")
+        doPut(k, v)
       } else if (r < AddPct + RemovePct) {
         doRemove(k)
       } else {
