@@ -42,10 +42,9 @@ class PredicatedHashMap_Enum[A,B] extends TMap[A,B] {
     }
 
     override def removeKey(key: A): Option[B] = {
-      val p = pred(key)
-      val before = p.nonTxn.get
-      if (before.isEmpty) {
-        // let's linearize right here!
+      val p = predicates.get(key)
+      if (null == p || p.nonTxn.get.isEmpty) {
+        // no need to create a predicate, let's linearize right here
         return None
       }
       return STM.transform2(p, sizeRef.aStripe, (vo: Option[B], s: Int) => {
@@ -139,7 +138,7 @@ class PredicatedHashMap_Enum[A,B] extends TMap[A,B] {
 
         // end of iteration
         if (apparentSize != size) {
-          txn.forceRollback(Txn.InvalidReadCause(unbind, "PredicatedHashMap_Basic.Iterator missed elements"))
+          txn.forceRollback(Txn.InvalidReadCause(unbind, "PredicatedHashMap_Enum.Iterator missed elements"))
         }
         avail = null
       }
