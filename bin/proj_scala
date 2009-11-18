@@ -79,7 +79,11 @@ if [ "x$*" = "x" ]; then
   SCALA_MAIN="scala.tools.nsc.MainGenericRunner"
 fi
 
+GCLOG="/tmp/.$$.gc"
+trap "$CCSTM_BASE/bin/gclog_summary $GCLOG ; rm -f $GCLOG" EXIT
+
 "$JAVA_CMD" \
     $JAVA_OPTS \
+    -Xloggc:$GCLOG \
     -cp "$CLASSPATH" \
     -Dscala.home="$SCALA_HOME" $SCALA_MAIN "$@"
