@@ -5,11 +5,11 @@
 package edu.stanford.ppl.ccstm.experimental.impl
 
 import edu.stanford.ppl.ccstm.experimental.TMap
-import java.util.concurrent.ConcurrentHashMap
 import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm.{STM, Txn}
-import edu.stanford.ppl.ccstm.collection.TPairRef
 import java.lang.ref.WeakReference
+import java.util.concurrent.{ConcurrentMap, ConcurrentHashMap}
+import edu.stanford.ppl.ccstm.collection.{TAnyRef, TPairRef}
 
 
 private object PredicatedHashMap_GC {
@@ -217,3 +217,45 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
     }
   }
 }
+
+//object Pretty {
+//class Token {}
+//class TokRef[K,V](
+//    preds: ConcurrentMap[K,Pred[V]], key: K,
+//    t: Token) extends CleanableRef[Token](t) {
+//  var pred: Pred[V] = null
+//  def cleanup(): Unit = preds.remove(key, pred)
+//}
+//class Pred[V](val weakRef: TokRef[_,V]
+//    ) extends TAnyRef[(Token,V)]((null, null.asInstanceOf[V])) {
+//  weakRef.pred = this
+//}
+//
+//class THashMap_GC[K,V] {
+//  val preds = new ConcurrentHashMap[K,Pred[V]]
+//
+//  private def predicate(k: K) = {
+//    val p = preds.get(k)
+//    if (p == null) createP(k) else strengthenP(k, p)
+//  }
+//  private def strengthenP(k: K, p: Pred[V]) = {
+//    val t = p.weakRef.get
+//    if (t != null) {
+//      (p,t)
+//    } else {
+//      preds.remove(k, p)
+//      createP(k)
+//    }
+//  }
+//  private def createP(k: K): (Pred[V],Token) = {
+//    val t = new Token
+//    val fresh = new Pred(new TokRef(preds, k, t))
+//    val p = preds.putIfAbsent(k, fresh)
+//    if (p == null) {
+//      (fresh,t)
+//    } else {
+//      strengthenP(k, p)
+//    }
+//  }
+//}
+//}
