@@ -8,8 +8,9 @@ import edu.stanford.ppl.ccstm._
 import experimental.TMap
 import java.lang.ref.{WeakReference, ReferenceQueue}
 import java.util.IdentityHashMap
-import java.util.concurrent.{TimeUnit, ConcurrentHashMap}
 import java.util.concurrent.locks._
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater
+import java.util.concurrent.{ConcurrentMap, TimeUnit, ConcurrentHashMap}
 
 /** An transactionally boosted <code>ConcurrentHashMap</code>, implemented
  *  directly from M. Herlify and E. Koskinen, <em>Transactional Boosting: A
@@ -62,6 +63,9 @@ class BoostedHashMap_GC_RW[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.G
 class BoostedHashMap_GC_Enum[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.GCLockHolder[A], new ReentrantReadWriteLock)
 class BoostedHashMap_GC_Enum_RW[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.GCRWLockHolder[A], new ReentrantReadWriteLock)
 
+class BoostedHashMap_RC[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.RCLockHolder[A], null)
+class BoostedHashMap_RC_Enum[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.RCLockHolder[A], new ReentrantReadWriteLock)
+
 object BoostedHashMap {
 
   val LockTimeoutMillis = 10
@@ -72,7 +76,7 @@ object BoostedHashMap {
   abstract class OnDemandMap[A,B <: AnyRef] {
     val underlying = new ConcurrentHashMap[A,B]
 
-    def newValue: B
+    def newValue(key: A): B
 
     def existing(key: A): B = underlying.get(key)
 
@@ -81,7 +85,7 @@ object BoostedHashMap {
       if (null != existing) {
         existing
       } else {
-        val fresh = newValue
+        val fresh = newValue(key)
         val race = underlying.putIfAbsent(key, fresh)
         if (null != race) race else fresh
       }
@@ -100,7 +104,7 @@ object BoostedHashMap {
     /** A queue to reclaim entries. */
     private val refQueue = new ReferenceQueue[B]
 
-    def newValue: B
+    def newValue(key: A): B
 
     def existing(key: A): B = {
       val r = underlying.get(key)
@@ -114,14 +118,14 @@ object BoostedHashMap {
         if (null != ref) {
           result = ref.get
           if (null == result) {
-            val freshValue = newValue
+            val freshValue = newValue(key)
             val freshRef = new WeakRef(key, underlying, freshValue)
             if (underlying.replace(key, ref, freshRef)) {
               result = freshValue
             }
           }
         } else {
-          val freshValue = newValue
+          val freshValue = newValue(key)
           val freshRef = new WeakRef(key, underlying, freshValue)
           val existing = underlying.putIfAbsent(key, freshRef)
           result = (if (null == existing) freshValue else existing.get)
@@ -138,11 +142,12 @@ object BoostedHashMap {
     def existingWriteLock(key: A): Lock
     def readLock(key: A): Lock
     def writeLock(key: A): Lock
+    def returnUnused(lock: Lock) {}
   }
 
   /** A single mutex for reads and writes. */
   class BasicLockHolder[A] extends OnDemandMap[A,Lock] with LockHolder[A] {
-    def newValue = new ReentrantLock
+    def newValue(key: A) = new ReentrantLock
 
     def existingReadLock(key: A) = existing(key)
     def existingWriteLock(key: A) = existing(key)
@@ -152,7 +157,7 @@ object BoostedHashMap {
 
   /** A read/write lock per key, without garbage collection. */
   class RWLockHolder[A] extends OnDemandMap[A,ReadWriteLock] with LockHolder[A] {
-    def newValue = new ReentrantReadWriteLock
+    def newValue(key: A) = new ReentrantReadWriteLock
 
     def existingReadLock(key: A) = existing(key).readLock
     def existingWriteLock(key: A) = existing(key).writeLock
@@ -162,7 +167,7 @@ object BoostedHashMap {
 
   /** A single mutex for reads and writes, with garbage collection. */
   class GCLockHolder[A] extends WeakOnDemandMap[A,Lock] with LockHolder[A] {
-    def newValue = new ReentrantLock
+    def newValue(key: A) = new ReentrantLock
 
     def existingReadLock(key: A) = existing(key)
     def existingWriteLock(key: A) = existing(key)
@@ -172,12 +177,88 @@ object BoostedHashMap {
 
   /** A read/write lock per key, with garbage collection. */
   class GCRWLockHolder[A] extends WeakOnDemandMap[A,ReadWriteLock] with LockHolder[A] {
-    def newValue = new ReentrantReadWriteLock
+    def newValue(key: A) = new ReentrantReadWriteLock
 
     def existingReadLock(key: A) = existing(key).readLock
     def existingWriteLock(key: A) = existing(key).writeLock
     def readLock(key: A) = this(key).readLock
     def writeLock(key: A) = this(key).writeLock
+  }
+
+  val refCountUpdater = (new RCLock[AnyRef](null, null)).newUpdater
+
+  class RCLock[A](key: A, underlying: ConcurrentMap[A,RCLock[A]]) extends ReentrantLock {
+    def newUpdater = AtomicIntegerFieldUpdater.newUpdater(classOf[RCLock[_]], "refCount")
+
+    @volatile var refCount = 0
+    def refCountCAS(before: Int, after: Int) = refCountUpdater.compareAndSet(this, before, after)
+
+    def enter(): RCLock[A] = {
+      while (true) {
+        val rc = refCount
+        if (rc == -1) {
+          // this entry is stale, it must be replaced
+          val fresh = new RCLock[A](key, underlying)
+          fresh.refCount = 1
+          if (underlying.replace(key, this, fresh)) {
+            // pre-entered
+            return fresh
+          }
+          val race = underlying.putIfAbsent(key, fresh)
+          if (null == race) {
+            return fresh
+          }
+          return race.enter()
+        }
+        if (refCountCAS(rc, rc + 1)) {
+          // success
+          return this
+        }
+      }
+      throw new Error("unreachable")
+    }
+
+    def exit() {
+      while (true) {
+        val rc = refCount
+        if (rc == 1 && refCountCAS(1, -1)) {
+          // We have made this entry stale, remove it.  Ignore failure
+          underlying.remove(key, this)
+          return
+        }
+        if (refCountCAS(rc, rc - 1)) {
+          // success
+          return
+        }
+      }
+    }
+
+    override def tryLock(timeout: Long, unit: TimeUnit): Boolean = {
+      if (!super.tryLock(timeout, unit)) {
+        exit()
+        false
+      } else {
+        true
+      }
+    }
+
+    override def unlock(): Unit = {
+      super.unlock()
+      exit()
+    }
+  }
+
+  class RCLockHolder[A] extends OnDemandMap[A,RCLock[A]] with LockHolder[A] {
+    def newValue(key: A) = new RCLock(key, underlying)
+
+    def existingReadLock(key: A) = {
+      val e = existing(key)
+      if (null == e) null else e.enter()
+    }
+    def existingWriteLock(key: A) = existingReadLock(key)
+    def readLock(key: A) = this(key).enter()
+    def writeLock(key: A) = this(key).enter()
+    override def returnUnused(lock: Lock) = lock.asInstanceOf[RCLock[A]].exit()
   }
 
   //////// per-txn state
@@ -231,6 +312,8 @@ object BoostedHashMap {
                 txn.forceRollback(Txn.WriteConflictCause(info, "tryLock timeout"))
                 throw RollbackError
               }
+            } else {
+              lockHolder.returnUnused(lock)
             }
           }
 
