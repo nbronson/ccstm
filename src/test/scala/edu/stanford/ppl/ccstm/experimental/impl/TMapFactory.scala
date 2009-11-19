@@ -32,6 +32,7 @@ object TMapFactory {
       case "p_h_gc" => new PredicatedHashMap_GC[A,B]
       case "p_h_gc_enum" => new PredicatedHashMap_GC_Enum[A,B]
       case "p_h_lazy" => new PredicatedHashMap_LazyGC[A,B]
+      case "p_h_lazy_enum" => new PredicatedHashMap_LazyGC_Enum[A,B]
       case "p_sl_basic" => new PredicatedSkipListMap_Basic[A,B]
       case "t_h" => new ChainingHashMap[A,B]
       case "t_rb" => new RedBlackTreeMap[A,B]
