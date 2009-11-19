@@ -8,25 +8,38 @@ import java.lang.ref._
 
 
 private object CleanableRef {
-  private val _queue = new ReferenceQueue[AnyRef]
-  def queue[T] = _queue.asInstanceOf[ReferenceQueue[T]]
+  val CleaningThreads = {
+    val min = System.getProperty("cleaning-threads", (Runtime.getRuntime.availableProcessors / 4).toString).toInt
+    var i = 1
+    while (i < min) i *= 2
+    i
+  }
 
-  new Thread("CleanableRef cleaner") {
-    setDaemon(true)
+  private val queues = Array.fromFunction(newQueue(_))(CleaningThreads)
+  private def newQueue(i: Int) = {
+    val queue = new ReferenceQueue[AnyRef]
 
-    override def run() {
-      while (true) {
-        try {
-          val ref = _queue.remove().asInstanceOf[CleanableRef[_]]
-          ref.cleanup()
-        } catch {
-          case x => x.printStackTrace
+    new Thread("CleanableRef cleaner #" + i) {
+      setDaemon(true)
+
+      override def run() {
+        while (true) {
+          try {
+            val ref = queue.remove().asInstanceOf[CleanableRef[_]]
+            ref.cleanup()
+          } catch {
+            case x => x.printStackTrace
+          }
         }
       }
-    }
-  }.start()
+    }.start()
+
+    queue
+  }
+
+  def myQueue[T] = queues(System.identityHashCode(Thread.currentThread) & (CleaningThreads - 1)).asInstanceOf[ReferenceQueue[T]]
 }
 
-abstract class CleanableRef[T](value: T) extends WeakReference[T](value, CleanableRef.queue) {
+abstract class CleanableRef[T](value: T) extends WeakReference[T](value, CleanableRef.myQueue[T]) {
   def cleanup()
 }
