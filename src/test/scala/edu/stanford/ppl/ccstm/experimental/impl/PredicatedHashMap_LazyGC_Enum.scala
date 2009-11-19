@@ -56,7 +56,7 @@ private object PredicatedHashMap_LazyGC_Enum {
   // we extend from TIdentityPairRef opportunistically
   private class Predicate[A,B](tokenRef0: TokenRef[A,B],
                                var creationInfo: CreationInfo[A,B]
-          ) extends TIdentityPairRef[Token[A,B],B](null, null.asInstanceOf[B]) {
+          ) extends TIdentityPairRef[Token[A,B],B](null) {
 
     if (null != creationInfo) creationInfo.pred = this
 
@@ -116,7 +116,7 @@ class PredicatedHashMap_LazyGC_Enum[A,B] extends TMap[A,B] {
               // the predicate is strong, but we can still perform a Some -> Some
               // transition
               val prevPair = p.nonTxn.get
-              if (null != prevPair._1 && p.nonTxn.compareAndSet(prevPair, IdentityPair(token, value))) {
+              if (null != prevPair && p.nonTxn.compareAndSet(prevPair, IdentityPair(token, value))) {
                 // success
                 return Some(prevPair._2)
               } else if (null != ensureWeak(key, p)) {
@@ -163,7 +163,7 @@ class PredicatedHashMap_LazyGC_Enum[A,B] extends TMap[A,B] {
 
     private def putToActive(token: Token[A,B], value: B, p: Predicate[A,B]) = {
       decodePair(STM.transform2(p, sizeRef.aStripe, (vp: IdentityPair[Token[A,B],B], s: Int) => {
-        (IdentityPair(token, value), (if (null == vp._1) s + 1 else s), vp)
+        (IdentityPair(token, value), (if (null == vp) s + 1 else s), vp)
       }))
     }
 
@@ -182,9 +182,9 @@ class PredicatedHashMap_LazyGC_Enum[A,B] extends TMap[A,B] {
       // absence, because another txn may have created the predicate but not
       // yet done the store to populate it.
       val prev = STM.transform2(p, sizeRef.aStripe, (vp: IdentityPair[Token[A,B],B], s: Int) => {
-        (IdentityPair(null, null.asInstanceOf[B]), (if (null == vp._1) s else s - 1), vp)
+        (null, (if (null == vp) s else s - 1), vp)
       })
-      if (null == prev._1) {
+      if (null == prev) {
         // Not previously present, somebody else's cleanup problem.  The
         // predicate may have been stale, and already removed.
         return None
@@ -295,10 +295,10 @@ class PredicatedHashMap_LazyGC_Enum[A,B] extends TMap[A,B] {
   private def getImpl(key: A, pred: Predicate[A,B])(implicit txn: Txn): Option[B] = {
     if (null != pred) {
       val txnState = pred.get
-      if (null != txnState._1) {
+      if (null != txnState) {
         // we are observing presence, predicate is definitely active and either
         // strong or weak is okay  
-        assert (pred.tokenRef.get eq txnState._1)
+        //assert (pred.tokenRef.get eq txnState._1)
         return Some(txnState._2)
       }
 
@@ -358,7 +358,7 @@ class PredicatedHashMap_LazyGC_Enum[A,B] extends TMap[A,B] {
       val token = if (null == ref) null else ref.get
       if (null != token) {
         val prev = pred.getAndSet(IdentityPair(token, value))
-        if (null == prev._1) sizeRef += 1
+        if (null == prev) sizeRef += 1
         return decodePair(prev)
       }
     }
@@ -389,7 +389,7 @@ class PredicatedHashMap_LazyGC_Enum[A,B] extends TMap[A,B] {
     // the normal work, because there is no way that the predicate could have
     // become stale.
     val prev = freshPred.getAndSet(IdentityPair(freshToken, value))
-    if (null == prev._1) sizeRef += 1
+    if (null == prev) sizeRef += 1
     return decodePair(prev)
   }
 
@@ -400,19 +400,19 @@ class PredicatedHashMap_LazyGC_Enum[A,B] extends TMap[A,B] {
         // We now have knowledge that if this txn commits, the predicate should
         // be cleaned up.  Also, we don't need to weaken it.
         pred.creationInfo.removeOnCommit = true
-        val prev = pred.getAndSet(IdentityPair(null, null.asInstanceOf[B]))
-        if (null != prev._1) sizeRef -= 1
+        val prev = pred.getAndSet(null)
+        if (null != prev) sizeRef -= 1
         return decodePair(prev)
       }
 
       val txnState = pred.bind.readForWrite
-      if (null != txnState._1) {
+      if (null != txnState) {
         // We are observing presence, no weak ref necessary, but if we commit
         // then we are responsible for cleanup.  Since the predicate was not
         // created by this transaction, a subsequent put won't have the chance
         // to avoid weakening, but that's okay.
-        assert (pred.tokenRef.get eq txnState._1)
-        pred.set(IdentityPair(null, null.asInstanceOf[B]))
+        //assert (pred.tokenRef.get eq txnState._1)
+        pred.set(null)
         if (!pred.tokenRef.isWeak) {
           // we are responsible for cleanup 
           txn.afterCommit(deferredCleanup(key, pred))
@@ -471,7 +471,7 @@ class PredicatedHashMap_LazyGC_Enum[A,B] extends TMap[A,B] {
   //////////////// encoding and decoding into the pair
 
   private def decodePair(pair: IdentityPair[Token[A,B],B]): Option[B] = {
-    if (null == pair._1) None else Some(pair._2)
+    if (null == pair) None else Some(pair._2)
   }
 
   //////////////// predicate management

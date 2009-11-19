@@ -23,7 +23,7 @@ private object PredicatedHashMap_GC_Enum {
 
   // we extend from TIdentityPairRef opportunistically
   private class Predicate[A,B](val weakRef: WeakReference[Token[A,B]]
-          ) extends TIdentityPairRef[Token[A,B],B](null, null.asInstanceOf[B]) {
+          ) extends TIdentityPairRef[Token[A,B],B](null) {
   }
 }
 
@@ -53,7 +53,7 @@ class PredicatedHashMap_GC_Enum[A,B] extends TMap[A,B] {
       val p = tok.pred
       val pn = p.nonTxn
       val before = pn.get
-      if (null != before._1) {
+      if (null != before) {
         // try to update (no size change)
         if (pn.compareAndSet(before, IdentityPair(tok, value))) {
           // success
@@ -62,14 +62,14 @@ class PredicatedHashMap_GC_Enum[A,B] extends TMap[A,B] {
         // failure goes to the transform2 implementation
       }
       val prev = STM.transform2(p, sizeRef.aStripe, (vp: IdentityPair[Token[A,B],B], s: Int) => {
-        (IdentityPair(tok, value), (if (null == vp._1) s + 1 else s), vp)
+        (IdentityPair(tok, value), (if (null == vp) s + 1 else s), vp)
       })
       decodePair(prev)
     }
 
     override def removeKey(key: A): Option[B] = {
       val p = existingPred(key)
-      if (null == p || null == p.nonTxn.get._1) {
+      if (null == p || null == p.nonTxn.get) {
         // no need to create a predicate, let's linearize here
         return None
       }
@@ -77,7 +77,7 @@ class PredicatedHashMap_GC_Enum[A,B] extends TMap[A,B] {
       // if the pred is stale, then getAndSet(None) is a no-op and doesn't harm
       // anything
       val prev = STM.transform2(p, sizeRef.aStripe, (vp: IdentityPair[Token[A,B],B], s: Int) => {
-        (IdentityPair(null, null.asInstanceOf[B]), (if (null == vp._1) s else s - 1), vp)
+        (null, (if (null == vp) s else s - 1), vp)
       })
       decodePair(prev)
     }
@@ -142,7 +142,7 @@ class PredicatedHashMap_GC_Enum[A,B] extends TMap[A,B] {
         while (iter.hasNext) {
           val e = iter.next()
           val pair = e.getValue.get
-          if (null != pair._1) {
+          if (null != pair) {
             apparentSize += 1
             avail = (e.getKey, pair._2)
             return
@@ -183,14 +183,14 @@ class PredicatedHashMap_GC_Enum[A,B] extends TMap[A,B] {
     val tok = activeToken(key)
     // write buffer will pin tok
     val prev = tok.pred.getAndSet(IdentityPair(tok, value))
-    if (null == prev._1) sizeRef += 1
+    if (null == prev) sizeRef += 1
     decodePair(prev)
   }
 
   def removeKey(key: A)(implicit txn: Txn): Option[B] = {
     val tok = activeToken(key)
-    val prev = tok.pred.getAndSet(IdentityPair(null, null.asInstanceOf[B]))
-    if (null != prev._1) sizeRef -= 1
+    val prev = tok.pred.getAndSet(null)
+    if (null != prev) sizeRef -= 1
     decodePairAndPin(tok, prev)
   }
 
@@ -206,16 +206,16 @@ class PredicatedHashMap_GC_Enum[A,B] extends TMap[A,B] {
   private def encodePair(token: Token[A,B], vOpt: Option[B]): IdentityPair[Token[A,B],B] = {
     vOpt match {
       case Some(v) => IdentityPair(token, v)
-      case None => IdentityPair(null, null.asInstanceOf[B])
+      case None => null
     }
   }
 
   private def decodePair(pair: IdentityPair[Token[A,B],B]): Option[B] = {
-    if (null == pair._1) None else Some(pair._2)
+    if (null == pair) None else Some(pair._2)
   }
 
   private def decodePairAndPin(token: Token[A,B], pair: IdentityPair[Token[A,B],B])(implicit txn: Txn): Option[B] = {
-    if (null == pair._1) {
+    if (null == pair) {
       // We need to make sure that this TIdentityPairRef survives until the end of the
       // transaction.
       txn.addReference(token)

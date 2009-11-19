@@ -23,7 +23,7 @@ private object PredicatedHashMap_GC {
 
   // we extend from TPairRef opportunistically
   private class Predicate[A,B](val weakRef: WeakReference[Token[A,B]]
-          ) extends TIdentityPairRef[Token[A,B],B](null, null.asInstanceOf[B]) {
+          ) extends TIdentityPairRef[Token[A,B],B](null) {
   }
 }
 
@@ -52,7 +52,7 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
       // if the pred is stale, then getAndSet(None) is a no-op and doesn't harm
       // anything
       val p = existingPred(key)
-      if (null == p) None else decodePair(p.nonTxn.getAndSet(IdentityPair(null, null.asInstanceOf[B])))
+      if (null == p) None else decodePair(p.nonTxn.getAndSet(null))
     }
 
 //    override def transform(key: A, f: (Option[B]) => Option[B]) {
@@ -120,7 +120,7 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
 
   def removeKey(key: A)(implicit txn: Txn): Option[B] = {
     val tok = activeToken(key)
-    decodePairAndPin(tok, tok.pred.getAndSet(IdentityPair(null, null.asInstanceOf[B])))
+    decodePairAndPin(tok, tok.pred.getAndSet(null))
   }
 
 //  override def transform(key: A, f: (Option[B]) => Option[B])(implicit txn: Txn) {
@@ -148,16 +148,16 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
   private def encodePair(token: Token[A,B], vOpt: Option[B]): IdentityPair[Token[A,B],B] = {
     vOpt match {
       case Some(v) => IdentityPair(token, v)
-      case None => IdentityPair(null, null.asInstanceOf[B])
+      case None => null
     }
   }
 
   private def decodePair(pair: IdentityPair[Token[A,B],B]): Option[B] = {
-    if (null == pair._1) None else Some(pair._2)
+    if (null == pair) None else Some(pair._2)
   }
 
   private def decodePairAndPin(token: Token[A,B], pair: IdentityPair[Token[A,B],B])(implicit txn: Txn): Option[B] = {
-    if (null == pair._1) {
+    if (null == pair) {
       // We need to make sure that this TPairRef survives until the end of the
       // transaction.
       txn.addReference(token)
@@ -216,45 +216,3 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
     }
   }
 }
-
-//object Pretty {
-//class Token {}
-//class TokRef[K,V](
-//    preds: ConcurrentMap[K,Pred[V]], key: K,
-//    t: Token) extends CleanableRef[Token](t) {
-//  var pred: Pred[V] = null
-//  def cleanup(): Unit = preds.remove(key, pred)
-//}
-//class Pred[V](val weakRef: TokRef[_,V]
-//    ) extends TAnyRef[(Token,V)]((null, null.asInstanceOf[V])) {
-//  weakRef.pred = this
-//}
-//
-//class THashMap_GC[K,V] {
-//  val preds = new ConcurrentHashMap[K,Pred[V]]
-//
-//  private def predicate(k: K) = {
-//    val p = preds.get(k)
-//    if (p == null) createP(k) else strengthenP(k, p)
-//  }
-//  private def strengthenP(k: K, p: Pred[V]) = {
-//    val t = p.weakRef.get
-//    if (t != null) {
-//      (p,t)
-//    } else {
-//      preds.remove(k, p)
-//      createP(k)
-//    }
-//  }
-//  private def createP(k: K): (Pred[V],Token) = {
-//    val t = new Token
-//    val fresh = new Pred(new TokRef(preds, k, t))
-//    val p = preds.putIfAbsent(k, fresh)
-//    if (p == null) {
-//      (fresh,t)
-//    } else {
-//      strengthenP(k, p)
-//    }
-//  }
-//}
-//}
