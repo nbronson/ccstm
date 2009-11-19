@@ -5,6 +5,7 @@
 package edu.stanford.ppl.ccstm.impl
 
 import edu.stanford.ppl.ccstm._
+import java.util.concurrent.atomic.AtomicLong
 
 
 /** An STM implementation that uses a TL2-style timestamp system, but that
@@ -111,6 +112,27 @@ private[ccstm] object STMImpl extends GV6 {
 
   /** Includes withUnowned and withUnchanging. */
   def withRollback(m: Meta) = withUnowned(withUnchanging(m))
+
+  //////////////// Version continuity between separate Refs
+
+  private def CryptMask = 31
+  private val crypts = Array.fromFunction(i => new AtomicLong)(CryptMask + 1)
+
+  def embalm(identity: Int, handle: Handle[_]) {
+    val crypt = crypts(identity & CryptMask)
+    val v = version(handle.meta)
+    var old = crypt.get
+    while (v > old && !crypt.compareAndSet(old, v)) {
+      old = crypt.get
+    }
+  }
+
+  def resurrect(identity: Int, handle: Handle[_]) {
+    val v0 = crypts(identity & CryptMask).get
+    if (!handle.metaCAS(0L, withVersion(0L, v0))) {
+      throw new IllegalStateException("Refs may only be resurrected into an old identity before use")
+    }
+  }
 
   //////////////// Conditional retry
 

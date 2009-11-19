@@ -79,7 +79,22 @@ private object PredicatedHashMap_LazyGC {
 class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
   import PredicatedHashMap_LazyGC._
 
-  private val predicates = new ConcurrentHashMap[A,Predicate[A,B]]
+  private val predicates = new ConcurrentHashMap[A,Predicate[A,B]] {
+    override def putIfAbsent(key: A, value: Predicate[A,B]): Predicate[A,B] = {
+      STM.resurrect(key.hashCode, value)
+      super.putIfAbsent(key, value)
+    }
+
+    override def replace(key: A, oldValue: Predicate[A,B], newValue: Predicate[A,B]): Boolean = {
+      STM.resurrect(key.hashCode, newValue)
+      super.replace(key, oldValue, newValue)
+    }
+
+    override def remove(key: Any, value: Any): Boolean = {
+      STM.embalm(key.hashCode, value.asInstanceOf[Predicate[A,B]])
+      super.remove(key, value)
+    }
+  }
 
   def nonTxn: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_LazyGC[A,B]](this) {
 

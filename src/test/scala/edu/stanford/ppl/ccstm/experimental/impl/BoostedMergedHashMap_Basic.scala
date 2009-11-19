@@ -43,7 +43,7 @@ object BoostedMergedHashMap_Basic {
     /** Holds the current context. */
     private val currentContext = new TxnLocal[MergedTxnContext[A]] {
       override def initialValue(txn: Txn): MergedTxnContext[A] = {
-        val result = new MergedTxnContext[A] with (Txn => Unit) {
+        val result = new MergedTxnContext[A] with (Txn => Unit) with Txn.WriteResource {
           // per-txn state
           private val owned = new IdentityHashMap[Lock,Lock]
           private var undoCount = 0
@@ -109,7 +109,19 @@ object BoostedMergedHashMap_Basic {
             var iter = owned.keySet().iterator
             while (iter.hasNext) iter.next.unlock()
           }
+
+          // dummy write resource
+          def prepare(txn: Txn): Boolean = true
+          def performCommit(txn: Txn) {}
+          def performRollback(txn: Txn) {}
         }
+
+        // We add ourself as a dummy write resource to prevent the read-only
+        // commit optimization.  This is because the linearization point must
+        // occur at some point while we have all of the locks held, which does
+        // not include the virtual readVersion snapshot.
+        txn.addWriteResource(result)
+
         txn.afterCompletion(result, UndoAndUnlockPriority)
         result
       }

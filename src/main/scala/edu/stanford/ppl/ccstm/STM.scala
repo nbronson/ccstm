@@ -176,6 +176,26 @@ object STM {
     impl.NonTxn.transform2(refA.nonTxnHandle, refB.nonTxnHandle, f)
   }
 
+  // TODO: better names?
+
+  /** Establishes a happens-before relationship between transactions that
+   *  previously wrote to <code>ref</code> and a subsequent call to
+   *  <code>resurrect(identity, _)</code>.  Embalming a reference does not
+   *  prevent its continued use.
+   */
+  def embalm(identity: Int, ref: Ref[_]) {
+    impl.STMImpl.embalm(identity, ref.nonTxnHandle)
+  }
+
+  /** Establishes a happens-before relationship between subsequent accesses to
+   *  <code>ref</code> and previous calls to <code>embalm(identity, _)</code>.
+   *  A reference may only be resurrected into an old identity before any other
+   *  operations (except construction) have been performed on it.
+   */
+  def resurrect(identity: Int, ref: Ref[_]) {
+    impl.STMImpl.resurrect(identity, ref.nonTxnHandle)
+  }
+
   object Debug {
     def assertQuiescent() {
       impl.STMImpl.slotManager.assertAllReleased()

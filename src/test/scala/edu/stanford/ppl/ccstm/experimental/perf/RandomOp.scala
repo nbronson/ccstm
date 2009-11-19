@@ -6,7 +6,7 @@ package edu.stanford.ppl.ccstm.experimental.perf
  */
 
 import edu.stanford.ppl.ccstm.experimental.TMap
-import edu.stanford.ppl.ccstm.Atomic
+import edu.stanford.ppl.ccstm._
 
 object RandomOp {
   val LeadingAdds = System.getProperty("leading-adds", "0").toInt
@@ -16,6 +16,7 @@ object RandomOp {
   val PowerLawKeys = "1tTyY".indexOf((System.getProperty("power-law", "") + "f").charAt(0)) >= 0
   val TxnSize = System.getProperty("txn-size", "2").toInt
   val TxnOpPct = System.getProperty("txn-op-pct", "0").toInt
+  val TxnNoReadOnlyCommit = "1tTyY".indexOf((System.getProperty("txn-no-ro-commit", "") + "f").charAt(0)) >= 0
 
   println("RandomOp.LeadingAdds = " + LeadingAdds)
   println("RandomOp.AddPct = " + AddPct)
@@ -24,8 +25,15 @@ object RandomOp {
   println("RandomOp.PowerLawKeys = " + PowerLawKeys)
   println("RandomOp.TxnSize = " + TxnSize)
   println("RandomOp.TxnOpPct = " + TxnOpPct)
+  println("RandomOp.TxnNoReadOnlyCommit = " + TxnNoReadOnlyCommit)
 
   val Values = Array.fromFunction(i => "x"+i)(1024)
+}
+
+private object DummyWriteResource extends Txn.WriteResource {
+  def prepare(txn: Txn): Boolean = true
+  def performCommit(txn: Txn) {}
+  def performRollback(txn: Txn) {}
 }
 
 class RandomOp extends Perf.Worker {
@@ -57,6 +65,8 @@ class RandomOp extends Perf.Worker {
 
         var a = 0
         new Atomic { def body {
+          if (TxnNoReadOnlyCommit) currentTxn.addWriteResource(DummyWriteResource)
+
           a += 1
           if (a == 100) println("livelock")
           var j = 0
