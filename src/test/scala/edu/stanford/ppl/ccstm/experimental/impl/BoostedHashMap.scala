@@ -70,10 +70,10 @@ object BoostedHashMap {
   //////// on-demand management of keys, without and with GC
 
   abstract class OnDemandMap[A,B <: AnyRef] {
-    private val underlying = new ConcurrentHashMap[A,B]
+    val underlying = new ConcurrentHashMap[A,B]
 
     def newValue: B
-    
+
     def apply(key: A): B = {
       val existing = underlying.get(key)
       if (null != existing) {
@@ -86,7 +86,11 @@ object BoostedHashMap {
     }
   }
 
-  class WeakRef[A,B](val key: A, value: B, q: ReferenceQueue[B]) extends WeakReference[B](value, q)
+  class WeakRef[A,B](key: A, owner: ConcurrentHashMap[A,WeakRef[A,B]], value: B) extends CleanableRef[B](value) {
+    def cleanup() {
+      owner.remove(key, this)
+    }
+  }
 
   abstract class WeakOnDemandMap[A,B <: AnyRef] {
     private val underlying = new ConcurrentHashMap[A,WeakRef[A,B]]
@@ -97,7 +101,6 @@ object BoostedHashMap {
     def newValue: B
 
     def apply(key: A): B = {
-      flush()
       var result: B = null.asInstanceOf[B]
       do {
         val ref = underlying.get(key)
@@ -105,28 +108,19 @@ object BoostedHashMap {
           result = ref.get
           if (null == result) {
             val freshValue = newValue
-            val freshRef = new WeakRef(key, freshValue, refQueue)
+            val freshRef = new WeakRef(key, underlying, freshValue)
             if (underlying.replace(key, ref, freshRef)) {
               result = freshValue
             }
           }
         } else {
           val freshValue = newValue
-          val freshRef = new WeakRef(key, freshValue, refQueue)
+          val freshRef = new WeakRef(key, underlying, freshValue)
           val existing = underlying.putIfAbsent(key, freshRef)
           result = (if (null == existing) freshValue else existing.get)
         }
       } while (null == result)
       result
-    }
-
-    private def flush() {
-      var ref = refQueue.poll()
-      while (null != ref) {
-        // we use the two-arg form in case someone has already replaced it
-        underlying.remove(ref.asInstanceOf[WeakRef[A,B]].key, ref)
-        ref = refQueue.poll()
-      }
     }
   }
 
@@ -172,8 +166,8 @@ object BoostedHashMap {
   //////// per-txn state
 
   trait TxnContext[A] {
-    def lockForRead(key: A)
-    def lockForWrite(key: A)
+    def lockForRead(key: A): Lock
+    def lockForWrite(key: A): Lock
     def lockForEnumeration()
     def lockForMembershipChange()
     def undo[C <: AnyRef](underlying: ConcurrentHashMap[A,C], key: A, valueOrNull: C)
@@ -190,13 +184,26 @@ object BoostedHashMap {
           private var undoCount = 0
           private var undoData: Array[Any] = null
 
-          def lockForRead(key: A) { acquire(lockHolder.readLock(key), key) }
-          def lockForWrite(key: A) { acquire(lockHolder.writeLock(key), key) }
+          def lockForRead(key: A) = {
+            val m = lockHolder.readLock(key)
+            acquire(m, key)
+            m
+          }
+
+          def lockForWrite(key: A) = {
+            val m = lockHolder.writeLock(key)
+            acquire(m, key)
+            m
+          }
+
           def lockForEnumeration() {
             if (null == enumLock) throw new UnsupportedOperationException("no enumeration lock present") 
             acquire(enumLock, "enum")
           }
-          def lockForMembershipChange() { if (null != mcLock) acquire(mcLock, "member-change") }
+
+          def lockForMembershipChange() {
+            if (null != mcLock) acquire(mcLock, "member-change")
+          }
 
           private def acquire(lock: Lock, info: Any) {
             if (null == owned.put(lock, lock)) {
@@ -313,57 +320,57 @@ class BoostedHashMap[A,B](lockHolder: BoostedHashMap.LockHolder[A], enumLock: Re
       NullValue.decodeOption(prev)
     }
 
-    protected def transformIfDefined(key: A,
-                                     pfOrNull: PartialFunction[Option[B],Option[B]],
-                                     f: Option[B] => Option[B]): Boolean = {
-      val lock = lockHolder.writeLock(key)
-      lock.lock()
-      try {
-        val prev = underlying.get(key)
-        val p = NullValue.decodeOption(prev)
-        if (null != pfOrNull && !pfOrNull.isDefinedAt(p)) {
-          return false
-        }
-
-        val next = NullValue.encodeOption(f(p))
-        if (null == prev) {
-          if (null != next) {
-            // None -> Some
-            if (null != enumLock) {
-              enumLock.readLock.lock()
-              try {
-                underlying.put(key, next)
-              } finally {
-                enumLock.readLock.unlock()
-              }
-            } else {
-              underlying.put(key, next)
-            }
-          }
-        } else {
-          if (null == next) {
-            // Some -> None
-            if (null != enumLock) {
-              enumLock.readLock.lock()
-              try {
-                underlying.remove(key)
-              } finally {
-                enumLock.readLock.unlock()
-              }
-            } else {
-              underlying.remove(key)
-            }
-          } else {
-            // Some -> Some
-            underlying.put(key, next)
-          }
-        }
-
-        return true
-      } finally {
-        lock.unlock()
-      }
-    }
+//    protected def transformIfDefined(key: A,
+//                                     pfOrNull: PartialFunction[Option[B],Option[B]],
+//                                     f: Option[B] => Option[B]): Boolean = {
+//      val lock = lockHolder.writeLock(key)
+//      lock.lock()
+//      try {
+//        val prev = underlying.get(key)
+//        val p = NullValue.decodeOption(prev)
+//        if (null != pfOrNull && !pfOrNull.isDefinedAt(p)) {
+//          return false
+//        }
+//
+//        val next = NullValue.encodeOption(f(p))
+//        if (null == prev) {
+//          if (null != next) {
+//            // None -> Some
+//            if (null != enumLock) {
+//              enumLock.readLock.lock()
+//              try {
+//                underlying.put(key, next)
+//              } finally {
+//                enumLock.readLock.unlock()
+//              }
+//            } else {
+//              underlying.put(key, next)
+//            }
+//          }
+//        } else {
+//          if (null == next) {
+//            // Some -> None
+//            if (null != enumLock) {
+//              enumLock.readLock.lock()
+//              try {
+//                underlying.remove(key)
+//              } finally {
+//                enumLock.readLock.unlock()
+//              }
+//            } else {
+//              underlying.remove(key)
+//            }
+//          } else {
+//            // Some -> Some
+//            underlying.put(key, next)
+//          }
+//        }
+//
+//        return true
+//      } finally {
+//        lock.unlock()
+//      }
+//    }
 
     def elements: Iterator[(A,B)] = new Iterator[(A,B)] {
       val iter = underlying.keySet().iterator
@@ -464,39 +471,39 @@ class BoostedHashMap[A,B](lockHolder: BoostedHashMap.LockHolder[A], enumLock: Re
     return NullValue.decodeOption(prev)
   }
 
-  protected def transformIfDefined(key: A,
-                                   pfOrNull: PartialFunction[Option[B],Option[B]],
-                                   f: Option[B] => Option[B])(implicit txn: Txn): Boolean = {
-    val ctx = booster.context
-    ctx.lockForWrite(key)
-
-    val before = underlying.get(key)
-    val b = NullValue.decodeOption(before)
-
-    if (null != pfOrNull && !pfOrNull.isDefinedAt(b)) {
-      return false
-    }
-
-    val after = NullValue.encodeOption(f(b))
-
-    if (null == before && null == after) {
-      // nothing to do, no membership change or undo
-      return true
-    }
-
-    if (null != enumLock && (null == before || null == after)) {
-      ctx.lockForMembershipChange()
-    }
-
-    if (null != after) {
-      underlying.put(key, after)
-    } else {
-      underlying.remove(key)
-    }
-
-    ctx.undo(underlying, key, before)
-
-    return true
-  }
+//  protected def transformIfDefined(key: A,
+//                                   pfOrNull: PartialFunction[Option[B],Option[B]],
+//                                   f: Option[B] => Option[B])(implicit txn: Txn): Boolean = {
+//    val ctx = booster.context
+//    ctx.lockForWrite(key)
+//
+//    val before = underlying.get(key)
+//    val b = NullValue.decodeOption(before)
+//
+//    if (null != pfOrNull && !pfOrNull.isDefinedAt(b)) {
+//      return false
+//    }
+//
+//    val after = NullValue.encodeOption(f(b))
+//
+//    if (null == before && null == after) {
+//      // nothing to do, no membership change or undo
+//      return true
+//    }
+//
+//    if (null != enumLock && (null == before || null == after)) {
+//      ctx.lockForMembershipChange()
+//    }
+//
+//    if (null != after) {
+//      underlying.put(key, after)
+//    } else {
+//      underlying.remove(key)
+//    }
+//
+//    ctx.undo(underlying, key, before)
+//
+//    return true
+//  }
 }
 

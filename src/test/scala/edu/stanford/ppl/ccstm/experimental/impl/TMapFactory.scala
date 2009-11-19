@@ -25,6 +25,7 @@ object TMapFactory {
       case "b_h_gc_enum" => new BoostedHashMap_GC_Enum[A,B]
       case "b_h_gc_enum_rw" => new BoostedHashMap_GC_Enum_RW[A,B]
       case "b_h_rw" => new BoostedHashMap_RW[A,B]
+      case "bm_h_basic" => new BoostedMergedHashMap_Basic[A,B]
       case "p_h_basic" => new PredicatedHashMap_Basic[A,B]
       case "p_h_enum" => new PredicatedHashMap_Enum[A,B]
       case "p_h_rc" => new PredicatedHashMap_RC[A,B]
