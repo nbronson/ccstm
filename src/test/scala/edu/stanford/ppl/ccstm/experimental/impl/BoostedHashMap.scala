@@ -74,6 +74,8 @@ object BoostedHashMap {
 
     def newValue: B
 
+    def existing(key: A): B = underlying.get(key)
+
     def apply(key: A): B = {
       val existing = underlying.get(key)
       if (null != existing) {
@@ -99,6 +101,11 @@ object BoostedHashMap {
     private val refQueue = new ReferenceQueue[B]
 
     def newValue: B
+
+    def existing(key: A): B = {
+      val r = underlying.get(key)
+      if (null == r) null.asInstanceOf[B] else r.get
+    }
 
     def apply(key: A): B = {
       var result: B = null.asInstanceOf[B]
@@ -127,6 +134,8 @@ object BoostedHashMap {
   //////// per-key lock management strategies
 
   trait LockHolder[A] {
+    def existingReadLock(key: A): Lock
+    def existingWriteLock(key: A): Lock
     def readLock(key: A): Lock
     def writeLock(key: A): Lock
   }
@@ -135,6 +144,8 @@ object BoostedHashMap {
   class BasicLockHolder[A] extends OnDemandMap[A,Lock] with LockHolder[A] {
     def newValue = new ReentrantLock
 
+    def existingReadLock(key: A) = existing(key)
+    def existingWriteLock(key: A) = existing(key)
     def readLock(key: A) = this(key)
     def writeLock(key: A) = this(key)
   }
@@ -143,6 +154,8 @@ object BoostedHashMap {
   class RWLockHolder[A] extends OnDemandMap[A,ReadWriteLock] with LockHolder[A] {
     def newValue = new ReentrantReadWriteLock
 
+    def existingReadLock(key: A) = existing(key).readLock
+    def existingWriteLock(key: A) = existing(key).writeLock
     def readLock(key: A) = this(key).readLock
     def writeLock(key: A) = this(key).writeLock
   }
@@ -151,6 +164,8 @@ object BoostedHashMap {
   class GCLockHolder[A] extends WeakOnDemandMap[A,Lock] with LockHolder[A] {
     def newValue = new ReentrantLock
 
+    def existingReadLock(key: A) = existing(key)
+    def existingWriteLock(key: A) = existing(key)
     def readLock(key: A) = this(key)
     def writeLock(key: A) = this(key)
   }
@@ -159,6 +174,8 @@ object BoostedHashMap {
   class GCRWLockHolder[A] extends WeakOnDemandMap[A,ReadWriteLock] with LockHolder[A] {
     def newValue = new ReentrantReadWriteLock
 
+    def existingReadLock(key: A) = existing(key).readLock
+    def existingWriteLock(key: A) = existing(key).writeLock
     def readLock(key: A) = this(key).readLock
     def writeLock(key: A) = this(key).writeLock
   }
@@ -267,12 +284,16 @@ class BoostedHashMap[A,B](lockHolder: BoostedHashMap.LockHolder[A], enumLock: Re
   val nonTxn: TMap.Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,BoostedHashMap[A,B]](BoostedHashMap.this) {
 
     def get(key: A): Option[B] = {
-      val lock = lockHolder.readLock(key)
-      lock.lock()
-      try {
-        NullValue.decodeOption(underlying.get(key))
-      } finally {
-        lock.unlock()
+      val lock = lockHolder.existingReadLock(key)
+      if (lock == null) {
+        None
+      } else {
+        lock.lock()
+        try {
+          NullValue.decodeOption(underlying.get(key))
+        } finally {
+          lock.unlock()
+        }
       }
     }
 
@@ -297,7 +318,9 @@ class BoostedHashMap[A,B](lockHolder: BoostedHashMap.LockHolder[A], enumLock: Re
     }
 
     override def removeKey(key: A): Option[B] = {
-      val lock = lockHolder.writeLock(key)
+      val lock = lockHolder.existingWriteLock(key)
+      if (null == lock) return None
+      
       lock.lock()
       val prev = (try {
         if (null != enumLock) {
@@ -317,7 +340,7 @@ class BoostedHashMap[A,B](lockHolder: BoostedHashMap.LockHolder[A], enumLock: Re
       } finally {
         lock.unlock()
       })
-      NullValue.decodeOption(prev)
+      return NullValue.decodeOption(prev)
     }
 
 //    protected def transformIfDefined(key: A,

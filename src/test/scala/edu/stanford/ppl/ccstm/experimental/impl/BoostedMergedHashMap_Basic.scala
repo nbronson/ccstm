@@ -24,6 +24,8 @@ object BoostedMergedHashMap_Basic {
   class BasicMergedLockHolder[A] extends OnDemandMap[A,Entry] with LockHolder[A] {
     def newValue = new Entry
 
+    def existingReadLock(key: A) = existing(key)
+    def existingWriteLock(key: A) = existing(key)
     def readLock(key: A) = this(key)
     def writeLock(key: A) = this(key)
   }
@@ -127,12 +129,16 @@ class BoostedMergedHashMap_Basic[A,B] extends TMap[A,B] {
   val nonTxn: TMap.Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,BoostedMergedHashMap_Basic[A,B]](this) {
 
     def get(key: A): Option[B] = {
-      val lock = lockHolder.readLock(key)
-      lock.lock()
-      try {
-        NullValue.decodeOption(lock.asInstanceOf[Entry].value)
-      } finally {
-        lock.unlock()
+      val lock = lockHolder.existingReadLock(key)
+      if (null == lock) {
+        None
+      } else {
+        lock.lock()
+        try {
+          NullValue.decodeOption(lock.asInstanceOf[Entry].value)
+        } finally {
+          lock.unlock()
+        }
       }
     }
 
@@ -147,7 +153,9 @@ class BoostedMergedHashMap_Basic[A,B] extends TMap[A,B] {
     }
 
     override def removeKey(key: A): Option[B] = {
-      val lock = lockHolder.writeLock(key)
+      val lock = lockHolder.existingWriteLock(key)
+      if (null == lock) return None
+      
       lock.lock()
       val e = lock.asInstanceOf[Entry]
       val prev = e.value

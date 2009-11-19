@@ -6,6 +6,7 @@ import management.{GarbageCollectorMXBean, ManagementFactory}
 import scala.collection.mutable.Map
 import edu.stanford.ppl.ccstm.experimental.TMap
 import edu.stanford.ppl.ccstm.experimental.impl.TMapFactory
+import edu.stanford.ppl.ccstm.Txn
 
 /* Perf
  *
@@ -53,7 +54,7 @@ object Perf {
       else exitUsage
     }
 
-    val target = TMapFactory[Int,String](args(args.length - 2))
+    val targetType = args(args.length - 2)
 
     val workerClass = (try {
       Class.forName(args(args.length - 1))
@@ -65,7 +66,7 @@ object Perf {
     val workers = (for (id <- 0 until numThreads) yield {
       val w: Worker = workerClass.newInstance
       if (master == null) master = w
-      w.setup(id, size, numThreads, target, master)
+      w.setup(id, size, numThreads, targetType, master)
       w.currentOp = BarrierOp
       w
     }).force
@@ -299,6 +300,7 @@ object Perf {
     var id = -1
     var size = -1
     var numThreads = -1
+    var targetType: String = null
     var target: TMap[Int,String] = null
     var master: Worker = null
     
@@ -308,11 +310,12 @@ object Perf {
 
     { Worker.addWorker(this) }
 
-    def setup(id: Int, size: Int, numThreads: Int, target: TMap[Int,String], master: Worker) {
+    def setup(id: Int, size: Int, numThreads: Int, targetType: String, master: Worker) {
       this.id = id
       this.size = size
       this.numThreads = numThreads
-      this.target = target
+      this.targetType = targetType
+      this.target = TMapFactory[Int,String](targetType)
       this.master = master
     }
 
@@ -347,6 +350,28 @@ object Perf {
       z
     }
 
+    def doTxnPut(key: Int, value: String)(implicit txn: Txn) {
+      counts += PutOp
+      currentOp = PutOp
+      target(key) = value
+      currentOp = NoOp
+    }
+
+    def doTxnRemove(key: Int)(implicit txn: Txn) {
+      counts += RemoveOp
+      currentOp = RemoveOp
+      target -= key
+      currentOp = NoOp
+    }
+
+    def doTxnGet(key: Int)(implicit txn: Txn): Option[String] = {
+      counts += GetOp
+      currentOp = GetOp
+      val z = target.get(key)
+      currentOp = NoOp
+      z
+    }
+
     def doIteration {
       //if (target.isInstanceOf[SnapMap[_,_]]) println(target)
       var count = 0
@@ -365,7 +390,7 @@ object Perf {
 
     /** Called on only one worker. */
     def reset {
-      doClear
+      target = TMapFactory[Int,String](targetType)
     }
   }
 }
