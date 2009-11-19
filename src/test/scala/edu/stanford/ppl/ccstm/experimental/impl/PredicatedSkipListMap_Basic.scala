@@ -14,7 +14,8 @@ import edu.stanford.ppl.ccstm.collection.{TIntRef, TOptionRef}
 
 object PredicatedSkipListMap_Basic {
   class Predicate[B] extends TOptionRef[B](None) {
-    @volatile var ready = false
+    @volatile var leftNotified = false
+    @volatile var rightNotified = false
     val predInsCount = new TIntRef(0)
     val succInsCount = new TIntRef(0)
   }
@@ -58,7 +59,7 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
     }
 
     override def put(key: A, value: B): Option[B] = {
-      predicateForPut(key).nonTxn.getAndSet(Some(value))
+      predicateForInsert(key).nonTxn.getAndSet(Some(value))
     }
 
     override def removeKey(key: A): Option[B] = {
@@ -68,17 +69,17 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
     }
 
     def higher(key: A): Option[(A,B)] = {
-      // we use a txn, because both the value read must be consistent with the
+      // we use a txn, because the value read must be consistent with the
       // protecting insCount reads
       STM.atomic(unbind.higher(key)(_))
     }
 
 //    override def transform(key: A, f: (Option[B]) => Option[B]) {
-//      predicateForPut(key).nonTxn.transform(f)
+//      predicateForInsert(key).nonTxn.transform(f)
 //    }
 //
 //    override def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]]): Boolean = {
-//      predicateForPut(key).nonTxn.transformIfDefined(pf)
+//      predicateForInsert(key).nonTxn.transformIfDefined(pf)
 //    }
 //
 //    protected def transformIfDefined(key: A,
@@ -177,15 +178,15 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
   }
 
   def get(key: A)(implicit txn: Txn): Option[B] = {
-    predicateForRead(key).get
+    predicateForNonInsert(key).get
   }
 
   def put(key: A, value: B)(implicit txn: Txn): Option[B] = {
-    predicateForPut(key).getAndSet(Some(value))
+    predicateForInsert(key).getAndSet(Some(value))
   }
 
   def removeKey(key: A)(implicit txn: Txn): Option[B] = {
-    predicateForRead(key).getAndSet(None)
+    predicateForNonInsert(key).getAndSet(None)
   }
 
   def higher(key: A)(implicit txn: Txn): Option[(A,B)] = {
@@ -229,11 +230,11 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
   }
 
 //  override def transform(key: A, f: (Option[B]) => Option[B])(implicit txn: Txn) {
-//    predicateForPut(key).transform(f)
+//    predicateForInsert(key).transform(f)
 //  }
 //
 //  override def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]])(implicit txn: Txn): Boolean = {
-//    predicateForPut(key).transformIfDefined(pf)
+//    predicateForInsert(key).transformIfDefined(pf)
 //  }
 //
 //  protected def transformIfDefined(key: A,
@@ -244,7 +245,7 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
 
   private def existingPred(key: A): Predicate[B] = predicates.get(key)
 
-  private def predicateForRead(key: A): Predicate[B] = {
+  private def predicateForNonInsert(key: A): Predicate[B] = {
     val p = predicates.get(key)
     if (null != p) {
       p
@@ -255,21 +256,47 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
     }
   }
 
-  private def predicateForPut(key: A): Predicate[B] = {
-    // vOptRef can't be non-None until after the pred and succ mod counts are
-    // incremented.  This is true whether we created it or found it.
-    val p = predicateForRead(key)
-    if (p.ready) return p
+  private def predicateForInsert(key: A): Predicate[B] = {
+    // We can't store to a predicate until its left has been notified of a
+    // new successor and its right has been notified of a new predecessor
+    val p = predicateForNonInsert(key)
+
+    leftNotify(key, p)
+    rightNotify(key, p)
+    return p
+  }
+
+  private def leftNotify(key: A, p: Predicate[B]) {
+    if (p.leftNotified) return
 
     val before = predicates.lowerEntry(key)
-    if (p.ready) return p
-    (if (null != before) before.getValue.succInsCount else firstInsCount).nonTxn += 1
+    if (p.leftNotified) return
+    
+    if (null == before) {
+      firstInsCount.nonTxn += 1
+    } else {
+      leftNotify(before.getKey, before.getValue)
+      if (p.leftNotified) return
 
-    val after = predicates.higherEntry(key)
-    if (p.ready) return p
-    (if (null != after) after.getValue.predInsCount else lastInsCount).nonTxn += 1
+      before.getValue.succInsCount.nonTxn += 1
+    }
+    p.leftNotified = true
+  }
+  
+  private def rightNotify(key: A, p: Predicate[B]) {
+    if (p.rightNotified) return
 
-    p.ready = true
-    return p
+    val before = predicates.higherEntry(key)
+    if (p.rightNotified) return
+  
+    if (null == before) {
+      lastInsCount.nonTxn += 1
+    } else {
+      rightNotify(before.getKey, before.getValue)
+      if (p.rightNotified) return
+
+      before.getValue.succInsCount.nonTxn += 1
+    }
+    p.rightNotified = true
   }
 }
