@@ -9,8 +9,8 @@ import experimental.TMap
 import java.lang.ref.{WeakReference, ReferenceQueue}
 import java.util.IdentityHashMap
 import java.util.concurrent.locks._
-import java.util.concurrent.atomic.AtomicIntegerFieldUpdater
 import java.util.concurrent.{ConcurrentMap, TimeUnit, ConcurrentHashMap}
+import java.util.concurrent.atomic.{AtomicReference, AtomicIntegerFieldUpdater}
 
 /** An transactionally boosted <code>ConcurrentHashMap</code>, implemented
  *  directly from M. Herlify and E. Koskinen, <em>Transactional Boosting: A
@@ -65,6 +65,8 @@ class BoostedHashMap_GC_Enum_RW[A,B] extends BoostedHashMap[A,B](new BoostedHash
 
 class BoostedHashMap_RC[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.RCLockHolder[A], null)
 class BoostedHashMap_RC_Enum[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.RCLockHolder[A], new ReentrantReadWriteLock)
+class BoostedHashMap_LazyGC[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.LazyLockHolder[A], null)
+class BoostedHashMap_LazyGC_Enum[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.LazyLockHolder[A], new ReentrantReadWriteLock)
 
 object BoostedHashMap {
 
@@ -260,6 +262,87 @@ object BoostedHashMap {
     def writeLock(key: A) = this(key).enter()
     override def returnUnused(lock: Lock) = lock.asInstanceOf[RCLock[A]].exit()
   }
+
+  
+  trait LockRef {
+    def get: Lock
+    def enter(): Lock
+  }
+
+  class LazyLock[A](key: A, underlying: ConcurrentMap[A,LockRef]) extends ReentrantLock with LockRef {
+    @volatile var weakened = false
+
+    def get = this
+
+    def enter(): Lock = {
+      val weak = new WeakLockRef(key, underlying, this)
+      if (underlying.replace(key, this, weak)) {
+        weakened = true
+        this
+      } else {
+        null
+      }
+    }
+
+    def exit() {
+      if (!weakened) {
+        underlying.remove(key, this)
+      }
+    }
+
+    override def tryLock(timeout: Long, unit: TimeUnit): Boolean = {
+      if (!super.tryLock(timeout, unit)) {
+        exit()
+        false
+      } else {
+        true
+      }
+    }
+
+    override def unlock(): Unit = {
+      super.unlock()
+      exit()
+    }
+  }
+
+  class WeakLockRef[A](key: A, underlying: ConcurrentMap[A,LockRef], lock: Lock) extends CleanableRef(lock) with LockRef {
+    def enter() = get
+
+    def cleanup() {
+      underlying.remove(key, this)
+    }
+  }
+
+  class LazyLockHolder[A] extends LockHolder[A] {
+    val underlying = new ConcurrentHashMap[A,LockRef]
+
+    def existingReadLock(key: A) = {
+      val e = underlying.get(key)
+      if (null == e) null else e.enter()
+    }
+    def existingWriteLock(key: A) = existingReadLock(key)
+
+    def readLock(key: A) = get(key)
+    def writeLock(key: A) = get(key)
+
+    private def get(key: A): Lock = {
+      var existing = underlying.get(key)
+      if (null == existing) {
+        // new locks are pre-enter()ed
+        val fresh = new LazyLock(key, underlying)
+        existing = underlying.putIfAbsent(key, fresh)
+        if (null == existing) {
+          return fresh
+        }
+      }
+      val lock = existing.enter()
+      if (null != lock) {
+        return lock
+      }
+      return get(key)
+    }
+  }
+
 
   //////// per-txn state
 
