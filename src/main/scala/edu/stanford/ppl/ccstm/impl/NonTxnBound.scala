@@ -129,12 +129,7 @@ private[ccstm] class NonTxnBound[T](val unbind: Ref[T],
     var m0 = 0L
     var m1 = 0L
     var v: T = null.asInstanceOf[T]
-    var attempts = 0
     do {
-      attempts += 1
-      if (attempts == 10) {
-        return pessimisticGet
-      }
       m0 = handle.meta
       while (changing(m0)) {
         weakAwaitUnowned(m0)
@@ -144,13 +139,6 @@ private[ccstm] class NonTxnBound[T](val unbind: Ref[T],
       m1 = handle.meta
       // TODO: fall back to pessimistic if we are starving
     } while (changingAndVersion(m0) != changingAndVersion(m1))
-    v
-  }
-
-  private def pessimisticGet: T = {
-    val m0 = acquireLock(false)
-    val v = handle.data
-    discardLock(m0)
     v
   }
 
