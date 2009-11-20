@@ -462,6 +462,7 @@ class BoostedHashMap[A,B](lockHolder: BoostedHashMap.LockHolder[A], enumLock: Re
   val nonTxn: TMap.Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,BoostedHashMap[A,B]](BoostedHashMap.this) {
 
     def get(key: A): Option[B] = {
+      // TODO: remove this incorrect optimization
       val lock = lockHolder.existingReadLock(key)
       if (lock == null) {
         None

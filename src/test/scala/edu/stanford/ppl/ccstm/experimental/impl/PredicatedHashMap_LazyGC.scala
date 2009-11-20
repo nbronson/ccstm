@@ -399,7 +399,7 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
   
   private def immediateCleanup(key: A, pred: Predicate[A,B]) {
     val r = pred.tokenRef
-    if (!r.isWeak && pred.tokenRefCAS(r, null)) {
+    if (null != r && !r.isWeak && pred.tokenRefCAS(r, null)) {
       // successfully made it stale
       predicates.remove(key, pred)
       // no need to retry on remove failure, somebody else did it for us
