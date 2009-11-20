@@ -129,9 +129,12 @@ private[ccstm] object STMImpl extends GV6 {
 
   def resurrect(identity: Int, handle: Handle[_]) {
     val v0 = crypts(identity & CryptMask).get
-    if (!handle.metaCAS(0L, withVersion(0L, v0))) {
-      throw new IllegalStateException("Refs may only be resurrected into an old identity before use")
-    }
+
+    // TODO: put this back
+//    if (!handle.metaCAS(0L, withVersion(0L, v0))) {
+//      throw new IllegalStateException("Refs may only be resurrected into an old identity before use")
+//    }
+    handle.meta = withVersion(0L, v0)
   }
 
   //////////////// Conditional retry
