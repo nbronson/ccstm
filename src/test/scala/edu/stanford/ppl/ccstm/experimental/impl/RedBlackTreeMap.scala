@@ -147,7 +147,13 @@ class RedBlackTreeMap[A,B] extends TMap[A,B] {
       Some(z)
     }
   }
-  
+
+  def higher(key: A)(implicit txn: Txn): Option[(A,B)] = {
+    val k = key.asInstanceOf[Comparable[A]]
+    val x = higherNode(k, root)
+    if (null == x) None else Some((x.key, x.value))
+  }
+
   //////////////// internal implementation
 
   private def getNode(key: A)(implicit txn: Txn): RBNode[A,B] = {
@@ -155,13 +161,13 @@ class RedBlackTreeMap[A,B] extends TMap[A,B] {
     var p = root
     while (null != p) {
       val cmp = k.compareTo(p.key)
-        if (cmp < 0) {
-          p = p.left
-        } else if (cmp > 0) {
-          p = p.right
-        } else {
-          return p
-        }
+      if (cmp < 0) {
+        p = p.left
+      } else if (cmp > 0) {
+        p = p.right
+      } else {
+        return p
+      }
     }
     return null
   }
@@ -228,6 +234,23 @@ class RedBlackTreeMap[A,B] extends TMap[A,B] {
     }
   }
 
+  private def higherNode(k: Comparable[A], p: RBNode[A,B])(implicit txn: Txn): RBNode[A,B] = {
+    if (null == p) {
+      null
+    } else {
+      val cmp = k.compareTo(p.key)
+      if (cmp >= 0) {
+        // k is here or on the right, so higher is on the right, if it exists
+        higherNode(k, p.right)
+      } else {
+        // k is on the left, so higher can be on left or the current value
+        val z = higherNode(k, p.left)
+        if (null == z) p else z
+      }
+    }
+  }
+
+  
 
   private def colorOf(p: RBNode[A,B])(implicit txn: Txn) = {
     if (null == p) BLACK else p.color
