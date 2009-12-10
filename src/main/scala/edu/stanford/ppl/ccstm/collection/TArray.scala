@@ -96,7 +96,9 @@ class TArray[T](length0: Int, metaMapping: TArray.MetaMapping)(implicit manifest
   private val _metaIndexShift = { var i = 0 ; while ((1L << i) < metaMapping.neighboringDataPerMeta) i += 1 ; i }
   private val _metaIndexMask = {
     val n = Math.min(length0 / metaMapping.dataPerMeta, metaMapping.maxMeta)
-    var m = 1 ; while (m < n) m = (m << 2) + 1 ; m
+    var m = 1 ; while (m < n) m = (m << 1) + 1
+    assert ((m & (m + 1)) == 0)
+    m
   }
 
   private val _meta = new AtomicLongArray(Math.min(_metaIndexMask + 1, length0))
