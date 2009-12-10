@@ -41,7 +41,7 @@ object FastSimpleRandom {
     x
   }
 
-  private def step(x: Long) = x * 2862933555777941757L + 3037000493L
+  private[impl] def step(x: Long) = x * 2862933555777941757L + 3037000493L
   
   private def extract(x: Long) = (x >> 30).asInstanceOf[Int]
 
@@ -69,13 +69,13 @@ object FastSimpleRandom {
 /** A single-threaded random number generator that uses the same algorithm as
  *  the concurrent <code>object FastSimpleRandom</code>.
  */
-class FastSimpleRandom(seed: Int) {
-
-  def this() = this(System.identityHashCode(Thread.currentThread))
-
+class FastSimpleRandom private (private var _state: Long, dummy: Boolean) {
   import FastSimpleRandom._
 
-  private var _state: Long = step(step(seed))
+  def this(seed: Int) = this(FastSimpleRandom.step(FastSimpleRandom.step(seed)), false)
+  def this() = this(System.identityHashCode(Thread.currentThread))
+
+  override def clone = new FastSimpleRandom(_state, false)
 
   def nextInt(): Int = {
     _state = step(_state)
