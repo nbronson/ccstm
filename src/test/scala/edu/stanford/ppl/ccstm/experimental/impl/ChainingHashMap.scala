@@ -35,7 +35,7 @@ object ChainingHashMap {
 class ChainingHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TMap[K,V] {
   import ChainingHashMap._
 
-  private val bucketsRef = Ref(new TArray[Bucket[K,V]](16))
+  private val bucketsRef = Ref(new TArray[Bucket[K,V]](16, TArray.MaximizeParallelism))
   private val sizeRef = new LazyConflictIntRef(0)
 
   private def hash(key: K) = {
@@ -243,6 +243,6 @@ class ChainingHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TM
     }
 
     // now create the transactional array
-    bucketsRef := new TArray(after)
+    bucketsRef := new TArray(after, TArray.MaximizeParallelism)
   }
 }
