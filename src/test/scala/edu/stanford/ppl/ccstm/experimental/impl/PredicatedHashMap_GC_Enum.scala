@@ -7,8 +7,7 @@ package edu.stanford.ppl.ccstm.experimental.impl
 import edu.stanford.ppl.ccstm.experimental.TMap
 import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm.{STM, Txn}
-import java.lang.ref.WeakReference
-import java.util.concurrent.{ConcurrentMap, ConcurrentHashMap}
+import java.util.concurrent.ConcurrentHashMap
 import edu.stanford.ppl.ccstm.collection.{IdentityPair, StripedIntRef, TIdentityPairRef}
 
 private object PredicatedHashMap_GC_Enum {
@@ -22,7 +21,7 @@ private object PredicatedHashMap_GC_Enum {
   }
 
   // we extend from TIdentityPairRef opportunistically
-  private class Predicate[A,B](val weakRef: WeakReference[Token[A,B]]
+  private class Predicate[A,B](val softRef: CleanableRef[Token[A,B]]
           ) extends TIdentityPairRef[Token[A,B],B](null) {
   }
 }
@@ -259,7 +258,7 @@ class PredicatedHashMap_GC_Enum[A,B] extends TMap[A,B] {
   private def activeToken(key: A): Token[A,B] = activeToken(key, predicates.get(key))
 
   private def activeToken(key: A, pred: Predicate[A,B]): Token[A,B] = {
-    val token = if (null == pred) null else pred.weakRef.get
+    val token = if (null == pred) null else pred.softRef.get
     if (null != token) token else createToken(key, pred)
   }
 

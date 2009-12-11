@@ -24,12 +24,13 @@ private object PredicatedHashMap_LazyGC {
     var pred: Predicate[A,B] = null
 
     def cleanup(): Unit = map.predicates.remove(key, pred)
+    override def get = super.get // TODO: remove this workaround for compiler bug in 2.7.7
     def isWeak = true
   }
 
   // We use the Token as its own strong reference to itself.  A more
   // straightforward embedding into the type system would be to have
-  // predicate.tokenRef: Either[Token,WeakRef[Token]], but then we would have
+  // predicate.tokenRef: Either[Token,SoftRef[Token]], but then we would have
   // an extra Left or Right instance for each ref.
   private class Token[A,B] extends TokenRef[A,B] {
     def get = this
@@ -399,6 +400,7 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
   
   private def immediateCleanup(key: A, pred: Predicate[A,B]) {
     val r = pred.tokenRef
+    // TODO: should r ever be null here?  it is, occasionally
     if (null != r && !r.isWeak && pred.tokenRefCAS(r, null)) {
       // successfully made it stale
       predicates.remove(key, pred)

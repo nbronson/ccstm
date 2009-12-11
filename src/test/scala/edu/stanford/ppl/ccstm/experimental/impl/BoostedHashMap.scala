@@ -6,11 +6,10 @@ package edu.stanford.ppl.ccstm.experimental.impl
 
 import edu.stanford.ppl.ccstm._
 import experimental.TMap
-import java.lang.ref.{WeakReference, ReferenceQueue}
 import java.util.IdentityHashMap
 import java.util.concurrent.locks._
 import java.util.concurrent.{ConcurrentMap, TimeUnit, ConcurrentHashMap}
-import java.util.concurrent.atomic.{AtomicReference, AtomicIntegerFieldUpdater}
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater
 
 /** An transactionally boosted <code>ConcurrentHashMap</code>, implemented
  *  directly from M. Herlify and E. Koskinen, <em>Transactional Boosting: A
@@ -94,17 +93,14 @@ object BoostedHashMap {
     }
   }
 
-  class WeakRef[A,B](key: A, owner: ConcurrentHashMap[A,WeakRef[A,B]], value: B) extends CleanableRef[B](value) {
+  class SoftRef[A,B](key: A, owner: ConcurrentHashMap[A,SoftRef[A,B]], value: B) extends CleanableRef[B](value) {
     def cleanup() {
       owner.remove(key, this)
     }
   }
 
   abstract class WeakOnDemandMap[A,B <: AnyRef] {
-    private val underlying = new ConcurrentHashMap[A,WeakRef[A,B]]
-
-    /** A queue to reclaim entries. */
-    private val refQueue = new ReferenceQueue[B]
+    private val underlying = new ConcurrentHashMap[A,SoftRef[A,B]]
 
     def newValue(key: A): B
 
@@ -121,14 +117,14 @@ object BoostedHashMap {
           result = ref.get
           if (null == result) {
             val freshValue = newValue(key)
-            val freshRef = new WeakRef(key, underlying, freshValue)
+            val freshRef = new SoftRef(key, underlying, freshValue)
             if (underlying.replace(key, ref, freshRef)) {
               result = freshValue
             }
           }
         } else {
           val freshValue = newValue(key)
-          val freshRef = new WeakRef(key, underlying, freshValue)
+          val freshRef = new SoftRef(key, underlying, freshValue)
           val existing = underlying.putIfAbsent(key, freshRef)
           result = (if (null == existing) freshValue else existing.get)
         }

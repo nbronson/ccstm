@@ -138,7 +138,7 @@ object Perf {
 
     printResults
 
-    // try to get all of the WeakRef-s to clean up
+    // try to get all of the SoftRef-s to clean up
     System.gc
     Thread.sleep(1000)
   }

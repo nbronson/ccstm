@@ -40,6 +40,6 @@ private object CleanableRef {
   def myQueue[T] = queues(System.identityHashCode(Thread.currentThread) & (CleaningThreads - 1)).asInstanceOf[ReferenceQueue[T]]
 }
 
-abstract class CleanableRef[T](value: T) extends WeakReference[T](value, CleanableRef.myQueue[T]) {
+abstract class CleanableRef[T](value: T) extends SoftReference[T](value, CleanableRef.myQueue[T]) {
   def cleanup()
 }
