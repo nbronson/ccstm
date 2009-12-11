@@ -8,15 +8,10 @@ import edu.stanford.ppl.ccstm.experimental.TMap
 import java.util.concurrent.ConcurrentHashMap
 import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm.{STM, Txn}
-import edu.stanford.ppl.ccstm.collection.{TAnyRef, TOptionRef, LazyConflictIntRef}
-import com.google.common.collect.MapMaker
+import edu.stanford.ppl.ccstm.collection.TAnyRef
 
 
 class PredicatedHashMap_Basic[A,B] extends TMap[A,B] {
-//  private val predicates = (new MapMaker).makeComputingMap[A,TAnyRef[AnyRef]](
-//    new com.google.common.base.Function[A,TAnyRef[AnyRef]] {
-//      def apply(from: A) = new TAnyRef[AnyRef](null)
-//    })
   private val predicates = new ConcurrentHashMap[A,TAnyRef[AnyRef]]
 
   def nonTxn: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_Basic[A,B]](this) {
