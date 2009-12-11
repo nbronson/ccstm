@@ -9,7 +9,7 @@ import java.lang.ref._
 
 private object CleanableRef {
   val CleaningThreads = {
-    val min = System.getProperty("cleaning-threads", (Runtime.getRuntime.availableProcessors / 4).toString).toInt
+    val min = System.getProperty("cleaning-threads", "1").toInt
     var i = 1
     while (i < min) i *= 2
     i
@@ -37,7 +37,13 @@ private object CleanableRef {
     queue
   }
 
-  def myQueue[T] = queues(System.identityHashCode(Thread.currentThread) & (CleaningThreads - 1)).asInstanceOf[ReferenceQueue[T]]
+  def myQueue[T] = {
+    (if (queues.length == 1) {
+      queues(0)
+    } else {
+      queues(System.identityHashCode(Thread.currentThread) & (CleaningThreads - 1))
+    }).asInstanceOf[ReferenceQueue[T]]
+  }
 }
 
 abstract class CleanableRef[T](value: T) extends SoftReference[T](value, CleanableRef.myQueue[T]) {

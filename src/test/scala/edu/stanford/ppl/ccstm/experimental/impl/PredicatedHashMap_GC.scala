@@ -11,37 +11,33 @@ import java.util.concurrent.ConcurrentHashMap
 import edu.stanford.ppl.ccstm.collection.{IdentityPair, TIdentityPairRef}
 
 private object PredicatedHashMap_GC {
-  private class TokenRef[A,B](map: PredicatedHashMap_GC[A,B], key: A, token: Token[A,B]) extends CleanableRef[Token[A,B]](token) {
-    var pred: Predicate[A,B] = null
+  private class TokenRef[A,B](map: PredicatedHashMap_GC[A,B], key: A, token: Token) extends CleanableRef[Token](token) {
+    var pred: Predicate[B] = null
     def cleanup(): Unit = map.predicates.remove(key, pred)
   }
 
-  private class Token[A,B] {
-    var pred: Predicate[A,B] = null
-  }
+  private class Token
 
-  // we extend from TPairRef opportunistically
-  private class Predicate[A,B](val softRef: CleanableRef[Token[A,B]]
-          ) extends TIdentityPairRef[Token[A,B],B](null) {
-  }
+  // we extend from TIdentityPairRef opportunistically
+  private class Predicate[B](val softRef: CleanableRef[Token]) extends TIdentityPairRef[Token,B](null)
 }
 
 class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
   import PredicatedHashMap_GC._
 
-  private val predicates = new ConcurrentHashMap[A,Predicate[A,B]] {
-    override def putIfAbsent(key: A, value: Predicate[A,B]): Predicate[A,B] = {
+  private val predicates = new ConcurrentHashMap[A,Predicate[B]] {
+    override def putIfAbsent(key: A, value: Predicate[B]): Predicate[B] = {
       STM.resurrect(key.hashCode, value)
       super.putIfAbsent(key, value)
     }
 
-    override def replace(key: A, oldValue: Predicate[A,B], newValue: Predicate[A,B]): Boolean = {
+    override def replace(key: A, oldValue: Predicate[B], newValue: Predicate[B]): Boolean = {
       STM.resurrect(key.hashCode, newValue)
       super.replace(key, oldValue, newValue)
     }
 
     override def remove(key: Any, value: Any): Boolean = {
-      STM.embalm(key.hashCode, value.asInstanceOf[Predicate[A,B]])
+      STM.embalm(key.hashCode, value.asInstanceOf[Predicate[B]])
       super.remove(key, value)
     }
   }
@@ -53,20 +49,52 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
       // active (weakRef.get != null).  We don't need to distinguish between
       // the last two cases, since they will both have a null txn Token ref and
       // both correspond to None
-      val p = existingPred(key)
-      if (null == p) None else decodePair(p.nonTxn.get)
+      val p = predicates.get(key)
+      decodePair(if (null == p) null else p.nonTxn.get)
     }
 
-    override def put(key: A, value: B): Option[B] = {
-      val tok = activeToken(key)
-      decodePair(tok.pred.nonTxn.getAndSet(IdentityPair(tok, value)))
+    override def put(key: A, value: B): Option[B] = putImpl(key, value, predicates.get(key))
+
+    private def putImpl(key: A, value: B, pred: Predicate[B]): Option[B] = {    
+      val token = if (null == pred) null else pred.softRef.get
+      if (null != token) {
+        putImpl(value, token, pred)
+      } else {
+        val freshToken = new Token
+        val freshRef = new TokenRef(unbind, key, freshToken)
+        val freshPred = new Predicate[B](freshRef)
+        freshRef.pred = freshPred
+
+        if (null == pred) {
+          val racingPred = predicates.putIfAbsent(key, freshPred)
+          if (null == racingPred) {
+            // successful
+            putImpl(value, freshToken, freshPred)
+          } else {
+            // we've got the predicate that beat us to it, try with that one
+            putImpl(key, value, racingPred)
+          }
+        } else {
+          if (predicates.replace(key, pred, freshPred)) {
+            // successful
+            putImpl(value, freshToken, freshPred)
+          } else {
+            // failure, but replace doesn't give us the old one
+            putImpl(key, value, predicates.get(key))
+          }
+        }
+      }
+    }
+
+    private def putImpl(value: B, token: Token, pred: Predicate[B]): Option[B] = {
+      decodePair(pred.nonTxn.getAndSet(IdentityPair(token, value)))
     }
 
     override def removeKey(key: A): Option[B] = {
       // if the pred is stale, then getAndSet(None) is a no-op and doesn't harm
       // anything
-      val p = existingPred(key)
-      if (null == p) None else decodePair(p.nonTxn.getAndSet(null))
+      val p = predicates.get(key)
+      decodePair(if (null == p) null else p.nonTxn.getAndSet(null))
     }
 
 //    override def transform(key: A, f: (Option[B]) => Option[B]) {
@@ -122,21 +150,128 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
   def size(implicit txn: Txn): Int = throw new UnsupportedOperationException
 
   def get(key: A)(implicit txn: Txn): Option[B] = {
-    val tok = activeToken(key)
-    decodePairAndPin(tok, tok.pred.get)
+    val pred = predicates.get(key)
+    if (null != pred) {
+      val pair = pred.get
+      if (null != pair) {
+        // no access to the soft ref necessary
+        return Some(pair._2)
+      }
+    }
+    return getImpl(key, pred)
   }
 
-  def put(key: A, value: B)(implicit txn: Txn): Option[B] = {
-    val tok = activeToken(key)
-    // write buffer will pin tok
-    decodePair(tok.pred.getAndSet(IdentityPair(tok, value)))
+  private def getImpl(key: A, pred: Predicate[B])(implicit txn: Txn): Option[B] = {
+    val token = if (null == pred) null else pred.softRef.get
+    if (null != token) {
+      getImpl(token, pred)
+    } else {
+      val freshToken = new Token
+      val freshRef = new TokenRef(this, key, freshToken)
+      val freshPred = new Predicate[B](freshRef)
+      freshRef.pred = freshPred
+
+      if (null == pred) {
+        val racingPred = predicates.putIfAbsent(key, freshPred)
+        if (null == racingPred) {
+          // successful
+          getImpl(freshToken, freshPred)
+        } else {
+          // we've got the predicate that beat us to it, try with that one
+          getImpl(key, racingPred)
+        }
+      } else {
+        if (predicates.replace(key, pred, freshPred)) {
+          // successful
+          getImpl(freshToken, freshPred)
+        } else {
+          // failure, but replace doesn't give us the old one
+          getImpl(key, predicates.get(key))
+        }
+      }
+    }
   }
 
-  def removeKey(key: A)(implicit txn: Txn): Option[B] = {
-    val tok = activeToken(key)
-    decodePairAndPin(tok, tok.pred.getAndSet(null))
+  private def getImpl(token: Token, pred: Predicate[B])(implicit txn: Txn): Option[B] = {
+    decodePairAndPin(token, pred.get)
+  }
+  
+  
+  def put(key: A, value: B)(implicit txn: Txn): Option[B] = putImpl(key, value, predicates.get(key))
+
+  private def putImpl(key: A, value: B, pred: Predicate[B])(implicit txn: Txn): Option[B] = {    
+    val token = if (null == pred) null else pred.softRef.get
+    if (null != token) {
+      putImpl(value, token, pred)
+    } else {
+      val freshToken = new Token
+      val freshRef = new TokenRef(this, key, freshToken)
+      val freshPred = new Predicate[B](freshRef)
+      freshRef.pred = freshPred
+
+      if (null == pred) {
+        val racingPred = predicates.putIfAbsent(key, freshPred)
+        if (null == racingPred) {
+          // successful
+          putImpl(value, freshToken, freshPred)
+        } else {
+          // we've got the predicate that beat us to it, try with that one
+          putImpl(key, value, racingPred)
+        }
+      } else {
+        if (predicates.replace(key, pred, freshPred)) {
+          // successful
+          putImpl(value, freshToken, freshPred)
+        } else {
+          // failure, but replace doesn't give us the old one
+          putImpl(key, value, predicates.get(key))
+        }
+      }
+    }
   }
 
+  private def putImpl(value: B, token: Token, pred: Predicate[B])(implicit txn: Txn): Option[B] = {
+    decodePair(pred.getAndSet(IdentityPair(token, value)))
+  }
+
+  
+  def removeKey(key: A)(implicit txn: Txn): Option[B] = removeImpl(key, predicates.get(key))
+
+  private def removeImpl(key: A, pred: Predicate[B])(implicit txn: Txn): Option[B] = {
+    val token = if (null == pred) null else pred.softRef.get
+    if (null != token) {
+      removeImpl(token, pred)
+    } else {
+      val freshToken = new Token
+      val freshRef = new TokenRef(this, key, freshToken)
+      val freshPred = new Predicate[B](freshRef)
+      freshRef.pred = freshPred
+
+      if (null == pred) {
+        val racingPred = predicates.putIfAbsent(key, freshPred)
+        if (null == racingPred) {
+          // successful
+          removeImpl(freshToken, freshPred)
+        } else {
+          // we've got the predicate that beat us to it, try with that one
+          removeImpl(key, racingPred)
+        }
+      } else {
+        if (predicates.replace(key, pred, freshPred)) {
+          // successful
+          removeImpl(freshToken, freshPred)
+        } else {
+          // failure, but replace doesn't give us the old one
+          removeImpl(key, predicates.get(key))
+        }
+      }
+    }
+  }
+
+  private def removeImpl(token: Token, pred: Predicate[B])(implicit txn: Txn): Option[B] = {
+    decodePairAndPin(token, pred.getAndSet(null))
+  }
+  
 //  override def transform(key: A, f: (Option[B]) => Option[B])(implicit txn: Txn) {
 //    val tok = activeToken(key)
 //    // in some cases this is overkill, but it is always correct
@@ -159,18 +294,18 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
 
   //////////////// encoding and decoding into the pair
 
-  private def encodePair(token: Token[A,B], vOpt: Option[B]): IdentityPair[Token[A,B],B] = {
+  private def encodePair(token: Token, vOpt: Option[B]): IdentityPair[Token,B] = {
     vOpt match {
       case Some(v) => IdentityPair(token, v)
       case None => null
     }
   }
 
-  private def decodePair(pair: IdentityPair[Token[A,B],B]): Option[B] = {
+  private def decodePair(pair: IdentityPair[Token,B]): Option[B] = {
     if (null == pair) None else Some(pair._2)
   }
 
-  private def decodePairAndPin(token: Token[A,B], pair: IdentityPair[Token[A,B],B])(implicit txn: Txn): Option[B] = {
+  private def decodePairAndPin(token: Token, pair: IdentityPair[Token,B])(implicit txn: Txn): Option[B] = {
     if (null == pair) {
       // We need to make sure that this TPairRef survives until the end of the
       // transaction.
@@ -193,40 +328,38 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
 
   //////////////// predicate management
 
-  private def existingPred(key: A): Predicate[A,B] = predicates.get(key)
-
-  private def activeToken(key: A): Token[A,B] = activeToken(key, predicates.get(key))
-
-  private def activeToken(key: A, pred: Predicate[A,B]): Token[A,B] = {
-    val token = if (null == pred) null else pred.softRef.get
-    if (null != token) token else createToken(key, pred)
-  }
-
-  private def createToken(key: A, existing: Predicate[A,B]): Token[A,B] = {
-    val freshToken = new Token[A,B]
-    val tokenRef = new TokenRef(this, key, freshToken)
-    val pred = new Predicate(tokenRef)
-    tokenRef.pred = pred
-    freshToken.pred = pred
-    freshToken
-
-    if (null == existing) {
-      val racingPred = predicates.putIfAbsent(key, freshToken.pred)
-      if (null == racingPred) {
-        // successful
-        freshToken
-      } else {
-        // we've got the predicate that beat us to it, try with that one
-        activeToken(key, racingPred)
-      }
-    } else {
-      if (predicates.replace(key, existing, freshToken.pred)) {
-        // successful
-        freshToken
-      } else {
-        // failure, but replace doesn't give us the old one
-        activeToken(key)
-      }
-    }
-  }
+//  private def existingPred(key: A): Predicate[B] = predicates.get(key)
+//
+//  private def activeToken(key: A): (Token,Predicate[B]) = activeToken(key, predicates.get(key))
+//
+//  private def activeToken(key: A, pred: Predicate[B]): (Token,Predicate[B]) = {
+//    val token = if (null == pred) null else pred.softRef.get
+//    if (null != token) {
+//      (token, pred)
+//    } else {
+//      val freshToken = new Token
+//      val freshRef = new TokenRef(this, key, freshToken)
+//      val freshPred = new Predicate(freshRef)
+//      freshRef.pred = freshPred
+//
+//      if (null == pred) {
+//        val racingPred = predicates.putIfAbsent(key, freshPred)
+//        if (null == racingPred) {
+//          // successful
+//          (freshToken, freshPred)
+//        } else {
+//          // we've got the predicate that beat us to it, try with that one
+//          activeToken(key, racingPred)
+//        }
+//      } else {
+//        if (predicates.replace(key, existing, freshPred)) {
+//          // successful
+//          (freshToken, freshPred)
+//        } else {
+//          // failure, but replace doesn't give us the old one
+//          activeToken(key, predicates.get(key))
+//        }
+//      }
+//    }
+//  }
 }
