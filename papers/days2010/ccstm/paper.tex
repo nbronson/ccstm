@@ -32,30 +32,39 @@
 \newcommand{\todo}[1]{{\color{red} \bf [TODO: #1 ]}}
 
 
+\lstdefinelanguage{Scala}{
+  morestring=[b]",
+  morestring=[b]',
+  morecomment=[l]{//},
+  morecomment=[s]{/*}{*/},
+  morekeywords={var,val,def,private,class,implicit,if,else,new,do,while,@volatile,try,catch,case,match,throw,return,extends,with}
+}
+
 \lstset{
-  language=Java,
-  basicstyle=\small\tt,
-  keywordstyle=\small\tt,
-  numbers=left, 
-  numberstyle=\small\tt,
-  commentstyle=\small\tt,
-  columns=fullflexible,
+  language=Scala,
+%  basicstyle=\fontsize{7}{8}\selectfont\tt,
+  basicstyle=\selectfont\tt,
+  keywordstyle=\bfseries,
+  numbers=left,
+  numberstyle=,
+  commentstyle=\itshape,
+  columns=fixed,
   xleftmargin=0.25in,
   firstnumber=auto,
-  escapechar=\#
+  escapechar=\#,
+  emph={A,B,C,K,V,U,Z}, emphstyle=\bfseries\itshape,
+  emph={[2]Unit,Int,Set,Map,TSet,TMap,TVar,Option,Boolean,THashSet,Txn,ConcurrentHashMap,THashMap\_Basic,THashMap\_RC,THashMap\_Weak,Pred,Token,TokRef,ConcurrentMap,CleanableRef}, emphstyle={[2]\itshape}
 }
 
 
 
 \begin{document}
 
-\conferenceinfo{PPoPP'10,}{January 9--14, 2010, Bangalore, India.}
+\conferenceinfo{Scala Workshop,}{April 15, 2010, Lausanne, Switzerland.}
 \CopyrightYear{2010}
-\copyrightdata{978-1-60558-708-0/10/01}
+\copyrightdata{}
 
-\providecommand{\e}[1]{\ensuremath{\times 10^{#1}}}
-
-\newcommand{\xtitle}[0]{A Practical Concurrent Binary Search Tree}
+\newcommand{\xtitle}[0]{CCSTM: A Library-Based STM for Scala}
 \newcommand{\xterms}[0]{{Algorithms, Performance}}
 \newcommand{\xkeywords}[0]{{Optimistic Concurrency, Snapshot Isolation}}
 %\titlebanner{[WORK IN PROGRESS: Do Not Circulate!]}        % These are ignored unless
@@ -63,14 +72,14 @@
 
 \title{\xtitle}
 
-\authorinfo{Nathan G. Bronson\and Jared Casper \and Hassan Chafi\and Kunle Olukotun}
+\authorinfo{Nathan G. Bronson \and Kunle Olukotun}
            {Computer Systems Laboratory\\
             Stanford University}
-           {\textit{\{nbronson, jaredc, hchafi, kunle\}@stanford.edu}}
+           {\textit{\{nbronson, kunle\}@stanford.edu}}
 
 \pdfinfo{
   /Title    (\xtitle)
-  /Author   (Nathan G. Bronson, Jared Casper, Hassan Chafi and Kunle Olukotun)
+  /Author   (Nathan G. Bronson and Kunle Olukotun)
   /Subject  (\xterms)
   /Keywords (\xkeywords)
 }
@@ -79,17 +88,29 @@
 
 \begin{abstract}
 
-We propose a concurrent relaxed balance AVL tree algorithm that is
-fast, scales well, and tolerates contention.  It is based on optimistic
-techniques adapted from software transactional memory,
-but takes advantage of specific knowledge of the the algorithm to reduce
-overheads and avoid unnecessary retries.  We extend our algorithm with
-a fast linearizable \texttt{clone} operation, which can be used for
-consistent iteration of the tree.
-Experimental evidence shows that our algorithm outperforms a highly
-tuned concurrent skip list for many access patterns, with an average of
-39\% higher single-threaded throughput and 32\% higher multi-threaded
-throughput over a range of contention levels and operation mixes.
+We describe the design and implementation of CCSTM, a library-only
+software transactional memory (STM) implementation for Scala.
+Our design philosophy is that CCSTM should be a useful tool for the
+parallel programmer, rather than a parallelization mechanism for arbitrary
+sequential code.  This frees us from the semantic tar pits that surround
+privatization, strong atomicity and isolation, and irrevocable system calls.
+It also allows us to express the STM using Scala classes and methods, a design
+choice that has far-reaching consequences.
+
+Transactional accesses in CCSTM are performed through instances that
+implement the trait \texttt{Ref}.  These transactional references may be
+long-lived, or may be transient accessors to bulk transactional data such
+as an array.  The syntax for dereferencing \texttt{Ref} instances is a
+primary pain point for the library-based approach, but the \texttt{Ref}
+serves as a first-class representation of a transactionally-managed
+memory location, providing a natural mechanism to express additional STM
+features such as conditional waiting, non-transactional compare-and-swap,
+manually-validated reads, and deferrable transformation using pure
+functions.  In an additional departure from typical STM designs, the
+current transactional context is passed through implicit parameters
+rather than being bound to the current thread context.  This increases
+the compile-time checking that can be performed, at the expense of code
+clutter in method signatures.
 
 \end{abstract}
 

@@ -4,16 +4,9 @@
 #  %.dot [dot]-> %.pdf [pdftops]-> %.eps
 #  %.gnumeric [save as image from gnumeric]-> %.pdf [pdftops]-> %.eps
 
-BASE=ppopp207-bronson
+#BASE=ppopp207-bronson
 
 TEX_SRCS=\
-	intro.tex \
-	background.tex \
-	algorithm.tex \
-	correctness.tex \
-	performance.tex \
-	related.tex \
-	conclusion.tex \
 	paper.tex \
 #
 TEX_DEPS=$(TEX_SRCS) \
@@ -29,34 +22,12 @@ DIA_SRCS=\
 DOT_SRCS=\
 #
 
-# expecting .ps
+# expecting .pdf
 GNUMERIC_SRCS=\
-              9-1-90-200k.pdf \
-              9-1-90-20k.pdf \
-              9-1-90-2k.pdf \
-              9-1-90-2m.pdf \
-              20-10-70-200k.pdf \
-              20-10-70-20k.pdf \
-              20-10-70-2k.pdf \
-              20-10-70-2m.pdf \
-              50-50-0-200k.pdf \
-              50-50-0-20k.pdf \
-              50-50-0-2k.pdf \
-              50-50-0-2m.pdf \
-	      legend.ps \
-	      overhead.pdf \
-	      nodes.pdf \
-	      iterations.pdf \
-	      ops-with-iters.pdf \
-              successor.pdf \
-              deletions.pdf \
-              rotations.pdf \
 #
 
 # expecting .pdf
 PDF_SRCS=\
-         chained.pdf \
-         hand_over_hand.pdf \
 #
 
 PDF_INPUT_FILES=$(DIA_SRCS:%.dia=%.pdf) $(DOT_SRCS:%.dot=%.pdf) $(GNUMERIC_SRCS:%.ps=%.pdf) $(PDF_SRCS)
@@ -73,17 +44,17 @@ LATEX=latex $(TEX_OPTIONS)
 default: all
 
 .PHONY: all
-#all: build/paper.pdf
-all: $(BASE).tex $(BASE).pdf $(BASE).ps
-
-$(BASE).tex: build/indexable.tex
-	cp $< $@
-
-$(BASE).pdf: build/paper.pdf
-	cp $< $@
-
-$(BASE).ps: build/paper.ps
-	cp $< $@
+all: build/paper.pdf
+#all: $(BASE).tex $(BASE).pdf $(BASE).ps
+#
+#$(BASE).tex: build/indexable.tex
+#	cp $< $@
+#
+#$(BASE).pdf: build/paper.pdf
+#	cp $< $@
+#
+#$(BASE).ps: build/paper.ps
+#	cp $< $@
 
 build/paper.pdf: $(TEX_DEPS) $(PDF_INPUT_PATHS)
 	mkdir -p build
