@@ -1,0 +1,158 @@
+%\documentclass{sigplanconf}
+\documentclass[preprint]{sigplanconf}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{textcomp}
+\usepackage[usenames]{color}
+\usepackage{graphicx}
+\usepackage{url}
+\usepackage{rotating}
+\usepackage{multirow}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{array}
+
+\newenvironment{packed_enum}{
+\begin{enumerate}
+  \setlength{\topsep}{0pt}
+  \setlength{\itemsep}{2pt}
+  \setlength{\parskip}{0pt}
+  \setlength{\parsep}{0pt}
+}{\end{enumerate}}
+
+\newenvironment{packed_itemize}{
+\begin{itemize}
+  \setlength{\topsep}{0pt}
+  \setlength{\itemsep}{2pt}
+  \setlength{\parskip}{0pt}
+  \setlength{\parsep}{0pt}
+}{\end{itemize}}
+
+\newcommand{\todo}[1]{{\color{red} \bf [TODO: #1 ]}}
+
+
+\lstset{
+  language=Java,
+  basicstyle=\small\tt,
+  keywordstyle=\small\tt,
+  numbers=left, 
+  numberstyle=\small\tt,
+  commentstyle=\small\tt,
+  columns=fullflexible,
+  xleftmargin=0.25in,
+  firstnumber=auto,
+  escapechar=\#
+}
+
+
+
+\begin{document}
+
+\conferenceinfo{PPoPP'10,}{January 9--14, 2010, Bangalore, India.}
+\CopyrightYear{2010}
+\copyrightdata{978-1-60558-708-0/10/01}
+
+\providecommand{\e}[1]{\ensuremath{\times 10^{#1}}}
+
+\newcommand{\xtitle}[0]{A Practical Concurrent Binary Search Tree}
+\newcommand{\xterms}[0]{{Algorithms, Performance}}
+\newcommand{\xkeywords}[0]{{Optimistic Concurrency, Snapshot Isolation}}
+%\titlebanner{[WORK IN PROGRESS: Do Not Circulate!]}        % These are ignored unless
+\preprintfooter{\xtitle}  % 'preprint' option specified.
+
+\title{\xtitle}
+
+\authorinfo{Nathan G. Bronson\and Jared Casper \and Hassan Chafi\and Kunle Olukotun}
+           {Computer Systems Laboratory\\
+            Stanford University}
+           {\textit{\{nbronson, jaredc, hchafi, kunle\}@stanford.edu}}
+
+\pdfinfo{
+  /Title    (\xtitle)
+  /Author   (Nathan G. Bronson, Jared Casper, Hassan Chafi and Kunle Olukotun)
+  /Subject  (\xterms)
+  /Keywords (\xkeywords)
+}
+
+\maketitle
+
+\begin{abstract}
+
+We propose a concurrent relaxed balance AVL tree algorithm that is
+fast, scales well, and tolerates contention.  It is based on optimistic
+techniques adapted from software transactional memory,
+but takes advantage of specific knowledge of the the algorithm to reduce
+overheads and avoid unnecessary retries.  We extend our algorithm with
+a fast linearizable \texttt{clone} operation, which can be used for
+consistent iteration of the tree.
+Experimental evidence shows that our algorithm outperforms a highly
+tuned concurrent skip list for many access patterns, with an average of
+39\% higher single-threaded throughput and 32\% higher multi-threaded
+throughput over a range of contention levels and operation mixes.
+
+\end{abstract}
+
+\category{D.3.3}{Programming Languages}{Language Constructs and Features -- Concurrent programming structures}
+\category{E.1}{Data Structures}{Trees}
+\category{D.1.3}{Programming Techniques}{Concurrent Programming -- Parallel programming}
+
+\terms
+\xterms
+
+\keywords
+\xkeywords
+
+\section{Introduction}
+\label{intro}
+%\input{intro.tex}
+
+\section{Background}
+\label{background}
+%\input{background.tex}
+
+\section{Our Algorithm}
+\label{algorithm}
+%\input{algorithm.tex}
+
+\section{Correctness}
+\label{correctness}
+%\input{correctness.tex}
+
+\section{Performance}
+\label{performance}
+%\input{performance.tex}
+
+\section{Conclusion}
+\label{conclusion}
+%\input{conclusion.tex}
+
+\appendix
+\section{Code}
+
+Source code for CCSTM is available under a BSD license from
+\texttt{http://github.com/nbronson/ccstm}.
+
+%%This is the text of the appendix, if you need one.
+
+\acks
+
+The authors would like to thank \todo{who} for their feedback
+during the design phase of CCSTM.
+
+This work was supported by the Stanford Pervasive Parallelism Lab,
+by Dept. of the Army, AHPCRC W911NF-07-2-0027-1, and by
+the National Science Foundation under grant CNS--0720905.
+
+{\small
+\bibliographystyle{abbrv}
+\bibliographystyle{plainnat}
+%\renewcommand{\bibfont}{\normalsize}
+\bibliography{../../common/ppl}
+
+%\begin{thebibliography}{10}
+%\end{thebibliography}
+}
+
+\end{document}
+
