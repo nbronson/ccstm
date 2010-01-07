@@ -127,26 +127,68 @@ clutter in method signatures.
 \section{Introduction}
 \label{intro}
 %\input{intro.tex}
+*Summarize problem
+*Our Contributions:
+  -STM at language level
+       -Type Safety for user 
+       -More Expressiveness
+             - Semantic conflicts vs Structural conflicts
 
-\section{Background}
-\label{background}
+
+
+\section{Problem}
+%\label{background}
 %\input{background.tex}
-
-\section{Our Algorithm}
-\label{algorithm}
+*Incremental adoption difficult
+*No penalty for unused features
+*semantic troubles for generic one
+   -sidestepped by not including everything
+*strong typing
+\section{Idea}
+%\label{algorithm}
 %\input{algorithm.tex}
+*Limit focus of STM to be a tool
+*Not parallel execution of sequential code
+*Ref -> rich namespace for operations
+   - started as just a name, became an interface
+   - structural realm -> semantic realm
 
-\section{Correctness}
-\label{correctness}
+\section{Experience}
+%\label{correctness}
 %\input{correctness.tex}
+*Simple got more complicated
+*Complicated got easier
+*Implicit txn
 
-\section{Performance}
-\label{performance}
-%\input{performance.tex}
 
-\section{Conclusion}
-\label{conclusion}
-%\input{conclusion.tex}
+Green Marker Notes:
+~~~~~~~~~~~~~~~~~~~
+txnal reference as a trait
+    w/ multiple implementations
+  - Clunky base syntax
+  - Nice extended syntax
+  - Optimized back ends (StripedIntRef, TIntRef,...)
+
+Ref interface to collections
+  - key is handle
+  - TArray
+  - THashMap
+
+TxnFieldUpdater w/plugin
+
+Syntax for atomic, orElse
+  -tranformz
+  -goal: good nonTxn support
+        composition of ops on txn objects, 
+        not actions in a transaction on all objects
+
+%% \section{Performance}
+%% \label{performance}
+%% %\input{performance.tex}
+
+%% \section{Conclusion}
+%% \label{conclusion}
+%% %\input{conclusion.tex}
 
 \appendix
 \section{Code}
