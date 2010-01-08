@@ -1,18 +1,18 @@
 The proliferation of multi-core processors means that more programmers are
 being thrust into the difficult world of shared memory multi-threading.
-\todo{a couple sentences more of boilerplate motivation}
-
 Software transactional memory (STM) provides a compelling alternative to
 locks for managing access to shared mutable state.  STM's declarative
 atomic blocks are free from deadlock, are composable, and do not
 require elaborate fine-grained decomposition to yield scalability.
-These benefits stem from an optimistic execution strategy that includes
-rollback and retry, allowing the runtime to attempt concurrent execution
-based only on a likelihood of success.  STMs bridge the gap between their
-simple programming model and their speculative execution by isolating
-uncommitted transactions from the rest of the system.  Most of the
-difficulty in integrating an STM into a language comes from tradeoffs
-between the overhead, fidelity, and complexity of this isolation.
+
+The benefits of memory transactions stem from an optimistic execution
+strategy that includes rollback and retry, allowing the runtime to
+attempt concurrent execution based only on a likelihood of success.
+STMs bridge the gap between their simple programming model and their
+speculative execution by isolating uncommitted transactions from the
+rest of the system.  Most of the difficulty in integrating an STM into
+a language comes from tradeoffs between the overhead, fidelity, and
+complexity of this isolation.
 
 In this paper we describe the design of CCSTM, a library-based STM for
 Scala.  CCSTM deliberately sidesteps many of the performance and semantic
@@ -26,7 +26,8 @@ The most fundamental design choice for CCSTM was the decision to
 implement it entirely as a Scala library.  Unlike STMs that instrument
 normal loads and stores, transactional accesses in CCSTM are explicit
 method calls to a Scala \xkeyword{trait}\footnote{Property accessors
-may used to eliminate the syntactic overhead for many situations.}.
+may used to eliminate the syntactic overhead for many situations.  \todo{what's
+the right name for these?}}.
 We refer to the resulting STM as `reference-based', because all memory
 locations managed by the STM are boxed inside transactional references.
 Both transactional and non-transactional access to the managed references
@@ -49,7 +50,6 @@ methods in \xtype{Ref} take an implicit parameter of type \xtype{Txn}, and
 perform their accesses in the context of that transaction.  This decision
 was made for pragmatic reasons, because performing a dynamically-scoped
 lookup on each transactional access would be prohibitively expensive.
-
 A useful parallel can be made between Haskell's STM [[ref]] and CCSTM.
 Haskell's \xtype{TVar} corresponds to instances of type \xtype{Ref}.
 \xtype{Txn} is not a monad, but it proliferates through STM-enabled
