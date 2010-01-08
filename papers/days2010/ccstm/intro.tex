@@ -1,0 +1,84 @@
+The proliferation of multi-core processors means that more programmers are
+being thrust into the difficult world of shared memory multi-threading.
+\todo{a couple sentences more of boilerplate motivation}
+
+Software transactional memory (STM) provides a compelling alternative to
+locks for managing access to shared mutable state.  STM's declarative
+atomic blocks are free from deadlock, are composable, and do not
+require elaborate fine-grained decomposition to yield scalability.
+These benefits stem from an optimistic execution strategy that includes
+rollback and retry, allowing the runtime to attempt concurrent execution
+based only on a likelihood of success.  STMs bridge the gap between their
+simple programming model and their speculative execution by isolating
+uncommitted transactions from the rest of the system.  Most of the
+difficulty in integrating an STM into a language comes from tradeoffs
+between the overhead, fidelity, and complexity of this isolation.
+
+In this paper we describe the design of CCSTM, a library-based STM for
+Scala.  CCSTM deliberately sidesteps many of the performance and semantic
+difficulties common in software implementations of transactional memory
+by limiting its focus: CCSTM is a tool for use by parallel programmers
+that wish to build algorithms and data structures using optimistic
+concurrency control, not an all-encompassing concurrent programming
+model or a mechanism for automatic parallelization of arbitrary code.
+
+The most fundamental design choice for CCSTM was the decision to
+implement it entirely as a Scala library.  Unlike STMs that instrument
+normal loads and stores, transactional accesses in CCSTM are explicit
+method calls to a Scala \xkeyword{trait}\footnote{Property accessors
+may used to eliminate the syntactic overhead for many situations.}.
+We refer to the resulting STM as `reference-based', because all memory
+locations managed by the STM are boxed inside transactional references.
+Both transactional and non-transactional access to the managed references
+goes through methods implemented by instances of this \xtypeA{Ref}.
+
+While a reference-based STM imposes a syntactic burden for simple loads and
+stores, it also makes the STM more expressive.  A \xtype{Ref} provides
+a first-class object that names a memory location, something that would
+otherwise require reflection in Scala.  In addition, the reference provides a
+convenient namespace for additional STM functionality, such as semantic
+conflict detection or transformation by an associative function.
+%As a
+%practical benefit, the extra level of indirection provided by \xtype{Ref}
+%allows multiple implementations, allowing tradeoffs between the cost of
+%validation and the likelihood of rollback.
+
+CCSTM's second departure from the typical STM interface is to bind the
+transaction scope statically, rather than dynamically.  Transactional access
+methods in \xtype{Ref} take an implicit parameter of type \xtype{Txn}, and
+perform their accesses in the context of that transaction.  This decision
+was made for pragmatic reasons, because performing a dynamically-scoped
+lookup on each transactional access would be prohibitively expensive.
+
+A useful parallel can be made between Haskell's STM [[ref]] and CCSTM.
+Haskell's \xtype{TVar} corresponds to instances of type \xtype{Ref}.
+\xtype{Txn} is not a monad, but it proliferates through STM-enabled
+methods in exactly the same way as the \xtype{STM} monad.
+
+In this paper, we:
+\begin{packed_enum}
+
+\item Describe CCSTM, a reference-based STM for Scala.  CCSTM focuses on
+helping parallel programmers build optimistically concurrent algorithms
+and data structures, while restricting itself to implementation techniques
+that do not interfere with components of the system that do not use it
+(Section~\ref{fig:?}).
+
+\item Introduce `unrecorded reads', a primitive that can be coupled with
+transaction lifecycle callbacks to provide semantic conflict detection.  We use
+unrecorded reads to add a \xcode{map(f)} method to \xtype{Ref} that performs
+conflict detection on the result of applying \xcode{f}, rather than on the
+transactional value (Section~\ref{fig:?}).
+
+\item Summarize the discussions that led from the original design goal to
+the current syntax.  We point out the parts that work well and the parts that
+are burdensome, and hypothesize about ways to address the latter
+(Section~\ref{fig:?}).
+
+\item Compare the performance of CCSTM to Multiverse and DeuceSTM, STMs for
+the JVM that use bytecode rewriting.  We find that CCSTM's implementation as an
+unpriveleged library does not impose a performance penalty
+(Section~\ref{fig:?}).  \todo{is this true}
+
+\end{packed_enum}
+
