@@ -1,21 +1,111 @@
 
-At its most basic, a software transactional memory is a way of isolating a
-group of memory accesses and verifying that those accesses are equivalent
-to some serial execution.  To manage memory accesses, the STM intercepts
-them \textit{read barriers} and \textit{write barriers}.  When integrating an
-STM into a language, one of the most fundamental questions is, "How are the
-barriers invoked?" Because the most common operations in an STM are reads and
-writes, their syntax has a large impact on the resulting code.
-Scala, like virtually all programming languages, has a very concise and
-refined syntax for accessing memory.  The most streamlined syntax for
-invoking transactional read and write barriers would be to piggyback on
-the basic read and write syntax, transparently redirecting all memory
-accesses through the STM.
+An experimental feature such as software transactional memory should strive to
+impose only neglible costs on code that does not use it.  Runtime performance
+costs are the most obvious, but software engineering costs in the compiler and
+language implementation are also important.
 
-When designing CCSTM, however, we chose not to provide transparent
-transactional barriers.
+\subsection*{Strong Isolation}
+
+At its most basic, a software transactional memory is a way of isolating
+a group of memory accesses and verifying that those accesses are
+equivalent to some serial execution.  The STM manages reads and writes
+by redirecting them to \textit{barriers}, code fragments that actually
+implement the atomicity and isolation.  These properties can only be
+guaranteed, however, if no non-transactional code bypasses the barriers
+and accesses a memory location directly.
+
+There are three potential responses to the weak isolation between direct memory
+accesses and concurrent transactions:
+\begin{packed_itemize}
+
+\item The system can provide strong isolation and atomicity by redirecting
+all memory accesses to barriers, even non-transactional accesses.  While
+there has been some research in using dynamic recompilation to reduce the
+performance penalty of strong isolation, deep integration with the VM's
+JIT is required to achieve acceptable performance~\cite{inteldbo,mydbo}.
+
+\item The system can declare that a conflicting concurrent access
+from both inside and outside a transaction is an error.  This doesn't
+sound too onerous, but the optimistic nature of transactions means
+that failed speculations must also be considered: inconsistent
+transactions may execute conflicting accesses from an impossible
+branch, or they may execute conflicting accesses after they have become
+doomed~\cite{grossman?get-cite-from-my-dbo}.  Restrictions on commit
+order can prevent some of the most surprising behaviors, but there is
+a substantial performance penalty to restoring even the race semantics
+of locks~\cite{sgla}.
+
+\item The system can use the type system to disallow direct access to
+any memory location that might be touched transactionally.  In one
+variation on this theme the type system disallows non-transactional
+accesses entirely, in another it uses the type system to identify memory
+locations that must be accessed via non-transactional
+barriers~\cite{smallstepsemantics,cmt}.  Haskell~\cite{cmt} and 
+Clojure~\cite{?} both adopt this approach.
+
+\end{packed_itemize}
+
+Scala 
+
+These properties are only guaranteed, however, if
+the STM manages all accesses to a memory location used in a transaction.
+there are no direct non-transactional accesses to these memory locations.
+This can cause 
+
+Many STMs transparently redirect normal loads
+and stores to barriers when they are executed within the dynamic scope of
+a transaction.  This implicit interface has the advantage of leveraging
+the language's syntax for loads and stores, which is almost always highly
+optimized and concise.
 
 
+in all successful
+languages.
+
+highly optimized syntax
+available in 
+that are executed within the dynamic scope of a transaction.
+
+read bTo manage memory accesses, the STM intercepts
+them with \textit{read barriers} and \textit{write barriers}.  The STM can only
+maintain the illusion of isolation and atomicity for accesses that use
+barriers, however, so problems 
+
+
+The
+most common STM operations in an atomic block are reads and writes, so their
+invocation syntax has a large impact on the clarity of the code.  Many STMs
+transparently redirect 
+
+
+One way of
+categorizing STMs is by how barriers are invoked
+
+When integrating an STM into a language, one of the most fundamental
+questions is, "How are the barriers invoked?" Because the most common
+operations in an STM are reads and writes, their syntax has a large impact
+on the resulting code.  Scala, like virtually all programming languages,
+has a very concise and refined syntax for accessing memory.  The most
+streamlined syntax for invoking transactional read and write barriers
+would be to piggyback on the basic read and write syntax, transparently
+redirecting all memory accesses through the STM.
+
+While transparent barriers provide a convenient syntax, they introduce the
+potential for weak isolation.  If transactional access is provided to all
+fields and array elements, then the STM 
+
+When designing CCSTM,
+however, we chose not to provide transparent transactional barriers.
+
+
+
+Integrating an experimental feature such as STM into an existing full-featured
+language is difficult, especially for a language like Scala that provides
+excellent performance.  The new feature must provide benefits, without 
+imposing a burden on code that doesn't use it.
+
+provide full benefits for code
+that uses it without imposing any burden on existing code and code that does
 
 One of the
 fundamental questions when integrating an STM into a language is how these
