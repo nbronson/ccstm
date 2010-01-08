@@ -14,13 +14,14 @@ rest of the system.  Most of the difficulty in integrating an STM into
 a language comes from tradeoffs between the overhead, fidelity, and
 complexity of this isolation.
 
-In this paper we describe the design of CCSTM, a library-based STM for
-Scala.  CCSTM deliberately sidesteps many of the performance and semantic
-difficulties common in software implementations of transactional memory
-by limiting its focus: CCSTM is a tool for use by parallel programmers
-that wish to build algorithms and data structures using optimistic
-concurrency control, not an all-encompassing concurrent programming
-model or a mechanism for automatic parallelization of arbitrary code.
+In this paper we describe the design of CCSTM, a library-based STM
+for Scala.  CCSTM deliberately sidesteps many of the performance and
+semantic difficulties common in software implementations of transactional
+memory by limiting its focus: we view CCSTM as a domain-specific language
+for use by parallel programmers that wish to build algorithms and data
+structures using optimistic concurrency control, not an all-encompassing
+concurrent programming model or a mechanism for automatic parallelization
+of arbitrary code.
 
 The most fundamental design choice for CCSTM was the decision to
 implement it entirely as a Scala library.  Unlike STMs that instrument

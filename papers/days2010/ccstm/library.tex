@@ -1,8 +1,39 @@
 
-An experimental feature such as software transactional memory should strive to
-impose only neglible costs on code that does not use it.  Runtime performance
-costs are the most obvious, but software engineering costs in the compiler and
-language implementation are also important.
+An experimental feature such as software transactional memory should
+strive to impose only neglible costs on code that does not use it.
+Runtime performance costs are the most obvious, but extra complexity in
+the compiler, libraries, and even language rules should be minimized.
+A pay-as-you-go philosophy facilitates incremental adoption, it allows
+multiple implementations to coexist, and it reduces the penalty of
+failure.
+
+One popular and reasonable interface design for a transactional memory
+is to mimic lock-based critical regions.  Users of such an STM declare
+the beginning and the end of an atomic block, and all memory accesses
+that occur within the dynamic scope of the block are transparently
+redirected to the STM.  For a VM language like Scala this redirection
+can be introduced by the VM's JIT, during class loading, or during
+compilation to bytecodes.  The dynamic scoping of such an approach,
+however, means that it is not possible in general for the STM to limit its
+instrumentation to classes that are used in an atomic block.  It is also
+unlikely that two different STMs using such an approach could coexist
+in a single application.
+
+An alternative approach is to require the programmer to perform
+explicit calls to the STM.  While less convenient for simple uses, this
+allows the STM to be constructed entirely as an unprivileged library.
+When coupled with an STM design that does not assume it is managing all
+threads, the result is a pay-as-you-go transactional memory suitable
+for experimentation and incremental adoption.
+
+Scala's flexible syntax makes a library-only STM tractable.  Operator
+overloading makes transactional loads and stores more concise,
+and implicit parameters allow the current transaction context to be
+threaded through the code without explicitly including it in each call.
+The resulting STM can be considered to be an embedded domain-specific
+language (DSL) for expressing optimistic concurrency.
+
+
 
 \subsection*{Strong Isolation}
 
@@ -33,19 +64,27 @@ branch, or they may execute conflicting accesses after they have become
 doomed~\cite{grossman?get-cite-from-my-dbo}.  Restrictions on commit
 order can prevent some of the most surprising behaviors, but there is
 a substantial performance penalty to restoring even the race semantics
-of locks~\cite{sgla}.
+of locks~\cite{sgla}.  The privatization problem and its dual, the
+publication problem, refer to isolation failure for specific useful
+idioms.
 
-\item The system can use the type system to disallow direct access to
-any memory location that might be touched transactionally.  In one
-variation on this theme the type system disallows non-transactional
-accesses entirely, in another it uses the type system to identify memory
-locations that must be accessed via non-transactional
-barriers~\cite{smallstepsemantics,cmt}.  Haskell~\cite{cmt} and 
-Clojure~\cite{?} both adopt this approach.
+\item The system can use types to disallow direct access to any memory
+location that might be touched transactionally~\cite{smallstepsemantics}.
+This can take the form of extending the types and access rules on
+normal mutable memory locations, as in \todo{do some research}, or
+of boxing all transactionally-managed data inside some sort of cell,
+as in Haskell~\cite{cmt} or Clojure~\cite{?}.  We refer to the latter
+approach as a reference-based STM.
 
 \end{packed_itemize}
 
-Scala 
+Scala has a capable and sophisticated type system, so the authors are of
+the opinion that it is only natural to employ it to avoid the problems
+of weak isolation.
+
+
+
+that it is only natural to employ it.  
 
 These properties are only guaranteed, however, if
 the STM manages all accesses to a memory location used in a transaction.
