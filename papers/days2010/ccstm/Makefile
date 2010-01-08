@@ -7,6 +7,8 @@
 #BASE=ppopp207-bronson
 
 TEX_SRCS=\
+        background.tex \
+        intro.tex \
 	paper.tex \
 #
 TEX_DEPS=$(TEX_SRCS) \

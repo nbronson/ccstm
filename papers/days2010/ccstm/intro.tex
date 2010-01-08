@@ -58,26 +58,26 @@ methods in exactly the same way as the \xtype{STM} monad.
 In this paper, we:
 \begin{packed_enum}
 
-\item Describe CCSTM, a reference-based STM for Scala.  CCSTM focuses on
+\item We describe CCSTM, a reference-based STM for Scala.  CCSTM focuses on
 helping parallel programmers build optimistically concurrent algorithms
 and data structures, while restricting itself to implementation techniques
 that do not interfere with components of the system that do not use it
 (Section~\ref{fig:?}).
 
-\item Introduce `unrecorded reads', a primitive that can be coupled with
-transaction lifecycle callbacks to provide semantic conflict detection.  We use
+\item We introduce \xcode{unrecordedRead}, a new STM primitive that can be coupled with
+transaction life-cycle callbacks to provide semantic conflict detection.  We use
 unrecorded reads to add a \xcode{map(f)} method to \xtype{Ref} that performs
 conflict detection on the result of applying \xcode{f}, rather than on the
 transactional value (Section~\ref{fig:?}).
 
-\item Summarize the discussions that led from the original design goal to
+\item We summarize the discussions that led from the original design goal to
 the current syntax.  We point out the parts that work well and the parts that
 are burdensome, and hypothesize about ways to address the latter
 (Section~\ref{fig:?}).
 
-\item Compare the performance of CCSTM to Multiverse and DeuceSTM, STMs for
+\item We compare the performance of CCSTM to Multiverse and DeuceSTM, STMs for
 the JVM that use bytecode rewriting.  We find that CCSTM's implementation as an
-unpriveleged library does not impose a performance penalty
+unprivileged library does not impose a performance penalty
 (Section~\ref{fig:?}).  \todo{is this true}
 
 \end{packed_enum}

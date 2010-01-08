@@ -59,6 +59,12 @@
 \newcommand{\xtype}[1]{{\selectfont\tt\itshape #1}}
 \newcommand{\xtypey}[2]{{\selectfont\tt{\itshape #1}[{\bfseries\itshape #2}]}}
 \newcommand{\xtypeA}[1]{{\xtypey{#1}{A}}}
+\newcommand{\xcode}[1]{{\selectfont\tt #1}}
+\newcommand{\xkeyword}[1]{{\selectfont\tt\bfseries #1}}
+
+\hyphenation{CC-STM}
+\hyphenation{Deuce-STM}
+\hyphenation{Mul-ti-verse}
 
 \begin{document}
 
@@ -128,24 +134,17 @@ clutter in method signatures.
 
 \section{Introduction}
 \label{intro}
-%\input{intro.tex}
-*Summarize problem
-*Our Contributions:
-  -STM at language level
-       -Type Safety for user 
-       -More Expressiveness
-             - Semantic conflicts vs Structural conflicts
+\input{intro.tex}
 
-
-
-\section{Problem}
-%\label{background}
-%\input{background.tex}
+\section{Background}
+\label{background}
 *Incremental adoption difficult
 *No penalty for unused features
 *semantic troubles for generic one
    -sidestepped by not including everything
 *strong typing
+\input{background.tex}
+
 \section{Idea}
 %\label{algorithm}
 %\input{algorithm.tex}
