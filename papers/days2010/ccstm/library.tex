@@ -14,13 +14,24 @@ that occur within the dynamic scope of the block are transparently
 redirected to the STM.  For a VM language like Scala this redirection
 can be introduced by the VM's JIT, during class loading, or during
 compilation to bytecodes.  The dynamic scoping of such an approach,
-however, means that it is not possible in general for the STM to limit its
-instrumentation to classes that are used in an atomic block.  It is also
-unlikely that two different STMs using such an approach could coexist
-in a single application.
+however, means that it is not possible in general for the STM to
+limit its instrumentation to classes that are used in an atomic block.
+An STM that is deeply integrated into the VM's JIT can minimize the
+performance and code bloat impacts of the instrumentation by performing it
+lazily~\cite{??}, but the required engineering effort to add this support
+to a production quality VM is prohibitively large.  Instrumentation of
+the bytecode at compilation or class loading has a much lower engineering
+cost, but causes a dramatic increase in the quantity of intermediate code.
+While this overhead may eventually be considered acceptable, it seems
+prudent to first validate the use of STM.  An additional drawback of
+an instrumentation approach is that it is not composable.  If library
+\textit{A} is constructed with the STM \textit{S} and library \textit{B}
+is constructed with the STM \textit{T}, then \textit{A} and \textit{B}
+can't be used in the same program.
 
-An alternative approach is to require the programmer to perform
+The alternative approach adopted by CCSTM is to require the programmer to perform
 explicit calls to the STM.  While less convenient for simple uses, this
+eliminates the effect of the STM on code that does not use it and
 allows the STM to be constructed entirely as an unprivileged library.
 When coupled with an STM design that does not assume it is managing all
 threads, the result is a pay-as-you-go transactional memory suitable
@@ -35,8 +46,12 @@ language (DSL) for expressing optimistic concurrency.
 
 
 
-\subsection*{Strong Isolation}
+\subsection*{Strong isolation}
 
+One of the benefits of the reference-based approach is that it avoids
+isolation problems between transactional and non-transactional accesses to
+the same memory location, without requiring any changes to the underlying
+type system.
 At its most basic, a software transactional memory is a way of isolating
 a group of memory accesses and verifying that those accesses are
 equivalent to some serial execution.  The STM manages reads and writes
@@ -78,207 +93,57 @@ approach as a reference-based STM.
 
 \end{packed_itemize}
 
-Scala has a capable and sophisticated type system, so the authors are of
-the opinion that it is only natural to employ it to avoid the problems
-of weak isolation.
+Scala favors safety and compile-time checking of program correctness,
+so the authors are of the opinion that it is only natural to employ it
+to avoid the problems of weak isolation.  In the long term an extension
+to Scala's types seems possible, but in the short term a library-based
+approach seems the most practical.
 
+\subsection*{Irrevocable actions and structural conflicts}
 
+One of the side effects of an alternate syntax for transactional barriers is
+that it avoids creating the impression that the STM can magically parallelize
+all existing sequential code, or that atomic blocks are always a better
+replacement for locks.  There are both semantic and practical reasons
+why this is not the case.  The semantic problems come from actions that the STM
+cannot isolate or undo, such as network I/O
+\todo{fix and/or expand}, which requires that the STM execute atomic blocks one
+at a time.  The practical problem arises in code that has structural
+dependencies that prevent parallel execution but are not actually critical to
+the algorithm.
 
-that it is only natural to employ it.  
+%STMs often attempt to mimic the syntax used for lock-based critical
+%regions.  The beginning and end of the atomic block are declared, and all
+%memory accesses that occur within the dynamic scope of the atomic block
+%are transparently redirected to read or write barriers.  This has the
+%advantage that transactional accesses inherit the programming language's
+%syntax for reads and writes, which is both concise and familiar.
+%This familiarity is both a blessing and a curse, however.  It creates an
+%expectation that the STM can safely execute arbitrary existing sequential
+%code, which creates both semantic and performance challenges, and it
+%makes it more difficult for the programmer to convey semantic information
+%to the STM, which reduces opportunities for compile-time checking and
+%run-time scalability and performance improvements.
 
-These properties are only guaranteed, however, if
-the STM manages all accesses to a memory location used in a transaction.
-there are no direct non-transactional accesses to these memory locations.
-This can cause 
+%A Scala STM implemented inside the VM's JIT is likely to have the best
+%performance.  Past research has identified profitable transformations
+%that can be made by the optimizer if it has knowledge of barrier
+%usage~\cite{?}.  This approach is not a pragmatic one, however, because
+%the engineering effort required to produce a production quality VM with
+%this capacity is feasible only for a few organizations.
 
-Many STMs transparently redirect normal loads
-and stores to barriers when they are executed within the dynamic scope of
-a transaction.  This implicit interface has the advantage of leveraging
-the language's syntax for loads and stores, which is almost always highly
-optimized and concise.
+%Bytecode rewriting is a promising technique.  Several bytecode rewriting STMs
+%have been described for the JVM, including Multiverse~\cite{multiversewebsite},
+%DeuceSTM~\cite{??}, and AJ~\cite{popl09bronson}.  For Scala, this approach
+%has the advantage of allowing transactional execution of Java code,
+%including the Java standard libraries.
 
+%Bytecode rewriting has several drawbacks, however.  Because transactional
+%execution is dynamically scoped, it is not known at class loading time
+%whether or not transactional versions of an object or a method will
+%be required.  This means that all methods must be duplicated, adding
+%class loading overhead and increasing the size (and therefore decreasing
+%the spatial locality) of the VM's class data structures.  The bytecode
+%rewriter must be given special privileges, which complicates deployment
+%and limits the environments in which it may be used.
 
-in all successful
-languages.
-
-highly optimized syntax
-available in 
-that are executed within the dynamic scope of a transaction.
-
-read bTo manage memory accesses, the STM intercepts
-them with \textit{read barriers} and \textit{write barriers}.  The STM can only
-maintain the illusion of isolation and atomicity for accesses that use
-barriers, however, so problems 
-
-
-The
-most common STM operations in an atomic block are reads and writes, so their
-invocation syntax has a large impact on the clarity of the code.  Many STMs
-transparently redirect 
-
-
-One way of
-categorizing STMs is by how barriers are invoked
-
-When integrating an STM into a language, one of the most fundamental
-questions is, "How are the barriers invoked?" Because the most common
-operations in an STM are reads and writes, their syntax has a large impact
-on the resulting code.  Scala, like virtually all programming languages,
-has a very concise and refined syntax for accessing memory.  The most
-streamlined syntax for invoking transactional read and write barriers
-would be to piggyback on the basic read and write syntax, transparently
-redirecting all memory accesses through the STM.
-
-While transparent barriers provide a convenient syntax, they introduce the
-potential for weak isolation.  If transactional access is provided to all
-fields and array elements, then the STM 
-
-When designing CCSTM,
-however, we chose not to provide transparent transactional barriers.
-
-
-
-Integrating an experimental feature such as STM into an existing full-featured
-language is difficult, especially for a language like Scala that provides
-excellent performance.  The new feature must provide benefits, without 
-imposing a burden on code that doesn't use it.
-
-provide full benefits for code
-that uses it without imposing any burden on existing code and code that does
-
-One of the
-fundamental questions when integrating an STM into a language is how these
-barriers are invoked.  There are four reasonable strategies for Scala.  In the
-first three, field and array element accesses are transparently redirected to
-barriers:
-\begin{packed_enum}
-
-\item Execute on a VM whose JIT compiler has been extended to emit
-transactional read and write barriers when compiling field and array element
-accesses.
-
-\item Perform bytecode rewriting during class loading, replacing field and
-array element instructions with method calls or inline code sequences that
-implement the barriers.
-
-\item Add barrier invocations during compilation from Scala to bytecode.
-
-\item Require that the programmer call barrier methods, rather than perform
-field or array element reads and writes.
-
-\end{packed_enum}
-
-STMs often attempt to mimic the syntax used for lock-based critical
-regions.  The beginning and end of the atomic block are declared, and all
-memory accesses that occur within the dynamic scope of the atomic block
-are transparently redirected to read or write barriers.  This has the
-advantage that transactional accesses inherit the programming language's
-syntax for reads and writes, which is both concise and familiar.
-This familiarity is both a blessing and a curse, however.  It creates an
-expectation that the STM can safely execute arbitrary existing sequential
-code, which creates both semantic and performance challenges, and it
-makes it more difficult for the programmer to convey semantic information
-to the STM, which reduces opportunities for compile-time checking and
-run-time scalability and performance improvements.
-
-A Scala STM implemented inside the VM's JIT is likely to have the best
-performance.  Past research has identified profitable transformations
-that can be made by the optimizer if it has knowledge of barrier
-usage~\cite{?}.  This approach is not a pragmatic one, however, because
-the engineering effort required to produce a production quality VM with
-this capacity is feasible only for a few organizations.
-
-Bytecode rewriting is a promising technique.  Several bytecode rewriting STMs
-have been described for the JVM, including Multiverse~\cite{multiversewebsite},
-DeuceSTM~\cite{??}, and AJ~\cite{popl09bronson}.  For Scala, this approach
-has the advantage of allowing transactional execution of Java code,
-including the Java standard libraries.
-
-Bytecode rewriting has several drawbacks, however.  Because transactional
-execution is dynamically scoped, it is not known at class loading time
-whether or not transactional versions of an object or a method will
-be required.  This means that all methods must be duplicated, adding
-class loading overhead and increasing the size (and therefore decreasing
-the spatial locality) of the VM's class data structures.  The bytecode
-rewriter must be given special privileges, which complicates deployment
-and limits the environments in which it may be used.
-
-Instrumenting memory accesses in the Scala to bytecode compiler eliminates
-execution overhead at class loading time, and it avoids the need for the STM to
-be given elevated privileges, but it limits the 
-
-by the bytecode 
-a production quality 
-
-profitable optimizations available
-if the 
-
-The dynamic scope of transactional execution in an STM with transparent barrier
-invocations is also a problem, because it means that it is impossible to
-determine in general whether a particular method may be invoked
-
-transparent STMs
-
-There are three possible strategies for implementing a Scala STM with
-transparent barriers:
-While this strategy is likely to yield
-the best performance, such VMs are neither widely available nor production
-quality.
-
-Several STMs have been
-described that perform this transition for the JVM, and therefore should be
-easily adaptable to Scala.
-
-, since it creates an expectation that the STM can
-safely execute all existing sequential code.
-
-with scoping to
-guarantee pairing, 
-
-Introducing
-an STM should provide the full benefits of transactional memory for
-code that uses it, without imposing a burden on existing code or syntax.
-The need to isolate code executed in a transaction from the rest of the system
-makes such a ``pay as you go'' STM difficult:
-\begin{packed_itemize}
-
-\item \textbf{Strong isolation:}\footnote{Strong isolation is also 
-referred to as strong atomicity.} Should non-transactional memory accesses be isolated from
-acceses made inside a transaction?  If so, existing code will run slower, even
-if it doesn't use transactions.  If not, programmers will be exposed to a
-variety of semantic pitfalls.
-
-\item \textbf{Instrumentation overhead:} STMs 
-
-\item \textbf{Irrevocable actions:} What happens when a transaction performs
-I/O, makes a native call, or does some other action that cannot be undone?
-While better alternatives may be enumerated for specific cases, a
-general-purpose STM 
-
-\item 
-
-\end{packed_itemize}
-
-in the decision to add STM to an existing language.
-
-
-To bridge the gap between the programming model and the execution
-strategy, speculative 
-
-provides the illusion of
-atomicity and isolation, while allowing 
-
-
-stem from an optimistic execution model that allows speculation, rollback,
-and retry.  
-
-The STM takes responsibility for ensuring that speculative
-executions are isolated from actions taken by concurrent threads.
-
-, while isolating incorrect speculations from concurrent threads.
-Isolating 
-
-Software transactions
-solve the deadlock and composability problems inherent in pessimistic
-locking, while at the same time presenting a simpler interface to the
-programming.
