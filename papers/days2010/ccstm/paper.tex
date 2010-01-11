@@ -57,7 +57,8 @@
 }
 
 \newcommand{\xtype}[1]{{\selectfont\tt\itshape #1}}
-\newcommand{\xtypey}[2]{{\selectfont\tt{\itshape #1}[{\bfseries\itshape #2}]}}
+\newcommand{\xtypey}[2]{{\selectfont\tt{\itshape #1}[{\itshape\bfseries #2}]}}
+\newcommand{\xtypeparam}[1]{{\selectfont\tt\itshape #1}}
 \newcommand{\xtypeA}[1]{{\xtypey{#1}{A}}}
 \newcommand{\xcode}[1]{{\selectfont\tt #1}}
 \newcommand{\xkeyword}[1]{{\selectfont\tt\bfseries #1}}
@@ -138,21 +139,11 @@ clutter in method signatures.
 
 \section{STM as a Scala Library}
 \label{library}
-*Incremental adoption difficult
-*No penalty for unused features
-*semantic troubles for generic one
-   -sidestepped by not including everything
-*strong typing
 \input{library.tex}
 
-\section{Idea}
-%\label{algorithm}
-%\input{algorithm.tex}
-*Limit focus of STM to be a tool
-*Not parallel execution of sequential code
-*Ref -> rich namespace for operations
-   - started as just a name, became an interface
-   - structural realm -> semantic realm
+\section{\xtypeA{Ref}}
+\label{ref}
+\input{ref.tex}
 
 \section{Experience}
 %\label{correctness}
