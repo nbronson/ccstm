@@ -1,4 +1,15 @@
-The most fundamental data type in CCSTM is \xtypeA{Ref}, which is a
-mutable cell holding a value of type \xtypeparam{A}.  The fundamental
-operations on \xtype{Ref} are \xcode{get} and \xcode{set}, which perform
+The most fundamental data type in CCSTM is \xtype{Ref}{A}, which provides
+access to an STM-managed value.
+
+is a
+mutable cell holding a value of type \typeparam{A}.  The fundamental
+operations on \type{Ref} are \code{get} and \code{set}, which perform
 a transactional read and a transactional write, respectively.
+
+source + sink
+
+bind
+
+Ref eq vs ==
+
+operations

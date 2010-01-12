@@ -12,6 +12,8 @@
 \usepackage{booktabs}
 \usepackage{listings}
 \usepackage{array}
+\usepackage[T1]{fontenc}
+\usepackage{luximono}
 
 \newenvironment{packed_enum}{
 \begin{enumerate}
@@ -56,12 +58,19 @@
   emph={[2]Unit,Int,Set,Map,TSet,TMap,TVar,Option,Boolean,THashSet,Txn,ConcurrentHashMap,THashMap\_Basic,THashMap\_RC,THashMap\_Weak,Pred,Token,TokRef,ConcurrentMap,CleanableRef}, emphstyle={[2]\itshape}
 }
 
-\newcommand{\xtype}[1]{{\selectfont\tt\itshape #1}}
-\newcommand{\xtypey}[2]{{\selectfont\tt{\itshape #1}[{\itshape\bfseries #2}]}}
-\newcommand{\xtypeparam}[1]{{\selectfont\tt\itshape #1}}
-\newcommand{\xtypeA}[1]{{\xtypey{#1}{A}}}
-\newcommand{\xcode}[1]{{\selectfont\tt #1}}
-\newcommand{\xkeyword}[1]{{\selectfont\tt\bfseries #1}}
+\newcommand{\code}[1]{{\fontsize{7.5}{9}\selectfont \tt #1}}
+\newcommand{\codesec}[1]{{\fontsize{10}{12}\selectfont \tt \bfseries #1}}
+\newcommand{\codeft}[1]{{\fontsize{6.5}{8}\selectfont \tt #1}}
+\newcommand{\type}[1]{{\code{\itshape #1}}}
+\newcommand{\typesec}[1]{{\codesec{\itshape #1}}}
+\newcommand{\typeparam}[1]{{\type{\bfseries #1}}}
+\newcommand{\typeparamsec}[1]{{\typesec{\bfseries #1}}}
+\newcommand{\xtype}[2]{{\type{#1}\code{[}\typeparam{#2}\code{]}}}
+\newcommand{\xtypesec}[2]{{\typesec{#1}\codesec{[}\typeparamsec{#2}\codesec{]}}}
+\newcommand{\ytype}[2]{{\type{#1}\code{[}\type{#2}\code{]}}}
+\newcommand{\xxtype}[3]{{\type{#1}\code{[}\typeparam{#2}\code{,}\typeparam{#3}\code{]}}}
+\newcommand{\xytype}[3]{{\type{#1}\code{[}\typeparam{#2}\code{,}\type{#3}\code{]}}}
+\newcommand{\keyword}[1]{{\code{\bfseries #1}}}
 
 \hyphenation{CC-STM}
 \hyphenation{Deuce-STM}
@@ -141,7 +150,7 @@ clutter in method signatures.
 \label{library}
 \input{library.tex}
 
-\section{\xtypeA{Ref}}
+\section{\xtypesec{Ref}{A} and \xtypesec{Ref.Bound}{A}}
 \label{ref}
 \input{ref.tex}
 
