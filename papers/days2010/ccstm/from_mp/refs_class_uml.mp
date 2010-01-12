@@ -23,21 +23,21 @@ beginfig(1);
     Interface.S("Source")
            ("get (implicit txn: Txn): A",
             "unary_! (implicit txn: Txn) = get",
+            "...",
             "bind (implicit txn: Txn): Source.Bound[A]",
-            "nonTxn: Source.Bound[A]",
-            "...");
+            "nonTxn: Source.Bound[A]");
     ClassTemplate.ST("+A")(S);
     Interface.K("Sink")
            ("set (v: A)(implicit txn: Txn): Unit",
             ":= (v: A)(implicit txn: Txn) = set(v)",
+            "...",
             "bind (implicit txn: Txn): Sink.Bound[A]",
-            "nonTxn: Sink.Bound[A]",
-            "...");
+            "nonTxn: Sink.Bound[A]");
     ClassTemplate.KT("-A")(K);
     Interface.R("Ref")
-           ("bind (implicit txn: Txn): Ref.Bound[A]",
-            "nonTxn: Ref.Bound[A]",
-            "...");
+           ("...",
+            "bind (implicit txn: Txn): Ref.Bound[A]",
+            "nonTxn: Ref.Bound[A]");
     ClassTemplate.RT("A")(R);
 
     h := 50;
@@ -51,21 +51,21 @@ beginfig(1);
     Interface.BS("Source.Bound")
            ("get: A",
             "unary_! = get",
+            "...",
             "unbind: Source[A]",
-            "context: Option[Txn]",
-            "...");
+            "context: Option[Txn]");
     ClassTemplate.BST("+A")(BS);
     Interface.BK("Sink.Bound")
            ("set (v: A): Unit",
             ":= (v: A) = set(v)",
+            "...",
             "unbind: Sink[A]",
-            "context: Option[Txn]",
-            "...");
+            "context: Option[Txn]");
     ClassTemplate.BKT("-A")(BK);
     Interface.BR("Ref.Bound")
-           ("unbind: Ref[A]",
-            "context: Option[Txn]",
-            "...");
+           ("...",
+            "unbind: Ref[A]",
+            "context: Option[Txn]");
     ClassTemplate.BRT("A")(BR);
 
     g := h * 2.5;
