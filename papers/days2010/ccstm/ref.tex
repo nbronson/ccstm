@@ -1,23 +1,9 @@
 The most fundamental data type in CCSTM is \xtype{Ref}{A}, which mediates
 access to an STM-managed value.  Read-only methods are separated into
 a covariant \type{Source} trait and write-only methods are separated
-into a contravarient \type{Sink} trait.  Instances of \type{Ref} are
+into a contravariant \type{Sink} trait.  Instances of \type{Ref} are
 independent of the current transactional context, so the context is
 passed during each method call via an implicit parameter.
-
-Non-transactional access to the contents of a reference are provided by
-a view returned by \code{nonTxn}.  This view implements methods that
-parallel those of the reference, but that don't require a \type{Txn}.
-We say that the view is \textit{bound} to the non-transactional
-context, so the view trait is named \type{Ref.Bound}.  Views may
-also be bound to a transactional context via \type{Ref}\code{.bind}.
-Figure~\ref{fig:refclasses} shows the \keyword{extends} relationship
-between the traits and some of the core methods.
-
-Bound views for non-transactional access create a syntactic difference
-between transactional and non-transactional reads and writes.  This
-difference means that it is possible to perform a non-transactional
-access inside an atomic block, but that such code stands out.
 
 \begin{figure*}
   \centering
@@ -33,9 +19,26 @@ decompose the covariant and contravariant operations of \ytype{Ref}{A}.}
 \label{fig:refsclasses}
 \end{figure*}
 
-source + sink
+Non-transactional access to the contents of a reference are provided by
+a view returned by \code{nonTxn}.  This view implements methods that
+parallel those of the reference, but that don't require a \type{Txn}.
+We say that the view is \textit{bound} to the non-transactional
+context, so the view trait is named \type{Ref.Bound}.  Views may
+also be bound to a transactional context via \type{Ref}\code{.bind}.
+Figure~\ref{fig:refclasses} shows the \keyword{extends} relationship
+between the traits that implement unbound and bound references, and 
+some of their methods.
 
-bind
+Bound views for non-transactional access create a syntactic difference
+between transactional and non-transactional reads and writes.
+This allows the expert programmer to selectively relax isolation by
+performing a non-transactional access inside an atomic block, without
+requiring an escape action~\cite{escapeaction}.  The non-isolated access
+is visually differentiated by including the token \code{nonTxn}.  In
+Section~\ref{sec:unrecordedread} we will introduce \code{unrecordedRead},
+a way of relaxing isolation for reads while retaining the ability to
+manually validate.
+
 
 Ref eq vs ==
 
