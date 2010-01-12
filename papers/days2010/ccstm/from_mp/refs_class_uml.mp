@@ -30,19 +30,22 @@ beginfig(1);
     Interface.K("Sink")
            ("set (v: A)(implicit txn: Txn): Unit",
             ":= (v: A)(implicit txn: Txn) = set(v)",
-            "bind (implicit txn: Txn): Sink.Bound[A]  ",
+            "bind (implicit txn: Txn): Sink.Bound[A]",
             "nonTxn: Sink.Bound[A]",
             "...");
     ClassTemplate.KT("-A")(K);
     Interface.R("Ref")
            ("bind (implicit txn: Txn): Ref.Bound[A]",
-            "nonTxn: Ref.Bound[A]");
+            "nonTxn: Ref.Bound[A]",
+            "...");
     ClassTemplate.RT("A")(R);
 
-    S.nw = (0, 0);
-    K.nw = S.sw + (0, -20);
+    h := 50;
+    v := 25;
 
-    R.w = S.se + (80, -10);
+    S.nw = (0, 0);
+    K.nw = S.sw + (h, -v);
+    R.nw = K.sw + (-h, -v);
 
     % bound versions
     Interface.BS("Source.Bound")
@@ -61,22 +64,45 @@ beginfig(1);
     ClassTemplate.BKT("-A")(BK);
     Interface.BR("Ref.Bound")
            ("unbind: Ref[A]",
-            "context: Option[Txn]");
+            "context: Option[Txn]",
+            "...");
     ClassTemplate.BRT("A")(BR);
 
-    BS.n = K.s + (0, -40);
-    BK.nw = BS.sw + (0, -20);
+    g := h * 2.5;
 
-    BR.w = BS.se + (80 + (K.width - BK.width + R.width - BR.width) / 2, -10);
+    BS.nw = S.ne + (g, 0);
+    BK.nw = BS.sw + (h, -v);
+    BR.nw = BK.sw + (-h, -v);
 
     drawObjects(S, ST, K, KT, R, RT);
     drawObjects(BS, BST, BK, BKT, BR, BRT);
 
-    link(inheritance)(pathStepX(R.w + (0, 10), S.e, -40));
-    link(inheritance)(pathStepX(R.w + (0, -10), K.e, -40));
+    link(inheritance)(R.nw + (h/2, 0) -- S.sw + (h/2, 0));
+    link(inheritance)(R.nw + (h*3/2, 0) -- K.sw + (h/2, 0));
 
-    link(inheritance)(pathStepX(BR.w + (0, 10), BS.e, -40 - (R.width - BR.width) / 2));
-    link(inheritance)(pathStepX(BR.w + (0, -10), BK.e, -40 - (R.width - BR.width) / 2));
+    link(inheritance)(BR.nw + (h/2, 0) -- BS.sw + (h/2, 0));
+    link(inheritance)(BR.nw + (h*3/2, 0) -- BK.sw + (h/2, 0));
+
+    PictureInfoCopy.iEquiv(iPict);
+    iEquiv.iFont.name := "pcrr";
+    iEquiv.iFont.scale := 8;
+
+    sep := 8;
+
+    EPicture.ES(iEquiv)("~");
+    ES.c = BS.w + (-g/2, -25 + sep/2);
+    EPicture.ESS(iEquiv)("~");
+    ESS.c = ES.c + (0, -sep);
+    EPicture.EK(iEquiv)("~");
+    EK.c = BK.w + (-g/2 - h/4, -25 + sep/2);
+    EPicture.EKK(iEquiv)("~");
+    EKK.c = EK.c + (0, -sep);
+    EPicture.ER(iEquiv)("~");
+    ER.c = BR.w + (-g/2, -22 + sep/2);
+    EPicture.ERR(iEquiv)("~");
+    ERR.c = ER.c + (0, -sep);
+
+    drawObjects(ES, ESS, EK, EKK, ER, ERR);
 endfig;
 end
 
