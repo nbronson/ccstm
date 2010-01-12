@@ -21,6 +21,11 @@ TEX_DEPS=$(TEX_SRCS) \
 DIA_SRCS=\
 #
 
+# expecting .mp
+MP_SRCS=\
+	refs_class_uml.mp
+#
+
 # expecting .dot
 DOT_SRCS=\
 #
@@ -33,7 +38,7 @@ GNUMERIC_SRCS=\
 PDF_SRCS=\
 #
 
-PDF_INPUT_FILES=$(DIA_SRCS:%.dia=%.pdf) $(DOT_SRCS:%.dot=%.pdf) $(GNUMERIC_SRCS:%.ps=%.pdf) $(PDF_SRCS)
+PDF_INPUT_FILES=$(DIA_SRCS:%.dia=%.pdf) $(MP_SRCS:%.mp=%.pdf) $(DOT_SRCS:%.dot=%.pdf) $(GNUMERIC_SRCS:%.ps=%.pdf) $(PDF_SRCS)
 PDF_INPUT_PATHS=$(PDF_INPUT_FILES:%=build/%)
 EPS_INPUT_PATHS=$(PDF_INPUT_PATHS:%.pdf=%.eps)
 
@@ -99,6 +104,11 @@ build/paper.ps: build/paper.dvi
 build/%.eps: from_dia/%.dia
 	mkdir -p build
 	dia --export=$@ $<
+
+build/%.pdf: from_mp/%.mp
+	mkdir -p build
+	cp $< build
+	( cd build && mptopdf `basename $<` && mv `basename $< .mp`-1.pdf `basename $@` )
 
 build/%.pdf: from_dot/%.dot
 	mkdir -p build
