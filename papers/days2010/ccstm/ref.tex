@@ -6,6 +6,20 @@ mutable cell holding a value of type \typeparam{A}.  The fundamental
 operations on \type{Ref} are \code{get} and \code{set}, which perform
 a transactional read and a transactional write, respectively.
 
+\begin{figure*}
+  \centering
+  \includegraphics[clip=true,width=5.5in]{build/refs_class_uml}
+
+\caption{Traits that provide access to an STM-managed memory
+location.  Transactional access can occur through either \type{Ref}
+or a \type{Ref.Bound} returned from \type{Ref}\code{.bind},
+non-transactional access occurs through a \type{Ref.Bound} returned
+from \type{Ref}\code{.nonTxn}.  \ytype{Source}{+A} and \ytype{Sink}{-A}
+decompose the covariant and contravariant operations of \ytype{Ref}{A}.}
+
+\label{fig:refsclasses}
+\end{figure*}
+
 source + sink
 
 bind
