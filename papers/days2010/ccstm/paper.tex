@@ -39,13 +39,14 @@
   morestring=[b]',
   morecomment=[l]{//},
   morecomment=[s]{/*}{*/},
-  morekeywords={var,val,def,private,class,implicit,if,else,new,do,while,@volatile,try,catch,case,match,throw,return,extends,with}
+  morekeywords={var,val,def,private,class,object,implicit,if,else,new,do,while,@volatile,try,catch,case,match,throw,return,extends,with}
 }
 
 \lstset{
   language=Scala,
+  basicstyle=\fontsize{7.5}{9}\selectfont\tt,
 %  basicstyle=\fontsize{7}{8}\selectfont\tt,
-  basicstyle=\selectfont\tt,
+%  basicstyle=\selectfont\tt,
   keywordstyle=\bfseries,
   numbers=left,
   numberstyle=,
@@ -55,7 +56,7 @@
   firstnumber=auto,
   escapechar=\#,
   emph={A,B,C,K,V,U,Z}, emphstyle=\bfseries\itshape,
-  emph={[2]Unit,Int,Set,Map,TSet,TMap,TVar,Option,Boolean,THashSet,Txn,ConcurrentHashMap,THashMap\_Basic,THashMap\_RC,THashMap\_Weak,Pred,Token,TokRef,ConcurrentMap,CleanableRef}, emphstyle={[2]\itshape}
+  emph={[2]Unit,Int,Set,Map,TSet,TMap,TVar,Option,Boolean,Txn,Money,Account,OverdraftException}, emphstyle={[2]\itshape}
 }
 
 \newcommand{\code}[1]{{\fontsize{7.5}{9}\selectfont \tt #1}}
@@ -63,12 +64,12 @@
 \newcommand{\codeft}[1]{{\fontsize{6.5}{8}\selectfont \tt #1}}
 \newcommand{\type}[1]{{\code{\itshape #1}}}
 \newcommand{\typesec}[1]{{\codesec{\itshape #1}}}
-\newcommand{\typeparam}[1]{{\type{\bfseries #1}}}
-\newcommand{\typeparamsec}[1]{{\typesec{\bfseries #1}}}
-\newcommand{\xtype}[2]{{\type{#1}\code{[}\typeparam{#2}\code{]}}}
-\newcommand{\xtypesec}[2]{{\typesec{#1}\codesec{[}\typeparamsec{#2}\codesec{]}}}
+\newcommand{\typeparam}[1]{{\code{\bfseries #1}}}
+\newcommand{\typeparamsec}[1]{{\codesec{\bfseries #1}}}
+\newcommand{\xtype}[2]{{\type{#1}\typeparam{[#2]}}}
+\newcommand{\xtypesec}[2]{{\typesec{#1}\typeparamsec{[#2]}}}
 \newcommand{\ytype}[2]{{\type{#1}\code{[}\type{#2}\code{]}}}
-\newcommand{\xxtype}[3]{{\type{#1}\code{[}\typeparam{#2}\code{,}\typeparam{#3}\code{]}}}
+\newcommand{\xxtype}[3]{{\type{#1}\typeparam{[#2,#3]}}}
 \newcommand{\xytype}[3]{{\type{#1}\code{[}\typeparam{#2}\code{,}\type{#3}\code{]}}}
 \newcommand{\keyword}[1]{{\code{\bfseries #1}}}
 
@@ -150,7 +151,8 @@ clutter in method signatures.
 \label{library}
 \input{library.tex}
 
-\section{\xtypesec{Ref}{A} and \xtypesec{Ref.Bound}{A}}
+%\section{\xtypesec{Ref}{A} and \xtypesec{Ref.Bound}{A}}
+\section{Using CCSTM}
 \label{ref}
 \input{ref.tex}
 

@@ -1,3 +1,88 @@
+As a recurring example of the ways in which CCSTM allows optimistic concurrency
+to be expressed, consider a class that encapsulates the balance of a
+checking account\footnote{This example is from the bank benchmark included
+in DeuceSTM~\cite{deucestm}.}.  Absent any concurrency control, we might
+write the code in Figure~\ref{fig:example:nosync}.  (Here \type{Money}
+is an immutable numeric type suitable for representing quantities of
+a currency.)  Adding pessimistic concurrency control to this code by
+locking accesses to \type{Account} instances is not straightforward,
+because both the source and destination account must be locked during
+a \code{transfer}.  Unless a global lock order is followed this can
+easily lead to deadlock.
+
+\begin{figure}
+\begin{lstlisting}{name=Code}
+class Account(initialBalance: Money) {
+  private var _balance = initialBalance
+
+  def balance: Money = _balance
+
+  def deposit(amount: Money): Unit = {
+    assert(amount >= 0)
+    _balance += amount
+  }
+
+  def withdraw(amount: Money): Unit = {
+    assert(amount >= 0)
+    if (_balance < amount)
+      throw new OverdraftException
+    _balance -= amount
+  }
+}
+
+object Account {
+  def transfer(src: Account, dst: Account,
+        amount: Money): Unit = {
+    src.withdraw(amount)
+    dst.deposit(amount)
+  }
+}
+\end{lstlisting}
+
+\caption{Code that performs an account transfer without
+any locking or other concurrency control.}
+
+\label{fig:example:nosync}
+\end{figure}
+
+\begin{figure}
+\begin{lstlisting}{name=Code}
+class Account(initialBalance: Money) {
+  private val _balance = Ref(initialBalance)
+
+  def balance: Source[Money] = _balance
+
+  def deposit(amount: Money
+        )(implicit txn: Txn): Unit = {
+    assert(amount >= 0)
+    _balance := !_balance + amount
+  }
+
+  def withdraw(amount: Money
+        )(implicit txn: Txn): Unit = {
+    assert(amount >= 0)
+    if (!_balance < amount)
+      throw new OverdraftException
+    _balance := !_balance - amount
+  }
+}
+
+object Account {
+  def transfer(src: Account, dst: Account,
+        amount: Money): Unit = {
+    new Atomic { def body {
+      src.withdraw(amount)
+      dst.deposit(amount)
+    }}.run()
+  }
+}
+\end{lstlisting}
+
+\caption{An atomic balance transfer function implemented with CCSTM.}
+
+\label{fig:example:ccstm}
+\end{figure}
+
 The most fundamental data type in CCSTM is \xtype{Ref}{A}, which mediates
 access to an STM-managed value.  Read-only methods are separated into
 a covariant \type{Source} trait and write-only methods are separated
@@ -13,8 +98,8 @@ passed during each method call via an implicit parameter.
 location.  Transactional access can occur through either \type{Ref}
 or a \type{Ref.Bound} returned from \type{Ref}\code{.bind},
 non-transactional access occurs through a \type{Ref.Bound} returned
-from \type{Ref}\code{.nonTxn}.  \ytype{Source}{+A} and \ytype{Sink}{-A}
-decompose the covariant and contravariant operations of \ytype{Ref}{A}.}
+from \type{Ref}\code{.nonTxn}.  \xtype{Source}{+A} and \xtype{Sink}{-A}
+decompose the covariant and contravariant operations of \xtype{Ref}{A}.}
 
 \label{fig:refsclasses}
 \end{figure*}
