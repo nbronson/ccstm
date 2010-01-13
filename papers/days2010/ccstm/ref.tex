@@ -1,0 +1,130 @@
+As a recurring example of the ways in which CCSTM allows optimistic concurrency
+to be expressed, consider a class that encapsulates the balance of a
+checking account\footnote{This example is from the bank benchmark included
+in DeuceSTM~\cite{deucestm}.}.  Absent any concurrency control, we might
+write the code in Figure~\ref{fig:example:nosync}.  (Here \type{Money}
+is an immutable numeric type suitable for representing quantities of
+a currency.)  Adding pessimistic concurrency control to this code by
+locking accesses to \type{Account} instances is not straightforward,
+because both the source and destination account must be locked during
+a \code{transfer}.  Unless a global lock order is followed this can
+easily lead to deadlock.
+
+\begin{figure}
+\begin{lstlisting}{name=Code}
+class Account(initialBalance: Money) {
+  private var _balance = initialBalance
+
+  def balance: Money = _balance
+
+  def deposit(amount: Money): Unit = {
+    assert(amount >= 0)
+    _balance += amount
+  }
+
+  def withdraw(amount: Money): Unit = {
+    assert(amount >= 0)
+    if (_balance < amount)
+      throw new OverdraftException
+    _balance -= amount
+  }
+}
+
+object Account {
+  def transfer(src: Account, dst: Account,
+        amount: Money): Unit = {
+    src.withdraw(amount)
+    dst.deposit(amount)
+  }
+}
+\end{lstlisting}
+
+\caption{Code that performs an account transfer without
+any locking or other concurrency control.}
+
+\label{fig:example:nosync}
+\end{figure}
+
+\begin{figure}
+\begin{lstlisting}{name=Code}
+class Account(initialBalance: Money) {
+  private val _balance = Ref(initialBalance)
+
+  def balance: Source[Money] = _balance
+
+  def deposit(amount: Money
+        )(implicit txn: Txn): Unit = {
+    assert(amount >= 0)
+    _balance := !_balance + amount
+  }
+
+  def withdraw(amount: Money
+        )(implicit txn: Txn): Unit = {
+    assert(amount >= 0)
+    if (!_balance < amount)
+      throw new OverdraftException
+    _balance := !_balance - amount
+  }
+}
+
+object Account {
+  def transfer(src: Account, dst: Account,
+        amount: Money): Unit = {
+    new Atomic { def body {
+      src.withdraw(amount)
+      dst.deposit(amount)
+    }}.run()
+  }
+}
+\end{lstlisting}
+
+\caption{An atomic balance transfer function implemented with CCSTM.}
+
+\label{fig:example:ccstm}
+\end{figure}
+
+The most fundamental data type in CCSTM is \xtype{Ref}{A}, which mediates
+access to an STM-managed value.  Read-only methods are separated into
+a covariant \type{Source} trait and write-only methods are separated
+into a contravariant \type{Sink} trait.  Instances of \type{Ref} are
+independent of the current transactional context, so the context is
+passed during each method call via an implicit parameter.
+
+\begin{figure*}
+  \centering
+  \includegraphics[clip=true,width=5.5in]{build/refs_class_uml}
+
+\caption{Traits that provide access to an STM-managed memory
+location.  Transactional access can occur through either \type{Ref}
+or a \type{Ref.Bound} returned from \type{Ref}\code{.bind},
+non-transactional access occurs through a \type{Ref.Bound} returned
+from \type{Ref}\code{.nonTxn}.  \xtype{Source}{+A} and \xtype{Sink}{-A}
+decompose the covariant and contravariant operations of \xtype{Ref}{A}.}
+
+\label{fig:refsclasses}
+\end{figure*}
+
+Non-transactional access to the contents of a reference are provided by
+a view returned by \code{nonTxn}.  This view implements methods that
+parallel those of the reference, but that don't require a \type{Txn}.
+We say that the view is \textit{bound} to the non-transactional
+context, so the view trait is named \type{Ref.Bound}.  Views may
+also be bound to a transactional context via \type{Ref}\code{.bind}.
+Figure~\ref{fig:refclasses} shows the \keyword{extends} relationship
+between the traits that implement unbound and bound references, and 
+some of their methods.
+
+Bound views for non-transactional access create a syntactic difference
+between transactional and non-transactional reads and writes.
+This allows the expert programmer to selectively relax isolation by
+performing a non-transactional access inside an atomic block, without
+requiring an escape action~\cite{escapeaction}.  The non-isolated access
+is visually differentiated by including the token \code{nonTxn}.  In
+Section~\ref{sec:unrecordedread} we will introduce \code{unrecordedRead},
+a way of relaxing isolation for reads while retaining the ability to
+manually validate.
+
+
+Ref eq vs ==
+
+operations

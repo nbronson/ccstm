@@ -1,0 +1,149 @@
+
+An experimental feature such as software transactional memory should
+strive to impose only neglible costs on code that does not use it.
+Runtime performance costs are the most obvious, but extra complexity in
+the compiler, libraries, and even language rules should be minimized.
+A pay-as-you-go philosophy facilitates incremental adoption, it allows
+multiple implementations to coexist, and it reduces the penalty of
+failure.
+
+One popular and reasonable interface design for a transactional memory
+is to mimic lock-based critical regions.  Users of such an STM declare
+the beginning and the end of an atomic block, and all memory accesses
+that occur within the dynamic scope of the block are transparently
+redirected to the STM.  For a VM language like Scala this redirection
+can be introduced by the VM's JIT, during class loading, or during
+compilation to bytecodes.  The dynamic scoping of such an approach,
+however, means that it is not possible in general for the STM to
+limit its instrumentation to classes that are used in an atomic block.
+An STM that is deeply integrated into the VM's JIT can minimize the
+performance and code bloat impacts of the instrumentation by performing it
+lazily~\cite{??}, but the required engineering effort to add this support
+to a production quality VM is prohibitively large.  Instrumentation of
+the bytecode at compilation or class loading has a much lower engineering
+cost, but causes a dramatic increase in the quantity of intermediate code.
+While this overhead may eventually be considered acceptable, it seems
+prudent to first validate the use of STM.  An additional drawback of
+an instrumentation approach is that it is not composable.  If library
+\textit{A} is constructed with the STM \textit{S} and library \textit{B}
+is constructed with the STM \textit{T}, then \textit{A} and \textit{B}
+can't be used in the same program.
+
+The alternative approach adopted by CCSTM is to require the programmer to perform
+explicit calls to the STM.  While less convenient for simple uses, this
+eliminates the effect of the STM on code that does not use it and
+allows the STM to be constructed entirely as an unprivileged library.
+When coupled with an STM design that does not assume it is managing all
+threads, the result is a pay-as-you-go transactional memory suitable
+for experimentation and incremental adoption.
+
+Scala's flexible syntax makes a library-only STM tractable.  Operator
+overloading makes transactional loads and stores more concise,
+and implicit parameters allow the current transaction context to be
+threaded through the code without explicitly including it in each call.
+The resulting STM can be considered to be an embedded domain-specific
+language (DSL) for expressing optimistic concurrency.
+
+
+
+\subsection*{Strong isolation}
+
+One of the benefits of the reference-based approach is that it avoids
+isolation problems between transactional and non-transactional accesses to
+the same memory location, without requiring any changes to the underlying
+type system.
+At its most basic, a software transactional memory is a way of isolating
+a group of memory accesses and verifying that those accesses are
+equivalent to some serial execution.  The STM manages reads and writes
+by redirecting them to \textit{barriers}, code fragments that actually
+implement the atomicity and isolation.  These properties can only be
+guaranteed, however, if no non-transactional code bypasses the barriers
+and accesses a memory location directly.
+
+There are three potential responses to the weak isolation between direct memory
+accesses and concurrent transactions:
+\begin{packed_itemize}
+
+\item The system can provide strong isolation and atomicity by redirecting
+all memory accesses to barriers, even non-transactional accesses.  While
+there has been some research in using dynamic recompilation to reduce the
+performance penalty of strong isolation, deep integration with the VM's
+JIT is required to achieve acceptable performance~\cite{inteldbo,mydbo}.
+
+\item The system can declare that a conflicting concurrent access
+from both inside and outside a transaction is an error.  This doesn't
+sound too onerous, but the optimistic nature of transactions means
+that failed speculations must also be considered: inconsistent
+transactions may execute conflicting accesses from an impossible
+branch, or they may execute conflicting accesses after they have become
+doomed~\cite{grossman?get-cite-from-my-dbo}.  Restrictions on commit
+order can prevent some of the most surprising behaviors, but there is
+a substantial performance penalty to restoring even the race semantics
+of locks~\cite{sgla}.  The privatization problem and its dual, the
+publication problem, refer to isolation failure for specific useful
+idioms.
+
+\item The system can use types to disallow direct access to any memory
+location that might be touched transactionally~\cite{smallstepsemantics}.
+This can take the form of extending the types and access rules on
+normal mutable memory locations, as in \todo{do some research}, or
+of boxing all transactionally-managed data inside some sort of cell,
+as in Haskell~\cite{cmt} or Clojure~\cite{?}.  We refer to the latter
+approach as a reference-based STM.
+
+\end{packed_itemize}
+
+Scala favors safety and compile-time checking of program correctness,
+so the authors are of the opinion that it is only natural to employ it
+to avoid the problems of weak isolation.  In the long term an extension
+to Scala's types seems possible, but in the short term a library-based
+approach seems the most practical.
+
+\subsection*{Irrevocable actions and structural conflicts}
+
+One of the side effects of an alternate syntax for transactional barriers is
+that it avoids creating the impression that the STM can magically parallelize
+all existing sequential code, or that atomic blocks are always a better
+replacement for locks.  There are both semantic and practical reasons
+why this is not the case.  The semantic problems come from actions that the STM
+cannot isolate or undo, such as network I/O
+\todo{fix and/or expand}, which requires that the STM execute atomic blocks one
+at a time.  The practical problem arises in code that has structural
+dependencies that prevent parallel execution but are not actually critical to
+the algorithm.
+
+%STMs often attempt to mimic the syntax used for lock-based critical
+%regions.  The beginning and end of the atomic block are declared, and all
+%memory accesses that occur within the dynamic scope of the atomic block
+%are transparently redirected to read or write barriers.  This has the
+%advantage that transactional accesses inherit the programming language's
+%syntax for reads and writes, which is both concise and familiar.
+%This familiarity is both a blessing and a curse, however.  It creates an
+%expectation that the STM can safely execute arbitrary existing sequential
+%code, which creates both semantic and performance challenges, and it
+%makes it more difficult for the programmer to convey semantic information
+%to the STM, which reduces opportunities for compile-time checking and
+%run-time scalability and performance improvements.
+
+%A Scala STM implemented inside the VM's JIT is likely to have the best
+%performance.  Past research has identified profitable transformations
+%that can be made by the optimizer if it has knowledge of barrier
+%usage~\cite{?}.  This approach is not a pragmatic one, however, because
+%the engineering effort required to produce a production quality VM with
+%this capacity is feasible only for a few organizations.
+
+%Bytecode rewriting is a promising technique.  Several bytecode rewriting STMs
+%have been described for the JVM, including Multiverse~\cite{multiversewebsite},
+%DeuceSTM~\cite{??}, and AJ~\cite{popl09bronson}.  For Scala, this approach
+%has the advantage of allowing transactional execution of Java code,
+%including the Java standard libraries.
+
+%Bytecode rewriting has several drawbacks, however.  Because transactional
+%execution is dynamically scoped, it is not known at class loading time
+%whether or not transactional versions of an object or a method will
+%be required.  This means that all methods must be duplicated, adding
+%class loading overhead and increasing the size (and therefore decreasing
+%the spatial locality) of the VM's class data structures.  The bytecode
+%rewriter must be given special privileges, which complicates deployment
+%and limits the environments in which it may be used.
+
