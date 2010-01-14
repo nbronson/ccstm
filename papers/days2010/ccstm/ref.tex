@@ -78,17 +78,29 @@ object Account {
 }
 \end{lstlisting}
 
-\caption{An atomic balance transfer function implemented with CCSTM.}
+\caption{One way to implement the atomic balance transfer function
+using CCSTM.  This code uses \code{unary\_!} and \code{:=} operators
+(ML-inspired) for performing transactional reads and writes, and it
+expresses the atomic block by extending \code{Atomic}.}
 
 \label{fig:example:ccstm}
 \end{figure}
 
+CCSTM allows the atomic balance transfer to be expressed easily,
+guaranteeing that both balance adjustments are performed atomically and
+without deadlock.  Figure~ref{fig:example:ccstm} shows one way in which
+this can be expressed.
+
 The most fundamental data type in CCSTM is \xtype{Ref}{A}, which mediates
-access to an STM-managed value.  Read-only methods are separated into
-a covariant \type{Source} trait and write-only methods are separated
-into a contravariant \type{Sink} trait.  Instances of \type{Ref} are
-independent of the current transactional context, so the context is
-passed during each method call via an implicit parameter.
+access to an STM-managed value.  Read-only methods are separated into a
+covariant \type{Source} trait and write-only methods are separated into a
+contravariant \type{Sink} trait.  Instances of \type{Ref} are independent
+of the current transactional context, so the context is passed during
+each method call via an implicit parameter.  Reads and writes on a
+reference may be performed with the \code{get} and \code{set} methods,
+respectively, or with the ML-inspired \code{unary\_!} and \code{:=}
+operators.  Section~\ref{sec:barriersyntax} discusses the choice of
+method names in more detail.
 
 \begin{figure*}
   \centering
@@ -107,12 +119,13 @@ decompose the covariant and contravariant operations of \xtype{Ref}{A}.}
 Non-transactional access to the contents of a reference are provided by
 a view returned by \code{nonTxn}.  This view implements methods that
 parallel those of the reference, but that don't require a \type{Txn}.
-We say that the view is \textit{bound} to the non-transactional
-context, so the view trait is named \type{Ref.Bound}.  Views may
-also be bound to a transactional context via \type{Ref}\code{.bind}.
-Figure~\ref{fig:refclasses} shows the \keyword{extends} relationship
-between the traits that implement unbound and bound references, and 
-some of their methods.
+We say that the view is \textit{bound} to the non-transactional context,
+so the view trait is named \type{Ref.Bound}.  Views may also be bound
+to a transactional context via \type{Ref}\code{.bind}.  These bound
+references do not require a \type{Txn} parameter, but may only be used
+until the end of the transaction.  Figure~\ref{fig:refclasses} shows
+the \keyword{extends} relationship between the traits that implement
+unbound and bound references, and some of their methods.
 
 Bound views for non-transactional access create a syntactic difference
 between transactional and non-transactional reads and writes.
@@ -128,3 +141,79 @@ manually validate.
 Ref eq vs ==
 
 operations
+
+\subsection{Early release, unrecorded reads, and semantic conflicts}
+\label{sec:unrecordedread}
+
+Some algorithms can benefit from transactional reads that are not
+atomic, but that still observe speculative stores made by the current
+transaction.  The read may be used to make a decision that may be
+inexact, such as a hash table resize, or algorithm-specific knowledge
+may be used to guarantee atomic behavior of the transaction despite
+an invalid read, as in early release when searching a binary tree.
+Open nested transactions~\cite{opennested} allow the actions of a
+nested transaction to be committed in a non-nested fashion, while
+early release allows reads to be removed from the read set prior to
+commit~\cite{originaldynstm}.  CCSTM provides principled support for
+early release via \type{Source.Bound.releasableRead}, which returns
+a \type{ReleasableRead} instance that provides both the read value
+and a method to remove the access from the transaction's read set.
+This interface eliminates the danger that an algorithm will remove a
+read that it did not perform, but it still requires careful use.
+
+As an alternative to a releasable read, CCSTM provides a new
+functionality, \code{unrecordedRead}.  This method performs a
+transactional read, but instead of adding an entry to the read set it
+bundles the read's metadata into an \type{UnrecordedRead} instance.
+The caller may then use this instance to manually validate that the
+returned value is still valid.
+
+Like many STMs, CCSTM validates a transactional read by associating a
+version number with each managed memory location and checking to see
+that the version number remains unchanged.  An \type{UnrecordedRead}
+contains the read value and the corresponding timestamp, and defines
+\code{stillValid} to be true if the version number has not changed, or
+if the only changes that have occurred are by the current transaction.
+This definition means that unrecorded reads also have a use for the
+\code{nonTxn} reference view: they allow changes to be detected while
+avoiding the ABA problem\footnote{The ABA problem is when a change is
+not detected because the value in question transitioned from A to B and
+then back to A, between observations.}.
+
+Unrecorded reads can be paired with lifecycle callbacks to implement semantic
+conflict detection.  CCSTM's \type{Txn} allows the user to register a callback
+that wil be invoked whenever the transaction's read set is validated.  If a
+callback is registered that manually validates the value returned from an
+unrecorded read, then rollback may be avoided.  We encapsulate this
+functionality in
+\lstset{numbers=none}
+\begin{lstlisting}
+trait Source[+A] {
+  def map[B](f: A => B)(implicit txn: Txn): B
+}
+\end{lstlisting}
+\lstset{numbers=left}
+\code{x.map(f)} returns the same value as \code{f(x.get)}, but it only
+triggers rollback if the value returned by \code{f} changes, not if the
+underlying reference's value changes.  Along the way \code{f} may be evaluated
+multiple times, so it should be a pure function.
+
+Consider a branch that should be taken only if the transactional value of
+\code{x} is greater than 100:
+\lstset{numbers=none}
+\begin{lstlisting}
+  if (x.get > 100) { ... }
+\end{lstlisting}
+\lstset{numbers=left}
+When the comparison is performed directly by the caller, then the STM must
+trigger an optimistic rollback if the value of \code{x} changes from 200 to
+201.  By using \code{map} to perform the comparison, no rollback is required:
+\lstset{numbers=none}
+\begin{lstlisting}
+  if (x.map(_ > 100)) { ... }
+\end{lstlisting}
+\lstset{numbers=left}
+The \code{map} method provides increased expressiveness to programmer,
+allowing them to easily perform semantic conflict detection using CCSTM.
+
+
