@@ -19,7 +19,8 @@ object Benchmark {
       ("readThreads",   "-R", "0",        "number of threads dedicated to global reads"),
       ("writeThreads",  "-W", "0",        "number of threads dedicated to global writes"),
       ("disjointTrans", "-d", "false",    "guarantee transfers don't conflict"),
-      ("yieldALot",     "-y", "false",    "add Thread.yield calls to promote races")
+      ("yieldALot",     "-y", "false",    "add Thread.yield calls to promote races"),
+      ("flavour",       "-f", "d",  "selects different type of Account implementations, choices are 'd|rfw|t' ")
     )
 
   def main(args: Array[String]) {
@@ -31,7 +32,15 @@ object Benchmark {
     Account.yieldALot = params("yieldALot").toBoolean
 
     val accounts = Array.fromFunction[Account]((i: Int) => {
-      new CheckingAccount("" + i, params("init").toFloat)
+      val flavour = params("flavour").toString
+      flavour match {
+        case "d"   => new CheckingAccount("" + i, params("init").toFloat)
+        case "rfw" => new CheckingAccountReadForWrite("" + i, params("init").toFloat)
+        case "t"   => new CheckingAccountTransform("" + i, params("init").toFloat)
+        case _: String => {                    
+          throw new IllegalArgumentException("Unknown option for flavour " + flavour + ", try -h for help")
+        }
+      }
     })(params("accounts").toInt)
     
     val threads = Array.fromFunction(i => {
