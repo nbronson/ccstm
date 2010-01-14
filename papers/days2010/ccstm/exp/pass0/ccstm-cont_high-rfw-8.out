@@ -1,0 +1,33 @@
+startup =       4000
+elapsed =       10000
+threads =       8
+accounts =      8
+init =          1000000
+maxAmount =     10
+readFreq =      0
+writeFreq =     0
+readThreads =   0
+writeThreads =  0
+disjointTrans = false
+yieldALot =     false
+flavour =       rfw
+
+warming up
+timed execution
+
+TOTAL=8000000.0 [ 1032770.0 974845.0 989113.0 1052266.0 1006608.0 951039.0 984362.0 1008997.0 ]
+
+10004 actual elapsed
+
+T=1143155, R=0, W=0
+T=1217931, R=0, W=0
+T=1079666, R=0, W=0
+T=1112477, R=0, W=0
+T=763342, R=0, W=0
+T=1076344, R=0, W=0
+T=994779, R=0, W=0
+T=1090373, R=0, W=0
+
+TOTAL: T=8478067, R=0, W=0
+--- 12,430 MB collected in 0.042 secs (0.3% of total), longest GC took 0.002 secs
+DATA gc:  total_k 12728909  total_secs 0.041594  max_secs 0.002311
