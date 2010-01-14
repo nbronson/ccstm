@@ -27,6 +27,7 @@ while [ $# -gt 0 ]; do
     --deuce) JAVA_OPTS="$JAVA_OPTS -javaagent:$CCSTM_BASE/bin/deuceAgent-1.2.0.jar" ;;
     --tl2) JAVA_OPTS="$JAVA_OPTS -Dorg.deuce.transaction.contextClass=org.deuce.transaction.tl2.Context" ;;
     --lsa) JAVA_OPTS="$JAVA_OPTS -Dorg.deuce.transaction.contextClass=org.deuce.transaction.lsa.Context" ;;
+    --multiverse) JAVA_OPTS="$JAVA_OPTS -javaagent:$CCSTM_BASE/bin/multiverse-alpha-0.4-SNAPSHOT.jar" ;;
     -cp|-classpath)
         if [ "x$CLASSPATH" != "x" ]; then
           CLASSPATH="${CLASSPATH}:"
