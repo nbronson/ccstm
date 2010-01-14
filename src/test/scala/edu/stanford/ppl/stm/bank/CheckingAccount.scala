@@ -62,10 +62,11 @@ class CheckingAccountTransform(val name: String, initialBalance: Float) extends 
 
   def withdraw(amount: Float)(implicit txn: Txn) {
     assert(amount >= 0)
-    if (_balance.get < amount) {
+    if (_balance.transformIfDefined(new PartialFunction[Float,Float] {
+      def isDefinedAt(x: Float) = amount < x
+      def apply(x: Float) = x - amount
+    }) == false)
       throw new OverdraftException("Cannot withdraw $" + amount + " from $" + _balance.get)
-    }
-    _balance.transform(_ - amount)
   }
 
 }
