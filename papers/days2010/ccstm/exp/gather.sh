@@ -1,9 +1,9 @@
 #!/bin/bash
 
 for e in cont_low cont_high; do
-  for t in threads 1 2 4 8 16 32 64; do
+  for t in threads 1 2 4 8 16 32 64 128 256; do
     /bin/echo -n "$t,"
-    for c in ccstm-$e-{d,rfw,t} deuce-$e multi-$e; do
+    for c in ccstm-$e-{d,rfw,t} deuce-$e-{lsa,tl2} multi-$e; do
       if [ $t = threads ]; then
         /bin/echo -n "$c,"
         continue
