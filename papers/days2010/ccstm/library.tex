@@ -19,12 +19,13 @@ however, means that it is generally not possible to
 limit instrumentation to only classes that are used in an atomic block.
 An STM that is deeply integrated into the VM's JIT can minimize the
 performance and code bloat impacts of the instrumentation by performing it
-lazily~\cite{??}, but the required engineering effort to add this support
+%todo, add citation
+lazily, but the required engineering effort to add this support
 to a production quality VM is prohibitively large.  Instrumentation of
 the bytecode at compilation or class loading has the lowest engineering
 cost, but results in two copies of each method.
 This is the strategy adopted by the Multiverse~\cite{multiverse} and
-DeuceSTM~\cite{deucestm} STMs for the Java language.
+Deuce STM~\cite{deucestm} STMs for the Java language.
 While this cost may eventually be considered acceptable, it places a
 high hurdle to integration into Scala's standard library.
 An additional drawback of
@@ -94,7 +95,7 @@ This can take the form of extending the types and access rules on
 % todo: add a citation here
 normal mutable memory locations, or
 of boxing all transactionally-managed data inside some sort of cell,
-as in Haskell~\cite{harris05composable} or Clojure~\cite{clojure}.  We refer to the latter
+as in Haskell~\cite{harris05composable} or Clojure~\cite{hickey08clojure}.  We refer to the latter
 approach as a reference-based STM.
 
 \end{packed_itemize}
@@ -143,7 +144,7 @@ demonstrated how to use a global time-stamp to efficiently validate
 a transaction after each read, guaranteeing consistency for all
 intermediate states.  This correctness property was later formalized
 as \textit{opacity}~\cite{guerraoui08opacity}.  CCSTM uses the
-SwissTM~\cite{swisstm} algorithm, which guarantees opacity.
+SwissTM~\cite{dragojevic09swisstm} algorithm, which guarantees opacity.
 
 %STMs often attempt to mimic the syntax used for lock-based critical
 %regions.  The beginning and end of the atomic block are declared, and all
@@ -167,7 +168,7 @@ SwissTM~\cite{swisstm} algorithm, which guarantees opacity.
 
 %Bytecode rewriting is a promising technique.  Several bytecode rewriting STMs
 %have been described for the JVM, including Multiverse~\cite{multiversewebsite},
-%DeuceSTM~\cite{??}, and AJ~\cite{popl09bronson}.  For Scala, this approach
+%Deuce STM~\cite{??}, and AJ~\cite{popl09bronson}.  For Scala, this approach
 %has the advantage of allowing transactional execution of Java code,
 %including the Java standard libraries.
 
