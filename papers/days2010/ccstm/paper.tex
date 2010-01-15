@@ -59,7 +59,7 @@
   emph={[2]Unit,Int,Set,Map,TSet,TMap,TVar,Option,Boolean,Txn,Money,Account,OverdraftException,Ref,Source,Sink,Bound}, emphstyle={[2]\itshape}
 }
 
-\newcommand{\code}[1]{{\fontsize{7.5}{9}\selectfont \tt #1}}
+\newcommand{\code}[1]{{\fontsize{8}{9.5}\selectfont \tt #1}}
 \newcommand{\codesec}[1]{{\fontsize{10}{12}\selectfont \tt \bfseries #1}}
 \newcommand{\codeft}[1]{{\fontsize{6.5}{8}\selectfont \tt #1}}
 \newcommand{\type}[1]{{\code{\itshape #1}}}
@@ -70,7 +70,8 @@
 \newcommand{\xtypesec}[2]{{\typesec{#1}\typeparamsec{[#2]}}}
 \newcommand{\ytype}[2]{{\type{#1}\code{[}\type{#2}\code{]}}}
 \newcommand{\xxtype}[3]{{\type{#1}\typeparam{[#2,#3]}}}
-\newcommand{\keyword}[1]{{\code{\bfseries #1}}}
+%\newcommand{\keyword}[1]{{\code{\bfseries #1}}}
+\newcommand{\keyword}[1]{{\code{#1}}}
 
 \hyphenation{CC-STM}
 \hyphenation{Deuce-STM}
@@ -125,15 +126,15 @@ interface also provides benefits.  \type{Ref} serves as a first-class
 representation of a transactionally-managed memory location, providing
 a natural way to express additional STM features such as conditional
 waiting, non-transactional compare-and-swap, manually-validated reads,
-and deferrable transformation using pure functions.  In an additional
-departure from typical STM designs, the current transactional context
-is passed through implicit parameters rather than being bound to the
-current thread context.  This increases the compile-time checking that
-can be performed, at the expense of code clutter in method signatures.
-While CCSTM's implementation as an unprivileged Scala library imposes
-a syntactic penalty on atomic regions, we compare its performance to a
-bytecode rewriting STM for the JVM and find that the performance penalty
-is minimal.
+and deferrable transformation using pure functions.
+
+In an additional departure from typical STM designs, CCSTM passes the
+current transactional context through implicit parameters rather than
+dynamically binding the transaction to the current thread.  This static
+transaction scoping allows CCSTM to compete in performance with STMs that
+perform bytecode rewriting, but it hinders composability.  We sketch
+a potential solution to this problem that combines static scoping for
+barriers and dynamic scoping for nested transactions.
 
 \end{abstract}
 
@@ -164,9 +165,9 @@ is minimal.
 \label{sec:impl}
 \input{impl.tex}
 
-\section{Experience}
-%\label{correctness}
-%\input{correctness.tex}
+\section{Discussion}
+\label{sec:discussion}
+\input{discussion.tex}
 *Simple got more complicated
 *Complicated got easier
 *Implicit txn

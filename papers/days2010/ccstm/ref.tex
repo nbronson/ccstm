@@ -88,8 +88,10 @@ expresses the atomic block by extending \code{Atomic}.}
 
 CCSTM allows the atomic balance transfer to be expressed easily,
 guaranteeing that both balance adjustments are performed atomically and
-without deadlock.  Figure~\ref{fig:example:ccstm} shows one way in which
-this can be expressed.
+without deadlock.  Figure~\ref{fig:example:ccstm} gives the transactional
+code.
+
+\subsection{References -- \xtype{\bfseries Ref}{A} and \xtype{\bfseries Ref.Bound}{A}}
 
 The most fundamental data type in CCSTM is \xtype{Ref}{A}, which mediates
 access to an STM-managed mutable value.  Read-only methods are separated into a
@@ -140,6 +142,124 @@ is visually differentiated by including the token \code{nonTxn}.  In
 Section~\ref{sec:unrecordedread} we will introduce \code{unrecordedRead},
 a way of relaxing isolation for reads while retaining the ability to
 manually validate.
+
+\subsection{Declaring and executing an atomic block}
+
+CCSTM currently provides two syntaxes for declaring atomic blocks.  The first,
+shown in Figure~\ref{fig:example:ccstm}, involves extending the
+abstract class \type{Atomic} and implementing the method \code{body:
+}\type{Unit}.  The base class introduces an implicit \type{Txn} into the
+static scope of the body, resulting in a relatively concise syntax for
+inline transactions.  This form produces an extra set of curly braces
+and several extra tokens, but it uses only one line to open the scope
+and one to close it.  \xtype{AtomicFunc}{Z} provides a similar syntax
+for atomic blocks that return a value.
+
+The second syntax is to pass a function \type{Txn}\code{~=>~}\typeparam{Z}
+to the \code{atomic} method on the \type{STM} object.  This syntax is more
+concise when invoking a method.  The \type{Account}\code{.transfer} method
+might be decomposed into
+\lstset{numbers=none}
+\begin{lstlisting}
+def transfer(src: Account, dst: Account,
+      amount: Money): Unit = {
+  STM.atomic(transferInTxn(src, dst, amount)(_))
+}
+def transferInTxn(src: Account, dst: Account,
+      amount: Money)(implicit txn: Txn): Unit = {
+  src.withdraw(amount)
+  dst.deposit(amount)
+}
+\end{lstlisting}
+\lstset{numbers=left}
+
+One of the new features of Scala 2.8 is support for an \keyword{implicit}
+modifier on parameters to anonymous methods (ScalaTrac ticket \#1492).
+This will make \type{STM}\code{.atomic} more concise for inline
+transactions, as in (with the addition of an \keyword{import})
+\lstset{numbers=none}
+\begin{lstlisting}
+  atomic { implicit txn: Txn =>
+    src.withdraw(amount)
+    dst.deposit(amount)
+  }
+\end{lstlisting}
+\lstset{numbers=left}
+This will also allow a syntax that leverages \keyword{for} comprehensions.
+This syntax has a special elegance; it implies that the block may be
+executed multiple times, which is exactly the essence of optimistic
+concurrency!
+\lstset{numbers=none}
+\begin{lstlisting}
+  for (implicit txn <- atomic) {
+    src.withdraw(amount)
+    dst.deposit(amount)
+  }
+\end{lstlisting}
+\lstset{numbers=left}
+Both of these syntaxes can be supported by an \type{atomic} object:
+\lstset{numbers=none}
+\begin{lstlisting}
+object atomic {
+  def apply[Z](body: Txn => Z): Z
+  def foreach[Z](body: Txn => Z): Z
+}
+\end{lstlisting}
+\lstset{numbers=left}
+
+The decision to statically scope CCSTM's transactions was made for
+performance reasons.  To dynamically scope the transactions, the
+current transaction must be identified by each read and write barrier.
+This is an extremely frequent operation.  Bytecode rewriting STMs have
+two options for efficiently performing this lookup: they can add a field
+to the system-wide \type{Thread} class, or they can weave a \type{Txn}
+parameter into the transactional version of every method.  A library-only
+STM running on the JVM must restrict itself to \type{ThreadLocal},
+which navigates from the \type{Thread} to a thread-local hash table,
+and from there to the dynamically scoped value.
+
+\subsection{Conditional retry}
+
+CCSTM supports the \code{retry} and \code{orElse} primitives introduced by
+Harris et al. in Haskell's STM~\cite{harris05ctm}, although the current
+lack of nesting support makes them less expressive than the original.
+The \code{retry} primitive causes the surrounding transaction to be rolled
+back, but retry is postponed until at least one of the values read by
+the transaction has changed.  \code{orElse} combines two transactions,
+attempting the second if the first calls \code{retry}, then blocking
+both transactions if the second calls \code{retry}.  Intuitively, a call
+to \code{retry} is a dead end; the STM will restart the transaction
+only after it might take a different path.  Similarly, \code{orElse}
+composes two alternatives that are each satisfactory, and requests that
+whichever one can avoid the dead end should be executed.
+
+\type{Atomic} provides a \code{retry} method.  As a contrived example,
+the bank could use \code{retry} if they wished to delay a withdrawal
+rather than trigger an \code{OverdraftException}:
+\lstset{numbers=none}
+\begin{lstlisting}
+object atomic {
+  def withdrawWhenPossible(amount: Money
+        )(implicit txn: Txn): Unit = {
+    assert(amount >= 0)
+    if (!_balance < amount)
+      retry
+    _balance := !_balance - amount
+  }
+\end{lstlisting}
+\lstset{numbers=left}
+
+A chain of \type{Atomic} or \type{AtomicFunc} instances may be chained
+with \code{orElse}, a single \code{run()} terminates the alternatives.
+If a collection of \type{Txn}\code{~=>~}\typeparam{Z} is available then
+they can be passed to
+\lstset{numbers=none}
+\begin{lstlisting}
+object STM {
+  def retryOrElse[Z](blocks: (Txn => Z)*): Z
+}
+\end{lstlisting}
+\lstset{numbers=left}
 
 
 Ref eq vs ==

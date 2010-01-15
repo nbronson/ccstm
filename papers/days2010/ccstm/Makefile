@@ -7,6 +7,7 @@
 #BASE=ppopp207-bronson
 
 TEX_SRCS=\
+	discussion.tex \
 	impl.tex \
 	intro.tex \
 	library.tex \
