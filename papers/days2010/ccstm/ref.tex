@@ -268,8 +268,6 @@ object STM {
 
 %Ref eq vs ==
 
-\subsection{Additional reference operations}
-
 \subsection{Relaxed isolation}
 \label{sec:unrecordedread}
 
@@ -323,10 +321,13 @@ the ABA problem\footnote{The ABA problem is when an observer falsely
 concludes that a value has not changed, because the watched value went
 from A to B, then back to A.}.
 
-What follows is the complete listing of the operations provided by the various
-Bound views of a \code{Ref}.
+\subsection{Additional reference operations}
 
-\textbf{Source.Bound Methods:}
+What follows is the complete listing of the access operations provided by
+\type{Ref.Bound}.  Many of these methods have equivalents in \type{Ref},
+although to reduce the API's surface area some are not mirrored.
+
+\textbf{Source.Bound methods:}
 \begin{packed_itemize}
 \item \code{unary\_!: T} -- This is equivalent to a \code{get}.
 \item \code{get : T} -- Performs a transactional read of the value 
@@ -343,7 +344,7 @@ wraps the value that would be returned by \code{get}. The read will be added to 
 \code{ReleasableRead.release()}.
 \end{packed_itemize}
 
-\textbf{Sink.Bound Methods:}
+\textbf{Sink.Bound methods:}
 \begin{packed_itemize}
 \item \code{:=(v: T)} -- This is equivalent to a \code{set}.
 \item \code{set(v: T)} -- Updates the value referred to by the bounded \code{Ref}. 
@@ -353,12 +354,11 @@ immediately (with an appropriate happens-before relationship).
 and returns true, or does nothing and returns false.
 \end{packed_itemize}
 
-\textbf{Ref.Bound Methods:}
+\textbf{Ref.Bound methods:}
 
 \begin{packed_itemize}
 \item{This is my item}
 \end{packed_itemize}
-
 
 \subsection{Semantic conflict detection for reads}
 \label{sec:map}
