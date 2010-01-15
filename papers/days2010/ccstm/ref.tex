@@ -128,7 +128,7 @@ managed by the bound Ref. If the bound view was created by nonTxn, the read will
 be strongly atomic and isolated with respect to all transactions.
 \item \code{map[Z](f: T => Z): Z} -- Returns \code{f(get)}, possibly 
 reevaluating f to avoid rollbacks (\code{f} must be idempotent).
-\item \code{await(p: T => Bool)} -- Blocks until \code{pred} is true, in a 
+\item \code{await(p: T => Boolean)} -- Blocks until \code{pred} is true, in a 
 manner consistent with current context (transactional vs. non-transactional).
 \item \code{unrecordedRead: UnrecordedRead[T]} -- Returns an \code{UnrecordedRead} instance that 
 wraps the value that would be returned by \code{get}. The read will not be added to the transaction's read set (transactional context).
@@ -138,9 +138,10 @@ wraps the value that would be returned by \code{get}. The read will be added to 
 \end{packed_itemize}
 
 \textbf{Sink.Bound Methods:}
-
 \begin{packed_itemize}
-\item{This is my item}
+\item \code{:=(v: T)} -- This is equivalent to a \code{set}.
+\item \code{set(v: T)} -- Updates the value 
+\item \code{tryWrite(v: T): Boolean} -- 
 \end{packed_itemize}
 
 \textbf{Ref.Bound Methods:}
