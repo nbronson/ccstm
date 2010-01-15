@@ -101,7 +101,7 @@ during
 each method call via an implicit parameter.  Reads and writes on a
 reference may be performed with the \code{get} and \code{set} methods,
 respectively, or with the ML-inspired \code{unary\_!} and \code{:=}
-operators.  Section~\ref{sec:barriersyntax} discusses
+operators.  Section~\ref{sec:syntax} discusses
 the choice of method names in more detail.
 
 \begin{figure*}
@@ -115,7 +115,7 @@ non-transactional access occurs through a \type{Ref.Bound} returned
 from \type{Ref}\code{.nonTxn}.  \xtype{Source}{+A} and \xtype{Sink}{-A}
 decompose the covariant and contravariant operations of \xtype{Ref}{A}.}
 
-\label{fig:refsclasses}
+\label{fig:refclasses}
 \end{figure*}
 
 
@@ -286,7 +286,7 @@ object atomic {
 A chain of \type{Atomic} or \type{AtomicFunc} instances may be chained
 with \code{orElse}, a single \code{run()} terminates the alternatives.
 If a collection of \type{Txn}\code{~=>~}\typeparam{Z} is available then
-they can be passed to
+they can be passed to:
 \lstset{numbers=none}
 \begin{lstlisting}
 object STM {
