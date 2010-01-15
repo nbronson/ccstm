@@ -65,4 +65,41 @@ neither of these assumptions, and so takes care to block using the normal
 synchronization primitives of the underlying VM.
 
 Blocking may be required to obtain write permission, or because of an
-explicit use of the \code{retry} primitive.
+explicit use of the \code{retry} primitive.  Writers and waiters must
+agree on a condition variable that will be used to signal that the
+waiter should re-attempt whatever action led to their choice to block.
+If the set of condition variables is too small, there will be many
+spurious wakeups.  If the set is too large, then transactions will have
+to perform a lot of extra work during commit.
+
+Accesses that are blocked by another transaction await notification
+on the \type{Txn} instance itself.  No such instance is available for
+threads blocked by a non-transactional write, or that are performing a
+conditional retry, so the system also maintains 64 lists we refer to as
+`wakeup channels'.  These channels contain a list of pending wakeups,
+which are single-shot gates (compare to Java's \type{CountDownLatch}
+with a count of 1).  Each memory location is associated with a wakeup
+channel by hashing its identity.  To await the modification of a
+memory location, a thread enqueues a new pending wakeup instance,
+sets a `wakeup pending' bit in the location's metadata, rechecks the
+blocking condition, and then puts itself to sleep on the gate.  If an
+update notices the wakeup pending bit, it triggers and removes all of
+the pending wakeups for the corresponding channel.  A thread may wait on
+multiple memory locations simultaneously by enqueuing its pending wakeup
+instance to multiple channels.  The choice of 64 wakeup channels makes
+it easy to accumulate the effects of a transaction in a \keyword{long}.
+If a system makes extremely heavy use of the \code{retry} mechanism by
+having many blocked threads, a larger number of channels may be required.
+
+\subsection{JVM versus CLR}
+
+Scala is designed to target both the JVM and the CLR virtual
+machines.  In its current implementation, CCSTM uses the following
+classes from \type{java.util.concurrent} to implement atomic
+compare-and-swap for fields and array elements: \type{AtomicInteger},
+\type{AtomicLong}, \type{AtomicLongArray}, \type{AtomicReferenceArray},
+\type{Atom\-ic\-LongFieldUpdater}, and \type{AtomicReferenceFieldUpdater}.
+The authors are not experts in the CLR memory model, but we believe
+that it would be straightforward to retarget CCSTM to the CLR by using
+methods in \type{System::Threading::Interlocked}.
+

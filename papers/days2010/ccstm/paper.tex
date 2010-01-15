@@ -121,20 +121,19 @@ implement a trait \type{Ref}.  These transactional references may be
 long-lived, or may be transient accessors to bulk transactional data such
 as an array.  The syntax for dereferencing \type{Ref} instances is the
 primary pain point for the library-based approach, but the reference-based
-interface also provides
-benefits.  \type{Ref}
-serves as a first-class representation of a transactionally-managed
-memory location, providing a natural way to express additional STM
-features such as conditional waiting, non-transactional compare-and-swap,
-manually-validated reads, and deferrable transformation using pure
-functions.  In an additional departure from typical STM designs, the
-current transactional context is passed through implicit parameters
-rather than being bound to the current thread context.  This increases
-the compile-time checking that can be performed, at the expense of code
-clutter in method signatures.
+interface also provides benefits.  \type{Ref} serves as a first-class
+representation of a transactionally-managed memory location, providing
+a natural way to express additional STM features such as conditional
+waiting, non-transactional compare-and-swap, manually-validated reads,
+and deferrable transformation using pure functions.  In an additional
+departure from typical STM designs, the current transactional context
+is passed through implicit parameters rather than being bound to the
+current thread context.  This increases the compile-time checking that
+can be performed, at the expense of code clutter in method signatures.
 While CCSTM's implementation as an unprivileged Scala library imposes
-syntactic penalty on atomic regions, we find that the performance penalty,
-if any, is minimal.
+a syntactic penalty on atomic regions, we compare its performance to a
+bytecode rewriting STM for the JVM and find that the performance penalty
+is minimal.
 
 \end{abstract}
 

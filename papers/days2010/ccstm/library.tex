@@ -119,6 +119,28 @@ accessed by every mutating operation.  Unless care is taken to distribute
 the size over multiple memory locations, no concurrency will actually
 be available.
 
+\subsection{Opacity}
+
+A subtle issue with STM is that, unless special care is taken, only
+committed transactions are guaranteed to be consistent.  Speculative
+transactions may observe an inconsistent state and only subsequently
+detect that they should roll back.  These `zombies' can produce
+surprising behavior by taking impossible branches or performing
+transactional accesses to the wrong object.  This problem is greatly
+magnified in a reference based STM, because the STM cannot provide a
+sandbox that isolates all actions taken by the zombie.  The read of a
+single impossible value may produce an infinite loop, so a transparent
+STM must either prevent inconsistent reads or instrument back edges
+to periodically revalidate the transaction.  Only the first option is
+available to an STM implemented as a library.
+
+The TL2~\cite{dice06tl2} and LSA~\cite{riegel06lsa} algorithms
+demonstrated how to use a global timestamp to efficiently validate
+a transaction after each read, guaranteeing consistency for all
+intermediate states.  This correctness property was later formalized
+as \textit{opacity}~\cite{guerraoui08opacity}.  CCSTM uses the
+SwissTM~\cite{swisstm} algorithm, which guarantees opacity.
+
 %STMs often attempt to mimic the syntax used for lock-based critical
 %regions.  The beginning and end of the atomic block are declared, and all
 %memory accesses that occur within the dynamic scope of the atomic block
