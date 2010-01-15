@@ -80,7 +80,7 @@ object Account {
 
 \caption{One way to implement the atomic balance transfer function
 using CCSTM.  This code uses \code{unary\_!} and \code{:=} operators
-(ML-inspired) for performing transactional reads and writes, and it
+(ML-inspired) for performing transactional reads and writes, and
 expresses the atomic block by extending \code{Atomic}.}
 
 \label{fig:example:ccstm}
@@ -141,7 +141,7 @@ requiring an escape action~\cite{escapeaction}.  The non-isolated access
 is visually differentiated by including the token \code{nonTxn}.  In
 Section~\ref{sec:unrecordedread} we will introduce \code{unrecordedRead},
 a way of relaxing isolation for reads while retaining the ability to
-manually validate.
+manually validate it.
 
 \subsection{Declaring and executing an atomic block}
 
@@ -158,7 +158,7 @@ for atomic blocks that return a value.
 The second syntax is to pass a function \type{Txn}\code{~=>~}\typeparam{Z}
 to the \code{atomic} method on the \type{STM} object.  This syntax is more
 concise when invoking a method.  The \type{Account}\code{.transfer} method
-might be decomposed into
+might be decomposed into:
 \lstset{numbers=none}
 \begin{lstlisting}
 def transfer(src: Account, dst: Account,
@@ -176,7 +176,7 @@ def transferInTxn(src: Account, dst: Account,
 One of the new features of Scala 2.8 is support for an \keyword{implicit}
 modifier on parameters to anonymous methods (ScalaTrac ticket \#1492).
 This will make \type{STM}\code{.atomic} more concise for inline
-transactions, as in (with the addition of an \keyword{import})
+transactions, as in (with the addition of an \keyword{import}):
 \lstset{numbers=none}
 \begin{lstlisting}
   atomic { implicit txn: Txn =>
@@ -261,16 +261,15 @@ object STM {
 \end{lstlisting}
 \lstset{numbers=left}
 
+%Ref eq vs ==
 
-Ref eq vs ==
-
-operations
+\subsection{Additional reference operations}
 
 \subsection{Relaxed isolation}
 \label{sec:unrecordedread}
 
 Some algorithms can benefit from transactional reads that are not
-atomic, but that still observe speculative stores made by the current
+atomic, but that observe speculative stores made by the current
 transaction.  The inconsistent value may be used to make a heuristic decision,
 such as a hash table resize, or algorithm-specific knowledge
 may be used to guarantee atomic behavior of the transaction despite

@@ -131,8 +131,8 @@ and deferrable transformation using pure functions.
 In an additional departure from typical STM designs, CCSTM passes the
 current transactional context through an implicit parameter, rather than
 dynamically binding the transaction to the current thread.  This static
-transaction scoping allows CCSTM to compete in performance with STMs that
-perform bytecode rewriting, but it hinders composability.  We sketch
+transaction scoping allows CCSTM to compete in performance with an STM that
+performs bytecode rewriting, but it hinders composability.  We sketch
 a potential solution to this problem that combines static scoping for
 barriers and dynamic scoping for nested transactions.
 
@@ -200,9 +200,9 @@ barriers and dynamic scoping for nested transactions.
 \label{sec:perf}
 \input{perf.tex}
 
-%% \section{Conclusion}
-%% \label{conclusion}
-%% %\input{conclusion.tex}
+\section{Conclusion and future direction}
+\label{sec:conclusion}
+\input{conclusion.tex}
 
 \appendix
 \section{Code}

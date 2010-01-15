@@ -12,11 +12,11 @@ is to mimic lock-based critical regions.  Users of such an STM declare
 the beginning and the end of an atomic block, and all memory accesses
 that occur within the dynamic scope of the block are transparently
 redirected to the STM.  For a VM language like Scala this redirection
-can be introduced by the VM's JIT, by bytecode rewriting during class
-loading, or during the initial
+can be introduced by the VM's JIT, by bytecode rewriting at class
+load time, or during the initial
 compilation of the high-level language.  The dynamic scoping of such an approach,
-however, means that it is not possible in general for the STM to
-limit its instrumentation to classes that are used in an atomic block.
+however, means that it is generally not possible to
+limit instrumentation to only classes that are used in an atomic block.
 An STM that is deeply integrated into the VM's JIT can minimize the
 performance and code bloat impacts of the instrumentation by performing it
 lazily~\cite{??}, but the required engineering effort to add this support
@@ -34,7 +34,7 @@ is constructed with the STM \textit{T}, then \textit{A} and \textit{B}
 can't be used in the same program.
 
 The alternative approach adopted by CCSTM is to require the programmer to perform
-explicit calls to the STM.  While less convenient for simple uses this
+explicit calls to the STM.  While less convenient for simple uses, this
 limits performance side-effects on code that does not use atomic blocks, and it
 allows the STM to be constructed entirely as an unprivileged library.
 When coupled with an STM design that does not assume it is managing all
@@ -116,7 +116,7 @@ external libraries.  In the absence of any additional information about
 potential conflicts, the only way to execute safely is to serialize.
 The practical problem with executing code that was not designed to
 be executed inside an atomic block is that such code often contains
-incidental shared accesses that must be treated as conflicts by the STM.
+incidental shared accesses that the STM must treat as conflicts.
 An example of this is the size field of a collection, which is often
 accessed by every mutating operation.  Unless care is taken to distribute
 the size over multiple memory locations, no concurrency will actually

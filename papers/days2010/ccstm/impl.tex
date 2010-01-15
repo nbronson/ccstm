@@ -43,9 +43,9 @@ only a fraction of transactions attempt to advance the current time.
 CCSTM performs a novel additional optimization to reduce the overhead
 of non-transactional accesses.  Unlike a transaction, a solitary
 strongly-isolated read or write in a TL2-style STM does not need to
-sample the global clock to provide opacity.  This means that we can let
-a sequence of non-transactional writes advance a reference's time-stamp to
-an arbitrary point in the future without advancing the global time-stamp.
+sample the global clock to provide opacity.  This means that we can allow
+a sequence of non-transactional writes to advance a reference's time-stamp to
+an arbitrary point in the future, without advancing the global time-stamp.
 If a transaction attempts to read such a far-future value it handles
 it via the normal GV6 mechanism, by advancing the global time-stamp and
 then revalidating.  To limit the potential impact of these booby-trapped
@@ -56,7 +56,7 @@ to 8) dramatically reduces contention on the global time-stamp.
 \subsection{Avoiding starvation}
 
 Optimistic concurrency control is vulnerable to the \textit{starving
-elder} problem, in which a large transaction can never complete because
+elder} problem, in which a large transaction can never be committed because
 it is continually violated by small transactions.  CCSTM uses a simple
 contention manage scheme to prevent this.  Each execution attempt is
 assigned a random priority that is used to resolve write-write conflicts.
@@ -83,8 +83,8 @@ explicit use of the \code{retry} primitive.  Writers and waiters must
 agree on a condition variable that will be used to signal that the
 waiter should re-attempt whatever action led to their choice to block.
 If the set of condition variables is too small, there will be many
-spurious wakeups.  If the set is too large, then transactions will have
-to perform a lot of extra work during commit.
+spurious wakeups.  If the set is too large, then transaction commit may need to
+perform a large amount of extra work.
 
 Accesses that are blocked by another transaction await notification
 on the \type{Txn} instance itself.  No such instance is available for

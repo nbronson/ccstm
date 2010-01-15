@@ -18,7 +18,8 @@ require elaborate fine-grained decomposition to yield scalability.
 In this paper we describe the design of CCSTM, a library-based STM
 for Scala.  CCSTM deliberately sidesteps many of the 
 semantic difficulties common in software implementations of transactional
-memory, by limiting its focus: we view CCSTM as a domain-specific language
+memory, by limiting its focus.  We view CCSTM as a domain-specific language
+(DSL)
 for use by parallel programmers that wish to build algorithms and data
 structures using optimistic concurrency control.  CCSTM is not a drop-in replacement for
 locks, an all-encompassing concurrent programming model, or a mechanism
