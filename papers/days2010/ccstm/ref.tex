@@ -119,39 +119,9 @@ decompose the covariant and contravariant operations of \xtype{Ref}{A}.}
 \end{figure*}
 
 
-\begin{figure}
-\textbf{Source.Bound Methods:}
-\begin{packed_itemize}
-\item \code{unary\_!: T} -- This is equivalent to a \code{get}.
-\item \code{get : T} -- Performs a transactional read of the value 
-managed by the bound Ref. If the bound view was created by nonTxn, the read will
-be strongly atomic and isolated with respect to all transactions.
-\item \code{map[Z](f: T => Z): Z} -- Returns \code{f(get)}, possibly 
-reevaluating f to avoid rollbacks (\code{f} must be idempotent).
-\item \code{await(p: T => Boolean)} -- Blocks until \code{pred} is true, in a 
-manner consistent with current context (transactional vs. non-transactional).
-\item \code{unrecordedRead: UnrecordedRead[T]} -- Returns an \code{UnrecordedRead} instance that 
-wraps the value that would be returned by \code{get}. The read will not be added to the transaction's read set (transactional context).
-\item \code{releasableRead: ReleasableRead[T]} -- Returns a \code{ReleasableRead} instance that 
-wraps the value that would be returned by \code{get}. The read will be added to the transaction's read set (transactional context) but it may be removed by a call to 
-\code{ReleasableRead.release()}.
-\end{packed_itemize}
 
-\textbf{Sink.Bound Methods:}
-\begin{packed_itemize}
-\item \code{:=(v: T)} -- This is equivalent to a \code{set}.
-\item \code{set(v: T)} -- Updates the value 
-\item \code{tryWrite(v: T): Boolean} -- 
-\end{packed_itemize}
 
-\textbf{Ref.Bound Methods:}
 
-\begin{packed_itemize}
-\item{This is my item}
-\end{packed_itemize}
-
-\caption{Description of methods provided by Sink.Bound, Source.Bound and Ref.Bound }
-\end{figure}
 
 Non-transactional access to the contents of a reference are provided by a view
 returned by \code{nonTxn}.  This view implements methods that parallel those of
@@ -353,17 +323,52 @@ the ABA problem\footnote{The ABA problem is when an observer falsely
 concludes that a value has not changed, because the watched value went
 from A to B, then back to A.}.
 
+What follows is the complete listing of the operations provided by the various
+Bound views of a \code{Ref}.
+
+\textbf{Source.Bound Methods:}
+\begin{packed_itemize}
+\item \code{unary\_!: T} -- This is equivalent to a \code{get}.
+\item \code{get : T} -- Performs a transactional read of the value 
+managed by the bound Ref. If the bounded view was created by a call to \code{nonTxn}, the read will
+be strongly atomic and isolated with respect to all transactions.
+\item \code{map[Z](f: T => Z): Z} -- Returns \code{f(get)}, possibly 
+reevaluating f to avoid rollbacks (\code{f} must be idempotent).
+\item \code{await(p: T => Boolean)} -- Blocks until \code{pred} is true, in a 
+manner consistent with current context (transactional vs. non-transactional).
+\item \code{unrecordedRead: UnrecordedRead[T]} -- Returns an \code{UnrecordedRead} instance that 
+wraps the value that would be returned by \code{get}. The read will not be added to the transaction's read set (transactional context).
+\item \code{releasableRead: ReleasableRead[T]} -- Returns a \code{ReleasableRead} instance that 
+wraps the value that would be returned by \code{get}. The read will be added to the transaction's read set (transactional context) but it may be removed by a call to 
+\code{ReleasableRead.release()}.
+\end{packed_itemize}
+
+\textbf{Sink.Bound Methods:}
+\begin{packed_itemize}
+\item \code{:=(v: T)} -- This is equivalent to a \code{set}.
+\item \code{set(v: T)} -- Updates the value referred to by the bounded \code{Ref}. 
+If the bounded view was created by a callto \code{nonTxn}, the value will be made available
+immediately (with an appropriate happens-before relationship).
+\item \code{tryWrite(v: T): Boolean} -- Updates the element held by the bound \code{Ref} without blocking 
+and returns true, or does nothing and returns false.
+\end{packed_itemize}
+
+\textbf{Ref.Bound Methods:}
+
+\begin{packed_itemize}
+\item{This is my item}
+\end{packed_itemize}
+
+
 \subsection{Semantic conflict detection for reads}
 \label{sec:map}
 
-Unrecorded reads can be paired with life cycle callbacks to implement a
-simple yet powerful form of semantic
-conflict detection.  CCSTM's \type{Txn} allows the user to register a callback
-that will be invoked whenever the transaction's read set is validated.  If
-an unrecorded read is coupled with a callback that re-reads the value and
-performs a semantic validation, rollback may be avoided.
-We use this technique to
-implement a new abstraction:
+Unrecorded reads can be paired with life cycle callbacks to implement a simple
+yet powerful form of semantic conflict detection.  CCSTM's \type{Txn} allows the
+user to register a callback that will be invoked whenever the transaction's read
+set is validated.  If an unrecorded read is coupled with a callback that
+re-reads the value and performs a semantic validation, rollback may be avoided.
+We use this technique to implement a new abstraction:
 \lstset{numbers=none}
 \begin{lstlisting}
 trait Source[+A] {
