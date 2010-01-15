@@ -118,14 +118,48 @@ decompose the covariant and contravariant operations of \xtype{Ref}{A}.}
 \label{fig:refsclasses}
 \end{figure*}
 
-Non-transactional access to the contents of a reference are provided by
-a view returned by \code{nonTxn}.  This view implements methods that
-parallel those of the reference, but that don't require a \type{Txn}.
-We say that the view is \textit{bound} to the non-transactional context,
-so the view trait is named \type{Ref.Bound}.  Views may also be bound
-to a transactional context via \type{Ref}\code{.bind}.  These bound
-references do not require a \type{Txn} parameter, but may only be used
-until the end of the transaction.  Figure~\ref{fig:refclasses} shows the
+
+\begin{figure}
+\textbf{Source.Bound Methods:}
+\begin{packed_itemize}
+\item \code{unary\_!: T} -- This is equivalent to a \code{get}.
+\item \code{get : T} -- Performs a transactional read of the value 
+managed by the bound Ref. If the bound view was created by nonTxn, the read will
+be strongly atomic and isolated with respect to all transactions.
+\item \code{map[Z](f: T => Z): Z} -- Returns \code{f(get)}, possibly 
+reevaluating f to avoid rollbacks (\code{f} must be idempotent).
+\item \code{await(p: T => Bool)} -- Blocks until \code{pred} is true, in a 
+manner consistent with current context (transactional vs. non-transactional).
+\item \code{unrecordedRead: UnrecordedRead[T]} -- Returns an \code{UnrecordedRead} instance that 
+wraps the value that would be returned by \code{get}. The read will not be added to the transaction's read set (transactional context).
+\item \code{releasableRead: ReleasableRead[T]} -- Returns a \code{ReleasableRead} instance that 
+wraps the value that would be returned by \code{get}. The read will be added to the transaction's read set (transactional context) but it may be removed by a call to 
+\code{ReleasableRead.release()}.
+\end{packed_itemize}
+
+\textbf{Sink.Bound Methods:}
+
+\begin{packed_itemize}
+\item{This is my item}
+\end{packed_itemize}
+
+\textbf{Ref.Bound Methods:}
+
+\begin{packed_itemize}
+\item{This is my item}
+\end{packed_itemize}
+
+\caption{Description of methods provided by Sink.Bound, Source.Bound and Ref.Bound }
+\end{figure}
+
+Non-transactional access to the contents of a reference are provided by a view
+returned by \code{nonTxn}.  This view implements methods that parallel those of
+the reference, but that don't require a \type{Txn}.  We say that the view
+is \textit{bound} to the non-transactional context, so the view trait is
+named \type{Ref.Bound}.  Views may also be bound to a transactional context
+via \type{Ref}\code{.bind}.  These bound references do not require a \type{Txn}
+parameter, but may only be used until the end of the transaction.
+Figure~\ref{fig:refclasses} shows the
 \keyword{extends} relationship between the traits that implement unbound
 and bound references, and some of their methods.  The separation between
 \type{Ref}, \type{Source}, and \type{Sink}, and the operator syntax for
