@@ -56,7 +56,7 @@ perform their accesses in the context of that transaction.
 %This decision
 %was made for pragmatic reasons, because performing a dynamically-scoped
 %lookup on each transactional access would be prohibitively expensive.
-A useful parallel can be made between Haskell's STM~\cite{harris05ctm} and CCSTM.
+A useful parallel can be made between Haskell's STM~\cite{harris05composable} and CCSTM.
 Haskell's \type{TVar} corresponds to instances of type \type{Ref}.
 \type{Txn} is not a monad, but it proliferates through STM-enabled
 methods in exactly the same way as the \type{STM} monad.
