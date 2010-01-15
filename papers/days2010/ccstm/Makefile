@@ -74,10 +74,8 @@ build/paper.pdf: $(TEX_DEPS) $(PDF_INPUT_PATHS)
 	@echo
 	@echo ----- $(PDFLATEX) 1... -----
 	$(PDFLATEX) `basename $@ .pdf`.tex
-	@echo ----- SKIPPING $(BIBTEX)... -----
-	@echo SKIPPING $(BIBTEX) build/`basename $@ .pdf`
-	rm -f build/paper.bbl
-	touch build/paper.bbl
+	@echo ----- $(BIBTEX)... -----
+	$(BIBTEX) build/`basename $@ .pdf`
 	@echo ----- $(PDFLATEX) 2... -----
 	$(PDFLATEX) `basename $@ .pdf`.tex
 	@echo ----- $(PDFLATEX) 3... -----
@@ -88,10 +86,8 @@ build/paper.dvi: $(TEX_DEPS) $(EPS_INPUT_PATHS)
 	mkdir -p build
 	@echo ----- $(LATEX) 1... -----
 	$(LATEX) `basename $@ .dvi`.tex
-	@echo ----- SKIPPING $(BIBTEX)... -----
-	@echo SKIPPING $(BIBTEX) build/`basename $@ .pdf`
-	rm -f build/paper.bbl
-	touch build/paper.bbl
+	@echo ----- $(BIBTEX)... -----
+	$(BIBTEX) build/`basename $@ .pdf`
 	@echo ----- $(LATEX) 2... -----
 	$(LATEX) `basename $@ .dvi`.tex
 	@echo ----- $(LATEX) 3... -----
