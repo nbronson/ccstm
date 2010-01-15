@@ -299,7 +299,7 @@ provide correctness.
 As an alternative to a releasable read, CCSTM provides a new
 abstraction, \code{unrecordedRead}.  This method performs a
 transactional read, but instead of adding an entry to the read set it
-bundles the read's metadata into an \type{UnrecordedRead} instance.
+bundles the read's meta-data into an \type{UnrecordedRead} instance.
 The caller may then use this instance to manually validate that the
 returned value is still valid.
 
@@ -314,7 +314,7 @@ valid if the only changes that have been made to the referenced memory
 location were performed by the read's transaction.  This definition also
 provides a meaning for unrecorded reads of the \code{nonTxn} bound view:
 \code{stillValid} will return true only if no change has been made to the
-managed value.  This leverages the STM's metadata to solve
+managed value.  This leverages the STM's meta-data to solve
 the ABA problem\footnote{The ABA problem is when an observer falsely
 concludes that a value has not changed, because the watched value went
 from A to B, then back to A.}.
@@ -322,10 +322,10 @@ from A to B, then back to A.}.
 \subsection{Semantic conflict detection for reads}
 \label{sec:map}
 
-Unrecorded reads can be paired with lifecycle callbacks to implement a
+Unrecorded reads can be paired with life cycle callbacks to implement a
 simple yet powerful form of semantic
 conflict detection.  CCSTM's \type{Txn} allows the user to register a callback
-that wil be invoked whenever the transaction's read set is validated.  If
+that will be invoked whenever the transaction's read set is validated.  If
 an unrecorded read is coupled with a callback that re-reads the value and
 performs a semantic validation, rollback may be avoided.
 We use this technique to

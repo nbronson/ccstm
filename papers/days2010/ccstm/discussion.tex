@@ -1,3 +1,31 @@
+
+STM research is mature enough that the most difficult design decisions
+for CCSTM were all found in the interface.
+
+\subsection{Read barrier syntax}
+
+The choice of \code{!x} for a transactional read of \code{x} was inspired by
+ML's reference syntax.
+
+IN PROGRESS:
+The choice of \code{!x} for a transactional read of \code{x} resulted
+from the following line of reasoning:
+\begin{packed_enum}
+\item reads are very common, so they should be as concise as possible;
+\item reads are a unary operator;
+\item the operator must be a prefix operator, otherwise Scala's line merging
+heuristic will join lines that end in a read barrier;
+\item the only prefix operators available are \code{+}, \code{-},
+\code{\textasciitilde}, and \code{!}.
+\item \code{x()} 
+\end{packed_enum}
+There are several constraints on the syntax for a transactional read barrier.
+It should be concise, which favors an operator.  If it is an operator, it must
+be a prefix operator, because otherwise it will trigger Scala's line merging
+heuristic.
+
+There are several constraints on the syntax for accessing a barrier.  
+
 \subsection{Nested transactions}
 
 CCSTM currently does not support nested atomic blocks, an important
@@ -10,17 +38,44 @@ an atomic block.  The the programmer wishes to provide both a simple
 and a composable version of the method then he or she must come up with
 two names.
 
-A partial solution is provided by the \type{Ref} $\leftrightarrow$
-\type{Ref.Bound} correspondence.  Rather than coming up with two
-method names, the same method name can be used in two classes.
-\type{Ref}\code{.nonTxn} and \type{Ref.Bound}\code{.unbind} switch from
-one type to the other.  While it may be tolerable to manage these parallel
-classes in the library itself, it seems onerous to ask the programmer to
-perform a similar task.
+The need for two versions of \code{m} parallels the transactional and
+non-transactional access to a \type{Ref}, which was solved there by the
+\type{Ref} $\leftrightarrow$ \type{Ref.Bound} correspondence.  Rather than
+coming up with two method names, the same method name can be used in
+two classes.  \type{Ref}\code{.nonTxn} and \type{Ref.Bound}\code{.unbind}
+convert from an instance suitable for one context to the other.  While it
+may be tolerable to manage these parallel classes in the library itself,
+it seems onerous to ask the programmer to perform a similar task.
 
-Another option is to provide dynamic scoping for the declaration of atomic
-blocks, but static scoping for barriers.  Since barriers are likely to be much
-more common than nested transactions, there is less performance motivation
-for avoiding a thread-local lookup.  This seems like it might be the best
-solution, although we are wary of mixing static and dynamic scoping.
+A possible solution is to provide dynamic scoping for the declaration
+of atomic blocks, but static scoping for barriers.  Since barriers are
+likely to be much more common than nested transactions, there is less
+performance motivation for avoiding a thread-local lookup.
+
+It seems dangerous to mix static and dynamic scoping, but we notice that
+for all but the most expert users the static and dynamic scopes should be
+identical.  This means that we can provide an execution mode in which the
+static scopes are checked against the dynamic ones, and an assertion triggered
+if they don't match up.  This checking mode would be slower on a per-barrier
+basis, so it might be disabled during production use.
+
+For applications that don't spend a large portion of their time in barriers, we
+should also consider providing full dynamic scoping for transactions.
+Interestingly, this could be enabled in a per-module fashion by providing an
+implicit function that performs the required thread-local lookup.  The result
+might look like:
+\lstset{numbers=none}
+\begin{lstlisting}
+class Account ... {
+  import STM.dynamic
+
+  def deposit(amount: Money): Unit = {
+    assert(amount >= 0)
+    _balance := !_balance + amount
+  }
+}
+\end{lstlisting}
+\lstset{numbers=left}
+If \code{deposit} were executed outside a transaction a runtime error would be
+generated, rather than the compile-time error produced by the existing CCSTM.
 

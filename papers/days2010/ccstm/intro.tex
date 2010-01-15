@@ -73,12 +73,12 @@ that do not interfere with components of the system that do not use it
 \item We introduce \code{unrecordedRead}, a new STM primitive that relaxes
 read atomicity while allowing manual validation, and \code{map}, a simple
 and safe way of expressing semantic conflict detection.  A transaction
-that reads a refrence \code{x} via \code{x.map(f)} does not need to roll
+that reads a reference \code{x} via \code{x.map(f)} does not need to roll
 back if \code{x} is changed concurrently but \code{f(x.get)} remains
 the same (Sections~\ref{sec:unrecordedread} and~\ref{sec:map}).
 
 \item We briefly overview CCSTM's implementation, including a
-novel optimization to reduce the global timestamp contention of
+novel optimization to reduce the global time-stamp contention of
 non-transactional isolated writes (Section~\ref{sec:impl}).
 
 \item We summarize the discussions that led from the original design goal to

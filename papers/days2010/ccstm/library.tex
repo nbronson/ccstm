@@ -1,6 +1,6 @@
 
 An experimental feature such as software transactional memory should
-strive to impose only neglible costs on code that does not use it.
+strive to impose only negligible costs on code that does not use it.
 Runtime performance costs are the most obvious, but extra complexity in
 the compiler, libraries, and language rules should be minimized.
 A pay-as-you-go philosophy facilitates incremental adoption, it allows
@@ -135,7 +135,7 @@ to periodically revalidate the transaction.  Only the first option is
 available to an STM implemented as a library.
 
 The TL2~\cite{dice06tl2} and LSA~\cite{riegel06lsa} algorithms
-demonstrated how to use a global timestamp to efficiently validate
+demonstrated how to use a global time-stamp to efficiently validate
 a transaction after each read, guaranteeing consistency for all
 intermediate states.  This correctness property was later formalized
 as \textit{opacity}~\cite{guerraoui08opacity}.  CCSTM uses the
