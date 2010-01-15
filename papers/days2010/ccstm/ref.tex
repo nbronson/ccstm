@@ -354,9 +354,42 @@ and returns true, or does nothing and returns false.
 \end{packed_itemize}
 
 \textbf{Ref.Bound Methods:}
-
 \begin{packed_itemize}
-\item{This is my item}
+\item \code{readForWrite: T} -- Returns the same value as that returned by \code{get}, but
+adds the \code{Ref} to the write set of the bound transaction context, if any.
+\item \code{getAndSet(v: T): T} -- Works like \code{set}, but returns the old value. 
+\item \code{compareAndSet(b: T, v: T): Boolean} -- Equivalent to atomically executing:
+\lstset{numbers=none}
+\begin{lstlisting}
+if (b == get) { 
+  set(v) 
+  true 
+} else 
+    false
+\end{lstlisting}
+\item \code{compareAndSetIdentity(b: T, v: T): Boolean} -- Equivalent 
+to atomically executing: 
+\lstset{numbers=none}
+\begin{lstlisting}
+if (b eq get) { 
+  set(v) 
+  true 
+} else 
+    false
+\end{lstlisting}
+\item \code{weakCompareAndSet(b: T, v: T): Boolean} -- Works like \code{compareAndSet}
+, but allows spurious failures.
+\item \code{weakCompareAndSetIdentity(b: T, v: T): Boolean} -- Works like 
+\code{compareAndSetIdentity}, but allows spurious failures.
+\item \code{transform(f: T => T)} -- Atomically replaces the value \code{v} stored in the \code{Ref}
+with \code{f(v)}.
+\item \code{getAndTransform(f: T => T): T} -- Atomically replaces the value \code{v} stored in the \code{Ref}
+with \code{f(v)}, returning the old value.
+\item \code{tryTransform(f: T => T): Boolean} -- Either atomically transforms this reference without 
+blocking and returns true, or returns false.
+\item \code{transformIfDef(pf: PartialFunction[T,T]): Boolean} -- Atomically replaces 
+the value \code{v} stored in the \code{Ref} with \code{f(v)},
+if \code{pf.isDefinedAt(v)} returning true, otherwise leaves the element unchanged and returns false.
 \end{packed_itemize}
 
 
