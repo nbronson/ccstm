@@ -1,0 +1,68 @@
+
+CCSTM's implementation is modeled on SwissTM~\cite{swisstm}.  Version
+management is lazy, but write permission is acquired eagerly.  Timestamps
+are allocated 51 bits, making CCSTM immune from counter overflow in all
+but the most demanding production environments.
+
+\subsection{Metadata indirection}
+
+Metadata for a managed memory location consists of a single \keyword{long}.
+It is assumed that each memory location maps to a unique metadata value, but
+not vice versa.  This allows objects with multiple fields to use
+a single piece of metadata, and it allows arrays to choose a variety of
+granularities of conflict detection.  While some optimizations are possible for
+situations where the data-to-metadata mapping is one-to-one, in informal
+experiments we found that the benefits were smaller than the additional
+indirection costs.
+
+\type{Ref}s perform their accesses to both data and metadata through
+methods of an internal trait called a \type{Holder}.  This indirection
+allows multiple storage strategies to be easily provided, which can
+yield an important reduction in the number of live objects in the VM.
+For example, if the static or manifest type of the initial value is known
+to be an \keyword{int}, then the \type{Ref} factory method will return
+a reference whose holder stores the value in an unboxed form.  As a
+more extreme example, CCSTM provides a transactional array-like class
+that internally uses one array for values and one array for metadata,
+eliminating the $n$ intermediate objects that would be required by an
+\ytype{Array}{\xtype{Ref}{A}}.  These storage optimizations help CCSTM
+keep the implementation costs of its library-based approach near those
+of an instrumenting STM.
+
+\subsection{Global timestamp optimizations}
+
+To reduce contention on the shared timestamp, CCSTM uses TL2's GV6
+scheme~\cite{dice06tl2}.  This mechanism is based on the observation
+that, while committed values must be given a timestamp later than the
+version clock that was present at the beginning of the commit, it is
+not required that the global clock is actually advanced.  Advancing the
+global clock reduces the need for validation in later transactions,
+but when many threads are using the STM, this goal is satisfied even if
+only a fraction of transactions attempt to advance the current time.
+
+CCSTM performs a novel additional optimization to reduce the overhead
+of non-transactional accesses.  Unlike a transaction, a solitary
+strongly-isolated read or write in a TL2-style STM does not need to
+sample the global clock to provide opacity.  This means that we can let
+a sequence of non-transactional writes advance a reference's timestamp to
+an arbitrary point in the future without advancing the global timestamp.
+If a transaction attempts to read such a far-future value it handles
+it via the normal GV6 mechanism, by advancing the global timestamp and
+then revalidating.  To limit the potential impact of these booby-trapped
+references, we only allow non-transactional writes to advance timestamps
+a limited distance into the future.  Even a small window (CCSTM defaults
+to 8) dramatically reduces contention on the global timestamp.
+
+\subsection{Polite blocking}
+
+An important design goal for CCSTM is support for incremental use inside
+a larger application.  This means that exponential backoff is not a
+suitable mechanism for blocking.  Many STMs target parallel speedups
+for CPU-bound applications.  Assumed (often implicitly) is that all
+threads belong to the STM and that the number of software threads can be
+chosen to match the number of hardware execution contexts.  CCSTM makes
+neither of these assumptions, and so takes care to block using the normal
+synchronization primitives of the underlying VM.
+
+Blocking may be required to obtain write permission, or because of an
+explicit use of the \code{retry} primitive.
