@@ -2,27 +2,28 @@
 An experimental feature such as software transactional memory should
 strive to impose only neglible costs on code that does not use it.
 Runtime performance costs are the most obvious, but extra complexity in
-the compiler, libraries, and even language rules should be minimized.
+the compiler, libraries, and language rules should be minimized.
 A pay-as-you-go philosophy facilitates incremental adoption, it allows
-multiple implementations to coexist, and it reduces the penalty of
+multiple implementations to coexist, and it reduces the penalty for
 failure.
 
-One popular and reasonable interface design for a transactional memory
+One popular and reasonable interface design for transactional memory
 is to mimic lock-based critical regions.  Users of such an STM declare
 the beginning and the end of an atomic block, and all memory accesses
 that occur within the dynamic scope of the block are transparently
 redirected to the STM.  For a VM language like Scala this redirection
-can be introduced by the VM's JIT, during class loading, or during
-compilation to bytecodes.  The dynamic scoping of such an approach,
+can be introduced by the VM's JIT, by bytecode rewriting during class
+loading, or during the initial
+compilation of the high-level language.  The dynamic scoping of such an approach,
 however, means that it is not possible in general for the STM to
 limit its instrumentation to classes that are used in an atomic block.
 An STM that is deeply integrated into the VM's JIT can minimize the
 performance and code bloat impacts of the instrumentation by performing it
 lazily~\cite{??}, but the required engineering effort to add this support
 to a production quality VM is prohibitively large.  Instrumentation of
-the bytecode at compilation or class loading has a much lower engineering
-cost, but causes a dramatic increase in the quantity of intermediate code.
-While this overhead may eventually be considered acceptable, it seems
+the bytecode at compilation or class loading has the lowest engineering
+cost, but results in two copies of each method.
+While this cost may eventually be considered acceptable, it seems
 prudent to first validate the use of STM.  An additional drawback of
 an instrumentation approach is that it is not composable.  If library
 \textit{A} is constructed with the STM \textit{S} and library \textit{B}
@@ -30,8 +31,8 @@ is constructed with the STM \textit{T}, then \textit{A} and \textit{B}
 can't be used in the same program.
 
 The alternative approach adopted by CCSTM is to require the programmer to perform
-explicit calls to the STM.  While less convenient for simple uses, this
-eliminates the effect of the STM on code that does not use it and
+explicit calls to the STM.  While less convenient for simple uses this
+limits performance side-effects on code that does not use atomic blocks, and it
 allows the STM to be constructed entirely as an unprivileged library.
 When coupled with an STM design that does not assume it is managing all
 threads, the result is a pay-as-you-go transactional memory suitable
@@ -52,6 +53,7 @@ One of the benefits of the reference-based approach is that it avoids
 isolation problems between transactional and non-transactional accesses to
 the same memory location, without requiring any changes to the underlying
 type system.
+
 At its most basic, a software transactional memory is a way of isolating
 a group of memory accesses and verifying that those accesses are
 equivalent to some serial execution.  The STM manages reads and writes
@@ -65,30 +67,30 @@ accesses and concurrent transactions:
 \begin{packed_itemize}
 
 \item The system can provide strong isolation and atomicity by redirecting
-all memory accesses to barriers, even non-transactional accesses.  While
-there has been some research in using dynamic recompilation to reduce the
-performance penalty of strong isolation, deep integration with the VM's
-JIT is required to achieve acceptable performance~\cite{inteldbo,mydbo}.
+all memory accesses to barriers, even non-transactional accesses.
+While there has been some research in using dynamic recompilation
+to reduce the performance penalty of strong isolation, these require
+either deep integration with the VM's JIT~\cite{schneider08dynamic}
+or a substantial warmup period~\cite{bronson09dbo}.
 
 \item The system can declare that a conflicting concurrent access
 from both inside and outside a transaction is an error.  This doesn't
-sound too onerous, but the optimistic nature of transactions means
-that failed speculations must also be considered: inconsistent
-transactions may execute conflicting accesses from an impossible
-branch, or they may execute conflicting accesses after they have become
-doomed~\cite{grossman?get-cite-from-my-dbo}.  Restrictions on commit
-order can prevent some of the most surprising behaviors, but there is
-a substantial performance penalty to restoring even the race semantics
-of locks~\cite{sgla}.  The privatization problem and its dual, the
-publication problem, refer to isolation failure for specific useful
-idioms.
+sound too onerous, but the optimistic nature of transactions means that
+failed speculations must also be considered: inconsistent transactions
+may execute conflicting accesses from an impossible branch, or they
+may execute conflicting accesses after they have become doomed.
+Restrictions on commit order can prevent some of the most surprising
+behaviors~\cite{sgla08}, but the resulting systems still require
+whole-program reasoning to guarantee correctness.  The privatization
+problem and its dual, the publication problem, refer to isolation failure
+for specific useful idioms.
 
 \item The system can use types to disallow direct access to any memory
-location that might be touched transactionally~\cite{smallstepsemantics}.
+location that might be touched transactionally~\cite{moore08semantics}.
 This can take the form of extending the types and access rules on
 normal mutable memory locations, as in \todo{do some research}, or
 of boxing all transactionally-managed data inside some sort of cell,
-as in Haskell~\cite{cmt} or Clojure~\cite{?}.  We refer to the latter
+as in Haskell~\cite{harris05cmt} or Clojure~\cite{?}.  We refer to the latter
 approach as a reference-based STM.
 
 \end{packed_itemize}
@@ -101,16 +103,21 @@ approach seems the most practical.
 
 \subsection*{Irrevocable actions and structural conflicts}
 
-One of the side effects of an alternate syntax for transactional barriers is
-that it avoids creating the impression that the STM can magically parallelize
-all existing sequential code, or that atomic blocks are always a better
-replacement for locks.  There are both semantic and practical reasons
-why this is not the case.  The semantic problems come from actions that the STM
-cannot isolate or undo, such as network I/O
-\todo{fix and/or expand}, which requires that the STM execute atomic blocks one
-at a time.  The practical problem arises in code that has structural
-dependencies that prevent parallel execution but are not actually critical to
-the algorithm.
+One of the side effects of an alternate syntax for transactional barriers
+is that it avoids creating the impression that the STM can magically
+parallelize all existing sequential code, or that atomic blocks are
+always a better replacement for locks.  There are both semantic and
+practical reasons why this is not the case.  The semantic problems come
+from actions that the STM cannot isolate or undo, such as I/O or calls to
+external libraries.  In the absence of any additional information about
+potential conflicts, the only way to execute safely is to serialize.
+The practical problem with executing code that was not designed to
+be executed inside an atomic block is that such code often contains
+incidental shared accesses that must be treated as conflicts by the STM.
+An example of this is the size field of a collection, which is often
+accessed by every mutating operation.  Unless care is taken to distribute
+the size over multiple memory locations, no concurrency will actually
+be available.
 
 %STMs often attempt to mimic the syntax used for lock-based critical
 %regions.  The beginning and end of the atomic block are declared, and all

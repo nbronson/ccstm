@@ -107,22 +107,25 @@
 
 \begin{abstract}
 
-We describe the design and implementation of CCSTM, a library-only
-software transactional memory (STM) implementation for Scala.
+We introduce CCSTM, a library-only
+software transactional memory (STM) for Scala, and
+give an overview of its design and implementation.
 Our design philosophy is that CCSTM should be a useful tool for the
 parallel programmer, rather than a parallelization mechanism for arbitrary
 sequential code.  This frees us from the semantic tar pits that surround
-privatization, strong atomicity and isolation, and irrevocable system calls.
+privatization, strong isolation, and irrevocable system calls.
 It also allows us to express the STM using Scala classes and methods, a design
 choice that has far-reaching consequences.
 
 Transactional accesses in CCSTM are performed through instances that
-implement the trait \texttt{Ref}.  These transactional references may be
+implement a trait \type{Ref}.  These transactional references may be
 long-lived, or may be transient accessors to bulk transactional data such
-as an array.  The syntax for dereferencing \texttt{Ref} instances is a
-primary pain point for the library-based approach, but the \texttt{Ref}
+as an array.  The syntax for dereferencing \type{Ref} instances is the
+primary pain point for the library-based approach, but the reference-based
+interface also provides
+benefits.  \type{Ref}
 serves as a first-class representation of a transactionally-managed
-memory location, providing a natural mechanism to express additional STM
+memory location, providing a natural way to express additional STM
 features such as conditional waiting, non-transactional compare-and-swap,
 manually-validated reads, and deferrable transformation using pure
 functions.  In an additional departure from typical STM designs, the
@@ -130,6 +133,9 @@ current transactional context is passed through implicit parameters
 rather than being bound to the current thread context.  This increases
 the compile-time checking that can be performed, at the expense of code
 clutter in method signatures.
+While CCSTM's implementation as an unprivileged Scala library imposes
+syntactic penalty on atomic regions, we find that the performance penalty,
+if any, is minimal.
 
 \end{abstract}
 
@@ -144,16 +150,16 @@ clutter in method signatures.
 \xkeywords
 
 \section{Introduction}
-\label{intro}
+\label{sec:intro}
 \input{intro.tex}
 
 \section{STM as a Scala Library}
-\label{library}
+\label{sec:library}
 \input{library.tex}
 
 %\section{\xtypesec{Ref}{A} and \xtypesec{Ref.Bound}{A}}
 \section{Using CCSTM}
-\label{ref}
+\label{sec:ref}
 \input{ref.tex}
 
 \section{Experience}
@@ -197,22 +203,23 @@ Syntax for atomic, orElse
 \section{Code}
 
 Source code for CCSTM is available under a BSD license from
-\texttt{http://github.com/nbronson/ccstm}.
+\textsf{http://github.com/nbronson/ccstm}.
 
 %%This is the text of the appendix, if you need one.
 
 \acks
 
-The authors would like to thank \todo{who} for their feedback
-during the design phase of CCSTM.
+The authors would like to specifically thank Daniel Spiewak and Peter
+Veentjer for their helpful feedback during the design phase of CCSTM.
 
 This work was supported by the Stanford Pervasive Parallelism Lab,
 by Dept. of the Army, AHPCRC W911NF-07-2-0027-1, and by
 the National Science Foundation under grant CNS--0720905.
 
-{\small
+{
+%\small
 \bibliographystyle{abbrv}
-\bibliographystyle{plainnat}
+%\bibliographystyle{plainnat}
 %\renewcommand{\bibfont}{\normalsize}
 \bibliography{../../common/ppl}
 
