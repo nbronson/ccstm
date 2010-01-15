@@ -23,10 +23,13 @@ lazily~\cite{??}, but the required engineering effort to add this support
 to a production quality VM is prohibitively large.  Instrumentation of
 the bytecode at compilation or class loading has the lowest engineering
 cost, but results in two copies of each method.
-While this cost may eventually be considered acceptable, it seems
-prudent to first validate the use of STM.  An additional drawback of
-an instrumentation approach is that it is not composable.  If library
-\textit{A} is constructed with the STM \textit{S} and library \textit{B}
+This is the strategy adopted by the Multiverse~\cite{multiverse} and
+DeuceSTM~\cite{deucestm} STMs for the Java language.
+While this cost may eventually be considered acceptable, it places a
+high hurdle to integration into Scala's standard library.
+An additional drawback of
+an instrumentation approach is that it is not composable.  If module
+\textit{A} is constructed with the STM \textit{S} and module \textit{B}
 is constructed with the STM \textit{T}, then \textit{A} and \textit{B}
 can't be used in the same program.
 

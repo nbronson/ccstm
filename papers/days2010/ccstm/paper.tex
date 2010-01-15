@@ -168,31 +168,33 @@ barriers and dynamic scoping for nested transactions.
 \section{Discussion}
 \label{sec:discussion}
 \input{discussion.tex}
-*Simple got more complicated
-*Complicated got easier
-*Implicit txn
+
+%*Simple got more complicated
+%*Complicated got easier
+%*Implicit txn
 
 
-Green Marker Notes:
-~~~~~~~~~~~~~~~~~~~
-txnal reference as a trait
-    w/ multiple implementations
-  - Clunky base syntax
-  - Nice extended syntax
-  - Optimized back ends (StripedIntRef, TIntRef,...)
+%Green Marker Notes:
+%~~~~~~~~~~~~~~~~~~~
+%txnal reference as a trait
+%    w/ multiple implementations
+%  - Clunky base syntax
+%  - Nice extended syntax
+%  - Optimized back ends (StripedIntRef, TIntRef,...)
 
-Ref interface to collections
-  - key is handle
-  - TArray
-  - THashMap
+%Ref interface to collections
+%  - key is handle
+%  - TArray
+%  - THashMap
 
-TxnFieldUpdater w/plugin
+%TxnFieldUpdater w/plugin
 
-Syntax for atomic, orElse
-  -tranformz
-  -goal: good nonTxn support
-        composition of ops on txn objects, 
-        not actions in a transaction on all objects
+%Syntax for atomic, orElse
+%  -tranformz
+%  -goal: good nonTxn support
+%        composition of ops on txn objects, 
+%        not actions in a transaction on all objects
+%
 
 \section{Performance}
 \label{sec:perf}
