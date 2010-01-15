@@ -171,7 +171,7 @@ Bound views for non-transactional access create a syntactic difference
 between transactional and non-transactional reads and writes.
 This allows the expert programmer to selectively relax isolation by
 performing a non-transactional access inside an atomic block, without
-requiring an escape action~\cite{escapeaction}.  The non-isolated access
+requiring an escape action.  The non-isolated access
 is visually differentiated by including the token \code{nonTxn}.  In
 Section~\ref{sec:unrecordedread} we will introduce \code{unrecordedRead},
 a way of relaxing isolation for reads while retaining the ability to
@@ -311,9 +311,9 @@ a subsequent invalidation, as in early release when searching a binary tree.
 
 Previous TM systems have provided several mechanisms for relaxing atomicity and
 isolation.
-Open nested transactions~\cite{opennested} allow the actions of a
+Open nested transactions allow the actions of a
 nested transaction to be committed in a non-nested fashion.  Escape actions
-suspend the current transaction temporarily~\cite{escapeaction}.  Early
+suspend the current transaction temporarily~\cite{harris04exceptions}.  Early
 release
 allows reads to be removed from the read set prior to
 commit~\cite{HerlihyLMS03}.  CCSTM's static transaction scoping makes escape

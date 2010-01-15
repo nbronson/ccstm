@@ -43,16 +43,16 @@ low-contention experiment (Figure~\ref{fig:lowcont}) we set the number
 of accounts to 64 times the number of threads.  For the high-contention
 experiment (Figure~\ref{fig:highcont}) we set the number of accounts to
 the number of threads.  Single-threaded execution is not included in the
-high-contention setup, as it has no contention.  Note also that since at most
-16 threads are actually executing at once, the high-contention runs have
+high-contention setup, as it has no contention.  Because at most
+16 threads are executing at any time, the high-contention runs have
 fewer conflicts at 32 and 64 threads than for lower thread counts.
 
 The TL2 version of Deuce STM is faster than CCSTM for both experiments when
 the multi-threading level is less than or equal to one.  The difference
 is largest for the high-contention scenario, where threads are often
-obstructed.  Deuce STM does not block threads that cannot proceed, it
+obstructed.  Deuce STM does not block threads that cannot proceed, and it
 does not even use sleeps or yields.  This strategy works well when every
-thread gets its own hardware context, but its results in a catastrophic
+thread gets its own hardware context, but results in a catastrophic
 performance dropoff for higher thread counts.  CCSTM's synchronization
 implementation is more expensive, but yields stable performance even at
 high multi-threading levels.
