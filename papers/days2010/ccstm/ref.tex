@@ -146,7 +146,7 @@ Ref eq vs ==
 
 operations
 
-\subsection{Early release, unrecorded reads, and semantic conflicts}
+\subsection{Relaxed isolation}
 \label{sec:unrecordedread}
 
 Some algorithms can benefit from transactional reads that are not
@@ -194,17 +194,21 @@ valid if the only changes that have been made to the referenced memory
 location were performed by the read's transaction.  This definition also
 provides a meaning for unrecorded reads of the \code{nonTxn} bound view:
 \code{stillValid} will return true only if no change has been made to the
-managed value.  This leverages the STM to provide a simple way to solve
+managed value.  This leverages the STM's metadata to solve
 the ABA problem\footnote{The ABA problem is when an observer falsely
 concludes that a value has not changed, because the watched value went
 from A to B, then back to A.}.
 
+\subsection{Semantic conflict detection for reads}
+\label{sec:map}
+
 Unrecorded reads can be paired with lifecycle callbacks to implement a
 simple yet powerful form of semantic
 conflict detection.  CCSTM's \type{Txn} allows the user to register a callback
-that wil be invoked whenever the transaction's read set is validated.  If a
-callback is registered that manually validates the value returned from an
-unrecorded read, then rollback may be avoided.  We use this technique to
+that wil be invoked whenever the transaction's read set is validated.  If
+an unrecorded read is coupled with a callback that re-reads the value and
+performs a semantic validation, rollback may be avoided.
+We use this technique to
 implement a new abstraction:
 \lstset{numbers=none}
 \begin{lstlisting}

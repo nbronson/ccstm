@@ -75,7 +75,7 @@ read atomicity while allowing manual validation, and \code{map}, a simple
 and safe way of expressing semantic conflict detection.  A transaction
 that reads a refrence \code{x} via \code{x.map(f)} does not need to roll
 back if \code{x} is changed concurrently but \code{f(x.get)} remains
-the same (Section~\ref{sec:unrecordedread}).
+the same (Sections~\ref{sec:unrecordedread} and~\ref{sec:map}).
 
 \item We summarize the discussions that led from the original design goal to
 the current syntax.  We point out the parts that work well and the parts that

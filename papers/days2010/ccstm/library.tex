@@ -47,7 +47,7 @@ language (DSL) for expressing optimistic concurrency.
 
 
 
-\subsection*{Strong isolation}
+\subsection{Strong isolation}
 
 One of the benefits of the reference-based approach is that it avoids
 isolation problems between transactional and non-transactional accesses to
@@ -96,12 +96,12 @@ approach as a reference-based STM.
 \end{packed_itemize}
 
 Scala favors safety and compile-time checking of program correctness,
-so the authors are of the opinion that it is only natural to employ it
+so the authors are of the opinion that it is only natural to employ types
 to avoid the problems of weak isolation.  In the long term an extension
 to Scala's types seems possible, but in the short term a library-based
 approach seems the most practical.
 
-\subsection*{Irrevocable actions and structural conflicts}
+\subsection{Irrevocable actions and structural conflicts}
 
 One of the side effects of an alternate syntax for transactional barriers
 is that it avoids creating the impression that the STM can magically
