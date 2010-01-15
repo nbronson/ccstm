@@ -12,6 +12,7 @@ TEX_SRCS=\
 	intro.tex \
 	library.tex \
 	paper.tex \
+	perf.tex \
 	ref.tex \
 #
 TEX_DEPS=$(TEX_SRCS) \
@@ -34,6 +35,8 @@ DOT_SRCS=\
 
 # expecting .pdf
 GNUMERIC_SRCS=\
+	high_cont.ps \
+	low_cont.ps \
 #
 
 # expecting .pdf
