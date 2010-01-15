@@ -7,10 +7,11 @@
 #BASE=ppopp207-bronson
 
 TEX_SRCS=\
-        intro.tex \
-        library.tex \
+	impl.tex \
+	intro.tex \
+	library.tex \
 	paper.tex \
-        ref.tex \
+	ref.tex \
 #
 TEX_DEPS=$(TEX_SRCS) \
 	../../common/ppl.bib \

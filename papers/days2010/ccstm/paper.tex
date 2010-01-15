@@ -70,7 +70,6 @@
 \newcommand{\xtypesec}[2]{{\typesec{#1}\typeparamsec{[#2]}}}
 \newcommand{\ytype}[2]{{\type{#1}\code{[}\type{#2}\code{]}}}
 \newcommand{\xxtype}[3]{{\type{#1}\typeparam{[#2,#3]}}}
-\newcommand{\xytype}[3]{{\type{#1}\code{[}\typeparam{#2}\code{,}\type{#3}\code{]}}}
 \newcommand{\keyword}[1]{{\code{\bfseries #1}}}
 
 \hyphenation{CC-STM}
@@ -158,9 +157,13 @@ if any, is minimal.
 \input{library.tex}
 
 %\section{\xtypesec{Ref}{A} and \xtypesec{Ref.Bound}{A}}
-\section{CCSTM}
+\section{CCSTM's interface}
 \label{sec:ref}
 \input{ref.tex}
+
+\section{CCSTM's implementation}
+\label{sec:impl}
+\input{impl.tex}
 
 \section{Experience}
 %\label{correctness}
