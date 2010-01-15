@@ -25,9 +25,9 @@ a reference whose holder stores the value in an unboxed form.  As a
 more extreme example, CCSTM provides a transactional array-like class
 that internally uses one array for values and one array for meta-data,
 eliminating the $n$ intermediate objects that would be required by an
-\ytype{Array}{\xtype{Ref}{A}}.  These storage optimizations help CCSTM
-keep the implementation costs of its library-based approach near those
-of an instrumenting STM.
+\ytype{Array}{\xtype{Ref}{A}}.  In some cases these storage optimizations
+return CCSTM to par with a VM-integrated STM, in some cases they make
+CCSTM's representation more compact.
 
 \subsection{Global time-stamp optimizations}
 
