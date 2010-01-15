@@ -19,7 +19,8 @@ however, means that it is generally not possible to
 limit instrumentation to only classes that are used in an atomic block.
 An STM that is deeply integrated into the VM's JIT can minimize the
 performance and code bloat impacts of the instrumentation by performing it
-lazily~\cite{??}, but the required engineering effort to add this support
+%todo, add citation
+lazily, but the required engineering effort to add this support
 to a production quality VM is prohibitively large.  Instrumentation of
 the bytecode at compilation or class loading has the lowest engineering
 cost, but results in two copies of each method.
