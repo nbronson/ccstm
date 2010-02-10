@@ -51,13 +51,30 @@ class ChainingHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TM
 
     override def size: Int = sizeRef.nonTxn.get
 
+    // This uses unrecordedRead, a CCSTM special op.
+//    def get(key: K): Option[V] = {
+//      // attempt an ad-hoc txn first
+//      val h = hash(key)
+//      val unrecorded = bucketsRef.nonTxn.unrecordedRead
+//      val buckets = unrecorded.value
+//      val head = buckets.nonTxn(h & (buckets.length - 1))
+//      if (unrecorded.stillValid) {
+//        // coherent read of bucketsRef and buckets(i)
+//        val bucket = if (null == head) null else head.find(h, key)
+//        if (null == bucket) None else Some(bucket.value)
+//      } else {
+//        // fall back to a txn
+//        STM.atomic(unbind.get(key)(_))
+//      }
+//    }
+
+    // This hand-coded optimistic implementation should work on any Java STM.
     def get(key: K): Option[V] = {
       // attempt an ad-hoc txn first
       val h = hash(key)
-      val unrecorded = bucketsRef.nonTxn.unrecordedRead
-      val buckets = unrecorded.value
+      val buckets = bucketsRef.nonTxn.get
       val head = buckets.nonTxn(h & (buckets.length - 1))
-      if (unrecorded.stillValid) {
+      if (bucketsRef.nonTxn.get eq buckets) {
         // coherent read of bucketsRef and buckets(i)
         val bucket = if (null == head) null else head.find(h, key)
         if (null == bucket) None else Some(bucket.value)
