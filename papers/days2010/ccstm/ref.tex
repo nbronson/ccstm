@@ -1,0 +1,438 @@
+As a recurring example of the ways in which CCSTM allows optimistic concurrency
+to be expressed, consider a class that encapsulates the balance of a
+checking account\footnote{This example is from the bank benchmark included
+in Deuce STM~\cite{deucestm}.}.  Absent any concurrency control, we might
+write the code in Figure~\ref{fig:example:nosync}.  (Here \type{Money}
+is an immutable numeric type suitable for representing quantities of
+a currency.)  Adding pessimistic concurrency control to this code by
+locking accesses to \type{Account} instances is not straightforward,
+because both the source and destination account must be locked during
+a \code{transfer}.  Unless a global lock order is followed this can
+easily lead to deadlock.
+
+\begin{figure}
+\begin{lstlisting}{name=Code}
+class Account(initialBalance: Money) {
+  private var _balance = initialBalance
+
+  def balance: Money = _balance
+
+  def deposit(amount: Money): Unit = {
+    assert(amount >= 0)
+    _balance += amount
+  }
+
+  def withdraw(amount: Money): Unit = {
+    assert(amount >= 0)
+    if (_balance < amount)
+      throw new OverdraftException
+    _balance -= amount
+  }
+}
+
+object Account {
+  def transfer(src: Account, dst: Account,
+        amount: Money): Unit = {
+    src.withdraw(amount)
+    dst.deposit(amount)
+  }
+}
+\end{lstlisting}
+
+\caption{Code that performs an account transfer without
+any locking or other concurrency control.}
+
+\label{fig:example:nosync}
+\end{figure}
+
+\begin{figure}
+\begin{lstlisting}{name=Code}
+class Account(initialBalance: Money) {
+  private val _balance = Ref(initialBalance)
+
+  def balance: Source[Money] = _balance
+
+  def deposit(amount: Money
+        )(implicit txn: Txn): Unit = {
+    assert(amount >= 0)
+    _balance := !_balance + amount
+  }
+
+  def withdraw(amount: Money
+        )(implicit txn: Txn): Unit = {
+    assert(amount >= 0)
+    if (!_balance < amount)
+      throw new OverdraftException
+    _balance := !_balance - amount
+  }
+}
+
+object Account {
+  def transfer(src: Account, dst: Account,
+        amount: Money): Unit = {
+    new Atomic { def body {
+      src.withdraw(amount)
+      dst.deposit(amount)
+    }}.run()
+  }
+}
+\end{lstlisting}
+
+\caption{One way to implement the atomic balance transfer function
+using CCSTM.  This code uses \code{unary\_!} and \code{:=} operators
+(ML-inspired) for performing transactional reads and writes, and
+expresses the atomic block by extending \code{Atomic}.}
+
+\label{fig:example:ccstm}
+\end{figure}
+
+CCSTM allows the atomic balance transfer to be expressed easily,
+guaranteeing that both balance adjustments are performed atomically and
+without deadlock.  Figure~\ref{fig:example:ccstm} gives the transactional
+code.
+
+\subsection{References -- \xtype{\bfseries Ref}{A} and \xtype{\bfseries Ref.Bound}{A}}
+
+The most fundamental data type in CCSTM is \xtype{Ref}{A}, which mediates
+access to an STM-managed mutable value.  Read-only methods are separated into a
+covariant \type{Source} trait and write-only methods are separated into a
+contravariant \type{Sink} trait.  The current transactional context is passed
+during
+each method call via an implicit parameter.  Reads and writes on a
+reference may be performed with the \code{get} and \code{set} methods,
+respectively, or with the ML-inspired \code{unary\_!} and \code{:=}
+operators.  Section~\ref{sec:syntax} discusses
+the choice of method names in more detail.
+
+\begin{figure*}
+  \centering
+  \includegraphics[clip=true,width=5.5in]{build/refs_class_uml}
+
+\caption{Traits that provide access to an STM-managed memory
+location.  Transactional access can occur through either \type{Ref}
+or a \type{Ref.Bound} returned from \type{Ref}\code{.bind},
+non-transactional access occurs through a \type{Ref.Bound} returned
+from \type{Ref}\code{.nonTxn}.  \xtype{Source}{+A} and \xtype{Sink}{-A}
+decompose the covariant and contravariant operations of \xtype{Ref}{A}.}
+
+\label{fig:refclasses}
+\end{figure*}
+
+
+
+
+
+
+Non-transactional access to the contents of a reference are provided by a view
+returned by \code{nonTxn}.  This view implements methods that parallel those of
+the reference, but that don't require a \type{Txn}.  We say that the view
+is \textit{bound} to the non-transactional context, so the view trait is
+named \type{Ref.Bound}.  Views may also be bound to a transactional context
+via \type{Ref}\code{.bind}.  These bound references do not require a \type{Txn}
+parameter, but may only be used until the end of the transaction.
+Figure~\ref{fig:refclasses} shows the
+\keyword{extends} relationship between the traits that implement unbound
+and bound references, and some of their methods.  The separation between
+\type{Ref}, \type{Source}, and \type{Sink}, and the operator syntax for
+accesses are modeled after Spiewak's Scala STM~\cite{github:spiewak}.
+The \type{Ref} $ \leftrightarrow $ \type{Ref.Bound} duality is unique
+to CCSTM, as far as is known by the authors.
+
+Bound views for non-transactional access create a syntactic difference
+between transactional and non-transactional reads and writes.
+This allows the expert programmer to selectively relax isolation by
+performing a non-transactional access inside an atomic block, without
+requiring an escape action.  The non-isolated access
+is visually differentiated by including the token \code{nonTxn}.  In
+Section~\ref{sec:unrecordedread} we will introduce \code{unrecordedRead},
+a way of relaxing isolation for reads while retaining the ability to
+manually validate it.
+
+\subsection{Declaring and executing an atomic block}
+
+CCSTM currently provides two syntaxes for declaring atomic blocks.  The first,
+shown in Figure~\ref{fig:example:ccstm}, involves extending the
+abstract class \type{Atomic} and implementing the method \code{body:
+}\type{Unit}.  The base class introduces an implicit \type{Txn} into the
+static scope of the body, resulting in a relatively concise syntax for
+inline transactions.  This form produces an extra set of curly braces
+and several extra tokens, but it uses only one line to open the scope
+and one to close it.  \xtype{AtomicFunc}{Z} provides a similar syntax
+for atomic blocks that return a value.
+
+The second syntax is to pass a function \type{Txn}\code{~=>~}\typeparam{Z}
+to the \code{atomic} method on the \type{STM} object.  This syntax is more
+concise when invoking a method.  The \type{Account}\code{.transfer} method
+might be decomposed into:
+\lstset{numbers=none}
+\begin{lstlisting}
+def transfer(src: Account, dst: Account,
+      amount: Money): Unit = {
+  STM.atomic(transferInTxn(src, dst, amount)(_))
+}
+def transferInTxn(src: Account, dst: Account,
+      amount: Money)(implicit txn: Txn): Unit = {
+  src.withdraw(amount)
+  dst.deposit(amount)
+}
+\end{lstlisting}
+\lstset{numbers=left}
+
+One of the new features of Scala 2.8 is support for an \keyword{implicit}
+modifier on parameters to anonymous methods (ScalaTrac ticket \#1492).
+This will make \type{STM}\code{.atomic} more concise for inline
+transactions, as in (with the addition of an \keyword{import}):
+\lstset{numbers=none}
+\begin{lstlisting}
+  atomic { implicit txn: Txn =>
+    src.withdraw(amount)
+    dst.deposit(amount)
+  }
+\end{lstlisting}
+\lstset{numbers=left}
+This will also allow a syntax that leverages \keyword{for} comprehensions.
+This syntax has a special elegance; it implies that the block may be
+executed multiple times, which is exactly the essence of optimistic
+concurrency!
+\lstset{numbers=none}
+\begin{lstlisting}
+  for (implicit txn <- atomic) {
+    src.withdraw(amount)
+    dst.deposit(amount)
+  }
+\end{lstlisting}
+\lstset{numbers=left}
+Both of these syntaxes can be supported by an \type{atomic} object:
+\lstset{numbers=none}
+\begin{lstlisting}
+object atomic {
+  def apply[Z](body: Txn => Z): Z
+  def foreach[Z](body: Txn => Z): Z
+}
+\end{lstlisting}
+\lstset{numbers=left}
+
+The decision to statically scope CCSTM's transactions was made for
+performance reasons.  To dynamically scope the transactions, the
+current transaction must be identified by each read and write barrier.
+This is an extremely frequent operation.  Bytecode rewriting STMs have
+two options for efficiently performing this lookup: they can add a field
+to the system-wide \type{Thread} class, or they can weave a \type{Txn}
+parameter into the transactional version of every method.  A library-only
+STM running on the JVM must restrict itself to \type{ThreadLocal},
+which navigates from the \type{Thread} to a thread-local hash table,
+and from there to the dynamically scoped value.
+
+\subsection{Conditional retry}
+
+CCSTM supports the \code{retry} and \code{orElse} primitives introduced by
+Harris et al. in Haskell's STM~\cite{harris05ctm}, although the current
+lack of nesting support makes them less expressive than the original.
+The \code{retry} primitive causes the surrounding transaction to be rolled
+back, but retry is postponed until at least one of the values read by
+the transaction has changed.  \code{orElse} combines two transactions,
+attempting the second if the first calls \code{retry}, then blocking
+both transactions if the second calls \code{retry}.  Intuitively, a call
+to \code{retry} is a dead end; the STM will restart the transaction
+only after it might take a different path.  Similarly, \code{orElse}
+composes two alternatives that are each satisfactory, and requests that
+whichever one can avoid the dead end should be executed.
+
+\type{Atomic} provides a \code{retry} method.  As a contrived example,
+the bank could use \code{retry} if they wished to delay a withdrawal
+rather than trigger an \code{OverdraftException}:
+\lstset{numbers=none}
+\begin{lstlisting}
+object atomic {
+  def withdrawWhenPossible(amount: Money
+        )(implicit txn: Txn): Unit = {
+    assert(amount >= 0)
+    if (!_balance < amount)
+      retry
+    _balance := !_balance - amount
+  }
+\end{lstlisting}
+\lstset{numbers=left}
+
+A chain of \type{Atomic} or \type{AtomicFunc} instances may be chained
+with \code{orElse}, a single \code{run()} terminates the alternatives.
+If a collection of \type{Txn}\code{~=>~}\typeparam{Z} is available then
+they can be passed to:
+\lstset{numbers=none}
+\begin{lstlisting}
+object STM {
+  def retryOrElse[Z](blocks: (Txn => Z)*): Z
+}
+\end{lstlisting}
+\lstset{numbers=left}
+
+%Ref eq vs ==
+
+\subsection{Relaxed isolation}
+\label{sec:unrecordedread}
+
+Some algorithms can benefit from transactional reads that are not
+atomic, but that observe speculative stores made by the current
+transaction.  The inconsistent value may be used to make a heuristic decision,
+such as a hash table resize, or algorithm-specific knowledge
+may be used to guarantee atomic behavior of the transaction despite
+a subsequent invalidation, as in early release when searching a binary tree.
+
+Previous TM systems have provided several mechanisms for relaxing atomicity and
+isolation.
+Open nested transactions allow the actions of a
+nested transaction to be committed in a non-nested fashion.  Escape actions
+suspend the current transaction temporarily~\cite{harris04exceptions}.  Early
+release
+allows reads to be removed from the read set prior to
+commit~\cite{HerlihyLMS03}.  CCSTM's static transaction scoping makes escape
+actions trivial.  Accesses via \code{nonTxn} are escaped when executed by the
+code that implements an atomic block\footnote{One of the motivations for the
+creation of CCSTM was to study transactional collection class implementations
+that interleave escaped actions internally.}
+CCSTM also provides principled support for
+early release, via \type{Source.Bound.releasableRead}.  This method returns
+a \type{ReleasableRead} instance that provides both the read value
+and a method that removes the access from the transaction's read set.
+This interface eliminates the danger that an algorithm will remove a
+read that it did not perform, but it still requires careful reasoning to
+provide correctness.
+
+As an alternative to a releasable read, CCSTM provides a new
+abstraction, \code{unrecordedRead}.  This method performs a
+transactional read, but instead of adding an entry to the read set it
+bundles the read's meta-data into an \type{UnrecordedRead} instance.
+The caller may then use this instance to manually validate that the
+returned value is still valid.
+
+Like many STMs, CCSTM performs transactional reads by associating a
+version number with each managed memory location, recording the version
+prior to a transactional read, and checking during validation that the
+version number remains unchanged.  An \type{UnrecordedRead} contains the
+read value and the prior version, but rather than automatically validating
+the read during commit, validation is exposed to the programmer via the
+method \code{stillValid}.  An unrecorded read is considered to still be
+valid if the only changes that have been made to the referenced memory
+location were performed by the read's transaction.  This definition also
+provides a meaning for unrecorded reads of the \code{nonTxn} bound view:
+\code{stillValid} will return true only if no change has been made to the
+managed value.  This leverages the STM's meta-data to solve
+the ABA problem\footnote{The ABA problem is when an observer falsely
+concludes that a value has not changed, because the watched value went
+from A to B, then back to A.}.
+
+\subsection{Additional reference operations}
+
+What follows is the complete listing of the access operations provided by
+\type{Ref.Bound}.  Many of these methods have equivalents in \type{Ref},
+although to reduce the API's surface area some are not mirrored.
+
+\textbf{Source.Bound methods:}
+\begin{packed_itemize}
+\item \code{unary\_!: T} -- This is equivalent to a \code{get}.
+\item \code{get : T} -- Performs a transactional read of the value 
+managed by the bound Ref. If the bounded view was created by a call to \code{nonTxn}, the read will
+be strongly atomic and isolated with respect to all transactions.
+\item \code{map[Z](f: T => Z): Z} -- Returns \code{f(get)}, possibly 
+reevaluating f to avoid rollbacks (\code{f} must be idempotent).
+\item \code{await(p: T => Boolean)} -- Blocks until \code{pred} is true, in a 
+manner consistent with current context (transactional vs. non-transactional).
+\item \code{unrecordedRead: UnrecordedRead[T]} -- Returns an \code{UnrecordedRead} instance that 
+wraps the value that would be returned by \code{get}. The read will not be added to the transaction's read set (transactional context).
+\item \code{releasableRead: ReleasableRead[T]} -- Returns a \code{ReleasableRead} instance that 
+wraps the value that would be returned by \code{get}. The read will be added to the transaction's read set (transactional context) but it may be removed by a call to 
+\code{ReleasableRead.release()}.
+\end{packed_itemize}
+
+\textbf{Sink.Bound methods:}
+\begin{packed_itemize}
+\item \code{:=(v: T)} -- This is equivalent to a \code{set}.
+\item \code{set(v: T)} -- Updates the value referred to by the bounded \code{Ref}. 
+If the bounded view was created by a callto \code{nonTxn}, the value will be made available
+immediately (with an appropriate happens-before relationship).
+\item \code{tryWrite(v: T): Boolean} -- Updates the element held by the bound \code{Ref} without blocking 
+and returns true, or does nothing and returns false.
+\end{packed_itemize}
+
+\textbf{Ref.Bound methods:}
+\begin{packed_itemize}
+\item \code{readForWrite: T} -- Returns the same value as that returned by \code{get}, but
+adds the \code{Ref} to the write set of the bound transaction context, if any.
+\item \code{getAndSet(v: T): T} -- Works like \code{set}, but returns the old value. 
+\item \code{compareAndSet(b: T, v: T): Boolean} -- Equivalent to atomically executing:
+\lstset{numbers=none}
+\begin{lstlisting}
+if (b == get) { 
+  set(v) 
+  true 
+} else 
+    false
+\end{lstlisting}
+\item \code{compareAndSetIdentity(b: T, v: T): Boolean} -- Equivalent 
+to atomically executing: 
+\lstset{numbers=none}
+\begin{lstlisting}
+if (b eq get) { 
+  set(v) 
+  true 
+} else 
+    false
+\end{lstlisting}
+\item \code{weakCompareAndSet(b: T, v: T): Boolean} -- Works like \code{compareAndSet}
+, but allows spurious failures.
+\item \code{weakCompareAndSetIdentity(b: T, v: T): Boolean} -- Works like 
+\code{compareAndSetIdentity}, but allows spurious failures.
+\item \code{transform(f: T => T)} -- Atomically replaces the value \code{v} stored in the \code{Ref}
+with \code{f(v)}.
+\item \code{getAndTransform(f: T => T): T} -- Atomically replaces the value \code{v} stored in the \code{Ref}
+with \code{f(v)}, returning the old value.
+\item \code{tryTransform(f: T => T): Boolean} -- Either atomically transforms this reference without 
+blocking and returns true, or returns false.
+\item \code{transformIfDef(pf: PartialFunction[T,T]): Boolean} -- Atomically replaces 
+the value \code{v} stored in the \code{Ref} with \code{f(v)},
+if \code{pf.isDefinedAt(v)} returning true, otherwise leaves the element unchanged and returns false.
+\end{packed_itemize}
+
+\subsection{Semantic conflict detection for reads}
+\label{sec:map}
+
+Unrecorded reads can be paired with life cycle callbacks to implement a simple
+yet powerful form of semantic conflict detection.  CCSTM's \type{Txn} allows the
+user to register a callback that will be invoked whenever the transaction's read
+set is validated.  If an unrecorded read is coupled with a callback that
+re-reads the value and performs a semantic validation, rollback may be avoided.
+We use this technique to implement a new abstraction:
+\lstset{numbers=none}
+\begin{lstlisting}
+trait Source[+A] {
+  def map[B](f: A => B)(implicit txn: Txn): B
+}
+\end{lstlisting}
+\lstset{numbers=left}
+\code{x.map(f)} returns the same value as \code{f(x.get)}, but no rollback
+is triggered if the post-application value does not change.  Without this
+semantic conflict detection, the STM must initiate rollback any time \code{x}
+is changed concurrently, even if that change is masked by the definition of
+\code{f}.
+
+Consider a branch that should be taken only if the transactional value of
+\code{x} is greater than 100, and assume that a concurrent transaction commits
+a change of \code{x} from 200 to 201:
+\lstset{numbers=none}
+\begin{lstlisting}
+  if (x.get > 100) { ... }
+\end{lstlisting}
+\lstset{numbers=left}
+When the comparison is performed directly by the caller, the STM must
+trigger an optimistic rollback for any concurrent write to \code{x}, even
+though
+the outcome of the conditional check is not affected.  If the comparison is
+moved inside \code{map} then no rollback is required:
+\lstset{numbers=none}
+\begin{lstlisting}
+  if (x.map(_ > 100)) { ... }
+\end{lstlisting}
+\lstset{numbers=left}
+By allowing the programmer to express more of his or her intention to CCSTM,
+\code{map} can reduce rollbacks, leading to better performance and scalability.
+

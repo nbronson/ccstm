@@ -1,0 +1,33 @@
+Number of accounts  = 8
+Initial amount      = 1000000.0
+Maximal transfer    = 10
+Read-all frequency  = 0%
+Write-all frequency = 0%
+Read-all threads    = 0
+Write-all threads   = 0
+Disjoint            = false
+Yield               = false
+
+Starting threads... 0 1 2 3 4 5 6 7
+End of warmup phase... 0 1 2 3 4 5 6 7
+End of test phase... 0 1 2 3 4 5 6 7
+Waiting for threads to finish...
+All threads returned successfully
+RESULTS:
+
+  Warmup duration (ms) = 4000
+  Test duration (ms)   = 10000
+  Nb iterations        = 12856975
+TOTAL: T=12856975, R=0, W=0
+
+TOTAL=8000000 [ 0=1007274.0 1=985679.0 2=1008780.0 3=991412.0 4=1011408.0 5=988828.0 6=1019732.0 7=986887.0 ]
+    0 : 1957462 (T=1957462, R=0, W=0)
+    1 : 2043420 (T=2043420, R=0, W=0)
+    2 : 2077326 (T=2077326, R=0, W=0)
+    3 : 1586386 (T=1586386, R=0, W=0)
+    4 : 922515 (T=922515, R=0, W=0)
+    5 : 1520338 (T=1520338, R=0, W=0)
+    6 : 1310064 (T=1310064, R=0, W=0)
+    7 : 1439464 (T=1439464, R=0, W=0)
+--- 28,116 MB collected in 0.046 secs (0.3% of total), longest GC took 0.009 secs
+DATA gc:  total_k 28790960  total_secs 0.045923  max_secs 0.009137

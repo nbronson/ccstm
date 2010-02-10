@@ -1,0 +1,85 @@
+#!/bin/bash
+
+# This is a wrapper for use of Scala in the CCSTM (concurrent collections
+# STM) project.  It reads ../system.properties to locate a Scala
+# installation and a JVM, setting up the appropriate classpath.  Unlike
+# the Scala wrapper, all JVM options may be configured as arguments.
+# Options will also be taken from the JAVA_OPTS and CLASSPATH environment
+# variables.  The wrapper adds short-forms for a few JVM settings that
+# are normally quite verbose.
+#
+# The command line options --gc=throughput, --gc=latency, and --gc=g1 are
+# recognized and expanded into options valid for a late-model 1.6 JVM.
+# The command line option --esc is recognized and is expanded into the
+# options required to perform escape analysis.  The command line option
+# --coop enables compressed OOPs.
+
+CCSTM_BASE=`dirname $0`/..
+
+while [ $# -gt 0 ]; do
+  DONE=no
+  case "$1" in
+    --gc=throughput) JAVA_OPTS="$JAVA_OPTS -XX:+UseParallelGC -XX:+UseParallelOldGC" ;;
+    --gc=latency) JAVA_OPTS="$JAVA_OPTS -XX:+UseConcMarkSweepGC" ;;
+    --gc=g1) JAVA_OPTS="$JAVA_OPTS -XX:+UnlockExperimentalVMOptions -XX:+UseG1GC" ;;
+    --esc) JAVA_OPTS="$JAVA_OPTS -XX:+UnlockExperimentalVMOptions -XX:+DoEscapeAnalysis" ;;
+    --coop) JAVA_OPTS="$JAVA_OPTS -XX:+UnlockExperimentalVMOptions -XX:+UseCompressedOops" ;;
+    --deuce) JAVA_OPTS="$JAVA_OPTS -javaagent:$CCSTM_BASE/bin/deuceAgent-1.2.0.jar" ;;
+    --tl2) JAVA_OPTS="$JAVA_OPTS -Dorg.deuce.transaction.contextClass=org.deuce.transaction.tl2.Context" ;;
+    --lsa) JAVA_OPTS="$JAVA_OPTS -Dorg.deuce.transaction.contextClass=org.deuce.transaction.lsa.Context" ;;
+    --multiverse) JAVA_OPTS="$JAVA_OPTS -javaagent:$CCSTM_BASE/bin/multiverse-alpha-0.4-SNAPSHOT.jar" ;;
+    -cp|-classpath)
+        if [ "x$CLASSPATH" != "x" ]; then
+          CLASSPATH="${CLASSPATH}:"
+        fi
+        CLASSPATH="${CLASSPATH}$2" 
+        shift 
+        ;;
+    -*) JAVA_OPTS="$JAVA_OPTS $1" ;;
+    *) DONE=yes
+  esac
+  if [ $DONE = yes ]; then
+    break
+  fi
+  shift
+done
+
+
+PROPS=$CCSTM_BASE/system.properties
+
+if [ ! -f "$PROPS" ]; then
+  echo "Unable to locate properties file $PROPS" 1>&2
+  exit 1
+fi
+
+JAVA_CMD=`awk -F= '$1=="jdk.home" {print $2 "/bin/java"} $1=="java.cmd" {print $2}' $PROPS`
+JAVA_CMD=`sh -c "echo $JAVA_CMD"`
+if [ "x$JAVA_CMD" = "x" ]; then
+  echo "Unable to load jdk.home or java.cmd from properties file $PROPS" 1>&2
+  exit 1
+fi
+if [ ! -x "$JAVA_CMD" ]; then
+  echo "JVM '$JAVA_CMD' specified in properties file $PROPS is not executable" 1>&2
+  exit 1
+fi
+
+# CLASSPATH should include whatever was passed in on the command
+# line, target/classes, target/test-classes, all of the JARs in
+# lib_managed/compile, and then the core Scala libs.
+if [ "x$CLASSPATH" != "x" ]; then
+  CLASSPATH="${CLASSPATH}:"
+fi
+CLASSPATH="${CLASSPATH}$CCSTM_BASE/target/classes:$CCSTM_BASE/target/test-classes"
+for j in "$CCSTM_BASE"/lib_managed/compile/*.jar; do
+  CLASSPATH="${CLASSPATH}:$j"
+done
+
+
+GCLOG="/tmp/.$$.gc"
+trap "$CCSTM_BASE/bin/gclog_summary $GCLOG ; rm -f $GCLOG" EXIT
+
+"$JAVA_CMD" \
+    $JAVA_OPTS \
+    -Xloggc:$GCLOG \
+    -cp "$CLASSPATH" "$@"
+

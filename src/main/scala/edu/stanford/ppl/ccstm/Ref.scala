@@ -147,7 +147,7 @@ object Ref {
     def getAndTransform(f: T => T): T
 
     /** Either atomically transforms this reference without blocking and
-     *  returns true, or returns false.  <code>getAndTransform</code> is to
+     *  returns true, or returns false.  <code>transform</code> is to
      *  <code>tryTransform</code> as <code>set</code> is to
      *  <code>tryWrite</code>.
      *  @param f a function that is safe to call multiple times, and safe to

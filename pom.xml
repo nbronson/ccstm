@@ -56,12 +56,31 @@
       <version>1.0</version>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>org.deuce</groupId>
+      <artifactId>deuceAgent</artifactId>
+      <version>1.2</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.multiverse</groupId>
+      <version>0.4-SNAPSHOT</version>
+      <artifactId>multiverse</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
-    <sourceDirectory>src/main/scala</sourceDirectory>
-    <testSourceDirectory>src/test/scala</testSourceDirectory>
     <plugins>
+      <plugin>
+	<groupId>org.apache.maven.plugins</groupId>
+	<artifactId>maven-compiler-plugin</artifactId>
+	<version>2.0.2</version>
+	<configuration>
+          <source>1.6</source>
+          <target>1.6</target>
+	</configuration>
+      </plugin>
       <plugin>
         <groupId>org.scala-tools</groupId>
         <artifactId>maven-scala-plugin</artifactId>

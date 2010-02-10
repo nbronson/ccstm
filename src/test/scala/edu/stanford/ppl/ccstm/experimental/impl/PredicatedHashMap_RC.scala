@@ -9,7 +9,7 @@ import java.util.concurrent.ConcurrentHashMap
 import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm.{STM, Txn}
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater
-import edu.stanford.ppl.ccstm.collection.{TAnyRef, LazyConflictIntRef}
+import edu.stanford.ppl.ccstm.collection.TAnyRef
 
 
 object PredicatedHashMap_RC {
@@ -34,7 +34,9 @@ class PredicatedHashMap_RC[A,B] extends TMap[A,B] {
     }
 
     override def replace(key: A, oldValue: Pred[B], newValue: Pred[B]): Boolean = {
-      STM.resurrect(key.hashCode, newValue)
+      val h = key.hashCode
+      STM.embalm(h, oldValue)
+      STM.resurrect(h, newValue)
       super.replace(key, oldValue, newValue)
     }
 

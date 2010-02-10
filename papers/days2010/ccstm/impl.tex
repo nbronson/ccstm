@@ -1,0 +1,119 @@
+
+CCSTM's implementation is modeled on SwissTM~\cite{dragojevic09swisstm}.  Version
+management is lazy, but write permission is acquired eagerly.  Time-stamps
+are allocated 51 bits, making CCSTM immune from counter overflow in all
+but the most demanding production environments.
+
+\subsection{Meta-data indirection}
+
+Meta-data for a managed memory location consists of a single \keyword{long}.
+It is assumed that each memory location maps to a unique meta-data value, but
+not vice versa.  This allows objects with multiple fields to use
+a single piece of meta-data, and it allows arrays to choose a variety of
+granularities of conflict detection.  While some optimizations are possible for
+situations where the data-to-meta-data mapping is one-to-one, in informal
+experiments we found that the benefits were smaller than the additional
+indirection costs.
+
+\type{Ref}s perform their accesses to both data and meta-data through
+methods of an internal trait called a \type{Holder}.  This indirection
+allows multiple storage strategies to be easily provided, which can
+yield an important reduction in the number of live objects in the VM.
+For example, if the static or manifest type of the initial value is known
+to be an \keyword{int}, then the \type{Ref} factory method will return
+a reference whose holder stores the value in an unboxed form.  As a
+more extreme example, CCSTM provides a transactional array-like class
+that internally uses one array for values and one array for meta-data,
+eliminating the $n$ intermediate objects that would be required by an
+\ytype{Array}{\xtype{Ref}{A}}.  In some cases these storage optimizations
+return CCSTM to par with a VM-integrated STM, in some cases they make
+CCSTM's representation more compact.
+
+\subsection{Global time-stamp optimizations}
+
+To reduce contention on the shared time-stamp, CCSTM uses TL2's GV6
+scheme~\cite{dice06tl2}.  This mechanism is based on the observation
+that, while committed values must be given a time-stamp later than the
+version clock that was present at the beginning of the commit, it is
+not required that the global clock is actually advanced.  Advancing the
+global clock reduces the need for validation in later transactions,
+but when many threads are using the STM, this goal is satisfied even if
+only a fraction of transactions attempt to advance the current time.
+
+CCSTM performs a novel additional optimization to reduce the overhead
+of non-transactional accesses.  Unlike a transaction, a solitary
+strongly-isolated read or write in a TL2-style STM does not need to
+sample the global clock to provide opacity.  This means that we can allow
+a sequence of non-transactional writes to advance a reference's time-stamp to
+an arbitrary point in the future, without advancing the global time-stamp.
+If a transaction attempts to read such a far-future value it handles
+it via the normal GV6 mechanism, by advancing the global time-stamp and
+then revalidating.  To limit the potential impact of these booby-trapped
+references, we only allow non-transactional writes to advance time-stamps
+a limited distance into the future.  Even a small window (CCSTM defaults
+to 8) dramatically reduces contention on the global time-stamp.
+
+\subsection{Avoiding starvation}
+
+Optimistic concurrency control is vulnerable to the \textit{starving
+elder} problem, in which a large transaction can never be committed because
+it is continually violated by small transactions.  CCSTM uses a simple
+contention manage scheme to prevent this.  Each execution attempt is
+assigned a random priority that is used to resolve write-write conflicts.
+If a transaction has not yet begun to commit, then a higher priority
+transaction may doom it and steal its locks.  In addition, transactions
+that have already failed several times enter a `barging' mode in which
+they acquire write permission during reads.  The result is that even
+large transactions will eventually succeed, because they will eventually
+receive the highest priority in the system.
+
+\subsection{Polite blocking}
+
+An important design goal for CCSTM is support for incremental use inside
+a larger application.  This means that exponential back-off is not a
+suitable mechanism for blocking.  Many STMs target parallel speedups
+for CPU-bound applications.  Assumed (often implicitly) is that all
+threads belong to the STM and that the number of software threads can be
+chosen to match the number of hardware execution contexts.  CCSTM makes
+neither of these assumptions, and so takes care to block using the normal
+synchronization primitives of the underlying VM.
+
+Blocking may be required to obtain write permission, or because of an
+explicit use of the \code{retry} primitive.  Writers and waiters must
+agree on a condition variable that will be used to signal that the
+waiter should re-attempt whatever action led to their choice to block.
+If the set of condition variables is too small, there will be many
+spurious wakeups.  If the set is too large, then transaction commit may need to
+perform a large amount of extra work.
+
+Accesses that are blocked by another transaction await notification
+on the \type{Txn} instance itself.  No such instance is available for
+threads blocked by a non-transactional write, or that are performing a
+conditional retry, so the system also maintains 64 lists we refer to as
+`wakeup channels'.  These channels contain a list of pending wakeups,
+which are single-shot gates (compare to Java's \type{CountDownLatch}
+with a count of 1).  Each memory location is associated with a wakeup
+channel by hashing its identity.  To await the modification of a
+memory location, a thread enqueues a new pending wakeup instance,
+sets a `wakeup pending' bit in the location's meta-data, rechecks the
+blocking condition, and then puts itself to sleep on the gate.  If an
+update notices the wakeup pending bit, it triggers and removes all of
+the pending wakeups for the corresponding channel.  A thread may wait on
+multiple memory locations simultaneously by enqueuing its pending wakeup
+instance to multiple channels.  The choice of 64 wakeup channels makes
+it easy to accumulate the effects of a transaction in a \keyword{long}.
+If a system makes extremely heavy use of the \code{retry} mechanism by
+having many blocked threads, a larger number of channels may be required.
+
+\subsection{JVM versus CLR}
+
+Scala is designed to target both the JVM and the CLR virtual
+machines.  In its current implementation, CCSTM uses the following
+classes from \type{java.util.concurrent} to implement atomic
+compare-and-swap for fields and array elements: \type{AtomicInteger},
+\type{AtomicLong}, \type{AtomicLongArray}, \type{AtomicReferenceArray},
+\type{At\-om\-ic\-LongFieldUpdater}, and \type{AtomicReferenceField\-Up\-dat\-er}.
+The authors are not experts in the CLR memory model, but we believe
+that it would be straightforward to retarget CCSTM to the CLR by using
+methods in \type{System::Threading::Interlocked}.
+

@@ -1,0 +1,14 @@
+
+CCSTM demonstrates that it is possible to provide a library-only
+implementation of STM for Scala.  The resulting
+syntax is relatively concise and the performance is on par with a bytecode
+rewriting STM.  The transactional references that encode CCSTM's interface
+add some clutter to the user's code, but they also provide a natural way
+for the programmer to take advantage of more sophisticated features such
+as semantic conflict detection.
+
+We found that the primary challenge in our approach was that statically
+scoped transactions reduce composability.  The next step for CCSTM is
+to explore a hybrid approach that uses static scopes for barriers but
+dynamic scopes to coordinate nested transactions.
+
