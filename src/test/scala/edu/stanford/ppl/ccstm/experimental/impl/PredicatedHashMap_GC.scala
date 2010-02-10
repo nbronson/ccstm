@@ -32,7 +32,9 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
     }
 
     override def replace(key: A, oldValue: Predicate[B], newValue: Predicate[B]): Boolean = {
-      STM.resurrect(key.hashCode, newValue)
+      val h = key.hashCode
+      STM.embalm(h, oldValue)
+      STM.resurrect(h, newValue)
       super.replace(key, oldValue, newValue)
     }
 
