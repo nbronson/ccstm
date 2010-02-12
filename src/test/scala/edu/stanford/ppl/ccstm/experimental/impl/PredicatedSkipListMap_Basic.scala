@@ -9,48 +9,49 @@ import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm.{STM, Txn}
 import java.util.concurrent.ConcurrentSkipListMap
 import edu.stanford.ppl.ccstm.collection.{TIntRef, TOptionRef}
+import edu.stanford.ppl.util.PeekableCSLMap
 
 // TODO: use Ordered or Ordering
 
 object PredicatedSkipListMap_Basic {
   class Predicate[B] extends TOptionRef[B](None) {
     @volatile var leftNotified = false
-    @volatile var rightNotified = false
-    val predInsCount = new TIntRef(0)
+//    @volatile var rightNotified = false
+//    val predInsCount = new TIntRef(0)
     val succInsCount = new TIntRef(0)
   }
 
-  val iterNextValueField = {
-    val f = Class.forName("java.util.concurrent.ConcurrentSkipListMap$Iter").getDeclaredField("nextValue")
-    f.setAccessible(true)
-    f
-  }
-
-  val subMapIterNextValueField = {
-    val f = Class.forName("java.util.concurrent.ConcurrentSkipListMap$SubMap$SubMapIter").getDeclaredField("nextValue")
-    f.setAccessible(true)
-    f
-  }
-
-  def iterPeek[A,B](iter: java.util.Iterator[java.util.Map.Entry[A,B]]): B = {
-    // look for a field named "nextValue"
-    iterNextValueField.get(iter).asInstanceOf[B]
-  }
-
-  def subMapIterPeek[A,B](iter: java.util.Iterator[java.util.Map.Entry[A,B]]): B = {
-    // look for a field named "nextValue"
-    subMapIterNextValueField.get(iter).asInstanceOf[B]
-  }
+//  val iterNextValueField = {
+//    val f = Class.forName("java.util.concurrent.ConcurrentSkipListMap$Iter").getDeclaredField("nextValue")
+//    f.setAccessible(true)
+//    f
+//  }
+//
+//  val subMapIterNextValueField = {
+//    val f = Class.forName("java.util.concurrent.ConcurrentSkipListMap$SubMap$SubMapIter").getDeclaredField("nextValue")
+//    f.setAccessible(true)
+//    f
+//  }
+//
+//  def iterPeek[A,B](iter: java.util.Iterator[java.util.Map.Entry[A,B]]): B = {
+//    // look for a field named "nextValue"
+//    iterNextValueField.get(iter).asInstanceOf[B]
+//  }
+//
+//  def subMapIterPeek[A,B](iter: java.util.Iterator[java.util.Map.Entry[A,B]]): B = {
+//    // look for a field named "nextValue"
+//    subMapIterNextValueField.get(iter).asInstanceOf[B]
+//  }
 }
 
 class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
   import PredicatedSkipListMap_Basic._
 
-  private val predicates = new ConcurrentSkipListMap[A,Predicate[B]]
+  private val predicates = new PeekableCSLMap[A,Predicate[B]]
   private val firstInsCount = new TIntRef(0)
-  private val lastInsCount = new TIntRef(0)
+  //private val lastInsCount = new TIntRef(0)
 
-  def nonTxn: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedSkipListMap_Basic[A,B]](this) {
+  def nonTxn = new TMap.AbstractNonTxnBound[A,B,PredicatedSkipListMap_Basic[A,B]](this) {
 
     def get(key: A): Option[B] = {
       // if no predicate exists, then we don't need to create one
@@ -89,19 +90,18 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
 //    }
 
     def elements: Iterator[(A,B)] = new Iterator[(A,B)] {
-      val iter = predicates.keySet().iterator
+      val iter = predicates.keySet().iterator.asInstanceOf[PeekableCSLMap.PeekIterator[A,Predicate[B]]]
       var avail: (A,B) = null
       advance()
 
       private def advance() {
         while (iter.hasNext) {
+          val p = iter.peekValue()
           val k = iter.next()
-          get(k) match {
-            case Some(v) => {
-              avail = (k,v)
-              return
-            }
-            case None => // keep looking
+          val vOpt = p.nonTxn.get
+          if (!vOpt.isEmpty) {
+            avail = (k, vOpt.get)
+            return
           }
         }
         avail = null
@@ -128,11 +128,13 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
       //  1) don't use an iterator, but just repeatedly apply higherEntry
       //  2) use two iterators, with one running just ahead of the second
       //  3) hack in a peek() operator using reflection
+      //  4) duplicate the entire code for ConcurrentSkipListMap
       // Option (1) will have bad performance.  Option (2) seems very
       // complicated, because the iterators may not see the same set of
-      // entries.  Therefore, we go with option (3).
+      // entries.  Option (3) is brittle, because the library may change.
+      // Therefore, we go with option (4).
 
-      val iter = predicates.entrySet().iterator()
+      val iter = predicates.keySet().iterator.asInstanceOf[PeekableCSLMap.PeekIterator[A,Predicate[B]]]
 
       return new Iterator[(A,B)] {
         var avail: (A,B) = null
@@ -143,16 +145,13 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
             // Before iter.next() returns X, it will first find X's successor.
             // We need to perform the read of X.succInsCount before it does
             // that.
-            val succPred = iterPeek(iter)
-            succPred.succInsCount.get
-            val succEntry = iter.next
-            assert (succPred eq succEntry.getValue)
-            succPred.get match {
-              case Some(v) => {
-                avail = (succEntry.getKey, v)
-                return
-              }
-              case None => {}
+            val p = iter.peekValue()
+            p.succInsCount.get
+            val k = iter.next
+            val vOpt = p.get
+            if (!vOpt.isEmpty) {
+              avail = (k, vOpt.get)
+              return
             }
           }
           avail = null
@@ -190,44 +189,96 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
   }
 
   def higher(key: A)(implicit txn: Txn): Option[(A,B)] = {
-    // There's a bit of a catch-22, because we can't find the insCount that
-    // protects our range access until we've performed the access.  Also, we
-    // may have to skip one or more predicates until we find one that actually
-    // contains a value.
-    val tail = predicates.tailMap(key, false)
+    // Since we can only protect traversals to the successor, we need to find
+    // a usable predicate to the left of key to protect against insertions.
+    val below = predicates.floorEntry(key)
+    if (below == null) higherFromFirst(key) else higherFromLower(key, below)
+  }
 
-    val first = tail.firstEntry
-    if (null == first) {
-      // changes to the tail must adjust lastInsCount
-      lastInsCount.get
-    } else {
-      // changes to the head of the tail must change the predInsCount of first
-      first.getValue.predInsCount.get
-    }
-
-    // for the second (protected) read we will use an iterator, so that we can
-    // keep going if we see absent entries
-    val iter = tail.entrySet.iterator
-    var availValue = subMapIterPeek(iter)
-    if (availValue ne (if (null == first) null else first.getValue)) {
-      // the insCount we read was not the right one, try again
-      return higher(key)
-    }
-
-    // we can now iterate as in bind.elements
-    while (null != availValue) {
-      availValue.get match {
-        case Some(v) => {
-          // no protection for iter.next needed, because we just want the key
-          return Some((iter.next.getKey, v))
+  private def higherFromFirst(key: A)(implicit txn: Txn): Option[(A,B)] = {
+    // this read protects the traversal to the first element
+    firstInsCount.get
+    val iter = predicates.keySet().iterator.asInstanceOf[PeekableCSLMap.PeekIterator[A,Predicate[B]]]
+    var avail: (A,B) = null
+    while (iter.hasNext) {
+      val p = iter.peekValue()
+      // this read protects the traversal to e's successor that will occur when
+      // iter.next() is called
+      p.succInsCount.get
+      val k = iter.next()
+      if (k.asInstanceOf[Comparable[A]].compareTo(key) > 0) {
+        val vOpt = p.get
+        if (!vOpt.isEmpty) {
+          return Some((k, vOpt.get))
         }
-        case None => {} // keep searching
       }
-      availValue.succInsCount.get
-      iter.next
     }
     return None
   }
+
+  private def higherFromLower(key: A, lowerEntry: java.util.Map.Entry[A,Predicate[B]])(implicit txn: Txn): Option[(A,B)] = {
+    // In a system that GC-ed predicates we would have to verify that key was
+    // still present, but we're safe in this particular implementation.
+
+    // this read protects the traversal to lowerEntry's successor
+    lowerEntry.getValue.succInsCount.get
+    val tail = predicates.tailMap(lowerEntry.getKey, false)
+    val iter = tail.keySet().iterator.asInstanceOf[PeekableCSLMap.PeekIterator[A,Predicate[B]]]
+    var avail: (A,B) = null
+    while (iter.hasNext) {
+      val p = iter.peekValue()
+      // this read protects the traversal to e's successor that will occur when
+      // iter.next() is called
+      p.succInsCount.get
+      val k = iter.next()
+      val vOpt = p.get
+      if (!vOpt.isEmpty) {
+        return Some((k, vOpt.get))
+      }
+    }
+    return None
+  }
+
+  // TODO: replace with a version that goes left, then searches right using succInsCount only
+//  def higher(key: A)(implicit txn: Txn): Option[(A,B)] = {
+//    // There's a bit of a catch-22, because we can't find the insCount that
+//    // protects our range access until we've performed the access.  Also, we
+//    // may have to skip one or more predicates until we find one that actually
+//    // contains a value.
+//    val tail = predicates.tailMap(key, false)
+//
+//    val first = tail.firstEntry
+//    if (null == first) {
+//      // changes to the tail must adjust lastInsCount
+//      lastInsCount.get
+//    } else {
+//      // changes to the head of the tail must change the predInsCount of first
+//      first.getValue.predInsCount.get
+//    }
+//
+//    // for the second (protected) read we will use an iterator, so that we can
+//    // keep going if we see absent entries
+//    val iter = tail.entrySet.iterator
+//    var availValue = subMapIterPeek(iter)
+//    if (availValue ne (if (null == first) null else first.getValue)) {
+//      // the insCount we read was not the right one, try again
+//      return higher(key)
+//    }
+//
+//    // we can now iterate as in bind.elements
+//    while (null != availValue) {
+//      availValue.get match {
+//        case Some(v) => {
+//          // no protection for iter.next needed, because we just want the key
+//          return Some((iter.next.getKey, v))
+//        }
+//        case None => {} // keep searching
+//      }
+//      availValue.succInsCount.get
+//      iter.next
+//    }
+//    return None
+//  }
 
 //  override def transform(key: A, f: (Option[B]) => Option[B])(implicit txn: Txn) {
 //    predicateForInsert(key).transform(f)
@@ -262,7 +313,7 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
     val p = predicateForNonInsert(key)
 
     leftNotify(key, p)
-    rightNotify(key, p)
+    //rightNotify(key, p)
     return p
   }
 
@@ -282,21 +333,21 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
     }
     p.leftNotified = true
   }
-  
-  private def rightNotify(key: A, p: Predicate[B]) {
-    if (p.rightNotified) return
-
-    val before = predicates.higherEntry(key)
-    if (p.rightNotified) return
-  
-    if (null == before) {
-      lastInsCount.nonTxn += 1
-    } else {
-      rightNotify(before.getKey, before.getValue)
-      if (p.rightNotified) return
-
-      before.getValue.succInsCount.nonTxn += 1
-    }
-    p.rightNotified = true
-  }
+//
+//  private def rightNotify(key: A, p: Predicate[B]) {
+//    if (p.rightNotified) return
+//
+//    val after = predicates.higherEntry(key)
+//    if (p.rightNotified) return
+//
+//    if (null == after) {
+//      lastInsCount.nonTxn += 1
+//    } else {
+//      rightNotify(after.getKey, after.getValue)
+//      if (p.rightNotified) return
+//
+//      after.getValue.predInsCount.nonTxn += 1
+//    }
+//    p.rightNotified = true
+//  }
 }
