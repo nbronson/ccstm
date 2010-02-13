@@ -69,7 +69,7 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
       if (null == p) None else p.nonTxn.getAndSet(None)
     }
 
-    def higher(key: A): Option[(A,B)] = {
+    override def higher(key: A): Option[(A,B)] = {
       // we use a txn, because the value read must be consistent with the
       // protecting insCount reads
       STM.atomic(unbind.higher(key)(_))
@@ -165,6 +165,8 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
         }
       }
     }
+
+    override def higher(key: A): Option[(A,B)] = unbind.higher(key)(txn)
   }
 
   def isEmpty(implicit txn: Txn): Boolean = bind.elements.hasNext

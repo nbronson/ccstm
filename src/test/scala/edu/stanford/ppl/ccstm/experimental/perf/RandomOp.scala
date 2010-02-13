@@ -13,7 +13,8 @@ object RandomOp {
   val LeadingAdds = System.getProperty("leading-adds", "0").toInt
   val AddPct = System.getProperty("add-pct", "20").toInt
   val RemovePct = System.getProperty("remove-pct", "10").toInt
-  val GetPct = 100 - AddPct - RemovePct
+  val HigherPct = System.getProperty("higher-pct", "0").toInt
+  val GetPct = 100 - AddPct - RemovePct - HigherPct
   val TxnSize = System.getProperty("txn-size", "2").toInt
   val TxnOpPct = System.getProperty("txn-op-pct", "0").toInt
   val TxnNoReadOnlyCommit = "1tTyY".indexOf((System.getProperty("txn-no-ro-commit", "") + "f").charAt(0)) >= 0
@@ -21,6 +22,7 @@ object RandomOp {
   println("RandomOp.LeadingAdds = " + LeadingAdds)
   println("RandomOp.AddPct = " + AddPct)
   println("RandomOp.RemovePct = " + RemovePct)
+  println("RandomOp.HigherPct = " + HigherPct)
   println("RandomOp.GetPct = " + GetPct)
   println("RandomOp.TxnSize = " + TxnSize)
   println("RandomOp.TxnOpPct = " + TxnOpPct)
@@ -69,6 +71,8 @@ class RandomOp extends Perf.Worker {
               doTxnPut(k, Values(rng.nextInt(Values.length)))
             } else if (r < AddPct + RemovePct) {
               doTxnRemove(k)
+            } else if (r < AddPct + RemovePct + HigherPct) {
+              doTxnHigher(k)
             } else {
               doTxnGet(k)
             }
@@ -83,6 +87,8 @@ class RandomOp extends Perf.Worker {
           doPut(k, Values(rng.nextInt(Values.length)))
         } else if (r < AddPct + RemovePct) {
           doRemove(k)
+        } else if (r < AddPct + RemovePct + HigherPct) {
+          doHigher(k)
         } else {
           doGet(k)
         }
