@@ -24,8 +24,8 @@ object BoostedMergedHashMap_Basic {
   class BasicMergedLockHolder[A] extends OnDemandMap[A,Entry] with LockHolder[A] {
     def newValue(key: A) = new Entry
 
-    def existingReadLock(key: A) = existing(key)
-    def existingWriteLock(key: A) = existing(key)
+    override def existingReadLock(key: A) = existing(key)
+    override def existingWriteLock(key: A) = existing(key)
     def readLock(key: A) = this(key)
     def writeLock(key: A) = this(key)
   }
