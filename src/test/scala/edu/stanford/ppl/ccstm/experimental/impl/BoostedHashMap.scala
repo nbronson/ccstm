@@ -136,8 +136,10 @@ object BoostedHashMap {
   //////// per-key lock management strategies
 
   trait LockHolder[A] {
-    def existingReadLock(key: A): Lock
-    def existingWriteLock(key: A): Lock
+    // for a lock holder that performs GC, existingReadLock and
+    // existingWriteLock must forward to readLock and writeLock 
+    def existingReadLock(key: A): Lock = readLock(key)
+    def existingWriteLock(key: A): Lock = writeLock(key)
     def readLock(key: A): Lock
     def writeLock(key: A): Lock
     def returnUnused(lock: Lock) {}
@@ -147,8 +149,8 @@ object BoostedHashMap {
   class BasicLockHolder[A] extends OnDemandMap[A,Lock] with LockHolder[A] {
     def newValue(key: A) = new ReentrantLock
 
-    def existingReadLock(key: A) = existing(key)
-    def existingWriteLock(key: A) = existing(key)
+    override def existingReadLock(key: A) = existing(key)
+    override def existingWriteLock(key: A) = existing(key)
     def readLock(key: A) = this(key)
     def writeLock(key: A) = this(key)
   }
@@ -157,8 +159,8 @@ object BoostedHashMap {
   class RWLockHolder[A] extends OnDemandMap[A,ReadWriteLock] with LockHolder[A] {
     def newValue(key: A) = new ReentrantReadWriteLock
 
-    def existingReadLock(key: A) = existing(key).readLock
-    def existingWriteLock(key: A) = existing(key).writeLock
+    override def existingReadLock(key: A) = existing(key).readLock
+    override def existingWriteLock(key: A) = existing(key).writeLock
     def readLock(key: A) = this(key).readLock
     def writeLock(key: A) = this(key).writeLock
   }
@@ -167,8 +169,6 @@ object BoostedHashMap {
   class GCLockHolder[A] extends WeakOnDemandMap[A,Lock] with LockHolder[A] {
     def newValue(key: A) = new ReentrantLock
 
-    def existingReadLock(key: A) = existing(key)
-    def existingWriteLock(key: A) = existing(key)
     def readLock(key: A) = this(key)
     def writeLock(key: A) = this(key)
   }
@@ -177,8 +177,6 @@ object BoostedHashMap {
   class GCRWLockHolder[A] extends WeakOnDemandMap[A,ReadWriteLock] with LockHolder[A] {
     def newValue(key: A) = new ReentrantReadWriteLock
 
-    def existingReadLock(key: A) = existing(key).readLock
-    def existingWriteLock(key: A) = existing(key).writeLock
     def readLock(key: A) = this(key).readLock
     def writeLock(key: A) = this(key).writeLock
   }
@@ -249,11 +247,6 @@ object BoostedHashMap {
   class RCLockHolder[A] extends OnDemandMap[A,RCLock[A]] with LockHolder[A] {
     def newValue(key: A) = new RCLock(key, underlying)
 
-    def existingReadLock(key: A) = {
-      val e = existing(key)
-      if (null == e) null else e.enter()
-    }
-    def existingWriteLock(key: A) = existingReadLock(key)
     def readLock(key: A) = this(key).enter()
     def writeLock(key: A) = this(key).enter()
     override def returnUnused(lock: Lock) = lock.asInstanceOf[RCLock[A]].exit()
@@ -311,12 +304,6 @@ object BoostedHashMap {
 
   class LazyLockHolder[A] extends LockHolder[A] {
     val underlying = new ConcurrentHashMap[A,LockRef]
-
-    def existingReadLock(key: A) = {
-      val e = underlying.get(key)
-      if (null == e) null else e.enter()
-    }
-    def existingWriteLock(key: A) = existingReadLock(key)
 
     def readLock(key: A) = get(key)
     def writeLock(key: A) = get(key)
@@ -458,7 +445,8 @@ class BoostedHashMap[A,B](lockHolder: BoostedHashMap.LockHolder[A], enumLock: Re
   val nonTxn: TMap.Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,BoostedHashMap[A,B]](BoostedHashMap.this) {
 
     def get(key: A): Option[B] = {
-      // TODO: remove this incorrect optimization
+      // lockHolder implementations that garbage collect locks cannot perform
+      // the existingReadLock optimization
       val lock = lockHolder.existingReadLock(key)
       if (lock == null) {
         None
