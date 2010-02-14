@@ -23,7 +23,26 @@ class PredicatedHashMap_Basic[A,B] extends TMap[A,B] {
     }
 
     override def put(key: A, value: B): Option[B] = {
-      NullValue.decodeOption(pred(key).nonTxn.getAndSet(NullValue.encode(value)))
+      val p = predicates.get(key)
+      if (null == p) {
+        putNew(key, value)
+      } else {
+        NullValue.decodeOption(p.nonTxn.getAndSet(NullValue.encode(value)))
+      }
+    }
+
+    private def putNew(key: A, value: B): Option[B] = {
+      // if no predicate exists, then we can put the value in the
+      // predicate during construction and linearize at the putIfAbsent
+      val fresh = new TAnyRef[AnyRef](NullValue.encode(value))
+      val race = predicates.putIfAbsent(key, fresh)
+      if (null == race) {
+        // our predicate won
+        None
+      } else {
+        // normal read from the existing predicate
+        NullValue.decodeOption(race.nonTxn.getAndSet(NullValue.encode(value)))
+      }
     }
 
     override def removeKey(key: A): Option[B] = {

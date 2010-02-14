@@ -15,7 +15,7 @@ import edu.stanford.ppl.ccstm.collection.TAnyRef
 object PredicatedHashMap_RC {
   private val refCountUpdater = (new Pred[Int]).newUpdater
 
-  class Pred[B] extends TAnyRef[AnyRef](null) {
+  class Pred[B](init0: AnyRef) extends TAnyRef[AnyRef](init0) {
     def newUpdater = AtomicIntegerFieldUpdater.newUpdater(classOf[Pred[_]], "_refCount")
     @volatile private var _refCount = 1
 
@@ -56,12 +56,35 @@ class PredicatedHashMap_RC[A,B] extends TMap[A,B] {
     }
 
     override def put(key: A, value: B): Option[B] = {
-      val p = enter(key)
-      val prev = p.nonTxn.getAndSet(NullValue.encode(value))
+      // this is like enter()
+      var p = predicates.get(key)
+      var fresh: Pred[B] = null
+      do {
+        if (null != p) {
+          var rc = p.refCount
+          while (rc > 0) {
+            if (p.refCountCAS(rc, rc + 1)) {
+              // successfully entered a predicate that was not
+              return putExisting(key, value, p)
+            }
+            rc = p.refCount
+          }
+          predicates.remove(key, p)
+        }
+        fresh = new Pred[B](NullValue.encode(value))
+        p = predicates.putIfAbsent(key, fresh)
+      } while (null != p)
+      // our fresh predicate won
+      None
+    }
+
+    private def putExisting(key: A, value: B, pred: Pred[B]): Option[B] = {
+      val prev = pred.nonTxn.getAndSet(NullValue.encode(value))
       if (null != prev) {
-        exit(key, p, 1)
+        exit(key, pred, 1)
         Some(NullValue.decode(prev))
       } else {
+        // bonus cancels out exit
         None
       }
     }
@@ -236,7 +259,7 @@ class PredicatedHashMap_RC[A,B] extends TMap[A,B] {
         }
         predicates.remove(k, p)
       }
-      fresh = new Pred[B]
+      fresh = new Pred[B](null)
       p = predicates.putIfAbsent(k, fresh)
     } while (null != p)
     fresh

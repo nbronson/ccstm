@@ -19,7 +19,10 @@ private object PredicatedHashMap_GC {
   private class Token
 
   // we extend from TIdentityPairRef opportunistically
-  private class Predicate[B](val softRef: CleanableRef[Token]) extends TIdentityPairRef[Token,B](null)
+  private class Predicate[B](val softRef: CleanableRef[Token], tok: Token, value: B) extends
+      TIdentityPairRef[Token,B](tok, value) {
+    def this(softRef0: CleanableRef[Token]) = this(softRef0, null, null.asInstanceOf[B])
+  }
 }
 
 class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
@@ -64,14 +67,14 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
       } else {
         val freshToken = new Token
         val freshRef = new TokenRef(unbind, key, freshToken)
-        val freshPred = new Predicate[B](freshRef)
+        val freshPred = new Predicate[B](freshRef, freshToken, value)
         freshRef.pred = freshPred
 
         if (null == pred) {
           val racingPred = predicates.putIfAbsent(key, freshPred)
           if (null == racingPred) {
-            // successful
-            putImpl(value, freshToken, freshPred)
+            // our predicate was installed, no isolation barrier necessary
+            None
           } else {
             // we've got the predicate that beat us to it, try with that one
             putImpl(key, value, racingPred)
@@ -79,7 +82,7 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
         } else {
           if (predicates.replace(key, pred, freshPred)) {
             // successful
-            putImpl(value, freshToken, freshPred)
+            None
           } else {
             // failure, but replace doesn't give us the old one
             putImpl(key, value, predicates.get(key))
