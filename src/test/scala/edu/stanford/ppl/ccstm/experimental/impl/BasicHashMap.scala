@@ -8,12 +8,12 @@ import reflect.Manifest
 import edu.stanford.ppl.ccstm.experimental.TMap
 import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm._
-import collection.{StripedIntRef, TArray}
+import collection.{LazyConflictIntRef, TArray}
 import impl.MetaHolder
 
 class BasicHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TMap[K,V] {
   private val bucketsRef = Ref(new TArray[BHMBucket[K,V]](16, TArray.MaximizeParallelism))
-  private val sizeRef = new StripedIntRef(0)
+  private val sizeRef = new LazyConflictIntRef(0)
 
   private def hash(key: K) = {
     // this is the bit mixing code from java.util.HashMap
@@ -126,6 +126,7 @@ class BasicHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TMap[
         } else {
           prev.next = next
         }
+        sizeRef -= 1
         return Some(node.value)
       }
       prev = node
