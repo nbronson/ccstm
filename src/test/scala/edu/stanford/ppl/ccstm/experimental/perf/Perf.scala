@@ -6,8 +6,7 @@ import management.{GarbageCollectorMXBean, ManagementFactory}
 import scala.collection.mutable.Map
 import edu.stanford.ppl.ccstm.experimental.TMap
 import edu.stanford.ppl.ccstm.experimental.impl.TMapFactory
-import edu.stanford.ppl.ccstm.Txn
-
+import edu.stanford.ppl.ccstm.{Atomic, Txn}
 /* Perf
  *
  * Copyright 2009 Nathan Bronson and Stanford University.
@@ -376,9 +375,14 @@ object Perf {
       //if (target.isInstanceOf[SnapMap[_,_]]) println(target)
       var count = 0
       currentOp = IterationOp
-      target.nonTxn.foreach(e => {
-        count += 1
-       })
+      new Atomic { def body {
+        count = 0
+        val iter = target.bind.elements
+        while (iter.hasNext) {
+          count += 1
+          iter.next()
+        }
+      }}.run()
       currentOp = NoOp
       counts.weightedAdd(IterationOp, count)
     }
