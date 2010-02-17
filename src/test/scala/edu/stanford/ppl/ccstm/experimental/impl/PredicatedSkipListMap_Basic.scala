@@ -7,9 +7,9 @@ package edu.stanford.ppl.ccstm.experimental.impl
 import edu.stanford.ppl.ccstm.experimental.TMap
 import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm.{STM, Txn}
-import java.util.concurrent.ConcurrentSkipListMap
 import edu.stanford.ppl.ccstm.collection.{TIntRef, TOptionRef}
 import edu.stanford.ppl.util.PeekableCSLMap
+import java.util.concurrent.atomic.AtomicInteger
 
 // TODO: use Ordered or Ordering
 
@@ -50,6 +50,7 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
   private val predicates = new PeekableCSLMap[A,Predicate[B]]
   private val firstInsCount = new TIntRef(0)
   //private val lastInsCount = new TIntRef(0)
+  private val bargingCount = new AtomicInteger(0)
 
   def nonTxn = new TMap.AbstractNonTxnBound[A,B,PredicatedSkipListMap_Basic[A,B]](this) {
 
@@ -118,7 +119,12 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
 
   def bind(implicit txn0: Txn): Bound[A, B] = new TMap.AbstractTxnBound[A,B,PredicatedSkipListMap_Basic[A,B]](txn0, this) {
     def elements: Iterator[(A,B)] = {
-      // this will cause the txn to be invalidated if we missed a key
+      if (txn.barging) {
+        bargingCount.getAndIncrement()
+        txn.afterCompletion(_ => { bargingCount.getAndDecrement() })
+      }
+
+      // this will cause the txn to be invalidated if we missed a leading key
       firstInsCount.get
 
       // Iteration is tricky, because the underlying iterator will already
@@ -322,12 +328,16 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
 
     val before = predicates.lowerEntry(key)
     if (p.leftNotified) return
-    
+
     if (null == before) {
       firstInsCount.nonTxn += 1
     } else {
       leftNotify(before.getKey, before.getValue)
       if (p.leftNotified) return
+
+      if (bargingCount.get > 0) {
+        firstInsCount.nonTxn.get
+      }
 
       before.getValue.succInsCount.nonTxn += 1
     }
