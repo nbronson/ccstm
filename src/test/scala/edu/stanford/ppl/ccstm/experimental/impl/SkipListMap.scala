@@ -106,7 +106,7 @@ class SkipListMap[A,B](implicit aMan: Manifest[A], bMan: Manifest[B]) extends TM
 
     val n = head.get
     val preds = new Array[SLNode[A,B]](n.links.length)
-    val hit = n.findInTail(key, n.links.length - 1, preds)
+    val hit = n.findInTailForPut(key, n.links.length - 1, preds)
     if (null != hit) {
       return Some(hit.swapValue(value))
     }
@@ -145,7 +145,7 @@ class SkipListMap[A,B](implicit aMan: Manifest[A], bMan: Manifest[B]) extends TM
   def removeKey(key: A)(implicit txn: Txn): Option[B] = {
     val n = head.get
     val preds = new Array[SLNode[A,B]](n.links.length)
-    val hit = n.findInTail(key, n.links.length - 1, preds)
+    val hit = n.findInTailForRemove(key, n.links.length - 1, preds)
     if (null == hit) {
       return None
     } else {
@@ -187,7 +187,7 @@ private class SLNode[A,B](val key: A, value0: B, height0: Int
     return null
   }
 
-  def findInTail(key: A, h: Int, preds: Array[SLNode[A,B]])(implicit txn: Txn): SLNode[A,B] = {
+  def findInTailForPut(key: A, h: Int, preds: Array[SLNode[A,B]])(implicit txn: Txn): SLNode[A,B] = {
     var i = h
     while (i >= 0) {
       val next = links(i)
@@ -198,7 +198,7 @@ private class SLNode[A,B](val key: A, value0: B, height0: Int
           return next
         } else if (c > 0) {
           // key is in tail of next
-          return next.findInTail(key, h, preds)
+          return next.findInTailForPut(key, i, preds)
         }
       }
       // this node is the last one at height i
@@ -208,4 +208,25 @@ private class SLNode[A,B](val key: A, value0: B, height0: Int
     return null
   }
 
+  def findInTailForRemove(key: A, h: Int, preds: Array[SLNode[A,B]])(implicit txn: Txn): SLNode[A,B] = {
+    var i = h
+    while (i >= 0) {
+      val next = links(i)
+      if (null != next) {
+        val c = key.asInstanceOf[Comparable[A]].compareTo(next.key)
+        if (i == 0 && c == 0) {
+          // preds must be filled in completely
+          preds(0) = this
+          return next
+        } else if (c > 0) {
+          // key is in tail of next
+          return next.findInTailForRemove(key, i, preds)
+        }
+      }
+      // this node is the last one at height i
+      preds(i) = this
+      i -= 1
+    }
+    return null
+  }
 }
