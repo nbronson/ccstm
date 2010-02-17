@@ -352,7 +352,7 @@ object Perf {
     def doHigher(key: Int): Option[(Int,String)] = {
       counts += HigherOp
       currentOp = HigherOp
-      val z = target.nonTxn.higher(key)
+      val z = master.target.nonTxn.higher(key)
       currentOp = NoOp
       z
     }
@@ -382,7 +382,7 @@ object Perf {
     def doTxnHigher(key: Int)(implicit txn: Txn): Option[(Int,String)] = {
       counts += HigherOp
       currentOp = HigherOp
-      val z = target.bind.higher(key)
+      val z = master.target.bind.higher(key)
       currentOp = NoOp
       z
     }
