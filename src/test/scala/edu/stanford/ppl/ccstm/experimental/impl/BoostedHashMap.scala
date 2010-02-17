@@ -6,6 +6,7 @@ package edu.stanford.ppl.ccstm.experimental.impl
 
 import edu.stanford.ppl.ccstm._
 import experimental.TMap
+import impl.FastSimpleRandom
 import java.util.IdentityHashMap
 import java.util.concurrent.locks._
 import java.util.concurrent.{ConcurrentMap, TimeUnit, ConcurrentHashMap}
@@ -69,7 +70,6 @@ class BoostedHashMap_LazyGC_Enum[A,B] extends BoostedHashMap[A,B](new BoostedHas
 
 object BoostedHashMap {
 
-  val LockTimeoutMillis = 10
   val UndoAndUnlockPriority = -10
 
   //////// on-demand management of keys, without and with GC
@@ -339,6 +339,9 @@ object BoostedHashMap {
 
   class MapBooster[A](lockHolder: LockHolder[A], enumLock: Lock, mcLock: Lock) {
 
+    /** Holds the number of retries. */
+    private val retryCount = new ThreadLocal[Int]
+
     /** Holds the current context. */
     private val currentContext = new TxnLocal[TxnContext[A]] {
       override def initialValue(txn: Txn): TxnContext[A] = {
@@ -372,10 +375,10 @@ object BoostedHashMap {
           private def acquire(lock: Lock, info: Any) {
             if (null == owned.put(lock, lock)) {
               // wasn't previously present, acquire it
-              if (!lock.tryLock(LockTimeoutMillis, TimeUnit.MILLISECONDS)) {
+              if (!lock.tryLock()) {
                 // acquisition failed, deadlock?  remove before afterCompletion
                 owned.remove(lock)
-                txn.forceRollback(Txn.WriteConflictCause(info, "tryLock timeout"))
+                txn.forceRollback(Txn.WriteConflictCause(info, "tryLock failed"))
                 throw RollbackError
               }
             } else {
@@ -406,11 +409,30 @@ object BoostedHashMap {
                 val vo = undoData(3 * i + 2).asInstanceOf[AnyRef]
                 if (null == vo) u.remove(k) else u.put(k, vo)
               }
+            } else {
+              retryCount.set(0)
             }
 
             // release the locks
             var iter = owned.keySet().iterator
             while (iter.hasNext) iter.next.unlock()
+
+            // randomized exponential backoff if we are going to rerun
+            if (t.status != Txn.Committed) {
+              val r = retryCount.get
+              retryCount.set(r + 1)
+
+              // At full tilt, we can execute several million txns per second
+              // on a thread.  This means that Thread.sleep(), which rounds up
+              // to a millisecond, is totally inappropriate.  Thread.yield()
+              // takes on the order of a microsecond (300 nanos on my dual-core
+              // laptop), so we use it instead.  The starting point is an
+              // expected backoff of 500 nanoseconds.
+              val maxNanos = 1000 << Math.min(r, 14)
+              val delay = FastSimpleRandom.nextInt(maxNanos)
+              val t0 = System.nanoTime
+              while (System.nanoTime < t0 + delay) Thread.`yield`
+            }
           }
 
           // dummy write resource
