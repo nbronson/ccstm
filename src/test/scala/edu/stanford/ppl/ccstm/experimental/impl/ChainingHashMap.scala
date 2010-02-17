@@ -259,7 +259,7 @@ class ChainingHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TM
       bi += 1
     }
 
-    // now create the transactional array
-    bucketsRef := new TArray(after)
+    // now create the transactional array, giving ourself up to 256 metadata stripes
+    bucketsRef := new TArray(after, TArray.Striped(512))
   }
 }
