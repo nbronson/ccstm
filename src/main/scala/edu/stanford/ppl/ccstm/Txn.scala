@@ -210,6 +210,7 @@ object Txn {
   private[ccstm] val invalidReadResourceCounter = new Counter
   private[ccstm] val writeConflictCounter = new Counter
   private[ccstm] val vetoingWriteResourceCounter = new Counter
+  private[ccstm] val bargingCounter = new Counter
 
   private[ccstm] def countsToStr: String = {
     val buf = new StringBuilder
@@ -301,6 +302,11 @@ object Txn {
    */
   def vetoingWriteResourceCount = vetoingWriteResourceCounter.get
 
+  /** Returns the number of transactions that were attempted using the
+   *  pessimistic barging mode.
+   */
+  def bargingCount = bargingCounter.get
+
   //////////////// Resources participate in a two-phase commit
 
   /** <code>ReadResource</code>s are checked each time that the virtual
@@ -316,7 +322,7 @@ object Txn {
    *  <code>valid</code>.  To help avoid race conditions, the most
    *  straightforward mechanism for adding a read resource will automatically
    *  invoke <code>valid</code>.
-   *  @see edu.stanford.ppl.ccstm.AbstractTxn#addReadResource
+   * @see edu.stanford.ppl.ccstm.AbstractTxn # addReadResource
    */
   trait ReadResource {
     /** Should return true iff <code>txn</code> is still valid.  May be invoked
@@ -432,6 +438,8 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
   
   /** Values of <code>TxnLocal</code>s for this transaction, created lazily. */
   private[ccstm] var locals: java.util.IdentityHashMap[TxnLocal[_],Any] = null
+
+  { if (barging && EnableCounters) bargingCounter += 1 }
 
   
   def status: Status = _status
