@@ -51,6 +51,8 @@ class RedBlackTreeMap[A,B] extends TMap[A,B] {
         z
       }
     }
+
+    override def higher(key: A): Option[(A,B)] = unbind.higher(key)(txn)
   }
 
   def nonTxn: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,RedBlackTreeMap[A,B]](this) {
@@ -59,6 +61,7 @@ class RedBlackTreeMap[A,B] extends TMap[A,B] {
     override def size = STM.atomic(unbind.size(_))
 
     def get(key: A): Option[B] = STM.atomic(unbind.get(key)(_))
+    override def higher(key: A): Option[(A,B)] = STM.atomic(unbind.higher(key)(_))
     override def put(key: A, value: B): Option[B] = STM.atomic(unbind.put(key, value)(_))
     override def removeKey(key: A): Option[B] = STM.atomic(unbind.removeKey(key)(_))
 

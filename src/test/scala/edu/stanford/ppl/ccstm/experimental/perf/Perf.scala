@@ -27,8 +27,9 @@ object Perf {
     val RemoveOp = Value(2, "remove")
     val ClearOp = Value(3, "clear")
     val GetOp = Value(4, "get")
-    val BarrierOp = Value(5, "barrier")
-    val IterationOp = Value(6,"iteration")
+    val HigherOp = Value(5, "higher")
+    val BarrierOp = Value(6, "barrier")
+    val IterationOp = Value(7,"iteration")
   }
   import Op._
 
@@ -192,7 +193,7 @@ object Perf {
 
     print("DATA total:")
     val useful = totalBusySamples.sum - totalBusySamples(BarrierOp)
-    for (op <- List(PutOp, RemoveOp, ClearOp, GetOp)) {
+    for (op <- List(PutOp, RemoveOp, ClearOp, GetOp, HigherOp)) {
       val count = totalCounts(op)
       val secs = (totalBusySamples(op) * elapsedMillis * 0.001) / useful
       val rate = count / secs
@@ -348,6 +349,14 @@ object Perf {
       z
     }
 
+    def doHigher(key: Int): Option[(Int,String)] = {
+      counts += HigherOp
+      currentOp = HigherOp
+      val z = target.nonTxn.higher(key)
+      currentOp = NoOp
+      z
+    }
+
     def doTxnPut(key: Int, value: String)(implicit txn: Txn) {
       counts += PutOp
       currentOp = PutOp
@@ -366,6 +375,14 @@ object Perf {
       counts += GetOp
       currentOp = GetOp
       val z = master.target.get(key)
+      currentOp = NoOp
+      z
+    }
+
+    def doTxnHigher(key: Int)(implicit txn: Txn): Option[(Int,String)] = {
+      counts += HigherOp
+      currentOp = HigherOp
+      val z = target.bind.higher(key)
       currentOp = NoOp
       z
     }
