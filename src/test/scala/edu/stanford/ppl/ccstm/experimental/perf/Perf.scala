@@ -314,7 +314,6 @@ object Perf {
       this.size = size
       this.numThreads = numThreads
       this.targetType = targetType
-      this.target = TMapFactory[Int,String](targetType)
       this.master = master
     }
 
@@ -323,28 +322,28 @@ object Perf {
     def doPut(key: Int, value: String) {
       counts += PutOp
       currentOp = PutOp
-      target.nonTxn(key) = value
+      master.target.nonTxn(key) = value
       currentOp = NoOp
     }
 
     def doRemove(key: Int) {
       counts += RemoveOp
       currentOp = RemoveOp
-      target.nonTxn -= key
+      master.target.nonTxn -= key
       currentOp = NoOp
     }
 
     def doClear {
       counts += ClearOp
       currentOp = ClearOp
-      target.nonTxn.clear
+      master.target.nonTxn.clear
       currentOp = NoOp
     }
 
     def doGet(key: Int): Option[String] = {
       counts += GetOp
       currentOp = GetOp
-      val z = target.nonTxn.get(key)
+      val z = master.target.nonTxn.get(key)
       currentOp = NoOp
       z
     }
@@ -352,21 +351,21 @@ object Perf {
     def doTxnPut(key: Int, value: String)(implicit txn: Txn) {
       counts += PutOp
       currentOp = PutOp
-      target(key) = value
+      master.target(key) = value
       currentOp = NoOp
     }
 
     def doTxnRemove(key: Int)(implicit txn: Txn) {
       counts += RemoveOp
       currentOp = RemoveOp
-      target -= key
+      master.target -= key
       currentOp = NoOp
     }
 
     def doTxnGet(key: Int)(implicit txn: Txn): Option[String] = {
       counts += GetOp
       currentOp = GetOp
-      val z = target.get(key)
+      val z = master.target.get(key)
       currentOp = NoOp
       z
     }
@@ -376,8 +375,10 @@ object Perf {
       var count = 0
       currentOp = IterationOp
       new Atomic { def body {
+        //currentTxn.afterCompletion(t => { println(t.status + ", barging=" + t.barging)})
+
         count = 0
-        val iter = target.bind.elements
+        val iter = master.target.bind.elements
         while (iter.hasNext) {
           count += 1
           iter.next()
@@ -394,6 +395,7 @@ object Perf {
 
     /** Called on only one worker. */
     def reset {
+      assert(this == master)
       target = TMapFactory[Int,String](targetType)
     }
   }
