@@ -7,7 +7,7 @@ package edu.stanford.ppl.stm
 import edu.stanford.ppl.ExhaustiveTest
 import edu.stanford.ppl.ccstm._
 import edu.stanford.ppl.ccstm.collection._
-import scala.collection.jcl.IdentityHashMap
+import java.util.IdentityHashMap
 
 
 /** Performs single-threaded tests of <code>Ref</code>.  Since there is no
@@ -32,7 +32,14 @@ class IsolatedRefSuite extends STMFunSuite {
   case object ReuseNonTxn extends Binder {
     private val cache = new IdentityHashMap[Ref[_],Ref.Bound[_]]
 
-    def apply[T](v: Ref[T]) = cache.getOrElseUpdate(v, v.nonTxn).asInstanceOf[Ref.Bound[T]]
+    def apply[T](v: Ref[T]) = {
+      var z = cache.get(v)
+      if (null == z) {
+        z = v.nonTxn
+        cache.put(v, z)
+      }
+      z.asInstanceOf[Ref.Bound[T]]
+    }
   }
 
   case class FreshTxn(txnLen: Int) extends Binder {
@@ -65,11 +72,11 @@ class IsolatedRefSuite extends STMFunSuite {
       if (accesses == txnLen) reset()
       accesses += 1
       if (null == txn) txn = new Txn
-      if (cache.contains(v)) {
-        cache(v).asInstanceOf[Ref.Bound[T]]
+      if (cache.containsKey(v)) {
+        cache.get(v).asInstanceOf[Ref.Bound[T]]
       } else {
         val z = v.bind(txn)
-        cache(v) = z
+        cache.put(v, z)
         z
       }
     }

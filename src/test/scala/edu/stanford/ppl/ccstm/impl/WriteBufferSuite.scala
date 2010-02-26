@@ -5,7 +5,7 @@
 package edu.stanford.ppl.ccstm.impl
 
 
-import scala.collection.jcl.IdentityHashMap
+import java.util.IdentityHashMap
 import scala.collection.mutable.HashMap
 import org.scalatest.FunSuite
 import edu.stanford.ppl.ExhaustiveTest
@@ -30,14 +30,14 @@ class WriteBufferSuite extends FunSuite {
   case class GetForPut(handle: Handle[_]) extends Step
 
   private class NestedMap extends IdentityHashMap[AnyRef,HashMap[Int,(Any,Handle[_])]] {
-    override def apply(ref: AnyRef) = {
+    def apply(ref: AnyRef) = {
       get(ref) match {
-        case Some(m) => m
-        case None => {
+        case null => {
           val m = new HashMap[Int,(Any,Handle[_])]
           put(ref, m)
           m
         }
+        case m => m
       }
     }
   }
@@ -52,19 +52,19 @@ class WriteBufferSuite extends FunSuite {
           val ref = handle.ref
           val offset = handle.offset
           val expected = reference(ref).getOrElse(offset, (null, null))._1
-          val actual = wb.get[Any](handle)
+          val actual = wb.get(handle)
           assert(expected === actual)
           reference(ref)(offset) = Tuple2.apply[Any,Handle[_]](specValue, handle)
-          wb.put(handle, specValue)
+          wb.put(handle.asInstanceOf[Handle[Any]], specValue)
         }
         case GetForPut(handle) => {
           val ref = handle.ref
           val offset = handle.offset
           val expected = reference(ref).getOrElse(offset, (handle.data, null))._1
           reference(ref)(offset) = Tuple2.apply[Any,Handle[_]](expected, handle)
-          val actual = wb.allocatingGet[Any](handle)
+          val actual = wb.allocatingGet(handle)
           assert(expected === actual)
-          val reget = wb.get[Any](handle)
+          val reget = wb.get(handle)
           assert(expected === reget)
         }
       }
@@ -80,9 +80,9 @@ class WriteBufferSuite extends FunSuite {
           }
         })
         assert(fresh.size == reference.size)
-        for (ref <- fresh.keys) {
-          val f = fresh.get(ref).get
-          val r = fresh.get(ref).get
+        for (ref <- fresh.keySet.toArray) {
+          val f = fresh(ref)
+          val r = reference(ref)
           assert(f.size === r.size)
           for (offset <- f.keys) {
             assert(f(offset) === r(offset))

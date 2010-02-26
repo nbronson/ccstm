@@ -63,13 +63,13 @@ object Perf {
     }).asInstanceOf[Class[Worker]]
 
     var master: Worker = null    
-    val workers = (for (id <- 0 until numThreads) yield {
+    val workers = Array.tabulate(numThreads) { id => 
       val w: Worker = workerClass.newInstance
       if (master == null) master = w
       w.setup(id, size, numThreads, targetType, master)
       w.currentOp = BarrierOp
       w
-    }).force
+    }
 
     println("args=" + args.mkString(" "))
     printVMConfig

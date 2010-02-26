@@ -48,7 +48,7 @@ object FastSimpleRandom {
   /** r is the random, returns -1 on failure. */
   private def tryClamp(r: Int, n: Int): Int = {
     // get a positive number
-    val x = r & Math.MAX_INT
+    val x = r & Int.MaxValue
 
     if ((n & -n) == n) {
       // for powers of two, we use high bits instead of low bits

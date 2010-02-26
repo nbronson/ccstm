@@ -7,17 +7,18 @@ package edu.stanford.ppl.ccstm.collection
 import edu.stanford.ppl.ccstm._
 import edu.stanford.ppl.ccstm.impl.{DefaultValue, Handle}
 import java.util.concurrent.atomic.{AtomicLongArray, AtomicReferenceArray}
+import scala.collection._
 
 // TODO: select backing store based on manifest
 
 object TArray {
-  trait Bound[T] extends RandomAccessSeq.Mutable[T] {
+  trait Bound[T] extends mutable.IndexedSeq[T] {
     def unbind: TArray[T]
     def context: Option[Txn]
     def length: Int = unbind.length
     def apply(index: Int): T
     def update(index: Int, v: T)
-    def refs: RandomAccessSeq[Ref.Bound[T]]
+    def refs: immutable.IndexedSeq[Ref.Bound[T]]
   }
 
   /** <code>MetaMapping</code> defines the mapping from elements of the array
@@ -38,10 +39,10 @@ object TArray {
    */
   sealed case class MetaMapping(dataPerMeta: Int, maxMeta: Int, neighboringDataPerMeta: Int)
 
-  val MaximizeParallelism = MetaMapping(1, Math.MAX_INT, 1)
+  val MaximizeParallelism = MetaMapping(1, Int.MaxValue, 1)
   val MinimizeSpace = MetaMapping(1, 1, 1)
   def Striped(stripeCount: Int) = MetaMapping(1, stripeCount, 1)
-  def Chunked(chunkSize: Int) = MetaMapping(chunkSize, Math.MAX_INT, chunkSize)
+  def Chunked(chunkSize: Int) = MetaMapping(chunkSize, Int.MaxValue, chunkSize)
   val DefaultMetaMapping = Striped(16)
 }
 
@@ -69,7 +70,7 @@ class TArray[T](length0: Int, metaMapping: TArray.MetaMapping)(implicit manifest
     def context = Some(txn)
     def apply(index: Int): T = getRef(index).get
     def update(index: Int, v: T) = getRef(index).set(v)
-    def refs: RandomAccessSeq[Ref.Bound[T]] = new RandomAccessSeq[Ref.Bound[T]] {
+    def refs: immutable.IndexedSeq[Ref.Bound[T]] = new immutable.IndexedSeq[Ref.Bound[T]] {
       def length = length0
       def apply(index: Int) = getRef(index).bind
     }
@@ -80,13 +81,13 @@ class TArray[T](length0: Int, metaMapping: TArray.MetaMapping)(implicit manifest
     def context = None
     def apply(index: Int): T = getRef(index).nonTxn.get
     def update(index: Int, v: T) = getRef(index).nonTxn.set(v)
-    def refs: RandomAccessSeq[Ref.Bound[T]] = new RandomAccessSeq[Ref.Bound[T]] {
+    def refs: immutable.IndexedSeq[Ref.Bound[T]] = new immutable.IndexedSeq[Ref.Bound[T]] {
       def length = length0
       def apply(index: Int) = getRef(index).nonTxn
     }
   }
 
-  def refs: RandomAccessSeq[Ref[T]] = new RandomAccessSeq[Ref[T]] {
+  def refs: immutable.IndexedSeq[Ref[T]] = new immutable.IndexedSeq[Ref[T]] {
     def length: Int = length0
     def apply(index0: Int): Ref[T] = getRef(index0)
   }

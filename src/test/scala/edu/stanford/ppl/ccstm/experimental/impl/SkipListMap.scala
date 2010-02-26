@@ -44,7 +44,7 @@ class SkipListMap[A,B](implicit aMan: Manifest[A], bMan: Manifest[B]) extends TM
 
   def bind(implicit txn0: Txn): Bound[A, B] = new TMap.AbstractTxnBound[A,B,SkipListMap[A,B]](txn0, this) {
     def elements: Iterator[(A,B)] = new Iterator[(A,B)] {
-      var avail = head.get.links(0)
+      var avail = unbind.head.get.links(0)
 
       def hasNext = null != avail
       def next() = {
@@ -57,7 +57,7 @@ class SkipListMap[A,B](implicit aMan: Manifest[A], bMan: Manifest[B]) extends TM
 
   def nonTxn: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,SkipListMap[A,B]](this) {
 
-    override def isEmpty = null != head.nonTxn.get.links.nonTxn(0)
+    override def isEmpty = null != unbind.head.nonTxn.get.links.nonTxn(0)
     override def size = STM.atomic(unbind.size(_))
 
     def get(key: A): Option[B] = STM.atomic(unbind.get(key)(_))

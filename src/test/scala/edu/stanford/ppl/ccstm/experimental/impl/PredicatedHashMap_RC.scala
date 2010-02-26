@@ -13,7 +13,7 @@ import edu.stanford.ppl.ccstm.collection.TAnyRef
 
 
 object PredicatedHashMap_RC {
-  private val refCountUpdater = (new Pred[Int]).newUpdater
+  private val refCountUpdater = (new Pred[Int](null)).newUpdater
 
   class Pred[B](init0: AnyRef) extends TAnyRef[AnyRef](init0) {
     def newUpdater = AtomicIntegerFieldUpdater.newUpdater(classOf[Pred[_]], "_refCount")

@@ -5,7 +5,7 @@
 package edu.stanford.ppl.stm.bank
 
 
-import ccstm.STM
+import edu.stanford.ppl.ccstm.STM
 
 object BenchmarkThread {
   sealed abstract class Mode

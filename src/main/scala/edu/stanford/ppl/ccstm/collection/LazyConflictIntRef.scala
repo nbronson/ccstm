@@ -245,7 +245,7 @@ object LazyConflictIntRef {
         // does another store on this ref, we will register a new handler and
         // do the underlying update again
         _updaterRegistered = false
-      }, Math.MAX_INT  / 2)      
+      }, Int.MaxValue  / 2)      
     }
 
     def valid(txn: Txn): Boolean = {
@@ -271,7 +271,7 @@ class LazyConflictIntRef(initialValue: Int) extends IntRef {
   private val bound = new TxnLocal[LazyConflictIntRef.TxnBound] {
     override def initialValue(txn: Txn) = {
       val b = new LazyConflictIntRef.TxnBound(txn, LazyConflictIntRef.this)
-      txn.addReadResource(b, Math.MIN_INT / 2)
+      txn.addReadResource(b, Int.MinValue / 2)
       b
     }
   }

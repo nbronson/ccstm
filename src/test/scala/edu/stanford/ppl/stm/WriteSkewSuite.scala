@@ -5,6 +5,7 @@
 package edu.stanford.ppl.stm
 
 import edu.stanford.ppl.ccstm._
+import edu.stanford.ppl._
 
 
 class WriteSkewSuite extends STMFunSuite {

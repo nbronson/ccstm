@@ -24,9 +24,11 @@ private[impl] class ReadSet private(private var _size: Int,
   def this() = this(0, new Array[Handle[_]](InitialCapacity), new Array[Long](InitialCapacity))
 
   override def clone(): ReadSet = {
-    new ReadSet(_size,
-                java.util.Arrays.copyOf(_handles, _size),
-                java.util.Arrays.copyOf(_versions, _size))
+    val hh = new Array[Handle[_]](_size)
+    System.arraycopy(_handles, 0, hh, 0, _size);
+    val vv = new Array[STMImpl.Version](_size)
+    System.arraycopy(_versions, 0, vv, 0, _size);
+    new ReadSet(_size, hh, vv)
   }
 
   def isEmpty = _size == 0
@@ -43,8 +45,13 @@ private[impl] class ReadSet private(private var _size: Int,
   def lastVersion: STMImpl.Version = _versions(_size - 1)
 
   private def grow() {
-    _handles = java.util.Arrays.copyOf(_handles, _size * 2)
-    _versions = java.util.Arrays.copyOf(_versions, _size * 2)    
+    val n = _size * 2
+    val hh = new Array[Handle[_]](n)
+    System.arraycopy(_handles, 0, hh, 0, n);
+    _handles = hh
+    val vv = new Array[STMImpl.Version](n)
+    System.arraycopy(_versions, 0, vv, 0, n);
+    _versions = vv
   }
 
   /** Removes at most one entry whose ref and offset are the same as those of

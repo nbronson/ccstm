@@ -116,7 +116,7 @@ private[ccstm] object STMImpl extends GV6 {
   //////////////// Version continuity between separate Refs
 
   private def CryptMask = 31
-  private val crypts = Array.fromFunction(i => new AtomicLong)(CryptMask + 1)
+  private val crypts = Array.tabulate(CryptMask + 1)(_ => new AtomicLong)
 
   def embalm(identity: Int, handle: Handle[_]) {
     val crypt = crypts(identity & CryptMask)

@@ -5,7 +5,7 @@
 package edu.stanford.ppl.stm.bank
 
 
-import ccstm._
+import edu.stanford.ppl.ccstm._
 
 object Account {
   var yieldALot = false

@@ -7,6 +7,7 @@ package edu.stanford.ppl.ccstm.impl
 
 import java.util.concurrent.CyclicBarrier
 import org.scalatest.FunSuite
+import edu.stanford.ppl._
 
 class WakeupManagerSuite extends FunSuite {
   import ParUtil._

@@ -390,7 +390,9 @@ object BoostedHashMap {
             if (undoCount == 0) {
               undoData = new Array[Any](24)
             } else if (undoCount * 3 == undoData.length) {
-              undoData = java.util.Arrays.copyOf(undoData, undoData.length * 2)
+              val aa = new Array[Any](undoData.length * 2)
+              System.arraycopy(undoData, 0, aa, 0, undoData.length)
+              undoData = aa
             }
             undoData(3 * undoCount + 0) = underlying
             undoData(3 * undoCount + 1) = key

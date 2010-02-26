@@ -4,6 +4,7 @@
 
 package edu.stanford.ppl.stm
 
+import edu.stanford.ppl._
 import edu.stanford.ppl.ccstm._
 import java.util.concurrent.CyclicBarrier
 
@@ -24,7 +25,7 @@ class TokenRingSuite extends STMFunSuite {
   test("txn large ring", ExhaustiveTest) { tokenRing(32, 10000, true) }
 
   def tokenRing(ringSize: Int, handoffsPerThread: Int, useTxns: Boolean) {
-    val ready = Array.fromFunction(i => Ref(i == 0))(ringSize)
+    val ready = Array.tabulate(ringSize)(i => Ref(i == 0))
     val threads = new Array[Thread](ringSize - 1)
     val barrier = new CyclicBarrier(ringSize, new Runnable {
       var start = 0L
