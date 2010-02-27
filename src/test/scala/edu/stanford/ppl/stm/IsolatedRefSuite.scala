@@ -95,6 +95,7 @@ class IsolatedRefSuite extends STMFunSuite {
 
   sealed trait IntRefFactory {
     def apply(initialValue: Int): Ref[Int]
+    def incrLimitFactor = 1
   }
 
   case object TAnyRefFactory extends IntRefFactory {
@@ -111,6 +112,7 @@ class IsolatedRefSuite extends STMFunSuite {
 
   case object StripedIntRefFactory extends IntRefFactory {
     def apply(initialValue: Int): Ref[Int] = new StripedIntRef(initialValue)
+    override def incrLimitFactor = 3
   }
 
 
@@ -162,7 +164,8 @@ class IsolatedRefSuite extends STMFunSuite {
 
       // We should be able to get less than 5000 nanos, even on a Niagara.
       // On most platforms we should be able to do much better than this.
-      assert(best / 10 < 5000)
+      // The exception is StripedIntRef, which has relatively expensive reads.
+      assert(best / 10 < 5000 * fact.incrLimitFactor)
       binder.reset()
     }
   

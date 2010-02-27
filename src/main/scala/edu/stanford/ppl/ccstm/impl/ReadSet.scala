@@ -45,12 +45,11 @@ private[impl] class ReadSet private(private var _size: Int,
   def lastVersion: STMImpl.Version = _versions(_size - 1)
 
   private def grow() {
-    val n = _size * 2
-    val hh = new Array[Handle[_]](n)
-    System.arraycopy(_handles, 0, hh, 0, n);
+    val hh = new Array[Handle[_]](_size * 2)
+    System.arraycopy(_handles, 0, hh, 0, _size);
     _handles = hh
-    val vv = new Array[STMImpl.Version](n)
-    System.arraycopy(_versions, 0, vv, 0, n);
+    val vv = new Array[STMImpl.Version](_size * 2)
+    System.arraycopy(_versions, 0, vv, 0, _size);
     _versions = vv
   }
 

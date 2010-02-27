@@ -23,6 +23,15 @@ class WriteBufferSuite extends FunSuite {
     private[ccstm] def metaOffset = offset
     private[ccstm] def data: T = null.asInstanceOf[T]
     private[ccstm] def data_=(v: T) {}
+
+    override def toString = {
+      super.toString + "(ref=" + ref + ", offset=" + offset + ")"
+    }
+
+    override def equals(rhs: Any) = rhs match {
+      case h: H[_] => (ref eq h.ref) && offset == h.offset
+      case _ => false
+    }
   }
 
   abstract class Step
