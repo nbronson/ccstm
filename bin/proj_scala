@@ -70,7 +70,7 @@ if [ "x$CLASSPATH" != "x" ]; then
   CLASSPATH="${CLASSPATH}:"
 fi
 CLASSPATH="${CLASSPATH}$CCSTM_BASE/target/classes:$CCSTM_BASE/target/test-classes"
-for j in "$CCSTM_BASE"/lib_managed/compile/*.jar $SCALA_HOME/lib/scala-{compiler,library}.jar; do
+for j in "$CCSTM_BASE"/lib_managed/scala_2.8.0.Beta1/compile/*.jar $SCALA_HOME/lib/scala-{compiler,library}.jar; do
   CLASSPATH="${CLASSPATH}:$j"
 done
 

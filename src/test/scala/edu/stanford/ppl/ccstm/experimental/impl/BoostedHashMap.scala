@@ -582,7 +582,7 @@ class BoostedHashMap[A,B](lockHolder: BoostedHashMap.LockHolder[A], enumLock: Re
 //      }
 //    }
 
-    def elements: Iterator[(A,B)] = new Iterator[(A,B)] {
+    def iterator: Iterator[(A,B)] = new Iterator[(A,B)] {
       val iter = underlying.keySet().iterator
       var avail: (A,B) = null
       advance()
@@ -611,7 +611,7 @@ class BoostedHashMap[A,B](lockHolder: BoostedHashMap.LockHolder[A], enumLock: Re
   }
 
   def bind(implicit txn0: Txn): TMap.Bound[A,B] = new TMap.AbstractTxnBound[A,B,BoostedHashMap[A,B]](txn0, BoostedHashMap.this) {
-    def elements: Iterator[(A,B)] = {
+    def iterator: Iterator[(A,B)] = {
       return new Iterator[(A,B)] {
         val iter = underlying.keySet().iterator
         var avail: (A,B) = null

@@ -69,7 +69,7 @@ class TxnSlotManagerSuite extends FunSuite {
 
   def runParallelUncontended(count: Int) {
     val mgr = new TxnSlotManager[String](128, 0)
-    val bests = Array(Math.MAX_LONG, Math.MAX_LONG)
+    val bests = Array(Long.MaxValue, Long.MaxValue)
     for (t <- 0 par_until 2) {
       val txn = Thread.currentThread.getName
       for (p <- 0 until 10) {

@@ -46,7 +46,7 @@ class FastSimpleRandomSuite extends FunSuite {
 
   test("FastSimpleRandom should be fast", ExhaustiveTest) {
     val rand = FastSimpleRandom
-    var best = Math.MAX_LONG
+    var best = Long.MaxValue
     for (pass <- 0 until 1000) {
       val begin = System.nanoTime
       var i = 0

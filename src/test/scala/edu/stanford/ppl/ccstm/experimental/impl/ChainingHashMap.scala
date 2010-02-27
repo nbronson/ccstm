@@ -98,7 +98,7 @@ class ChainingHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TM
       STM.atomic(unbind.transformIfDefined(key, pfOrNull, f)(_))
     }
 
-    def elements: Iterator[Tuple2[K,V]] = {
+    def iterator: Iterator[Tuple2[K,V]] = {
       val snap = STM.atomic(t => bucketsRef.get(t).bind(t).toArray)
       return new Iterator[Tuple2[K,V]] {
         var i = 0
@@ -128,7 +128,7 @@ class ChainingHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TM
 
   def bind(implicit txn0: Txn): Bound[K,V] = new TMap.AbstractTxnBound[K,V,ChainingHashMap[K,V]](txn0, ChainingHashMap.this) {
 
-    def elements: Iterator[Tuple2[K,V]] = {
+    def iterator: Iterator[Tuple2[K,V]] = {
       val buckets = bucketsRef.get
       return new Iterator[Tuple2[K,V]] {
         var i = 0

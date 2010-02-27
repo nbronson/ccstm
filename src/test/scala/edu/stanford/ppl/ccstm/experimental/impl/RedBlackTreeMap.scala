@@ -19,7 +19,7 @@ class RedBlackTreeMap[A,B] extends TMap[A,B] {
 
   def size(implicit txn: Txn): Int = {
     var s = 0
-    val iter = bind.elements
+    val iter = bind.iterator
     while (iter.hasNext) { s += 1; iter.next() }
     s
   }
@@ -41,7 +41,7 @@ class RedBlackTreeMap[A,B] extends TMap[A,B] {
 
 
   def bind(implicit txn0: Txn): Bound[A, B] = new TMap.AbstractTxnBound[A,B,RedBlackTreeMap[A,B]](txn0, this) {
-    def elements: Iterator[(A,B)] = new Iterator[(A,B)] {
+    def iterator: Iterator[(A,B)] = new Iterator[(A,B)] {
       var avail = firstNode
 
       def hasNext = null != avail
@@ -71,8 +71,8 @@ class RedBlackTreeMap[A,B] extends TMap[A,B] {
       STM.atomic(unbind.transformIfDefined(key, pfOrNull, f)(_))
     }
 
-    def elements: Iterator[Tuple2[A,B]] = {
-      STM.atomic(unbind.bind(_).toArray).elements
+    def iterator: Iterator[Tuple2[A,B]] = {
+      STM.atomic(unbind.bind(_).toArray).iterator
     }
   }
 

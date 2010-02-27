@@ -58,11 +58,13 @@ object TMap {
     def context: Option[Txn]
 
     def update(key: A, value: B)
-    def -= (key: A)
+    def -= (key: A): this.type
   }
 
   trait Bound[A,B] extends BoundSource[A,B] with BoundSink[A,B] with scala.collection.mutable.Map[A,B] {
     def unbind: TMap[A,B]
+
+    def += (kv: (A, B)) = { update(kv._1, kv._2); this }
 
 //    def transform(key: A, f: Option[B] => Option[B])
 //    def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]]): Boolean
@@ -71,15 +73,11 @@ object TMap {
   private[experimental] abstract class AbstractNonTxnBound[A,B,M <: TMap[A,B]](val unbind: M) extends Bound[A,B] {
     def context = None
 
-    override def isEmpty: Boolean = !elements.hasNext
-    def size: Int = {
-      var n = 0
-      elements.foreach(e => n += 1)
-      n
-    }
+    override def isEmpty: Boolean = !iterator.hasNext
 
-    def update(key: A, value: B) { put(key, value) }
-    def -= (key: A) { removeKey(key) }
+    // we implement in terms of put, instead of in terms of +=
+    override def update(key: A, value: B) { put(key, value) }
+    def -= (key: A) = { remove(key); this }
 
 //    def transform(key: A, f: Option[B] => Option[B]) { transformIfDefined(key, null, f) }
 //    def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]]): Boolean = transformIfDefined(key, pf, pf)
@@ -91,16 +89,16 @@ object TMap {
     def context = Some(txn)
 
     override def isEmpty: Boolean = unbind.isEmpty(txn)
-    def size: Int = unbind.size(txn)
+    override def size: Int = unbind.size(txn)
 
     override def apply(key: A): B = unbind.apply(key)(txn)
     def get(key: A): Option[B] = unbind.get(key)(txn)
 
     override def put(key: A, value: B): Option[B] = unbind.put(key, value)(txn)
-    def update(key: A, value: B) { unbind.update(key, value)(txn) }
+    override def update(key: A, value: B) { unbind.update(key, value)(txn) }
 
     override def removeKey(key: A): Option[B] = unbind.removeKey(key)(txn)
-    def -=(key: A) { unbind.-=(key)(txn) }
+    def -=(key: A) = { unbind.-=(key)(txn); this }
 
 //    def transform(key: A, f: (Option[B]) => Option[B]) {
 //      unbind.transform(key, f)(txn)

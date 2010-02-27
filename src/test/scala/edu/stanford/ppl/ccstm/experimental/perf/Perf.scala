@@ -241,7 +241,7 @@ object Perf {
     }
 
     def mkString(opSuffix: String) = {
-      (for (op <- Op) yield (op + opSuffix + " " + data(op.id))).mkString("  ")
+      (for (op <- Op.values) yield (op + opSuffix + " " + data(op.id))).mkString("  ")
     }
 
     override def toString = mkString("")
@@ -395,7 +395,7 @@ object Perf {
         //currentTxn.afterCompletion(t => { println(t.status + ", barging=" + t.barging)})
 
         count = 0
-        val iter = master.target.bind.elements
+        val iter = master.target.bind.iterator
         while (iter.hasNext) {
           count += 1
           iter.next()

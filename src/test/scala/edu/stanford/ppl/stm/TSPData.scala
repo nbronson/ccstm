@@ -9,8 +9,8 @@ object TSPData {
 
   implicit def cmpSortedSet[A <% Ordered[A]](lhs: Set[A]) = new Ordered[Set[A]] {
     def compare(rhs: Set[A]): Int = {
-      val a = lhs.elements
-      val b = rhs.elements
+      val a = lhs.iterator
+      val b = rhs.iterator
       while (a.hasNext && b.hasNext) {
         val c = a.next.compare(b.next)
         if (c != 0) return c

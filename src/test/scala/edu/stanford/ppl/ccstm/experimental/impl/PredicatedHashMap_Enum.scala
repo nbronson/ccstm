@@ -83,7 +83,7 @@ class PredicatedHashMap_Enum[A,B] extends TMap[A,B] {
 //      })
 //    }
 
-    def elements: Iterator[(A,B)] = new Iterator[(A,B)] {
+    def iterator: Iterator[(A,B)] = new Iterator[(A,B)] {
       val iter = predicates.keySet().iterator
       var avail: (A,B) = null
       advance()
@@ -112,7 +112,7 @@ class PredicatedHashMap_Enum[A,B] extends TMap[A,B] {
   }
 
   def bind(implicit txn0: Txn): Bound[A, B] = new TMap.AbstractTxnBound[A,B,PredicatedHashMap_Enum[A,B]](txn0, this) {
-    def elements: Iterator[(A,B)] = new Iterator[(A,B)] {
+    def iterator: Iterator[(A,B)] = new Iterator[(A,B)] {
       private var apparentSize = 0
       private val iter = predicates.entrySet().iterator
       private var avail: (A,B) = null

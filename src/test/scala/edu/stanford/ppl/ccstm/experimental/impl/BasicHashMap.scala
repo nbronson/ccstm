@@ -46,7 +46,7 @@ class BasicHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TMap[
       STM.atomic(unbind.transformIfDefined(key, pfOrNull, f)(_))
     }
 
-    def elements: Iterator[Tuple2[K,V]] = {
+    def iterator: Iterator[Tuple2[K,V]] = {
       throw new UnsupportedOperationException
     }
   }
@@ -54,7 +54,7 @@ class BasicHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TMap[
 
   def bind(implicit txn0: Txn): Bound[K,V] = new TMap.AbstractTxnBound[K,V,BasicHashMap[K,V]](txn0, BasicHashMap.this) {
 
-    def elements: Iterator[Tuple2[K,V]] = {
+    def iterator: Iterator[Tuple2[K,V]] = {
       throw new UnsupportedOperationException
     }
   }

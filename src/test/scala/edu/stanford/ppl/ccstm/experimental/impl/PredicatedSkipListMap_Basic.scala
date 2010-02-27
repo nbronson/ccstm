@@ -90,7 +90,7 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
 //      throw new Error
 //    }
 
-    def elements: Iterator[(A,B)] = new Iterator[(A,B)] {
+    def iterator: Iterator[(A,B)] = new Iterator[(A,B)] {
       val iter = predicates.keySet().iterator.asInstanceOf[PeekableCSLMap.PeekIterator[A,Predicate[B]]]
       var avail: (A,B) = null
       advance()
@@ -118,7 +118,7 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
   }
 
   def bind(implicit txn0: Txn): Bound[A, B] = new TMap.AbstractTxnBound[A,B,PredicatedSkipListMap_Basic[A,B]](txn0, this) {
-    def elements: Iterator[(A,B)] = {
+    def iterator: Iterator[(A,B)] = {
       if (txn.barging) {
         bargingCount.getAndIncrement()
         txn.afterCompletion(_ => { bargingCount.getAndDecrement() })
@@ -175,11 +175,11 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
     override def higher(key: A): Option[(A,B)] = unbind.higher(key)(txn)
   }
 
-  def isEmpty(implicit txn: Txn): Boolean = bind.elements.hasNext
+  def isEmpty(implicit txn: Txn): Boolean = bind.iterator.hasNext
 
   def size(implicit txn: Txn): Int = {
     var n = 0    
-    var iter = bind.elements
+    var iter = bind.iterator
     while (iter.hasNext) { n += 1; iter.next }
     n
   }
@@ -273,7 +273,7 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
 //      return higher(key)
 //    }
 //
-//    // we can now iterate as in bind.elements
+//    // we can now iterate as in bind.iterator
 //    while (null != availValue) {
 //      availValue.get match {
 //        case Some(v) => {

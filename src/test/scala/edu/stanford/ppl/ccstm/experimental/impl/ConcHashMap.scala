@@ -18,7 +18,7 @@ class ConcHashMap[A,B] extends TMap.Bound[A,B] {
     underlying.isEmpty
   }
 
-  def size: Int = {
+  override def size: Int = {
     underlying.size()
   }
 
@@ -35,7 +35,7 @@ class ConcHashMap[A,B] extends TMap.Bound[A,B] {
     NullValue.decodeOption[B](underlying.put(key, NullValue.encode(value)))
   }
 
-  def update(key: A, value: B) {
+  override def update(key: A, value: B) {
     underlying.put(key, NullValue.encode(value))
   }
 
@@ -43,8 +43,9 @@ class ConcHashMap[A,B] extends TMap.Bound[A,B] {
     NullValue.decodeOption[B](underlying.remove(key))
   }
 
-  def -= (key: A) {
+  def -= (key: A) = {
     underlying.remove(key)
+    this
   }
 
   def transform(key: A, f: (Option[B]) => Option[B]) {
@@ -79,7 +80,7 @@ class ConcHashMap[A,B] extends TMap.Bound[A,B] {
     return false
   }
 
-  def elements: Iterator[(A,B)] = {
+  def iterator: Iterator[(A,B)] = {
     return new Iterator[(A,B)] {
       private val iter = underlying.entrySet().iterator()
 

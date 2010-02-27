@@ -21,7 +21,7 @@ class SkipListMap[A,B](implicit aMan: Manifest[A], bMan: Manifest[B]) extends TM
 
   def size(implicit txn: Txn): Int = {
     var s = 0
-    val iter = bind.elements
+    val iter = bind.iterator
     while (iter.hasNext) { s += 1; iter.next() }
     s
   }
@@ -43,7 +43,7 @@ class SkipListMap[A,B](implicit aMan: Manifest[A], bMan: Manifest[B]) extends TM
 
 
   def bind(implicit txn0: Txn): Bound[A, B] = new TMap.AbstractTxnBound[A,B,SkipListMap[A,B]](txn0, this) {
-    def elements: Iterator[(A,B)] = new Iterator[(A,B)] {
+    def iterator: Iterator[(A,B)] = new Iterator[(A,B)] {
       var avail = unbind.head.get.links(0)
 
       def hasNext = null != avail
@@ -70,8 +70,8 @@ class SkipListMap[A,B](implicit aMan: Manifest[A], bMan: Manifest[B]) extends TM
       STM.atomic(unbind.transformIfDefined(key, pfOrNull, f)(_))
     }
 
-    def elements: Iterator[Tuple2[A,B]] = {
-      STM.atomic(unbind.bind(_).toArray).elements
+    def iterator: Iterator[Tuple2[A,B]] = {
+      STM.atomic(unbind.bind(_).toArray).iterator
     }
   }
 

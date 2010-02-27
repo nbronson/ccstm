@@ -80,7 +80,7 @@ object TSPAnts {
 
   val optimalDistance = tourLength(optimalTour)
 
-  val nodes = Set.empty[City] ++ coords.keys
+  val nodes = Set.empty[City] ++ coords.keySet
   val edges = Set.empty[Edge] ++ (for (a <- nodes.toList; b <- nodes.toList; if a != b) yield Edge(a, b))
   val distances = Map.empty[Edge,Int] ++ (for (e <- edges.toList) yield (e -> distance(coords, e)))
 
@@ -92,8 +92,8 @@ object TSPAnts {
 
   val probs = Map.empty[Edge,Ref[Double]] ++ (for (e <- edges.toList) yield (e -> Ref(STM.atomic(prob(e)(_)))))
 
-  val bestLength = Ref(Math.MAX_INT)
-  val bestTour = Ref(List(Math.MAX_INT))
+  val bestLength = Ref(Int.MaxValue)
+  val bestTour = Ref(List(Int.MaxValue))
   val tourCount = new AtomicLong
 
   val ants = Ref(Array[Thread]())
@@ -110,7 +110,7 @@ object TSPAnts {
   def tickAction(cnt: Int) = {
     val newCnt = cnt + 1
     if ((newCnt % ants.nonTxn.get.length) == 0) {
-      for (p <- pheromones.values) {
+      for (p <- pheromones.valuesIterator) {
         p.nonTxn.transform(_ * EFactor)
       }
     }

@@ -19,7 +19,7 @@ class UnlockedNonTxnMap[A,B](underlying: java.util.Map[A,AnyRef]) extends TMap[A
       underlying.isEmpty
     }
 
-    def size: Int = {
+    override def size: Int = {
       underlying.size()
     }
 
@@ -36,7 +36,7 @@ class UnlockedNonTxnMap[A,B](underlying: java.util.Map[A,AnyRef]) extends TMap[A
       NullValue.decodeOption[B](underlying.put(key, NullValue.encode(value)))
     }
 
-    def update(key: A, value: B) {
+    override def update(key: A, value: B) {
       underlying.put(key, NullValue.encode(value))
     }
 
@@ -44,8 +44,9 @@ class UnlockedNonTxnMap[A,B](underlying: java.util.Map[A,AnyRef]) extends TMap[A
       NullValue.decodeOption[B](underlying.remove(key))
     }
 
-    def -= (key: A) {
+    def -= (key: A) = {
       underlying.remove(key)
+      this
     }
 
     def transform(key: A, f: (Option[B]) => Option[B]) {
@@ -71,7 +72,7 @@ class UnlockedNonTxnMap[A,B](underlying: java.util.Map[A,AnyRef]) extends TMap[A
       }
     }
 
-    def elements: Iterator[(A,B)] = {
+    def iterator: Iterator[(A,B)] = {
       NullValue.decodeEntrySetSnapshot(underlying)
     }
   }

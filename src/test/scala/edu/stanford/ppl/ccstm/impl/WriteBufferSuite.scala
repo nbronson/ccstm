@@ -45,7 +45,7 @@ class WriteBufferSuite extends FunSuite {
   def runTest(steps: Iterable[Step], incrementalValidate: Boolean) {
     val wb = new WB
     val reference = new NestedMap
-    val iter = steps.elements
+    val iter = steps.iterator
     while (iter.hasNext) {
       iter.next match {
         case Put(specValue, handle) => {
@@ -84,7 +84,7 @@ class WriteBufferSuite extends FunSuite {
           val f = fresh(ref)
           val r = reference(ref)
           assert(f.size === r.size)
-          for (offset <- f.keys) {
+          for (offset <- f.keySet) {
             assert(f(offset) === r(offset))
           }
         }
@@ -165,7 +165,7 @@ class WriteBufferSuite extends FunSuite {
       wb.put(new H[String](refs(i), 0), "x" + i)
     }
 
-    var best = Math.MAX_LONG
+    var best = Long.MaxValue
     for (p <- 0 until passes) {
       val t0 = System.nanoTime
       var k = 0

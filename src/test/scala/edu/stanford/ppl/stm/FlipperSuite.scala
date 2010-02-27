@@ -225,7 +225,7 @@ class FlipperSuite extends STMFunSuite {
     A
   }
 
-  private def parallelRun(tasks: Collection[() => Unit]) {
+  private def parallelRun(tasks: Iterable[() => Unit]) {
     val barrier = new CyclicBarrier(tasks.size)
     var failure: Throwable = null
     val threads = for (task <- tasks.toList) yield new Thread {

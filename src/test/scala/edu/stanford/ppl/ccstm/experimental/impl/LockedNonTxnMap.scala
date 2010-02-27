@@ -19,7 +19,7 @@ class LockedNonTxnMap[A,B](underlying: java.util.Map[A,AnyRef]) extends TMap[A,B
       underlying.isEmpty
     }
 
-    def size: Int = underlying.synchronized {
+    override def size: Int = underlying.synchronized {
       underlying.size()
     }
 
@@ -36,7 +36,7 @@ class LockedNonTxnMap[A,B](underlying: java.util.Map[A,AnyRef]) extends TMap[A,B
       NullValue.decodeOption[B](underlying.put(key, NullValue.encode(value)))
     }
 
-    def update(key: A, value: B) {
+    override def update(key: A, value: B) {
       underlying.synchronized {
         underlying.put(key, NullValue.encode(value))
       }
@@ -46,10 +46,11 @@ class LockedNonTxnMap[A,B](underlying: java.util.Map[A,AnyRef]) extends TMap[A,B
       NullValue.decodeOption[B](underlying.remove(key))
     }
 
-    def -= (key: A) {
+    def -= (key: A) = {
       underlying.synchronized {
         underlying.remove(key)
       }
+      this
     }
 
     def transform(key: A, f: (Option[B]) => Option[B]) {
@@ -77,7 +78,7 @@ class LockedNonTxnMap[A,B](underlying: java.util.Map[A,AnyRef]) extends TMap[A,B
       }
     }
 
-    def elements: Iterator[(A,B)] = underlying.synchronized {
+    def iterator: Iterator[(A,B)] = underlying.synchronized {
       NullValue.decodeEntrySetSnapshot(underlying)
     }
   }

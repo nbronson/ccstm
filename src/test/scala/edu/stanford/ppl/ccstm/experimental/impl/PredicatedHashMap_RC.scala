@@ -121,7 +121,7 @@ class PredicatedHashMap_RC[A,B] extends TMap[A,B] {
 //      throw new Error
 //    }
 
-    def elements: Iterator[(A,B)] = new Iterator[(A,B)] {
+    def iterator: Iterator[(A,B)] = new Iterator[(A,B)] {
       val iter = predicates.keySet().iterator
       var avail: (A,B) = null
       advance()
@@ -150,7 +150,7 @@ class PredicatedHashMap_RC[A,B] extends TMap[A,B] {
   }
 
   def bind(implicit txn0: Txn): Bound[A, B] = new TMap.AbstractTxnBound[A,B,PredicatedHashMap_RC[A,B]](txn0, this) {
-    def elements: Iterator[(A,B)] = throw new UnsupportedOperationException
+    def iterator: Iterator[(A,B)] = throw new UnsupportedOperationException
   }
 
   def isEmpty(implicit txn: Txn): Boolean = throw new UnsupportedOperationException
