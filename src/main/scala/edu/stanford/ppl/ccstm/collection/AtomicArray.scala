@@ -7,6 +7,7 @@ package edu.stanford.ppl.ccstm.collection
 import collection.generic.CanBuildFrom
 import collection.mutable.{WrappedArray, Builder, ArrayLike, IndexedSeq}
 import java.util.concurrent.atomic._
+import annotation.tailrec
 
 abstract class AtomicArray[T] extends IndexedSeq[T] with ArrayLike[T, AtomicArray[T]] {
 
@@ -27,6 +28,13 @@ abstract class AtomicArray[T] extends IndexedSeq[T] with ArrayLike[T, AtomicArra
 
   /** Returns true iff previous value was expected, elem installed */
   def compareAndSet(index: Int, expected: T, elem: T): Boolean
+
+  /** Retries compareAndSet untill success, using f, then returns the old value */
+  @tailrec
+  final def getAndTransform(index: Int)(f: T => T): T = {
+    val before = apply(index)
+    if (compareAndSet(index, before, f(before))) before else getAndTransform(index)(f)
+  }
 
   override def stringPrefix = "AtomicArray"
   
