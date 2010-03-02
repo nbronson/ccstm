@@ -1,9 +1,8 @@
-package edu.stanford.ppl.ccstm.experimental.perf
+/* CCSTM - (c) 2009-2010 Stanford University - PPL */
 
-/* RandomOp
- *
- * Copyright 2009 Nathan Bronson and Stanford University.
- */
+// RandomOp
+
+package edu.stanford.ppl.ccstm.experimental.perf
 
 import edu.stanford.ppl.ccstm.experimental.TMap
 import edu.stanford.ppl.ccstm._

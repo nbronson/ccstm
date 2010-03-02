@@ -1,3 +1,7 @@
+/* CCSTM - (c) 2009-2010 Stanford University - PPL */
+
+// IterationSpeed
+
 package edu.stanford.ppl.ccstm.experimental.perf
 
 

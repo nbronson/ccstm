@@ -1,5 +1,8 @@
-package edu.stanford.ppl.ccstm.experimental.perf
+/* CCSTM - (c) 2009-2010 Stanford University - PPL */
 
+// Perf
+
+package edu.stanford.ppl.ccstm.experimental.perf
 
 import java.util.concurrent.CyclicBarrier
 import management.{GarbageCollectorMXBean, ManagementFactory}
@@ -7,10 +10,6 @@ import scala.collection.mutable.Map
 import edu.stanford.ppl.ccstm.experimental.TMap
 import edu.stanford.ppl.ccstm.experimental.impl.TMapFactory
 import edu.stanford.ppl.ccstm.{Atomic, Txn}
-/* Perf
- *
- * Copyright 2009 Nathan Bronson and Stanford University.
- */
 
 object Perf {
   {

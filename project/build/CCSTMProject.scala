@@ -1,3 +1,5 @@
+/* CCSTM - (c) 2009-2010 Stanford University - PPL */
+
 import sbt._
 
 class CCSTMProject(info: ProjectInfo) extends DefaultProject(info) {
