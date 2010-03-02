@@ -7,11 +7,26 @@ package edu.stanford.ppl.ccstm.collection
 import edu.stanford.ppl.ccstm._
 import edu.stanford.ppl.ccstm.impl.{DefaultValue, Handle}
 import java.util.concurrent.atomic.{AtomicLongArray, AtomicReferenceArray}
+import scala.reflect.ClassManifest
 import scala.collection._
 
-// TODO: select backing store based on manifest
-
 object TArray {
+  def apply[T](length: Int)(implicit m: ClassManifest[T]) = new TArray[T](length)
+  def apply[T](length: Int, metaMapping: TArray.MetaMapping)(implicit m: ClassManifest[T]) = new TArray[T](length, metaMapping)
+
+  // these are the cases we can do more efficiently
+  def apply(data: Array[Int]) = new TArray[Int](AtomicArray(data), TArray.DefaultMetaMapping)
+  def apply(data: Array[Int], metaMapping: TArray.MetaMapping) = new TArray[Int](AtomicArray(data), metaMapping)
+  def apply(data: Array[Long]) = new TArray[Long](AtomicArray(data), TArray.DefaultMetaMapping)
+  def apply(data: Array[Long], metaMapping: TArray.MetaMapping) = new TArray[Long](AtomicArray(data), metaMapping)
+  def apply[T <: AnyRef](data: Array[T]) = new TArray[T](AtomicArray(data), TArray.DefaultMetaMapping)
+  def apply[T <: AnyRef](data: Array[T], metaMapping: TArray.MetaMapping) = new TArray[T](AtomicArray(data), metaMapping)
+
+  // this is the general case
+  def apply[T](data: Traversable[T])(implicit m: ClassManifest[T]) = new TArray[T](data)
+  def apply[T](data: Traversable[T], metaMapping: TArray.MetaMapping)(implicit m: ClassManifest[T]) = new TArray[T](data, metaMapping)
+
+  
   trait Bound[T] extends mutable.IndexedSeq[T] {
     def unbind: TArray[T]
     def context: Option[Txn]
@@ -46,21 +61,18 @@ object TArray {
   val DefaultMetaMapping = Striped(16)
 }
 
-class TArray[T](length0: Int, metaMapping: TArray.MetaMapping)(implicit manifest: scala.reflect.Manifest[T]) {
+class TArray[T](private val _data: AtomicArray[T], metaMapping: TArray.MetaMapping) {
   import TArray._
 
-  def this(length0: Int)(implicit manifest: scala.reflect.Manifest[T]) = this(length0, TArray.DefaultMetaMapping)
-  def this(data0: Array[T], metaMapping: TArray.MetaMapping)(implicit manifest: scala.reflect.Manifest[T]) = {
-    this(data0.length, metaMapping)
-    var i = 0
-    while (i < data0.length) {
-      _data.set(i, data0(i))
-      i += 1
-    }
-  }
-  def this(data0: Array[T])(implicit manifest: scala.reflect.Manifest[T]) = this(data0, TArray.DefaultMetaMapping)
+  def this(length0: Int, metaMapping: TArray.MetaMapping)(implicit m: ClassManifest[T]) =
+    this(AtomicArray[T](length0), metaMapping)
+  def this(length0: Int)(implicit m: ClassManifest[T]) = this(length0, TArray.DefaultMetaMapping)
 
-  def length = length0
+  def this(data0: Traversable[T], metaMapping: TArray.MetaMapping)(implicit m: ClassManifest[T]) =
+    this(AtomicArray[T](data0), metaMapping)
+  def this(data0: Traversable[T])(implicit m: ClassManifest[T]) = this(data0, TArray.DefaultMetaMapping)
+
+  def length = _data.length
 
   def apply(index: Int)(implicit txn: Txn) = getRef(index).get
   def update(index: Int, v: T)(implicit txn: Txn) = getRef(index).set(v)
@@ -71,7 +83,7 @@ class TArray[T](length0: Int, metaMapping: TArray.MetaMapping)(implicit manifest
     def apply(index: Int): T = getRef(index).get
     def update(index: Int, v: T) = getRef(index).set(v)
     def refs: immutable.IndexedSeq[Ref.Bound[T]] = new immutable.IndexedSeq[Ref.Bound[T]] {
-      def length = length0
+      def length = unbind.length
       def apply(index: Int) = getRef(index).bind
     }
   }
@@ -82,13 +94,13 @@ class TArray[T](length0: Int, metaMapping: TArray.MetaMapping)(implicit manifest
     def apply(index: Int): T = getRef(index).nonTxn.get
     def update(index: Int, v: T) = getRef(index).nonTxn.set(v)
     def refs: immutable.IndexedSeq[Ref.Bound[T]] = new immutable.IndexedSeq[Ref.Bound[T]] {
-      def length = length0
+      def length = unbind.length
       def apply(index: Int) = getRef(index).nonTxn
     }
   }
 
   def refs: immutable.IndexedSeq[Ref[T]] = new immutable.IndexedSeq[Ref[T]] {
-    def length: Int = length0
+    def length: Int = TArray.this.length
     def apply(index0: Int): Ref[T] = getRef(index0)
   }
 
@@ -96,24 +108,14 @@ class TArray[T](length0: Int, metaMapping: TArray.MetaMapping)(implicit manifest
 
   private val _metaIndexShift = { var i = 0 ; while ((1L << i) < metaMapping.neighboringDataPerMeta) i += 1 ; i }
   private val _metaIndexMask = {
-    val n = Math.min(length0 / metaMapping.dataPerMeta, metaMapping.maxMeta)
+    val n = Math.min(length / metaMapping.dataPerMeta, metaMapping.maxMeta)
     var m = 1 ; while (m < n) m = (m << 1) + 1
     assert ((m & (m + 1)) == 0)
     m
   }
 
-  private val _meta = new AtomicLongArray(Math.min(_metaIndexMask + 1, length0))
+  private val _meta = new AtomicLongArray(Math.min(_metaIndexMask + 1, length))
   private def _metaIndex(i: Int) = (i >> _metaIndexShift) & _metaIndexMask
-  private val _data = ({
-    val dv = DefaultValue[T]
-    if (null == dv) {
-      new AtomicReferenceArray[T](length0)
-    } else {
-      val a = new Array[AnyRef](length0)
-      java.util.Arrays.fill(a, dv.asInstanceOf[AnyRef])
-      (new AtomicReferenceArray(a)).asInstanceOf[AtomicReferenceArray[T]]
-    }
-  })
 
   private def getRef(index: Int): Ref[T] = new Ref[T] with Handle[T] {
 
@@ -126,8 +128,8 @@ class TArray[T](length0: Int, metaMapping: TArray.MetaMapping)(implicit manifest
     private[ccstm] def metaCAS(before: Long, after: Long) = _meta.compareAndSet(metaOffset, before, after)
     private[ccstm] def ref = TArray.this
     private[ccstm] def offset = index
-    private[ccstm] def data = _data.get(index)
-    private[ccstm] def data_=(v: T) { _data.set(index, v) } 
+    private[ccstm] def data = _data(index)
+    private[ccstm] def data_=(v: T) { _data(index) = v } 
 
     override def toString = {
       "TArray@" + Integer.toHexString(System.identityHashCode(TArray.this)) + "(" + index + ")"

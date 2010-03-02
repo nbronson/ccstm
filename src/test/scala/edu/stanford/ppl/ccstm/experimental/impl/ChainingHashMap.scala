@@ -35,7 +35,7 @@ object ChainingHashMap {
 class ChainingHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TMap[K,V] {
   import ChainingHashMap._
 
-  private val bucketsRef = Ref(new TArray[Bucket[K,V]](16))
+  private val bucketsRef = Ref(TArray[Bucket[K,V]](16))
   private val sizeRef = new LazyConflictIntRef(0)
 
   private def hash(key: K) = {
@@ -259,7 +259,9 @@ class ChainingHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TM
       bi += 1
     }
 
-    // now create the transactional array, giving ourself up to 256 metadata stripes
-    bucketsRef := new TArray(after, TArray.Striped(512))
+    // now create the transactional array, giving ourself up to 512 metadata
+    // locations, with neighboring array elements getting different metadata
+    // mappings
+    bucketsRef := TArray(after, TArray.Striped(512))
   }
 }

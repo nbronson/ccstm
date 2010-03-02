@@ -13,19 +13,22 @@ class SpecializationsSuite extends STMFunSuite {
     test("specialization: " + manifest.erasure) {
       val ref1 = Ref(defaultValue)
       val ref2 = Ref[T]()
-      val arr = new TArray[T](1)
+      val arr1 = new TArray[T](1)
+      val arr2 = TArray[T](1)
       val exp = explicitRef
       val dv = defaultValue
 
       assert(dv === ref1.asInstanceOf[Source[Any]].nonTxn.get)
       assert(dv === ref2.asInstanceOf[Source[Any]].nonTxn.get)
-      assert(dv == arr.refs(0).asInstanceOf[Source[Any]].nonTxn.get)
+      assert(dv == arr1.refs(0).asInstanceOf[Source[Any]].nonTxn.get)
+      assert(dv == arr2.refs(0).asInstanceOf[Source[Any]].nonTxn.get)
       assert(dv == explicitRef.asInstanceOf[Source[Any]].nonTxn.get)
 
       new Atomic { def body {
         ref1 := dv
         ref2 := dv
-        arr(0) = dv // TODO: should this be "arr(0) := dv" ?
+        arr1(0) = dv // TODO: should this be "arr(0) := dv" ?
+        arr2(0) = dv
         exp := dv
       }}.run()
     }

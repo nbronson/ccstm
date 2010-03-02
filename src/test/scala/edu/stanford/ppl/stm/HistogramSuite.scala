@@ -47,7 +47,7 @@ class HistogramSuite extends STMFunSuite {
                 samplesPerTxn: Int) {
 
     val buckets: Seq[Ref[Int]] = (if (useTArray) {
-      new TArray[Int](bucketCount).refs
+      TArray[Int](bucketCount).refs
     } else {
       // Array.fromFunction results in buckets being a BoxedAnyArray, which has
       // synchronization on each access

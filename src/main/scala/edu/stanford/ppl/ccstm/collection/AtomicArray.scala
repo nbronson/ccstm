@@ -48,15 +48,15 @@ object AtomicArray {
   def apply[T](size: Int)(implicit m: ClassManifest[T]): AtomicArray[T] = {
     (m.newArray(0).asInstanceOf[AnyRef] match {
       case x: Array[Boolean] => new ofBoolean(size)
-      case x: Array[Byte] => new ofByte(size)
-      case x: Array[Short] => new ofShort(size)
-      case x: Array[Char] => new ofChar(size)
-      case x: Array[Int] => new ofInt(size)
-      case x: Array[Float] => new ofFloat(size)
-      case x: Array[Long] => new ofLong(size)
-      case x: Array[Double] => new ofDouble(size)
-      case x: Array[Unit] => throw new Error("I don't know what this should do")
-      case x: Array[AnyRef] => new ofRef[AnyRef](size)
+      case x: Array[Byte]    => new ofByte(size)
+      case x: Array[Short]   => new ofShort(size)
+      case x: Array[Char]    => new ofChar(size)
+      case x: Array[Int]     => new ofInt(size)
+      case x: Array[Float]   => new ofFloat(size)
+      case x: Array[Long]    => new ofLong(size)
+      case x: Array[Double]  => new ofDouble(size)
+      case x: Array[Unit]    => throw new Error("I don't know what this should do")
+      case x: Array[AnyRef]  => new ofRef[AnyRef](size)
     }).asInstanceOf[AtomicArray[T]]
   }
 
@@ -71,7 +71,22 @@ object AtomicArray {
   def apply[T <: AnyRef](elems: Array[T]) =
     new ofRef((new AtomicReferenceArray(elems.asInstanceOf[Array[AnyRef]])).asInstanceOf[AtomicReferenceArray[T]])
 
+  def apply[T](elems: Traversable[T])(implicit m: ClassManifest[T]): AtomicArray[T] = {
+    (elems.toArray.asInstanceOf[AnyRef] match {
+      case x: Array[Boolean] => apply(x)
+      case x: Array[Byte]    => apply(x)
+      case x: Array[Short]   => apply(x)
+      case x: Array[Char]    => apply(x)
+      case x: Array[Int]     => apply(x)
+      case x: Array[Float]   => apply(x)
+      case x: Array[Long]    => apply(x)
+      case x: Array[Double]  => apply(x)
+      case x: Array[Unit] => throw new Error("I don't know what this should do")
+      case x: Array[AnyRef]  => apply(x)
+    }).asInstanceOf[AtomicArray[T]]
+  }
 
+  
   implicit def canBuildFrom[T](implicit m: ClassManifest[T]): CanBuildFrom[AtomicArray[_], T, AtomicArray[T]] = {
     new CanBuildFrom[AtomicArray[_], T, AtomicArray[T]] {
       def apply(from: AtomicArray[_]): Builder[T, AtomicArray[T]] = {
