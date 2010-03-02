@@ -9,7 +9,31 @@ import collection.mutable.{WrappedArray, Builder, ArrayLike, IndexedSeq}
 import java.util.concurrent.atomic._
 import annotation.tailrec
 
+/**
+ * AtomicArray implements a fixed-length indexed sequence where reads and
+ * writes have volatile semantics.  In addition, it adds an atomic swap
+ * operation (getAndSet) and an atomic compare-and-swap (compareAndSet).
+ *
+ * Instances of AtomicArray are backed by one of the three Java atomic
+ * array classes: AtomicIntegerArray, AtomicLongArray, and
+ * AtomicReferenceArray.  No boxing of primitives is performed.  For
+ * AtomicArray[T] where T is a primitive smaller than an Int, an entire 32-bit
+ * Int is used for each array element.  Float-s and Double-s are stored using
+ * their raw bit representation.
+ *
+ * @author Nathan Bronson
+ */
 abstract class AtomicArray[T] extends IndexedSeq[T] with ArrayLike[T, AtomicArray[T]] {
+
+  // We choose to store Boolean-s (and other small primitives) each in their
+  // own Int.  This wastes space.  Another option would be to pack values into
+  // the elements of the underlying AtomicIntegerArray.  This would save space,
+  // but would require a compareAndSet loop to implement update, which adds
+  // complexity and would require some sort of back-off scheme to avoid
+  // live-lock.  A third option would be to use sun.misc.Unsafe directly, in
+  // which case volatile reads and writes of byte-sized memory locations can be
+  // performed directly.  compareAndSet of bytes would have to be emulated by
+  // integer-sized CAS.
 
   override protected[this] def thisCollection: AtomicArray[T] = this
   override protected[this] def toCollection(repr: AtomicArray[T]): AtomicArray[T] = repr
@@ -29,7 +53,7 @@ abstract class AtomicArray[T] extends IndexedSeq[T] with ArrayLike[T, AtomicArra
   /** Returns true iff previous value was expected, elem installed */
   def compareAndSet(index: Int, expected: T, elem: T): Boolean
 
-  /** Retries compareAndSet untill success, using f, then returns the old value */
+  /** Retries compareAndSet until success, using f, then returns the old value */
   @tailrec
   final def getAndTransform(index: Int)(f: T => T): T = {
     val before = apply(index)
