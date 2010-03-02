@@ -4,11 +4,9 @@
 
 package edu.stanford.ppl.ccstm.collection
 
-import collection.mutable.{Builder, ArrayLike, IndexedSeq}
-import java.util.concurrent.atomic.AtomicIntegerArray
-import java.util.concurrent.atomic.AtomicLongArray
-import java.util.concurrent.atomic.AtomicReferenceArray
 import collection.generic.CanBuildFrom
+import collection.mutable.{WrappedArray, Builder, ArrayLike, IndexedSeq}
+import java.util.concurrent.atomic._
 
 abstract class AtomicArray[T] extends IndexedSeq[T] with ArrayLike[T, AtomicArray[T]] {
 
@@ -55,7 +53,7 @@ object AtomicArray {
       case x: Array[Float]   => new ofFloat(size)
       case x: Array[Long]    => new ofLong(size)
       case x: Array[Double]  => new ofDouble(size)
-      case x: Array[Unit]    => throw new Error("I don't know what this should do")
+      case x: Array[Unit]    => new ofUnit(size)
       case x: Array[AnyRef]  => new ofRef[AnyRef](size)
     }).asInstanceOf[AtomicArray[T]]
   }
@@ -68,11 +66,16 @@ object AtomicArray {
   def apply(elems: Array[Float])   = new ofFloat(  new AtomicIntegerArray(elems map {java.lang.Float.floatToRawIntBits(_)}))
   def apply(elems: Array[Long])    = new ofLong(   new AtomicLongArray(elems))
   def apply(elems: Array[Double])  = new ofDouble( new AtomicLongArray(elems map {java.lang.Double.doubleToRawLongBits(_)}))
+  def apply(elems: Array[Unit])    = new ofUnit(   elems.length)
   def apply[T <: AnyRef](elems: Array[T]) =
     new ofRef((new AtomicReferenceArray(elems.asInstanceOf[Array[AnyRef]])).asInstanceOf[AtomicReferenceArray[T]])
 
   def apply[T](elems: Traversable[T])(implicit m: ClassManifest[T]): AtomicArray[T] = {
-    (elems.toArray.asInstanceOf[AnyRef] match {
+    val array: AnyRef = (elems match {
+      case w: WrappedArray[_] => w.array // we're going to copy out regardless, no need to duplicate right now
+      case _ => elems.toArray
+    })
+    val result = (array match {
       case x: Array[Boolean] => apply(x)
       case x: Array[Byte]    => apply(x)
       case x: Array[Short]   => apply(x)
@@ -81,9 +84,10 @@ object AtomicArray {
       case x: Array[Float]   => apply(x)
       case x: Array[Long]    => apply(x)
       case x: Array[Double]  => apply(x)
-      case x: Array[Unit] => throw new Error("I don't know what this should do")
+      case x: Array[Unit]    => apply(x)
       case x: Array[AnyRef]  => apply(x)
-    }).asInstanceOf[AtomicArray[T]]
+    })
+    result.asInstanceOf[AtomicArray[T]]
   }
 
   
@@ -210,6 +214,17 @@ object AtomicArray {
     def compareAndSet(index: Int, expected: Double, elem: Double) =
       elems.compareAndSet(index, encode(expected), encode(elem))
     override def newBuilder = new AtomicArrayBuilder.ofDouble
+  }
+  
+  @serializable
+  final class ofUnit(val length: Int) extends AtomicArray[Unit] {
+    private val dummy = new AtomicReference[Unit](())
+    
+    def apply(index: Int) = dummy.get
+    def update(index: Int, elem: Unit): Unit = dummy.set(elem)
+    def getAndSet(index: Int, elem: Unit) = dummy.getAndSet(elem)
+    def compareAndSet(index: Int, expected: Unit, elem: Unit) = dummy.compareAndSet(expected, elem)
+    override def newBuilder = new AtomicArrayBuilder.ofUnit
   }
 
   @serializable

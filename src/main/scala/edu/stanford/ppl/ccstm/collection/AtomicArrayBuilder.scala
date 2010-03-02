@@ -20,7 +20,7 @@ object AtomicArrayBuilder {
       case x: Array[Float] => new ofFloat
       case x: Array[Long] => new ofLong
       case x: Array[Double] => new ofDouble
-      case x: Array[Unit] => throw new Error("I don't know what this should do")
+      case x: Array[Unit] => new ofUnit
       case x: Array[AnyRef] => new ofRef[AnyRef]
     }).asInstanceOf[AtomicArrayBuilder[T]]
   }
@@ -194,6 +194,13 @@ object AtomicArrayBuilder {
     }
   }
 
+  class ofUnit extends AtomicArrayBuilder[Unit] {
+    protected var size = 0
+
+    def clear(): Unit = { size = 0 }
+    def +=(elem: Unit): this.type = { size += 1; this }
+    def result(): AtomicArray[Unit] = new AtomicArray.ofUnit(size)
+  }
 
   class ofRef[T <: AnyRef] extends AtomicArrayBuilder[T] {
     protected var elems = EmptyRefArray
