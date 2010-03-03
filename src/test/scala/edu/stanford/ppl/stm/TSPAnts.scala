@@ -187,9 +187,9 @@ object TSPAnts {
   }
 
   def run(nants: Int) = {
-    ants.nonTxn := Array.fromFunction(i => new Thread {
+    ants.nonTxn := Array.tabulate(nants)({ _ => new Thread {
       override def run { tourLoop }
-    })(nants)
+    }})
     for (ant <- ants.nonTxn.get) ant.start
     'running
   }

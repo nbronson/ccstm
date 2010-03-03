@@ -116,8 +116,8 @@ class FlipperSuite extends STMFunSuite {
 
     private val len = syncCount*transCount*instrCount*threadCount
     private val rand = new java.util.Random(randSeed)
-    val R = Array.fromFunction(i => rand.nextInt(wordCount))(len)
-    val F = Array.fromFunction(i => rand.nextDouble() < flipProb)(len)
+    val R = Array.tabulate(len)({ _ => rand.nextInt(wordCount) })
+    val F = Array.tabulate(len)({ _ => rand.nextDouble() < flipProb })
      
     def index(id: Int, sync: Int, trans: Int, instr: Int) = {
       ((id*syncCount+sync)*transCount+trans)*instrCount+instr;
@@ -129,7 +129,7 @@ class FlipperSuite extends STMFunSuite {
       print("computing sequentially...")
       Console.flush
 
-      val P = Array.fromFunction[Ref[Boolean]]((i: Int) => new TBooleanRef(false))(len)
+      val P = Array.tabulate[Ref[Boolean]](len)({ _ => new TBooleanRef(false) })
       val expected = computeSequential(this, P)
 
       print("\ncomputing in parallel with transactions...")
@@ -189,7 +189,7 @@ class FlipperSuite extends STMFunSuite {
   }
 
   def computeSequential(config: Config, P: Array[Ref[Boolean]]): Array[Ref[Int]] = {
-    val A = Array.fromFunction(i => Ref(0))(config.wordCount)
+    val A = Array.tabulate(config.wordCount)({ _ => Ref(0) })
     for (sync <- 0 until config.syncCount) {
       for (thread <- 0 until config.threadCount) {
         (new FlipperTask(config, A, P, true, thread, sync) {
@@ -203,7 +203,7 @@ class FlipperSuite extends STMFunSuite {
   }
 
   def computeParallelTxn(config: Config, P: Array[Ref[Boolean]]): Array[Ref[Int]] = {
-    val A = Array.fromFunction[Ref[Int]]((i: Int) => config.refFactory())(config.wordCount)
+    val A = Array.tabulate[Ref[Int]](config.wordCount)({ _ => config.refFactory() })
     for (sync <- 0 until config.syncCount) {
       val tasks = (for (thread <- 0 until config.threadCount) yield {
         new FlipperTask(config, A, P, false, thread, sync) {

@@ -15,7 +15,7 @@ object ParUtil {
   case class ParRange(from: Int, to: Int) {
     def foreach(block: Int => Unit) {
       var failure: Throwable = null
-      val threads = Array.fromFunction(i => new Thread {
+      val threads = Array.tabulate(to - from)(i => new Thread {
         override def run {
           try {
             block(from + i)
@@ -23,7 +23,7 @@ object ParUtil {
             case x => failure = x
           }
         }
-      })(to - from)
+      })
       for (t <- threads) t.start
       for (t <- threads) t.join
       if (null != failure) throw failure

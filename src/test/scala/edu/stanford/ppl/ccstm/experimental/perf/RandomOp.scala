@@ -27,7 +27,7 @@ object RandomOp {
   println("RandomOp.TxnOpPct = " + TxnOpPct)
   println("RandomOp.TxnNoReadOnlyCommit = " + TxnNoReadOnlyCommit)
 
-  val Values = Array.fromFunction(i => "x"+i)(1024)
+  val Values = Array.tabulate(1024)({ i => "x"+i })
 }
 
 private object DummyWriteResource extends Txn.WriteResource {

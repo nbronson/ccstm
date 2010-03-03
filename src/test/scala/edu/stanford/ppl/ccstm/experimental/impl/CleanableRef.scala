@@ -15,7 +15,7 @@ private object CleanableRef {
     i
   }
 
-  private val queues = Array.fromFunction(newQueue(_))(CleaningThreads)
+  private val queues = Array.tabulate(CleaningThreads)({ newQueue(_) })
   private def newQueue(i: Int) = {
     val queue = new ReferenceQueue[AnyRef]
 

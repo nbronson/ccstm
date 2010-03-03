@@ -31,7 +31,7 @@ object Benchmark {
 
     Account.yieldALot = params("yieldALot").toBoolean
 
-    val accounts = Array.fromFunction[Account]((i: Int) => {
+    val accounts = Array.tabulate[Account](params("accounts").toInt)({ i =>
       val flavour = params("flavour").toString
       flavour match {
         case "d"   => new CheckingAccount("" + i, params("init").toFloat)
@@ -41,9 +41,9 @@ object Benchmark {
           throw new IllegalArgumentException("Unknown option for flavour " + flavour + ", try -h for help")
         }
       }
-    })(params("accounts").toInt)
+    })
     
-    val threads = Array.fromFunction(i => {
+    val threads = Array.tabulate(params("threads").toInt)({ i =>
       new BenchmarkThread(
           i,
           params("threads").toInt,
@@ -55,7 +55,7 @@ object Benchmark {
           params("writeThreads").toInt,
           params("disjointTrans").toBoolean
         )
-    })(params("threads").toInt)
+    })
 
     val warmup = params("startup").toInt
     val timed = params("elapsed").toInt

@@ -106,7 +106,7 @@ class WakeupManagerSuite extends FunSuite {
     class TicketHolder {
       @volatile var turn = 0
     }
-    val tickets = Array.fromFunction(i => new TicketHolder)(numTickets)
+    val tickets = Array.tabulate(numTickets)({ _ => new TicketHolder })
     var mgr = new WakeupManager
     val t0 = System.currentTimeMillis
     for (id <- 0 par_until (numTickets * threadsPerTicket)) {
