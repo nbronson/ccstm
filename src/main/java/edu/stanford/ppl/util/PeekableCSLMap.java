@@ -11,6 +11,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.atomic.*;
 import java.util.Map.Entry;
+import java.util.AbstractMap.SimpleImmutableEntry;
 
 /**
  * A scalable concurrent {@link java.util.concurrent.ConcurrentNavigableMap} implementation.
