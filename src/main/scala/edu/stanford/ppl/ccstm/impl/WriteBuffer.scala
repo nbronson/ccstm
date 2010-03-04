@@ -40,7 +40,7 @@ private[impl] class WriteBuffer {
     val hash = STMImpl.hash(ref, offset)
     var i = hash & (_capacity - 1)
     while (true) {
-      var r = _entries(refI(i))
+      val r = _entries(refI(i))
       if (r eq null) {
         // miss, read from handle
         return handle.data
@@ -69,7 +69,7 @@ private[impl] class WriteBuffer {
     val hash = STMImpl.hash(ref, offset)
     var i = hash & (_capacity - 1)
     while (true) {
-      var r = _entries(refI(i))
+      val r = _entries(refI(i))
       if (r eq null) {
         // miss, insert here
         _lastInsert = i
@@ -100,7 +100,7 @@ private[impl] class WriteBuffer {
     val hash = STMImpl.hash(ref, offset)
     var i = hash & (_capacity - 1)
     while (true) {
-      var r = _entries(refI(i))
+      val r = _entries(refI(i))
       if (r eq null) {
         // miss, insert here
         _lastInsert = i
@@ -134,7 +134,7 @@ private[impl] class WriteBuffer {
     var done = false
     var v0: T = null.asInstanceOf[T]
     while (!done) {
-      var r = _entries(refI(i))
+      val r = _entries(refI(i))
       if (r eq null) {
         // Miss, insert here.  Do the call first so that an exception leaves
         // things in an okay state.
