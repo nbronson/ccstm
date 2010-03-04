@@ -12,7 +12,7 @@ private object TBooleanRef {
   val metaUpdater = (new TBooleanRef(false)).newMetaUpdater
 }
 
-/** A concrete implementation of <code>Ref[Int]</code>.
+/** A concrete implementation of <code>Ref[Boolean]</code>.
  *  <p>
  *  This class is not sealed, so it may be opportunistically subclassed to
  *  reduce a level of indirection and the associated storage overheads.

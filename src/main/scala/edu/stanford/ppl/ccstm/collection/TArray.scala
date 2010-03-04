@@ -5,8 +5,8 @@
 package edu.stanford.ppl.ccstm.collection
 
 import edu.stanford.ppl.ccstm._
-import edu.stanford.ppl.ccstm.impl.{DefaultValue, Handle}
-import java.util.concurrent.atomic.{AtomicLongArray, AtomicReferenceArray}
+import edu.stanford.ppl.ccstm.impl.Handle
+import java.util.concurrent.atomic.AtomicLongArray
 import scala.reflect.ClassManifest
 import scala.collection._
 

@@ -4,6 +4,7 @@
 
 package edu.stanford.ppl.ccstm
 
+import reflect.AnyValManifest
 
 /** An object that provides factory methods for <code>Ref</code> instances.
  *  @see edu.stanford.ppl.ccstm.Ref
@@ -12,12 +13,24 @@ package edu.stanford.ppl.ccstm
  */
 object Ref {
   import collection._
-  import impl.DefaultValue
 
-  /** Returns a new <code>Ref</code> instance, initialized to the default value
-   *  for objects of type <code>T</code>.
+  /** Returns a new <code>Ref</code> instance suitable for holding instances of
+   *  <code>T</code>.
    */
-  def apply[T]()(implicit manifest: scala.reflect.Manifest[T]): Ref[T] = apply(DefaultValue[T])
+  def make[T]()(implicit m: ClassManifest[T]): Ref[T] = {
+    (m.newArray(0).asInstanceOf[AnyRef] match {
+      case x: Array[Boolean] => new TBooleanRef(false)
+      case x: Array[Byte]    => new TByteRef(   0 : Byte)
+      case x: Array[Short]   => new TShortRef(  0 : Short)
+      case x: Array[Char]    => new TCharRef(   0 : Char)
+      case x: Array[Int]     => new TIntRef(    0 : Int)
+      case x: Array[Float]   => new TFloatRef(  0 : Float)
+      case x: Array[Long]    => new TLongRef(   0 : Long)
+      case x: Array[Double]  => new TDoubleRef( 0 : Double)
+      case x: Array[Unit]    => new TAnyRef[Unit](())
+      case x: Array[AnyRef]  => new TAnyRef[AnyRef](null)
+    }).asInstanceOf[Ref[T]]
+  }
 
   /** Returns a new <code>Ref</code> instance with the specified initial
    *  value.
@@ -29,19 +42,38 @@ object Ref {
    *  however, this can result in unintuitive behavior.  To avoid this problem,
    *  read from the reference prior to leaking a reference to it from inside
    *  the constructing transaction.
-   *
-   *  TODO: optional dynamic checks, error if a Ref is first accessed before a constructing txn's commit
    */
-  def apply[T](initialValue: T): Ref[T] = new TAnyRef(initialValue)
+  def apply[T](initialValue: T)(implicit m: ClassManifest[T]): Ref[T] = {
+    if (m.isInstanceOf[AnyValManifest[_]]) {
+      newPrimitiveRef(initialValue)
+    } else {
+      new TAnyRef(initialValue)
+    }
+  }
 
-  def apply(initialValue: Byte): Ref[Byte] = new TAnyRef(initialValue)
-  def apply(initialValue: Short): Ref[Short] = new TAnyRef(initialValue)
-  def apply(initialValue: Char): Ref[Char] = new TAnyRef(initialValue)
-  def apply(initialValue: Int): Ref[Int] = new TIntRef(initialValue)
-  def apply(initialValue: Long): Ref[Long] = new TLongRef(initialValue)
-  def apply(initialValue: Float): Ref[Float] = new TFloatRef(initialValue)
-  def apply(initialValue: Double): Ref[Double] = new TDoubleRef(initialValue)
   def apply(initialValue: Boolean): Ref[Boolean] = new TBooleanRef(initialValue)
+  def apply(initialValue: Byte   ): Ref[Byte]    = new TByteRef(   initialValue)
+  def apply(initialValue: Short  ): Ref[Short]   = new TShortRef(  initialValue)
+  def apply(initialValue: Char   ): Ref[Char]    = new TCharRef(   initialValue)
+  def apply(initialValue: Int    ): Ref[Int]     = new TIntRef(    initialValue)
+  def apply(initialValue: Long   ): Ref[Long]    = new TLongRef(   initialValue)
+  def apply(initialValue: Float  ): Ref[Float]   = new TFloatRef(  initialValue)
+  def apply(initialValue: Double ): Ref[Double]  = new TDoubleRef( initialValue)
+  def apply(initialValue: Unit   ): Ref[Unit]    = new TAnyRef(    initialValue)
+
+  private def newPrimitiveRef[T](initialValue: T)(implicit m: ClassManifest[T]): Ref[T] = {
+    (m.newArray(0).asInstanceOf[AnyRef] match {
+      case x: Array[Boolean] => apply(initialValue.asInstanceOf[Boolean])
+      case x: Array[Byte]    => apply(initialValue.asInstanceOf[Byte])
+      case x: Array[Short]   => apply(initialValue.asInstanceOf[Short])
+      case x: Array[Char]    => apply(initialValue.asInstanceOf[Char])
+      case x: Array[Int]     => apply(initialValue.asInstanceOf[Int])
+      case x: Array[Float]   => apply(initialValue.asInstanceOf[Float])
+      case x: Array[Long]    => apply(initialValue.asInstanceOf[Long])
+      case x: Array[Double]  => apply(initialValue.asInstanceOf[Double])
+      case x: Array[Unit]    => apply(initialValue.asInstanceOf[Unit])
+    }).asInstanceOf[Ref[T]]
+  }
 
 
   /** A <code>Ref</code> view that supports reads and writes.  Reads and writes

@@ -4,15 +4,16 @@
 
 package edu.stanford.ppl.stm
 
-import edu.stanford.ppl.ccstm.collection.TArray
+import scala.reflect.ClassManifest
 import edu.stanford.ppl.ccstm._
+import edu.stanford.ppl.ccstm.collection._
 
 
 class SpecializationsSuite extends STMFunSuite {
-  def runTest[T](defaultValue: T, explicitRef: Ref[T])(implicit manifest: scala.reflect.Manifest[T]) {
-    test("specialization: " + manifest.erasure) {
+  def runTest[T](defaultValue: T, explicitRef: Ref[T], expectedImpl: Class[_])(implicit m: ClassManifest[T]) {
+    test("specialization: " + m.erasure) {
       val ref1 = Ref(defaultValue)
-      val ref2 = Ref[T]()
+      val ref2 = Ref.make[T]()
       val arr1 = new TArray[T](1)
       val arr2 = TArray[T](1)
       val exp = explicitRef
@@ -23,6 +24,9 @@ class SpecializationsSuite extends STMFunSuite {
       assert(dv == arr1.refs(0).asInstanceOf[Source[Any]].nonTxn.get)
       assert(dv == arr2.refs(0).asInstanceOf[Source[Any]].nonTxn.get)
       assert(dv == explicitRef.asInstanceOf[Source[Any]].nonTxn.get)
+      assert(ref1.getClass === expectedImpl)
+      assert(ref2.getClass === expectedImpl)
+      assert(explicitRef.getClass === expectedImpl)
 
       new Atomic { def body {
         ref1 := dv
@@ -37,16 +41,16 @@ class SpecializationsSuite extends STMFunSuite {
   val zeroByte: Byte = 0
   val zeroShort: Short = 0
 
-  runTest(false, Ref(false))
-  runTest(zeroByte, Ref(zeroByte))
-  runTest(zeroShort, Ref(zeroShort))
-  runTest('\0', Ref('\0'))
-  runTest(0, Ref(0))
-  runTest(0.0f, Ref(0.0f))
-  runTest(0L, Ref(0L))
-  runTest(0.0, Ref(0.0))
-  runTest[AnyRef](null, Ref[AnyRef]())
-  runTest[String](null, Ref[String](null))
-  runTest[Array[Int]](null, Ref[Array[Int]](null))
-  runTest[Ref[Int]](null, Ref[Ref[Int]](null))
+  runTest(false, Ref(false), classOf[TBooleanRef])
+  runTest(zeroByte, Ref(zeroByte), classOf[TByteRef])
+  runTest(zeroShort, Ref(zeroShort), classOf[TShortRef])
+  runTest('\0', Ref('\0'), classOf[TCharRef])
+  runTest(0, Ref(0), classOf[TIntRef])
+  runTest(0.0f, Ref(0.0f), classOf[TFloatRef])
+  runTest(0L, Ref(0L), classOf[TLongRef])
+  runTest(0.0, Ref(0.0), classOf[TDoubleRef])
+  runTest[AnyRef](null, Ref.make[AnyRef](), classOf[TAnyRef[_]])
+  runTest[String](null, Ref[String](null), classOf[TAnyRef[_]])
+  runTest[Array[Int]](null, Ref[Array[Int]](null), classOf[TAnyRef[_]])
+  runTest[Ref[Int]](null, Ref[Ref[Int]](null), classOf[TAnyRef[_]])
 }

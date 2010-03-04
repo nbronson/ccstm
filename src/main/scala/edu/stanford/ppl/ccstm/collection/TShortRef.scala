@@ -1,6 +1,6 @@
 /* CCSTM - (c) 2009-2010 Stanford University - PPL */
 
-// TFloatRef
+// TShortRef
 
 package edu.stanford.ppl.ccstm.collection
 
@@ -8,27 +8,27 @@ import edu.stanford.ppl.ccstm._
 import java.util.concurrent.atomic.AtomicLongFieldUpdater
 
 
-private object TFloatRef {
-  val metaUpdater = (new TFloatRef(0 : Float)).newMetaUpdater
+private object TShortRef {
+  val metaUpdater = (new TShortRef(0 : Short)).newMetaUpdater
 }
 
-/** A concrete implementation of <code>Ref[Float]</code>.
+/** A concrete implementation of <code>Ref[Short]</code>.
  *  <p>
  *  This class is not sealed, so it may be opportunistically subclassed to
  *  reduce a level of indirection and the associated storage overheads.
  *
  *  @author Nathan Bronson
  */
-class TFloatRef(initialValue: Float) extends Ref[Float] with impl.Handle[Float] {
+class TShortRef(initialValue: Short) extends Ref[Short] with impl.Handle[Short] {
 
-  protected def handle: impl.Handle[Float] = this
+  protected def handle: impl.Handle[Short] = this
 
   @volatile private[ccstm] var meta: Long = 0L
   private[ccstm] def metaCAS(before: Long, after: Long) = {
-    TFloatRef.metaUpdater.compareAndSet(this, before, after)
+    TShortRef.metaUpdater.compareAndSet(this, before, after)
   }
-  private[TFloatRef] def newMetaUpdater = {
-    AtomicLongFieldUpdater.newUpdater(classOf[TFloatRef], "meta")
+  private[TShortRef] def newMetaUpdater = {
+    AtomicLongFieldUpdater.newUpdater(classOf[TShortRef], "meta")
   }
 
   private[ccstm] def ref: AnyRef = this

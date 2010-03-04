@@ -9,10 +9,10 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater
 
 
 private object TLongRef {
-  val metaUpdater = (new TLongRef(0L)).newMetaUpdater
+  val metaUpdater = (new TLongRef(0 : Long)).newMetaUpdater
 }
 
-/** A concrete implementation of <code>Ref[Int]</code>.
+/** A concrete implementation of <code>Ref[Long]</code>.
  *  <p>
  *  This class is not sealed, so it may be opportunistically subclassed to
  *  reduce a level of indirection and the associated storage overheads.
