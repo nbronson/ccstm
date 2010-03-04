@@ -53,7 +53,7 @@ object Source {
     /** Returns <code>f(get)</code>, possibly reevaluating <code>f</code> to
      *  avoid rollback if a conflicting change is made but both the old and new
      *  values are equal after application of <code>f</code>.  Requires that
-     *  <code>f(x) == f(x)</code>.
+     *  <code>f(x) == f(y)</code> if <code>x == y</code>.
      *  @param f an idempotent function.
      *  @return the result of applying <code>f</code> to the value read by this
      *      view.
@@ -65,7 +65,7 @@ object Source {
      *  method is equivalent to <code>if(!pred(get)) txn.retry</code>. If
      *  called from a non-transactional context, this method blocks until the
      *  predicate holds.  Requires that the predicate be safe to reevaluate,
-     *  and that <code>pred(x) == pred(x)</code>.
+     *  and that <code>pred(x) == pred(y)</code> if <code>x == y</code>.
      *  @param pred an idempotent predicate.
      *  @see edu.stanford.ppl.ccstm.Txn#retry
      */
@@ -158,7 +158,7 @@ trait Source[+T] {
   /** Returns <code>f(get)</code>, possibly reevaluating <code>f</code> to
    *  avoid rollback if a conflicting change is made but both the old and new
    *  values are equal after application of <code>f</code>.  Requires that
-   *  <code>f(x) == f(x)</code>.
+   *  <code>f(x) == f(y)</code> if <code>x == y</code>.
    *  @param f an idempotent function.
    *  @return the result of applying <code>f</code> to the value read by this
    *      view.

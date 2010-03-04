@@ -264,6 +264,24 @@ object LazyConflictIntRef {
   }
 }
 
+/** An IntRef implementation that uses Abstract Nested Transactions to
+ *  minimize the need to roll back a transaction due to a conflict.  All
+ *  operations and their result values are recorded.  If another transaction
+ *  changes the value of this ref, a conflict will be avoided if the history
+ *  can be replayed starting with the new value without an observable
+ *  difference.  Writes to the underlying value will be delayed until just
+ *  prior to commit.
+ *
+ *  As an example, if the current value of a LazyConflictIntRef x is 10, and
+ *  the caller tests the value using <code>x > 4</code>, a thread-local history
+ *  will be created that records that the transaction has observed that x is
+ *  greater than 4.  If another transaction then changes x to 9, the current
+ *  transaction can avoid rollback, because replaying the operations that were
+ *  used to obtain information about the value does not result in an observable
+ *  difference.  If a call is made to <code>x.get</code>, then clearly no
+ *  conflicts can be avoided (unless there was an earlier call to
+ *  <code>x.set</code> in the same transaction). 
+ */
 class LazyConflictIntRef(initialValue: Int) extends IntRef {
 
   private val underlying = new TIntRef(initialValue)

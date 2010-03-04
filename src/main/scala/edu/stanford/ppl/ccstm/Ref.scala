@@ -44,6 +44,7 @@ object Ref {
    *  the constructing transaction.
    */
   def apply[T](initialValue: T)(implicit m: ClassManifest[T]): Ref[T] = {
+    // TODO: can this check ClassTypeManifest instead (instanceof class is faster than instanceof interface)
     if (m.isInstanceOf[AnyValManifest[_]]) {
       newPrimitiveRef(initialValue)
     } else {
@@ -187,7 +188,7 @@ object Ref {
      *  <code>tryWrite</code>.
      *  @param f a function that is safe to call multiple times, and safe to
      *      call later during the bound transaction (if any).
-     *  @returns true if the function was applied, false if it was not.
+     *  @return true if the function was applied, false if it was not.
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
      */

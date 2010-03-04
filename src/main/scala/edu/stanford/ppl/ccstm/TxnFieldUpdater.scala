@@ -97,7 +97,7 @@ abstract class TxnFieldUpdater[T <: MetaHolder,V](tClazz: Class[T], fieldName: S
    *  returned ref performed via <code>Ref.nonTxn</code> will be atomic and
    *  isolated, and strongly ordered with any transactions that access the same
    *  field of <code>instance</code>.
-   *  @returns a <code>Ref</code> that provides transactional access to a field
+   *  @return a <code>Ref</code> that provides transactional access to a field
    *      in <code>instance</code>.
    */
   def apply(instance: T): Ref[V] = new Ref[V] with Handle[V] {
