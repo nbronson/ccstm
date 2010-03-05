@@ -80,3 +80,25 @@ private class TFUSObj extends impl.MetaHolder {
   @volatile private var _iField: Int = 0
   @volatile private var _sField: String = "abc"
 }
+
+
+private object TFUSGeneric {
+  val AField = new TxnFieldUpdater.Generic(classOf[TFUSGeneric[_,_]], "aField") {
+    type Instance[X] = TFUSGeneric[X,_]
+    type Value[X] = X
+    protected def getField[A](instance: TFUSGeneric[A,_]): A = instance._aField
+    protected def setField[A](instance: TFUSGeneric[A,_], v: A) { instance._aField = v }
+  }
+
+  val BField = new TxnFieldUpdater.Generic2(classOf[TFUSGeneric[_,_]], "bField") {
+    type Instance[X,Y] = TFUSGeneric[X,Y]
+    type Value[X,Y] = List[(X,Y)]
+    protected def getField[A,B](instance: TFUSGeneric[A,B]) = instance._bField
+    protected def setField[A,B](instance: TFUSGeneric[A,B], v: List[(A,B)]) { instance._bField = v }
+  }
+}
+
+private class TFUSGeneric[A,B](a0: A, b0: List[(A,B)]) extends impl.MetaHolder {
+  @volatile private var _aField = a0
+  @volatile private var _bField = b0
+}

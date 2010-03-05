@@ -4,6 +4,8 @@
 
 package edu.stanford.ppl.ccstm.impl
 
+import annotation.tailrec
+
 
 private[impl] object WriteBuffer {
   trait Visitor {
@@ -37,26 +39,26 @@ private[impl] class WriteBuffer {
   def get[T](handle: Handle[T]): T = {
     val ref = handle.ref
     val offset = handle.offset
-    val hash = STMImpl.hash(ref, offset)
-    var i = hash & (_capacity - 1)
-    while (true) {
-      val r = _entries(refI(i))
-      if (r eq null) {
-        // miss, read from handle
-        return handle.data
-      }
-      if (r eq ref) {
-        val h = _entries(handleI(i))
-        if ((h eq handle) || h.asInstanceOf[Handle[_]].offset == offset) {
-          // hit
-          return _entries(specValueI(i)).asInstanceOf[T]
-        }
-      }
+    getImpl(handle, ref, offset, STMImpl.hash(ref, offset) & (_capacity - 1))
+  }
 
-      // probe
-      i = (i + 1) & (_capacity - 1)
+  @tailrec
+  private def getImpl[T](handle: Handle[T], ref: AnyRef, offset: Int, i: Int): T = {
+    val r = _entries(refI(i))
+    if (r eq null) {
+      // miss, read from handle
+      return handle.data
     }
-    throw new Error("unreachable")
+    if (r eq ref) {
+      val h = _entries(handleI(i))
+      if ((h eq handle) || h.asInstanceOf[Handle[_]].offset == offset) {
+        // hit
+        return _entries(specValueI(i)).asInstanceOf[T]
+      }
+    }
+
+    // probe
+    return getImpl(handle, ref, offset, (i + 1) & (_capacity - 1))
   }
 
   def put[T](handle: Handle[T], specValue: T) {
