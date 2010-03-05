@@ -2,10 +2,10 @@
 
 // SpecializationsSuite
 
-package edu.stanford.ppl.stm
+package edu.stanford.ppl.ccstm
 
 import scala.reflect.ClassManifest
-import edu.stanford.ppl.ccstm._
+import edu.stanford.ppl.stm.STMFunSuite
 import edu.stanford.ppl.ccstm.collection._
 
 

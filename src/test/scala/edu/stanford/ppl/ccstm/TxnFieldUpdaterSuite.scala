@@ -2,9 +2,9 @@
 
 // TxnFieldUpdaterSuite
 
-package edu.stanford.ppl.stm
+package edu.stanford.ppl.ccstm
 
-import edu.stanford.ppl.ccstm._
+import edu.stanford.ppl.stm.STMFunSuite
 
 
 class TxnFieldUpdaterSuite extends STMFunSuite {
