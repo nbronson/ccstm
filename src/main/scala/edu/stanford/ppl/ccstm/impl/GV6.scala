@@ -12,15 +12,16 @@ private[impl] trait GV6 {
   /** The global timestamp.  We use TL2's GV6 scheme to avoid the need to
    *  increment this during every transactional commit.  Non-transactional
    *  writes are even more conservative, incrementing the global version only
-   *  when absolutely required.  This helps reduce contention (especially when
-   *  there are many non-transactional writes), but it means we must always
-   *  validate transactions that are not read-only.
+   *  when it lags the local version by a (configurable) fixed amount.  This
+   *  helps reduce contention (especially when there are many non-transactional
+   *  writes), but it means we must always validate transactions that are not
+   *  read-only.
    */
   private[impl] val globalVersion = new AtomicLong(1)
 
   /** The approximate ratio of the number of commits to the number of
    *  increments of <code>globalVersion</code>, as in TL2's GV6 scheme.  If
-   *  greater than one, the actual choice to commit or not is made with a
+   *  greater than one, the actual choice to advance or not is made with a
    *  random number generator.
    */
   private val silentCommitRatio = ((Runtime.getRuntime.availableProcessors + 1) / 2) min 16
@@ -78,7 +79,7 @@ private[impl] trait GV6 {
   }
 
   /** Returns a value that is greater than <code>gvSnap</code> and greater than
-   *  <code>readVersion</code>, possibly increasing<code>globalVersion</code>.
+   *  <code>readVersion</code>, possibly increasing <code>globalVersion</code>.
    */
   private[impl] def freshCommitVersion(readVersion: Long, gvSnap: Long): Long = {
     val result = Math.max(readVersion, gvSnap) + 1
