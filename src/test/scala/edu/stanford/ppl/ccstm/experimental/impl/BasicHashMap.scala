@@ -169,31 +169,25 @@ private class BHMBucket[A,B](val key: A, value0: B, next0: BHMBucket[A,B]) exten
 
   def value(implicit txn: Txn): B = valueRef.get
   def value_=(v: B)(implicit txn: Txn) { valueRef.set(v) }
-  def valueRef = Value[B](this)
+  def valueRef = Value(this)
 
   def next(implicit txn: Txn): BHMBucket[A,B] = nextRef.get
   def next_=(v: BHMBucket[A,B])(implicit txn: Txn) { nextRef.set(v) }
-  def nextRef = Next[A,B](this)
+  def nextRef = Next(this)
 }
 
 private object BHMBucket {
-//  def Value[B] = new TxnFieldUpdater[RBNode[_,B],B](classOf[RBNode[_,B]], "value") {
-//    protected def getField(instance: BHMBucket[_,B]): B = instance._value
-//    protected def setField(instance: BHMBucket[_,B], v: B) { instance._value = v }
-//  }
-  private val UntypedValue = new TxnFieldUpdater[BHMBucket[_,Any],Any](classOf[BHMBucket[_,Any]], "value") {
-    protected def getField(instance: BHMBucket[_,Any]): Any = instance._value
-    protected def setField(instance: BHMBucket[_,Any], v: Any) { instance._value = v }
+  val Value = new TxnFieldUpdater.Generic[BHMBucket[_,_]]("value") {
+    type Instance[X] = BHMBucket[_,X]
+    type Value[X] = X
+    protected def getField[B](instance: BHMBucket[_,B]) = instance._value
+    protected def setField[B](instance: BHMBucket[_,B], v: B) { instance._value = v }
   }
-  def Value[B] = UntypedValue.asInstanceOf[TxnFieldUpdater[BHMBucket[_,B],B]]
-  
-//  def Next[A,B] = new TxnFieldUpdater[BHMBucket[A,B],BHMBucket[A,B]](classOf[BHMBucket[A,B]], "next") {
-//    protected def getField(instance: BHMBucket[A,B]): BHMBucket[A,B] = instance._next
-//    protected def setField(instance: BHMBucket[A,B], v: BHMBucket[A,B]) { instance._next = v }
-//  }
-    private val UntypedNext = new TxnFieldUpdater[BHMBucket[Any,Any],BHMBucket[Any,Any]](classOf[BHMBucket[Any,Any]], "next") {
-      protected def getField(instance: BHMBucket[Any,Any]): BHMBucket[Any,Any] = instance._next
-      protected def setField(instance: BHMBucket[Any,Any], v: BHMBucket[Any,Any]) { instance._next = v }
-    }
-    def Next[A,B] = UntypedNext.asInstanceOf[TxnFieldUpdater[BHMBucket[A,B],BHMBucket[A,B]]]
+
+  val Next = new TxnFieldUpdater.Generic2[BHMBucket[_,_]]("next") {
+    type Instance[X,Y] = BHMBucket[X,Y]
+    type Value[X,Y] = BHMBucket[X,Y]
+    protected def getField[A,B](instance: BHMBucket[A,B]) = instance._next
+    protected def setField[A,B](instance: BHMBucket[A,B], v: BHMBucket[A,B]) { instance._next = v }
+  }
 }

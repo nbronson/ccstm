@@ -63,14 +63,14 @@ class TxnFieldUpdaterSuite extends STMFunSuite {
 private object TFUSObj {
   val IField = newIField
 
-  def newIField = new TxnFieldUpdater[TFUSObj,Int](classOf[TFUSObj], "iField") {
+  def newIField = new TxnFieldUpdater[TFUSObj,Int]("iField") {
     protected def getField(instance: TFUSObj): Int = instance._iField
     protected def setField(instance: TFUSObj, v: Int) { instance._iField = v }
   }
 
   val SField = newSField
 
-  def newSField = new TxnFieldUpdater[TFUSObj,String](classOf[TFUSObj], "sField") {
+  def newSField = new TxnFieldUpdater[TFUSObj,String]("sField") {
     protected def getField(instance: TFUSObj): String = instance._sField
     protected def setField(instance: TFUSObj, v: String) { instance._sField = v }
   }
@@ -83,14 +83,14 @@ private class TFUSObj extends impl.MetaHolder {
 
 
 private object TFUSGeneric {
-  val AField = new TxnFieldUpdater.Generic(classOf[TFUSGeneric[_,_]], "aField") {
+  val AField = new TxnFieldUpdater.Generic[TFUSGeneric[_,_]]("aField") {
     type Instance[X] = TFUSGeneric[X,_]
     type Value[X] = X
     protected def getField[A](instance: TFUSGeneric[A,_]): A = instance._aField
     protected def setField[A](instance: TFUSGeneric[A,_], v: A) { instance._aField = v }
   }
 
-  val BField = new TxnFieldUpdater.Generic2(classOf[TFUSGeneric[_,_]], "bField") {
+  val BField = new TxnFieldUpdater.Generic2[TFUSGeneric[_,_]]("bField") {
     type Instance[X,Y] = TFUSGeneric[X,Y]
     type Value[X,Y] = List[(X,Y)]
     protected def getField[A,B](instance: TFUSGeneric[A,B]) = instance._bField

@@ -25,14 +25,14 @@ object TxnFieldUpdater {
     }
   }
 
-  abstract class Impl[T <: MetaHolder](tClazz: Class[T], fieldName: String) {
+  abstract class Impl[T <: MetaHolder](fieldName: String)(implicit m: ClassManifest[T]) {
     private[ccstm] type InstanceImpl[X,Y,Z] <: T
     private[ccstm] type ValueImpl[X,Y,Z]
 
     private[ccstm] def getFieldImpl[X,Y,Z](instance: InstanceImpl[X,Y,Z]): ValueImpl[X,Y,Z]
     private[ccstm] def setFieldImpl[X,Y,Z](instance: InstanceImpl[X,Y,Z], v: ValueImpl[X,Y,Z])
 
-    private val offset = TxnFieldUpdater.getOffset(tClazz, fieldName)
+    private val offset = TxnFieldUpdater.getOffset(m.erasure, fieldName)
 
     private[ccstm] def applyImpl[X,Y,Z](instance: InstanceImpl[X,Y,Z]): Ref[ValueImpl[X,Y,Z]] =
         new Ref[ValueImpl[X,Y,Z]] with Handle[ValueImpl[X,Y,Z]] {
@@ -73,7 +73,7 @@ object TxnFieldUpdater {
    *  value types to be constructed using the abstract type constructors
    *  `Instance[X]` and `Value[X]`, each of which takes a single argument.
    */
-  abstract class Generic[T <: MetaHolder](tClazz: Class[T], fieldName: String) extends Impl(tClazz, fieldName) {
+  abstract class Generic[T <: MetaHolder](fieldName: String)(implicit m: ClassManifest[T]) extends Impl[T](fieldName) {
     type Instance[X] <: T
     type Value[X]
 
@@ -112,7 +112,7 @@ object TxnFieldUpdater {
    *  value types to be constructed using the abstract type constructors
    *  `Instance[X,Y]` and `Value[X,Y]`, each of which takes two type arguments. 
    */
-  abstract class Generic2[T <: MetaHolder](tClazz: Class[T], fieldName: String) extends Impl(tClazz, fieldName) {
+  abstract class Generic2[T <: MetaHolder](fieldName: String)(implicit m: ClassManifest[T]) extends Impl[T](fieldName) {
     type Instance[X,Y] <: T
     type Value[X,Y]
 
@@ -152,7 +152,7 @@ object TxnFieldUpdater {
    *  `Instance[X,Y,Z]` and `Value[X,Y,Z]`, each of which takes three type
    *  arguments.
    */
-  abstract class Generic3[T <: MetaHolder](tClazz: Class[T], fieldName: String) extends Impl(tClazz, fieldName) {
+  abstract class Generic3[T <: MetaHolder](fieldName: String)(implicit m: ClassManifest[T]) extends Impl[T](fieldName) {
     type Instance[X,Y,Z] <: T
     type Value[X,Y,Z]
 
@@ -222,33 +222,33 @@ object TxnFieldUpdater {
  *    ///////
  *
  *    object DirectNode {
- *      val Color = new TxnFieldUpdater[DirectNode[_,_],Boolean](classOf[DirectNode[_]], "color") {
+ *      val Color = new TxnFieldUpdater[DirectNode[_,_],Boolean]("color") {
  *        protected def getField(instance: DirectNode[_,_]) = instance._color
  *        protected def setField(instance: DirectNode[_,_], v: Boolean) { instance._color = v }
  *      }
  *
- *      val Key = new TxnFieldUpdater.Generic(classOf[DirectNode[_,_], "key") {
+ *      val Key = new TxnFieldUpdater.Generic[DirectNode[_,_]]("key") {
  *        type Instance[X] = DirectNode[X,_]
  *        type Value[X] = X
  *        protected def getField[K](instance: DirectNode[K,_]) = instance._key
  *        protected def setField[K](instance: DirectNode[K,_], v: K) { instance._key = v }
  *      }
  *
- *      val Value = new TxnFieldUpdater.Generic(classOf[DirectNode[_,_], "value") {
+ *      val Value = new TxnFieldUpdater.Generic[DirectNode[_,_]]("value") {
  *        type Instance[X] = DirectNode[_,X]
  *        type Value[X] = X
  *        protected def getField[V](instance: DirectNode[_,V]) = instance._value
  *        protected def setField[V](instance: DirectNode[_,V], v: V) { instance._value = v }
  *      }
  *
- *      val Left = new TxnFieldUpdater.Generic2(classOf[DirectNode[_,_], "left") {
+ *      val Left = new TxnFieldUpdater.Generic2[DirectNode[_,_]]("left") {
  *        type Instance[X,Y] = DirectNode[X,Y]
  *        type Value[X,Y] = DirectNode[X,Y]
  *        protected def getField[K,V](instance: DirectNode[K,V]) = instance._left
  *        protected def setField[K,V](instance: DirectNode[K,V], v: DirectNode[K,V]) { instance._left = v }
  *      }
  *
- *      val Right = new TxnFieldUpdater.Generic2(classOf[DirectNode[_,_], "right") {
+ *      val Right = new TxnFieldUpdater.Generic2[DirectNode[_,_]]("right") {
  *        type Instance[X,Y] = DirectNode[X,Y]
  *        type Value[X,Y] = DirectNode[X,Y]
  *        protected def getField[K,V](instance: DirectNode[K,V]) = instance._right
@@ -276,7 +276,8 @@ object TxnFieldUpdater {
  *    }
  *  </pre>
  */
-abstract class TxnFieldUpdater[T <: MetaHolder,V](tClazz: Class[T], fieldName: String) extends TxnFieldUpdater.Impl(tClazz, fieldName) {
+abstract class TxnFieldUpdater[T <: MetaHolder,V](fieldName: String)(implicit m: ClassManifest[T]
+        ) extends TxnFieldUpdater.Impl[T](fieldName) {
 
   private[ccstm] type InstanceImpl[X,Y,Z] = T
   private[ccstm] type ValueImpl[X,Y,Z] = V

@@ -560,33 +560,33 @@ private class RBNode[A,B](color0: Boolean, val key: A, value0: B, parent0: RBNod
 }
 
 private object RBNode {
-  val Color = new TxnFieldUpdater[RBNode[_,_],Boolean](classOf[RBNode[_,_]], "color") {
+  val Color = new TxnFieldUpdater[RBNode[_,_],Boolean]("color") {
     protected def getField(instance: RBNode[_,_]): Boolean = instance._color
     protected def setField(instance: RBNode[_,_], v: Boolean) { instance._color = v }
   }
 
-  val Value = new TxnFieldUpdater.Generic(classOf[RBNode[_,_]], "value") {
+  val Value = new TxnFieldUpdater.Generic[RBNode[_,_]]("value") {
     type Instance[X] = RBNode[_,X]
     type Value[X] = X
     protected def getField[V](instance: RBNode[_,V]): V = instance._value
     protected def setField[V](instance: RBNode[_,V], v: V) { instance._value = v }
   }
 
-  val Parent = new TxnFieldUpdater.Generic2(classOf[RBNode[_,_]], "parent") {
+  val Parent = new TxnFieldUpdater.Generic2[RBNode[_,_]]("parent") {
     type Instance[X,Y] = RBNode[X,Y]
     type Value[X,Y] = RBNode[X,Y]
     protected def getField[A,B](instance: RBNode[A,B]): RBNode[A,B] = instance._parent
     protected def setField[A,B](instance: RBNode[A,B], v: RBNode[A,B]) { instance._parent = v }
   }
 
-  val Left = new TxnFieldUpdater.Generic2(classOf[RBNode[_,_]], "left") {
+  val Left = new TxnFieldUpdater.Generic2[RBNode[_,_]]("left") {
     type Instance[X,Y] = RBNode[X,Y]
     type Value[X,Y] = RBNode[X,Y]
     protected def getField[A,B](instance: RBNode[A,B]): RBNode[A,B] = instance._left
     protected def setField[A,B](instance: RBNode[A,B], v: RBNode[A,B]) { instance._left = v }
   }
 
-  val Right = new TxnFieldUpdater.Generic2(classOf[RBNode[_,_]], "right") {
+  val Right = new TxnFieldUpdater.Generic2[RBNode[_,_]]("right") {
     type Instance[X,Y] = RBNode[X,Y]
     type Value[X,Y] = RBNode[X,Y]
     protected def getField[A,B](instance: RBNode[A,B]): RBNode[A,B] = instance._right
