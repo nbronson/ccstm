@@ -210,7 +210,8 @@ object Txn {
   private[ccstm] val invalidReadResourceCounter = new Counter
   private[ccstm] val writeConflictCounter = new Counter
   private[ccstm] val vetoingWriteResourceCounter = new Counter
-  private[ccstm] val bargingCounter = new Counter
+  private[ccstm] val bargingCommitCounter = new Counter
+  private[ccstm] val bargingRollbackCounter = new Counter
 
   private[ccstm] def countsToStr: String = {
     val buf = new StringBuilder
@@ -303,9 +304,14 @@ object Txn {
   def vetoingWriteResourceCount = vetoingWriteResourceCounter.get
 
   /** Returns the number of transactions that were attempted using the
-   *  pessimistic barging mode.
+   *  pessimistic barging mode, and that committed.
    */
-  def bargingCount = bargingCounter.get
+  def bargingCommitCount = bargingCommitCounter.get
+
+  /** Returns the number of transactions that were attempted using the
+   *  pessimistic barging mode, and that rolled back.
+   */
+  def bargingRollbackCount = bargingRollbackCounter.get
 
   //////////////// Resources participate in a two-phase commit
 
@@ -438,8 +444,6 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
   
   /** Values of <code>TxnLocal</code>s for this transaction, created lazily. */
   private[ccstm] var locals: java.util.IdentityHashMap[TxnLocal[_],Any] = null
-
-  { if (barging && EnableCounters) bargingCounter += 1 }
 
   
   def status: Status = _status
@@ -601,10 +605,16 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
   private[ccstm] def callAfter() {
     val s = status
     val callbacks = (if (s eq Committed) {
-      if (EnableCounters) commitCounter += 1
+      if (EnableCounters) {
+        commitCounter += 1
+        if (barging) bargingCommitCounter += 1
+      }
       _callbacks.afterCommit
     } else {
-      if (EnableCounters) s.rollbackCause.counter += 1
+      if (EnableCounters) {
+        s.rollbackCause.counter += 1
+        if (barging) bargingRollbackCounter += 1
+      }
       _callbacks.afterRollback
     })
     if (!callbacks.isEmpty) {
