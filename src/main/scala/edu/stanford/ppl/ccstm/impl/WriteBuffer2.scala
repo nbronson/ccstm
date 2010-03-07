@@ -4,6 +4,8 @@
 
 package edu.stanford.ppl.ccstm.impl
 
+import annotation.tailrec
+
 private[impl] object WriteBuffer2 {
   trait Visitor {
     def visit(handle: Handle[_], specValue: Any): Boolean
@@ -27,10 +29,6 @@ private[impl] class WriteBuffer2 {
   // logged to allow partial rollback.  Buckets with an index greater than the
   // undoThreshold can be discarded during rollback.  This means that despite
   // nesting, each <ref,offset> key is stored at most once in the write buffer.
-  //
-  // For small write buffers, the dispatch array actually slows things down,
-  // because it requires calls to System.identityHashCode(ref).  When the
-  // capacity is equal to InitialCap, we just do a linear scan of the buckets.
 
   /** The maximum index for which undo entries are required. */
   private var _undoThreshold = 0
@@ -55,15 +53,13 @@ private[impl] class WriteBuffer2 {
   private def shouldGrow(s: Int, c: Int): Boolean = s > maxSizeForCap(c)
   private def shouldGrow: Boolean = shouldGrow(_size, _cap)
 
-  private def isLinear = false //!shouldGrow(_size, InitialCap)
-
 
   def isEmpty = _size == 0
   def size = _size
   
   def get[T](handle: Handle[T]): T = {
-    val i = (if (isLinear) findLinear(handle) else findHashed(handle))
-    if (i > 0) {
+    val i = find(handle)
+    if (i != 0) {
       // hit
       _bucketAnys(specValueI(i)).asInstanceOf[T]
     } else {
@@ -72,46 +68,28 @@ private[impl] class WriteBuffer2 {
     }
   }
 
-  private def findLinear(handle: Handle[_]): Int = findLinear(handle.ref, handle.offset)
-
-  private def findLinear(ref: AnyRef, offset: Int): Int = {
-    var i = _size // size..1, since 0 is nil
-    while (i != 0 && !((ref eq _bucketAnys(refI(i))) && offset == _bucketInts(offsetI(i)))) {
-      i -= 1
-    }
-    i
-  }
-
-  private def findHashed(handle: Handle[_]): Int = {
+  private def find(handle: Handle[_]): Int = {
     val ref = handle.ref
     val offset = handle.offset
-    findHashed(ref, offset, _dispatch(STMImpl.hash(ref, offset) & (_cap - 1)))
+    find(ref, offset, _dispatch(STMImpl.hash(ref, offset) & (_cap - 1)))
   }
 
-  private def findHashed(ref: AnyRef, offset: Int, i0: Int): Int = {
-    var i = i0
-    while (i != 0 && !((ref eq _bucketAnys(refI(i))) && offset == _bucketInts(offsetI(i)))) {
-      val n = _bucketInts(nextI(i))
-      assert(n < i)
-      i = n
+  @tailrec
+  private def find(ref: AnyRef, offset: Int, i: Int): Int = {
+    if (i == 0 || ((ref eq _bucketAnys(refI(i))) && offset == _bucketInts(offsetI(i)))) {
+      i
+    } else {
+      find(ref, offset, _bucketInts(nextI(i)))
     }
-    i
   }
   
 
   def put[T](handle: Handle[T], value: T): Unit = {
     val ref = handle.ref
     val offset = handle.offset
-    var slot = 0
-    var head = 0
-    val i = (if (isLinear) {
-      head = _size // 1-based
-      findLinear(ref, offset)
-    } else {
-      slot = STMImpl.hash(ref, offset) & (_cap - 1)
-      head = _dispatch(slot)
-      findHashed(ref, offset, head)
-    })
+    val slot = STMImpl.hash(ref, offset) & (_cap - 1)
+    val head = _dispatch(slot)
+    val i = find(ref, offset, head)
     if (i != 0) {
       // hit, update an existing entry, optionally with undo
       if (i <= _undoThreshold) _undoLog.record(i, _bucketAnys(specValueI(i)))
@@ -136,16 +114,9 @@ private[impl] class WriteBuffer2 {
   private def findOrAllocate(handle: Handle[_]): Int = {
     val ref = handle.ref
     val offset = handle.offset
-    var slot = -1
-    var head = 0
-    val i = (if (isLinear) {
-      head = _size // 1-based
-      findLinear(ref, offset)
-    } else {
-      slot = STMImpl.hash(ref, offset) & (_cap - 1)
-      head = _dispatch(slot)
-      findHashed(ref, offset, head)
-    })
+    val slot = STMImpl.hash(ref, offset) & (_cap - 1)
+    val head = _dispatch(slot)
+    val i = find(ref, offset, head)
     if (i != 0) {
       // hit, undo log entry is required to capture the potential reads that
       // won't be recorded in this nested txn's read set
@@ -205,6 +176,9 @@ private[impl] class WriteBuffer2 {
         _bucketAnys(handleI(i)) = null
         i -= 1
       }
+
+      // zero the initial portion of the dispatch array
+      java.util.Arrays.fill(_dispatch, 0, InitialCap, 0)
     } else {
       // discard the existing big ones, to prevent bloat
       _bucketAnys = new Array[AnyRef](bucketAnysLen(InitialRealCap))
