@@ -7,7 +7,7 @@ package edu.stanford.ppl.ccstm.impl
 
 import java.util.concurrent.atomic.{AtomicReferenceArray, AtomicLongArray}
 
-private[impl] class WakeupManager(numChannels: Int, numSources: Int) {
+private[impl] final class WakeupManager(numChannels: Int, numSources: Int) {
   import STMImpl.hash
 
   def this() = this(64, 512)

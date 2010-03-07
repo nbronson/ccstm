@@ -13,7 +13,7 @@ object ThreadContext extends ThreadLocal[ThreadContext] {
 /** A class that holds various objects that benefit from reuse by multiple
  *  transactions that execute on the same thread.
  */
-class ThreadContext {
+private[impl] final class ThreadContext {
   val rand = new FastSimpleRandom
 
   private var _callbacks: Callbacks = null

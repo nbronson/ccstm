@@ -69,7 +69,7 @@ object FastSimpleRandom {
 /** A single-threaded random number generator that uses the same algorithm as
  *  the concurrent <code>object FastSimpleRandom</code>.
  */
-class FastSimpleRandom private (private var _state: Long, dummy: Boolean) {
+final class FastSimpleRandom private (private var _state: Long, dummy: Boolean) {
   import FastSimpleRandom._
 
   def this(seed: Int) = this(FastSimpleRandom.step(FastSimpleRandom.step(seed)), false)

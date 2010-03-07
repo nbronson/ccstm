@@ -17,9 +17,9 @@ private[impl] object ReadSet {
 import ReadSet._
 
 /** A read set representation. */
-private[impl] class ReadSet private(private var _size: Int,
-                                    private var _handles: Array[Handle[_]],
-                                    private var _versions: Array[STMImpl.Version]) {
+private[impl] final class ReadSet private(private var _size: Int,
+                                          private var _handles: Array[Handle[_]],
+                                          private var _versions: Array[STMImpl.Version]) {
 
   def this() = this(0, new Array[Handle[_]](InitialCapacity), new Array[Long](InitialCapacity))
 

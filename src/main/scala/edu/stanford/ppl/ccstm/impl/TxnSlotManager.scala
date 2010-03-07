@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray
 /** This class manages a mapping from active Txn to a bounded integral range.
  *  This allows transaction identities to be packed into metadata.
  */
-private[impl] class TxnSlotManager[T <: AnyRef](range: Int, reservedSlots: Int) {
+private[impl] final class TxnSlotManager[T <: AnyRef](range: Int, reservedSlots: Int) {
 
   assert(range >= 16 & (range & (range - 1)) == 0)
   assert(range >= reservedSlots + 16)
