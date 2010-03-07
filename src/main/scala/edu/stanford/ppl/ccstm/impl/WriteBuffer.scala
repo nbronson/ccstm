@@ -20,7 +20,7 @@ private[impl] object WriteBuffer {
 /** Maps Handle[T] to specValue.  Handles are compared using the ref and 
  *  offset.
  */
-private[impl] class WriteBuffer {
+private[impl] final class WriteBuffer {
   import WriteBuffer._
 
   private var _size = 0

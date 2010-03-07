@@ -12,7 +12,7 @@ private[impl] object StrongRefSet {
 }
 
 /** A clearable blob of strong references. */
-private[impl] class StrongRefSet() {
+private[impl] final class StrongRefSet() {
   import StrongRefSet._
 
   private var _size = 0

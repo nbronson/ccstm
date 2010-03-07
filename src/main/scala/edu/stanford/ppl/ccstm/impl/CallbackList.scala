@@ -12,7 +12,7 @@ package edu.stanford.ppl.ccstm.impl
  *
  *  @author Nathan Bronson
  */
-private[ccstm] class CallbackList[T <: AnyRef] {
+private[ccstm] final class CallbackList[T <: AnyRef] {
   private val _zeroSlot = new CallbackPrioSlot
   private val _slotsByPrio = new java.util.TreeMap[Int,CallbackPrioSlot]
   private var _size = 0
@@ -85,7 +85,7 @@ private[ccstm] class CallbackList[T <: AnyRef] {
 
 // TODO: move magic numbers to the top of this file
 
-private class CallbackPrioSlot {
+private final class CallbackPrioSlot {
   var _count = 0
   // TODO: make _elems an Array[T] without getting a BoxedAnyArray, maybe in 2.8?
   var _elems = new Array[AnyRef](8)

@@ -7,7 +7,7 @@ package edu.stanford.ppl.ccstm.impl
 import edu.stanford.ppl.ccstm.Txn
 
 
-private[ccstm] class Callbacks {
+private[ccstm] final class Callbacks {
   val readResources: CallbackList[Txn.ReadResource] = new CallbackList[Txn.ReadResource]
 
   /** Includes WriteResource-s and beforeCommit callbacks. */
