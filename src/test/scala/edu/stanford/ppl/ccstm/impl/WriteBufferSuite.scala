@@ -13,7 +13,8 @@ import edu.stanford.ppl.ExhaustiveTest
 
 class WriteBufferSuite extends FunSuite {
 
-  type WB = WriteBuffer
+  type WB = WriteBuffer2
+  type WBV = WriteBuffer2.Visitor
 
   /** Only needed for identity comparisons. */
   class H[T](val ref: AnyRef, val offset: Int) extends Handle[T] {
@@ -81,7 +82,7 @@ class WriteBufferSuite extends FunSuite {
       if (incrementalValidate || !iter.hasNext) {
         // validate the set
         val fresh = new NestedMap
-        wb.visit(new WriteBuffer.Visitor {
+        wb.visit(new WBV {
           def visit(handle: Handle[_], specValue: Any): Boolean = {
             fresh(handle.ref)(handle.offset) = (specValue, handle)
             assert(wb.get(handle) == specValue)
@@ -163,24 +164,32 @@ class WriteBufferSuite extends FunSuite {
     }, false)
   }
 
-  def nanosPerGet(size: Int, passes: Int, numReadHits: Int, numReadMisses: Int): Double = {
-    val refs = new Array[AnyRef](size * 2 + 2)
-    for (i <- 0 until refs.length) {
-      refs(i) = "ref" + i
-    }
+  def nanosPerOp(size: Int,
+                 passes: Int,
+                 numReadHits: Int,
+                 numReadMisses: Int,
+                 numWriteHits: Int): Double = {
+    val refs = Array.tabulate[AnyRef](size * 2 + 1)({ i => "ref" + i })
+    val handles = refs.map({ r => new H[String](r, 0) })
 
     val wb = new WB
-    for (i <- 0 until size) {
-      wb.put(new H[String](refs(i), 0), "x" + i)
-    }
+    for (i <- 0 until size) wb.put(handles(i), "x")
 
     var best = Long.MaxValue
     for (p <- 0 until passes) {
       val t0 = System.nanoTime
       var k = 0
       var i = 0
-      while (i < numReadHits + numReadMisses) {
-        wb.get(new H[String](refs(k + (if (i >= numReadMisses) size else 0)), 0))
+      while (i < numReadHits + numReadMisses + numWriteHits) {
+        if (i < numReadHits + numReadMisses) {
+          val hit = i < numReadHits
+          val x = wb.get(handles(k + (if (!hit) size else 0)))
+          if ((null != x) != hit) {
+            fail
+          }
+        } else {
+          wb.put(handles(k), "x")
+        }
         k += 1
         i += 1
         if (k >= size) k = 0
@@ -189,13 +198,16 @@ class WriteBufferSuite extends FunSuite {
       best = best min elapsed
     }
 
-    best * 1.0 / (numReadHits + numReadMisses)
+    best * 1.0 / (numReadHits + numReadMisses + numWriteHits)
   }
 
   test("read performance", ExhaustiveTest) {
     for (size <- (0 until 8) ++ (8 until 16 by 2) ++ (16 until 32 by 4) ++ (32 to 256 by 16)) {
-      printf("%d entries -> %3.1f nanos/hit, %3.1f nanos/miss\n",
-        size, nanosPerGet(size, 1000, 10000, 0), nanosPerGet(size, 1000, 0, 10000))
+      printf("%d entries -> %3.1f nanos/read hit, %3.1f nanos/read miss, %3.1f nanos/write hit\n",
+        size,
+        if (size == 0) 0.0 else nanosPerOp(size, 1000, 10000, 0, 0),
+        nanosPerOp(size, 1000, 0, 10000, 0),
+        if (size == 0) 0.0 else nanosPerOp(size, 1000, 0, 0, 10000))
     }
   }
 }
