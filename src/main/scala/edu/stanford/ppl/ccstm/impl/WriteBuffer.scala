@@ -180,10 +180,8 @@ private[impl] class WriteBuffer {
     _cap = InitialCap
   }
 
-  def visitBegin: Int = _size
-  def visitHandle(pos: Int) = _bucketAnys(handleI(pos)).asInstanceOf[Handle[_]]
-  def visitSpecValue(pos: Int) = _bucketAnys(specValueI(pos))
-  def visitNext(pos: Int): Int = pos - 1
+  def visitHandle(index: Int) = _bucketAnys(handleI(index)).asInstanceOf[Handle[_]]
+  def visitSpecValue(index: Int) = _bucketAnys(specValueI(index))
 
   def visit(visitor: WriteBuffer.Visitor): Boolean = {
     var i = _size
