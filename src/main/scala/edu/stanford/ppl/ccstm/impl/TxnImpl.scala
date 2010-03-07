@@ -246,15 +246,10 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   private def rollbackWrites() {
     assert(_status.isInstanceOf[RollingBack])
 
-    val wbSize = _writeBuffer.size
-    var i = 0
-    var pos = -1
-    while (i < wbSize) {
-      pos = if (i == 0) _writeBuffer.visitBegin else _writeBuffer.visitNext(pos)
-      i += 1
-      val handle = _writeBuffer.visitHandle(pos)
-      
-      rollbackWrite(handle)
+    var i = _writeBuffer.size
+    while (i > 0) {
+      rollbackWrite(_writeBuffer.visitHandle(i))
+      i -= 1
     }
   }
 
@@ -270,15 +265,10 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
 
   private def acquireLocks(): Boolean = {
     var wakeups = 0L
-    val wbSize = _writeBuffer.size
-    var i = 0
-    var pos = -1
-    while (i < wbSize) {
-      pos = if (i == 0) _writeBuffer.visitBegin else _writeBuffer.visitNext(pos)
-      i += 1
-      val handle = _writeBuffer.visitHandle(pos)
-
-      if (!acquireLock(handle)) return false
+    var i = _writeBuffer.size
+    while (i > 0) {
+      if (!acquireLock(_writeBuffer.visitHandle(i))) return false
+      i -= 1
     }
     return _status == Validating
   }
@@ -304,14 +294,11 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
 
     // first pass
     var wakeups = 0L
-    val wbSize = _writeBuffer.size
-    var i = 0
-    var pos = -1
-    while (i < wbSize) {
-      pos = if (i == 0) _writeBuffer.visitBegin else _writeBuffer.visitNext(pos)
-      i += 1
-      val handle = _writeBuffer.visitHandle(pos)
-      val specValue = _writeBuffer.visitSpecValue(pos)
+    var i = _writeBuffer.size
+    while (i > 0) {
+      val handle = _writeBuffer.visitHandle(i)
+      val specValue = _writeBuffer.visitSpecValue(i)
+      i -= 1
 
       // update the value
       handle.asInstanceOf[Handle[Any]].data = specValue
@@ -325,11 +312,10 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
     }
 
     // second pass
-    i = 0
-    while (i < wbSize) {
-      pos = if (i == 0) _writeBuffer.visitBegin else _writeBuffer.visitNext(pos)
-      i += 1
-      val handle = _writeBuffer.visitHandle(pos)
+    i = _writeBuffer.size
+    while (i > 0) {
+      val handle = _writeBuffer.visitHandle(i)
+      i -= 1
 
       val m = handle.meta
       if (owner(m) == _slot) {
