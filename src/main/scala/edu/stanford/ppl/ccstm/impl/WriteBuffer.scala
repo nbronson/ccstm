@@ -11,229 +11,188 @@ private[impl] object WriteBuffer {
   trait Visitor {
     def visit(handle: Handle[_], specValue: Any): Boolean
   }
-
-  val InitialCapacity = 16
-  val InitialRealCapacity = 512
-  val MaxEmptyRealCapacity = InitialRealCapacity * 8
 }
 
-/** Maps Handle[T] to specValue.  Handles are compared using the ref and 
+/** Maps Handle[T] to specValue.  Handles are compared using the ref and
  *  offset.
  */
-private[impl] final class WriteBuffer {
-  import WriteBuffer._
+private[impl] class WriteBuffer {
+  private def InitialCap = 16
+  private def InitialRealCap = 512
+  private def MaxInitialRealCap = 8 * InitialRealCap
+
+  // This write buffer implementation uses chaining, but instead of storing the
+  // buckets in objects, they are packed into the arrays bucketAnys and
+  // bucketInts.  Pointers to a bucket are represented as a 1-based int, with 0
+  // representing nil.  The dispatch array holds the entry index for the
+  // beginning of a bucket chain.
 
   private var _size = 0
-  private var _capacity = InitialCapacity
-  private var _entries = new Array[AnyRef](lenForCap(InitialRealCapacity))
-  private var _lastInsert = 0
+  private var _cap = InitialCap
+  private var _bucketAnys = new Array[AnyRef](bucketAnysLen(InitialRealCap))
+  private var _bucketInts = new Array[Int](bucketIntsLen(InitialRealCap))
+  private var _dispatch = new Array[Int](InitialRealCap)
 
-  private def lenForCap(i: Int) = 3 * i
-  private def handleI(i: Int) = 3 * i
-  private def refI(i: Int) = 3 * i + 1
-  private def specValueI(i: Int) = 3 * i + 2
+  private def refI(i: Int) = 3 * (i - 1)
+  private def specValueI(i: Int) = 3 * (i - 1) + 1
+  private def handleI(i: Int) = 3 * (i - 1) + 2
+  private def offsetI(i: Int) = 2 * (i - 1)
+  private def nextI(i: Int) = 2 * (i - 1) + 1
+
+  private def bucketAnysLen(c: Int) = 3 * (maxSizeForCap(c) + 1)
+  private def bucketIntsLen(c: Int) = 2 * (maxSizeForCap(c) + 1)
+
+  private def maxSizeForCap(c: Int) = c - c / 4
+  private def shouldGrow(s: Int, c: Int): Boolean = s > maxSizeForCap(c)
+  private def shouldGrow: Boolean = shouldGrow(_size, _cap)
+
 
   def isEmpty = _size == 0
   def size = _size
 
   def get[T](handle: Handle[T]): T = {
+    val i = find(handle)
+    if (i != 0) {
+      // hit
+      _bucketAnys(specValueI(i)).asInstanceOf[T]
+    } else {
+      // miss
+      handle.data
+    }
+  }
+
+  private def find(handle: Handle[_]): Int = {
     val ref = handle.ref
     val offset = handle.offset
-    getImpl(handle, ref, offset, STMImpl.hash(ref, offset) & (_capacity - 1))
+    find(ref, offset, _dispatch(STMImpl.hash(ref, offset) & (_cap - 1)))
   }
 
   @tailrec
-  private def getImpl[T](handle: Handle[T], ref: AnyRef, offset: Int, i: Int): T = {
-    val r = _entries(refI(i))
-    if (r eq null) {
-      // miss, read from handle
-      return handle.data
+  private def find(ref: AnyRef, offset: Int, i: Int): Int = {
+    if (i == 0 || ((ref eq _bucketAnys(refI(i))) && offset == _bucketInts(offsetI(i)))) {
+      i
+    } else {
+      find(ref, offset, _bucketInts(nextI(i)))
     }
-    if (r eq ref) {
-      val h = _entries(handleI(i))
-      if ((h eq handle) || h.asInstanceOf[Handle[_]].offset == offset) {
-        // hit
-        return _entries(specValueI(i)).asInstanceOf[T]
-      }
-    }
-
-    // probe
-    return getImpl(handle, ref, offset, (i + 1) & (_capacity - 1))
   }
 
-  def put[T](handle: Handle[T], specValue: T) {
+
+  def put[T](handle: Handle[T], value: T): Unit = {
     val ref = handle.ref
     val offset = handle.offset
-    putImpl(handle, ref, offset, specValue.asInstanceOf[AnyRef])
-  }
-
-  private def putImpl(handle: AnyRef, ref: AnyRef, offset: Int, specValue: AnyRef) {
-    val hash = STMImpl.hash(ref, offset)
-    var i = hash & (_capacity - 1)
-    while (true) {
-      val r = _entries(refI(i))
-      if (r eq null) {
-        // miss, insert here
-        _lastInsert = i
-        _entries(handleI(i)) = handle
-        _entries(refI(i)) = ref
-        _entries(specValueI(i)) = specValue
-        _size += 1
-        growIfNeeded()
-        return
-      }
-      if (r eq ref) {
-        val h = _entries(handleI(i))
-        if ((h eq handle) || h.asInstanceOf[Handle[_]].offset == offset) {
-          // hit
-          _entries(specValueI(i)) = specValue
-          return
-        }
-      }
-
-      // probe
-      i = (i + 1) & (_capacity - 1)
+    val slot = STMImpl.hash(ref, offset) & (_cap - 1)
+    val head = _dispatch(slot)
+    val i = find(ref, offset, head)
+    if (i != 0) {
+      // hit, update an existing entry
+      _bucketAnys(specValueI(i)) = value.asInstanceOf[AnyRef]
+    } else {
+      // miss, create a new entry
+      append(ref, offset, handle, value, slot, head)
     }
   }
 
   def allocatingGet[T](handle: Handle[T]): T = {
+    return _bucketAnys(specValueI(findOrAllocate(handle))).asInstanceOf[T]
+  }
+
+  def getAndTransform[T](handle: Handle[T], func: T => T): T = {
+    val i = findOrAllocate(handle)
+    val before = _bucketAnys(specValueI(i)).asInstanceOf[T]
+    _bucketAnys(specValueI(i)) = func(before).asInstanceOf[AnyRef]
+    return before
+  }
+
+  private def findOrAllocate(handle: Handle[_]): Int = {
     val ref = handle.ref
     val offset = handle.offset
-    val hash = STMImpl.hash(ref, offset)
-    var i = hash & (_capacity - 1)
-    while (true) {
-      val r = _entries(refI(i))
-      if (r eq null) {
-        // miss, insert here
-        _lastInsert = i
-        _entries(handleI(i)) = handle
-        _entries(refI(i)) = ref
-        val z = handle.data
-        _entries(specValueI(i)) = z.asInstanceOf[AnyRef]
-        _size += 1
-        growIfNeeded()
-        return z
-      }
-      if (r eq ref) {
-        val h = _entries(handleI(i))
-        if ((h eq handle) || h.asInstanceOf[Handle[_]].offset == offset) {
-          // hit
-          return _entries(specValueI(i)).asInstanceOf[T]
-        }
-      }
-
-      // probe
-      i = (i + 1) & (_capacity - 1)
-    }
-    throw new Error("unreachable")
-  }
-
-  def getAndTransform[T](handle: Handle[T], f: T => T): T = {
-    val ref = handle.ref
-    val offset = handle.offset
-    val hash = STMImpl.hash(ref, offset)
-    var i = hash & (_capacity - 1)
-    var done = false
-    var v0: T = null.asInstanceOf[T]
-    while (!done) {
-      val r = _entries(refI(i))
-      if (r eq null) {
-        // Miss, insert here.  Do the call first so that an exception leaves
-        // things in an okay state.
-        v0 = handle.data
-        val v1 = f(v0)
-        _lastInsert = i
-        _entries(handleI(i)) = handle
-        _entries(refI(i)) = ref
-        _entries(specValueI(i)) = v1.asInstanceOf[AnyRef]
-        _size += 1
-        growIfNeeded()
-        done = true
-      }
-      else if (r eq ref) {
-        val h = _entries(handleI(i))
-        if ((h eq handle) || h.asInstanceOf[Handle[_]].offset == offset) {
-          // hit
-          val v0 = _entries(specValueI(i)).asInstanceOf[T]
-          val v1 = f(v0)
-          _entries(specValueI(i)) = v1.asInstanceOf[AnyRef]
-          done = true
-        }
-      }
-
-      // probe
-      i = (i + 1) & (_capacity - 1)
-    }
-    v0
-  }
-
-  def visitBegin: Int = _lastInsert
-  def visitHandle(pos: Int) = _entries(handleI(pos)).asInstanceOf[Handle[_]]
-  def visitSpecValue(pos: Int) = _entries(specValueI(pos))
-  def visitNext(pos: Int): Int = {
-    var i = pos
-    do {
-      i = (i + 1) & (_capacity - 1)
-    } while (_entries(handleI(i)) eq null)
-    i
-  }
-
-  def visit(visitor: Visitor): Boolean = {
-    var i = _lastInsert
-    var remaining = _size
-    while (remaining > 0) {
-      val h = _entries(handleI(i))
-      if (h ne null) {
-        if (!visitor.visit(h.asInstanceOf[Handle[_]], _entries(specValueI(i)))) {
-          return false
-        }
-        remaining -= 1
-      }
-      i = (i + 1) & (_capacity - 1)
-    }
-    return true
-  }
-
-  def clear() {
-    if (_entries.length > lenForCap(MaxEmptyRealCapacity)) {
-      // we don't want one large txn to keep the buffer big forever
-      _entries = new Array[AnyRef](lenForCap(InitialRealCapacity))
+    val slot = STMImpl.hash(ref, offset) & (_cap - 1)
+    val head = _dispatch(slot)
+    val i = find(ref, offset, head)
+    if (i != 0) {
+      // hit
+      return i
     } else {
-      // zero the existing one in-place
-      java.util.Arrays.fill(_entries, 0, lenForCap(_capacity), null)
+      // miss, create a new entry using the existing data value
+      return append(ref, offset, handle, handle.data, slot, head)
     }
-    _size = 0
-    _capacity = InitialCapacity
   }
 
-  private def growIfNeeded() {
-    // max load factor of 1/2
-    if (_size * 2 > _capacity) grow()
+  private def append(ref: AnyRef, offset: Int, handle: Handle[_], value: Any, slot: Int, head: Int): Int = {
+    val s = _size + 1
+    _bucketAnys(refI(s)) = ref
+    _bucketAnys(specValueI(s)) = value.asInstanceOf[AnyRef]
+    _bucketAnys(handleI(s)) = handle
+    _bucketInts(offsetI(s)) = offset
+    _bucketInts(nextI(s)) = head
+    if (slot >= 0) _dispatch(slot) = s
+    _size = s
+
+    if (shouldGrow) grow()
+
+    // grow() relinks the buckets but doesn't move them, so s is still valid
+    return s
   }
 
-  private def grow() {
-    val src = (if (lenForCap(2 * _capacity) > _entries.length) {
-      // we need to actually reallocate
-      val prev = _entries
-      _entries = new Array[AnyRef](lenForCap(2 * _capacity))
-      prev
+  private def grow(): Unit = {
+    // adjust capacity
+    _cap *= 2
+    if (_cap > _dispatch.length) {
+      // we actually need to reallocate
+      _bucketAnys = java.util.Arrays.copyOf(_bucketAnys, bucketAnysLen(_cap))
+      _bucketInts = java.util.Arrays.copyOf(_bucketInts, bucketIntsLen(_cap))
+      _dispatch = new Array[Int](_cap)
     } else {
-      // we can reuse _entries, but we must copy out temporarily
-      val tmp = java.util.Arrays.copyOf(_entries, lenForCap(_capacity))
-      java.util.Arrays.fill(_entries, 0, lenForCap(_capacity), null)
-      tmp
-    })
+      java.util.Arrays.fill(_dispatch, 0, _cap, 0)
+    }
 
-    val oldCap = _capacity
-    _size = 0
-    _capacity *= 2
-    var i = 0
-    while (i < oldCap) {
-      val h = src(handleI(i))
-      if (h ne null) {
-        putImpl(h, src(refI(i)), h.asInstanceOf[Handle[_]].offset, src(specValueI(i)))
-      }
+    // relink the dispatch array
+    var i = 1
+    while (i <= _size) {
+      val slot = STMImpl.hash(_bucketAnys(refI(i)), _bucketInts(offsetI(i))) & (_cap - 1)
+      _bucketInts(nextI(i)) = _dispatch(slot)
+      _dispatch(slot) = i
       i += 1
     }
+  }
+
+  def clear(): Unit = {
+    if (_cap <= MaxInitialRealCap) {
+      // null out the existing arrays
+      var i = _size
+      while (i > 0) {
+        _bucketAnys(refI(i)) = null
+        _bucketAnys(specValueI(i)) = null
+        _bucketAnys(handleI(i)) = null
+        i -= 1
+      }
+
+      // zero the initial portion of the dispatch array
+      java.util.Arrays.fill(_dispatch, 0, InitialCap, 0)
+    } else {
+      // discard the existing big ones, to prevent bloat
+      _bucketAnys = new Array[AnyRef](bucketAnysLen(InitialRealCap))
+      _bucketInts = new Array[Int](bucketIntsLen(InitialRealCap))
+      _dispatch = new Array[Int](InitialRealCap)
+    }
+
+    _size = 0
+    _cap = InitialCap
+  }
+
+  def visitBegin: Int = _size
+  def visitHandle(pos: Int) = _bucketAnys(handleI(pos)).asInstanceOf[Handle[_]]
+  def visitSpecValue(pos: Int) = _bucketAnys(specValueI(pos))
+  def visitNext(pos: Int): Int = pos - 1
+
+  def visit(visitor: WriteBuffer.Visitor): Boolean = {
+    var i = _size
+    while (i != 0) {
+      if (!visitor.visit(_bucketAnys(handleI(i)).asInstanceOf[Handle[_]], _bucketAnys(specValueI(i)))) {
+        return false
+      }
+      i -= 1
+    }
+    return true
   }
 }
