@@ -212,6 +212,48 @@ class WriteBufferSuite extends FunSuite {
   }
 
   test("nested commit") {
-    
+    val ref1 = "ref1"
+    val ref2 = "ref2"
+    val h10 = new H[String](ref1, 0)
+    val h11 = new H[String](ref1, 1)
+    val h2 = new H[String](ref2, 0)
+    val wb = new WB
+    wb.put(h10, "outer")
+    assert(wb.get(h10) === "outer")
+    wb.push()
+    assert(wb.get(h10) === "outer")
+    wb.put(h10, "inner10")
+    wb.put(h11, "inner11")
+    assert(wb.get(h10) === "inner10")
+    assert(wb.get(h11) === "inner11")
+    wb.popWithCommit()
+    assert(wb.get(h10) === "inner10")
+    assert(wb.get(h11) === "inner11")
+    wb.put(h2, "outer2")
+    assert(wb.get(h2) === "outer2")
+  }
+
+  test("nested rollback") {
+    val ref1 = "ref1"
+    val ref2 = "ref2"
+    val h10 = new H[String](ref1, 0)
+    val h11 = new H[String](ref1, 1)
+    val h2 = new H[String](ref2, 0)
+    val wb = new WB
+    wb.put(h10, "outer")
+    assert(wb.get(h10) === "outer")
+    wb.push()
+    assert(wb.get(h10) === "outer")
+    wb.put(h10, "inner10")
+    wb.put(h11, "inner11")
+    assert(wb.get(h10) === "inner10")
+    assert(wb.get(h11) === "inner11")
+    val accum = new scala.collection.mutable.HashSet[Handle[_]]
+    wb.popWithRollback(accum)
+    assert(accum === Set(h11))
+    assert(wb.get(h10) === "outer")
+    assert(wb.get(h11) eq null)
+    wb.put(h2, "outer2")
+    assert(wb.get(h2) === "outer2")
   }
 }

@@ -5,6 +5,7 @@
 package edu.stanford.ppl.ccstm.impl
 
 import annotation.tailrec
+import scala.collection.mutable.HashSet
 
 private[impl] object WriteBuffer {
   trait Visitor {
@@ -206,18 +207,23 @@ private[impl] class WriteBuffer {
     return true
   }
 
-
+  /** Creates and switches to a nested context. */
   def push(): Unit = {
     _undoLog = new WBUndoLog(_undoLog, _undoThreshold)
     _undoThreshold = _size
   }
 
+  /** Commits the active nested context. */
   def popWithCommit(): Unit = {
     _undoThreshold = _undoLog.prevThreshold
     _undoLog = _undoLog.prevLog
   }
 
-  def popWithRollback(): Unit = {
+  /** Discards the active nested context, and accumulates the handles that were
+   *  first used during that exact context.  The caller is responsible for
+   *  aggregating handles across multiple `popWithRollback`-s.
+   */
+  def popWithRollback(accum: HashSet[Handle[_]]): Unit = {
     // apply the undo log in reverse order
     var i = _undoLog.size - 1
     while (i >= 0) {
@@ -225,7 +231,14 @@ private[impl] class WriteBuffer {
       i -= 1
     }
 
-    // null out and discard new bucket references
+    // accumulate the handles that will be discarded
+    i = _size
+    while (i > _undoThreshold) {
+      accum.asInstanceOf[HashSet[AnyRef]].add(_bucketAnys(handleI(i)))
+      i -= 1
+    }
+    
+    // null out references from the discarded buckets
     i = _size
     while (i > _undoThreshold) {
       _bucketAnys(refI(i)) = null
