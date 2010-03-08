@@ -210,4 +210,8 @@ class WriteBufferSuite extends FunSuite {
         if (size == 0) 0.0 else nanosPerOp(size, 1000, 0, 0, 10000))
     }
   }
+
+  test("nested commit") {
+    
+  }
 }
