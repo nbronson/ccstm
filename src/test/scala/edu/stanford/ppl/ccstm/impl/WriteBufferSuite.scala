@@ -13,8 +13,8 @@ import edu.stanford.ppl.ExhaustiveTest
 
 class WriteBufferSuite extends FunSuite {
 
-  type WB = WriteBuffer2
-  type WBV = WriteBuffer2.Visitor
+  type WB = WriteBuffer
+  type WBV = WriteBuffer.Visitor
 
   /** Only needed for identity comparisons. */
   class H[T](val ref: AnyRef, val offset: Int) extends Handle[T] {
