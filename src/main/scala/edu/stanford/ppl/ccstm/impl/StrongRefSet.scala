@@ -1,9 +1,8 @@
 /* CCSTM - (c) 2009-2010 Stanford University - PPL */
 
-// ReadSet
+// StrongRefSet
 
 package edu.stanford.ppl.ccstm.impl
-
 
 
 private[impl] object StrongRefSet {
@@ -11,7 +10,12 @@ private[impl] object StrongRefSet {
   val MaxEmptyCapacity = 8192
 }
 
-/** A clearable blob of strong references. */
+/** A `clear()`able blob of strong references.  The main advantage of using
+ *  this class over an `ArrayBuffer` or `java.util.ArrayList` is that we get
+ *  precise control over the post-clear capacity without having to rely on
+ *  undocumented specifics of the behavior.  Growing is also slightly faster,
+ *  because we don't have to look up the references, only pin them. 
+ */
 private[impl] final class StrongRefSet() {
   import StrongRefSet._
 
@@ -25,7 +29,12 @@ private[impl] final class StrongRefSet() {
   }
 
   private def grow() {
-    _refs = java.util.Arrays.copyOf(_refs, _size * 2)
+    // no need to copy all of the old references, we can just link into the
+    // zero-th element
+    val r = _refs
+    _refs = new Array[AnyRef](_refs.length * 2)
+    _refs(0) = r
+    _size = 1
   }
 
   def clear() {

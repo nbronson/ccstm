@@ -6,8 +6,8 @@ package edu.stanford.ppl.ccstm.impl
 
 
 private[impl] object ReadSet {
-  val InitialCapacity = 1024
-  val MaxEmptyCapacity = 8192
+  private def InitialCapacity = 1024
+  private def MaxEmptyCapacity = 8192
 
   trait Visitor {
     def visit(handle: Handle[_], ver: STMImpl.Version): Boolean
@@ -17,22 +17,25 @@ private[impl] object ReadSet {
 import ReadSet._
 
 /** A read set representation. */
-private[impl] final class ReadSet private(private var _size: Int,
-                                          private var _handles: Array[Handle[_]],
-                                          private var _versions: Array[STMImpl.Version]) {
-
-  def this() = this(0, new Array[Handle[_]](InitialCapacity), new Array[Long](InitialCapacity))
+private[impl] final class ReadSet(private var _size: Int,
+                                  private var _released: Int,
+                                  private var _handles: Array[Handle[_]],
+                                  private var _versions: Array[STMImpl.Version]) {
+  def this() = this(0, 0, new Array[Handle[_]](InitialCapacity), new Array[Long](InitialCapacity))
 
   override def clone(): ReadSet = {
     val hh = new Array[Handle[_]](_size)
     System.arraycopy(_handles, 0, hh, 0, _size);
     val vv = new Array[STMImpl.Version](_size)
     System.arraycopy(_versions, 0, vv, 0, _size);
-    new ReadSet(_size, hh, vv)
+    new ReadSet(_size, _released, hh, vv)
   }
 
-  def isEmpty = _size == 0
-  def size = _size
+  def size = _size - _released
+  def maxIndex = _size
+
+  def handle(i: Int): Handle[_] = _handles(i)
+  def version(i: Int): STMImpl.Version = _versions(i)
 
   def add(handle: Handle[_], version: STMImpl.Version) {
     if (_size == _handles.length) grow()
@@ -40,9 +43,6 @@ private[impl] final class ReadSet private(private var _size: Int,
     _versions(_size) = version
     _size += 1
   }
-
-  def lastHandle: Handle[_] = _handles(_size - 1)
-  def lastVersion: STMImpl.Version = _versions(_size - 1)
 
   private def grow() {
     val hh = new Array[Handle[_]](_size * 2)
@@ -53,27 +53,11 @@ private[impl] final class ReadSet private(private var _size: Int,
     _versions = vv
   }
 
-  /** Removes at most one entry whose ref and offset are the same as those of
-   *  <code>handle</code> and with the matching <code>version</code>.
-   *  Returns true if something was removed.
-   */  
-  def remove(handle: Handle[_], version: STMImpl.Version): Boolean = {
-    val ref = handle.ref
-    val offset = handle.offset
-    var i = _size - 1
-    while (i >= 0) {
-      val h = _handles(i)
-      if (_versions(i) == version && ((h eq handle) || ((h.ref eq ref) && h.offset == offset))) {
-        // copy down from the end
-        _size -= 1
-        _handles(i) = _handles(_size)
-        _handles(_size) = null
-        _versions(i) = _versions(_size)
-        return true
-      }
-      i -= 1
+  def release(i: Int) {
+    if (null != _handles(i)) {
+      _handles(i) = null
+      _released += 1
     }
-    return false
   }
 
   def clear() {
@@ -91,10 +75,11 @@ private[impl] final class ReadSet private(private var _size: Int,
     _versions = null
   }
 
-  def visit(visitor: ReadSet.Visitor): Boolean = {
+  def visit(visitor: Visitor): Boolean = {
     var i = 0
     while (i < _size) {
-      if (!visitor.visit(_handles(i), _versions(i))) return false
+      val h = _handles(i)
+      if (null != h && !visitor.visit(h, _versions(i))) return false
       i += 1
     }
     return true
