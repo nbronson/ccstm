@@ -95,7 +95,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   /** Returns true if valid. */
   private def revalidateImpl(): Boolean = {
     var i = 0
-    while (i < _readSet.maxIndex) {
+    while (i < _readSet.indexEnd) {
       val h = _readSet.handle(i)
       if (null != h && !revalidateImpl(h, _readSet.version(i))) return false
       i += 1
@@ -524,9 +524,9 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   def releasableRead[T](handle: Handle[T]): ReleasableRead[T] = {
     requireActive
     // this code relies on the implementation details of get() and ReadSet
-    val before = _readSet.size
+    val before = _readSet.indexEnd
     val v = get(handle)
-    (_readSet.size - before) match {
+    (_readSet.indexEnd - before) match {
       case 0 => {
         // read was satisfied from write buffer, can't release
         new ReleasableRead[T] {

@@ -17,44 +17,45 @@ private[impl] object ReadSet {
 import ReadSet._
 
 /** A read set representation. */
-private[impl] final class ReadSet(private var _size: Int,
+private[impl] final class ReadSet(private var _end: Int,
                                   private var _released: Int,
                                   private var _handles: Array[Handle[_]],
                                   private var _versions: Array[STMImpl.Version]) {
   def this() = this(0, 0, new Array[Handle[_]](InitialCapacity), new Array[Long](InitialCapacity))
 
   override def clone(): ReadSet = {
-    val hh = new Array[Handle[_]](_size)
-    System.arraycopy(_handles, 0, hh, 0, _size);
-    val vv = new Array[STMImpl.Version](_size)
-    System.arraycopy(_versions, 0, vv, 0, _size);
-    new ReadSet(_size, _released, hh, vv)
+    val hh = new Array[Handle[_]](_end)
+    System.arraycopy(_handles, 0, hh, 0, _end);
+    val vv = new Array[STMImpl.Version](_end)
+    System.arraycopy(_versions, 0, vv, 0, _end);
+    new ReadSet(_end, _released, hh, vv)
   }
 
-  def size = _size - _released
-  def maxIndex = _size
+  def size = _end - _released
+  def indexEnd = _end
 
   def handle(i: Int): Handle[_] = _handles(i)
   def version(i: Int): STMImpl.Version = _versions(i)
 
   def add(handle: Handle[_], version: STMImpl.Version) {
-    if (_size == _handles.length) grow()
-    _handles(_size) = handle
-    _versions(_size) = version
-    _size += 1
+    if (_end == _handles.length) grow()
+    _handles(_end) = handle
+    _versions(_end) = version
+    _end += 1
   }
 
   private def grow() {
-    val hh = new Array[Handle[_]](_size * 2)
-    System.arraycopy(_handles, 0, hh, 0, _size);
+    val hh = new Array[Handle[_]](_end * 2)
+    System.arraycopy(_handles, 0, hh, 0, _end);
     _handles = hh
-    val vv = new Array[STMImpl.Version](_size * 2)
-    System.arraycopy(_versions, 0, vv, 0, _size);
+    val vv = new Array[STMImpl.Version](_end * 2)
+    System.arraycopy(_versions, 0, vv, 0, _end);
     _versions = vv
   }
 
   def release(i: Int) {
     if (null != _handles(i)) {
+      assert(i < _end && _released < _end)
       _handles(i) = null
       _released += 1
     }
@@ -65,9 +66,10 @@ private[impl] final class ReadSet(private var _size: Int,
       _handles = new Array[Handle[_]](InitialCapacity)
       _versions = new Array[STMImpl.Version](InitialCapacity)
     } else {
-      java.util.Arrays.fill(_handles.asInstanceOf[Array[AnyRef]], 0, _size, null)
+      java.util.Arrays.fill(_handles.asInstanceOf[Array[AnyRef]], 0, _end, null)
     }
-    _size = 0
+    _end = 0
+    _released = 0
   }
 
   def destroy() {
@@ -77,7 +79,7 @@ private[impl] final class ReadSet(private var _size: Int,
 
   def visit(visitor: Visitor): Boolean = {
     var i = 0
-    while (i < _size) {
+    while (i < _end) {
       val h = _handles(i)
       if (null != h && !visitor.visit(h, _versions(i))) return false
       i += 1
