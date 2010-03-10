@@ -94,54 +94,64 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
 
   /** Returns true if valid. */
   private def revalidateImpl(): Boolean = {
-    (_readSet.isEmpty || _readSet.visit(new ReadSet.Visitor {
-      def visit(handle: Handle[_], ver: STMImpl.Version): Boolean = {
-        var done = false
-        while (!done) {
-          val m1 = handle.meta
-          if (!changing(m1) || owner(m1) == _slot) {
-            if (version(m1) != ver) {
-              forceRollback(InvalidReadCause(handle, "version changed"))
+    var i = 0
+    while (i < _readSet.maxIndex) {
+      val h = _readSet.handle(i)
+      if (null != h && !revalidateImpl(h, _readSet.version(i))) return false
+      i += 1
+    }
+    return readResourcesValidate()
+  }
+
+  private def revalidateImpl(handle: Handle[_], ver: STMImpl.Version): Boolean = {
+    var done = false
+    while (!done) {
+      val m1 = handle.meta
+      if (!changing(m1) || owner(m1) == _slot) {
+        if (version(m1) != ver) {
+          forceRollback(InvalidReadCause(handle, "version changed"))
+          return false
+        }
+        // okay
+        done = true
+      } else if (owner(m1) == NonTxnSlot) {
+        // non-txn updates don't set changing unless they will install a new
+        // value, so we are the only party that can yield
+        forceRollback(InvalidReadCause(handle, "pending non-txn write"))
+        return false
+      } else {
+        // Either this txn or the owning txn must roll back.  We choose to
+        // give precedence to the owning txn, as it is the writer and is
+        // Validating.  There's a bit of trickiness since o may not be the
+        // owning transaction, it may be a new txn that reused the same
+        // slot.  If the actual owning txn committed then the version
+        // number will have changed, which we will detect on the next pass
+        // (because we aren't incrementing i, so we will revisit this
+        // entry).  If it rolled back then we don't have to roll back, so
+        // looking at o to make the decision doesn't affect correctness
+        // (although it might result in an unnecessary rollback).  If the
+        // owner slot is the same but the changing bit is not set (or if
+        // the owner txn is null) then we are definitely observing a reused
+        // slot and we can avoid the spurious rollback.
+        val o = slotManager.lookup(owner(m1))
+        if (null != o) {
+          val s = o._status
+          val m2 = handle.meta
+          if (changing(m2) && owner(m2) == owner(m1)) {
+            if (s.mightCommit) {
+              forceRollback(InvalidReadCause(handle, "pending commit"))
               return false
             }
-            // okay
-            done = true
-          } else if (owner(m1) == NonTxnSlot) {
-            // non-txn updates don't set changing unless they will install a new
-            // value, so we are the only party that can yield
-            forceRollback(InvalidReadCause(handle, "pending non-txn write"))
-            return false
-          } else {
-            // Either this txn or the owning txn must roll back.  We choose to give
-            // precedence to the owning txn, as it is the writer and is
-            // Validating.  There's a bit of trickiness since o may not be the
-            // owning transaction, it may be a new txn that reused the same slot.
-            // If the actual owning txn committed then the version number will
-            // have changed, which we will detect on the next pass because we
-            // aren't incrementing i.  If it rolled back then we don't have to.
-            // If the ownership is the same but the changing bit is not set (or if
-            // the owner txn is null) then we must have observed the race and we
-            // don't roll back here.
-            val o = slotManager.lookup(owner(m1))
-            if (null != o) {
-              val s = o._status
-              val m2 = handle.meta
-              if (changing(m2) && owner(m2) == owner(m1)) {
-                if (s.mightCommit) {
-                  forceRollback(InvalidReadCause(handle, "pending commit"))
-                  return false
-                }
 
-                stealHandle(handle, m2, o)
-              }
-            }
+            stealHandle(handle, m2, o)
           }
-          // try again unless done
         }
-        return true
       }
-    })) && readResourcesValidate()
+      // try again unless done
+    }
+    return true
   }
+
 
   /** After this method returns, either the current transaction will have been
    *  rolled back or <code>currentOwner</code> will allow the write resource to
@@ -513,7 +523,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
 
   def releasableRead[T](handle: Handle[T]): ReleasableRead[T] = {
     requireActive
-    // this code relies on the implementation details of get()
+    // this code relies on the implementation details of get() and ReadSet
     val before = _readSet.size
     val v = get(handle)
     (_readSet.size - before) match {
@@ -527,20 +537,11 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
       }
       case 1 => {
         // single new addition to read set
-        assert(handle eq _readSet.lastHandle)
+        assert(handle eq _readSet.handle(before))
         new ReleasableRead[T] {
-          private val version = _readSet.lastVersion
-          private var released = false
-          
           def context: Option[Txn] = Some(TxnImpl.this.asInstanceOf[Txn])
           def value: T = v
-          def release() {
-            if (!released && null != _readSet) {
-              val f = _readSet.remove(handle, version)
-              assert(f)
-              released = true
-            }
-          }
+          def release(): Unit = if (null != _readSet) _readSet.release(before)
         }
       }
       case _ => {
