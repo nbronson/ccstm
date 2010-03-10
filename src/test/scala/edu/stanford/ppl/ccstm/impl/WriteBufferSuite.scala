@@ -252,7 +252,7 @@ class WriteBufferSuite extends FunSuite {
     wb.accumulateLevel(accum)
     val rs = accum.result()
     assert(rs.size == 1)
-    assert(rs.maxIndex == 1)
+    assert(rs.indexEnd == 1)
     assert(rs.handle(0) eq h11)
     wb.popWithRollback()
     assert(wb.get(h10) === "outer")
