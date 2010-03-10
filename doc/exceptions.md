@@ -3,25 +3,27 @@
 ## User exceptions => rollback + propagate
 
 An exception thrown from inside to outside an atomic block will cause
-the transaction to be rolled back, and then the exception will be
-rethrown without retrying the transaction.  This is not the only possible
-semantics, but in programs that do not use exceptions for control flow
-it minimizes the chances that partial results will be committed.  The
-internal Scala exception `scala.runtime.NonLocalReturnException` is
-handled specially.
+the transaction to be validated, rolled back, and then the exception
+will be rethrown without retrying the transaction.  This is not the only
+possible semantics, but in programs that do not use exceptions for control
+flow it minimizes the chances that partial results will be committed.
+Note that the normal optimistic reexecution will only be stopped if the
+transaction was valid when it threw the transaction.  The internal Scala
+exception `scala.runtime.NonLocalReturnException` is handled specially.
 
 If you want to commit an atomic block prior to propagating an exception,
 try something like the following:
 
-    val failure = new Ref[Throwable]
-    new Atomic { def body {
+    STM.atomic { implicit t =>
       try {
-        // ...
+        Left(/* body */)
       } catch {
-        case x => failure := x
+        case x => Right(x)
       }
-    }}.run
-    if (null != failure.get) throw failure.get
+    } match {
+      case Left(v) => v
+      case Right(x) => throw x
+    }
 
 
 ## Exceptions thrown by registered callbacks
