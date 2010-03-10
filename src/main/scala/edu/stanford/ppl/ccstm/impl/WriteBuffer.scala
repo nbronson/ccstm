@@ -223,7 +223,7 @@ private[impl] class WriteBuffer {
    *  first used during that exact context.  The caller is responsible for
    *  aggregating handles across multiple `popWithRollback`-s.
    */
-  def popWithRollback(accum: HashSet[Handle[_]]): Unit = {
+  def popWithRollback(): Unit = {
     // apply the undo log in reverse order
     var i = _undoLog.size - 1
     while (i >= 0) {
@@ -231,13 +231,6 @@ private[impl] class WriteBuffer {
       i -= 1
     }
 
-    // accumulate the handles that will be discarded
-    i = _size
-    while (i > _undoThreshold) {
-      accum.asInstanceOf[HashSet[AnyRef]].add(_bucketAnys(handleI(i)))
-      i -= 1
-    }
-    
     // null out references from the discarded buckets
     i = _size
     while (i > _undoThreshold) {
@@ -250,6 +243,18 @@ private[impl] class WriteBuffer {
 
     // revert to previous context
     popWithCommit()
+  }
+
+  /** Adds all handles that were added to the write buffer in the current
+   *  nesting level to `accum`, along with their current version number.
+   */
+  def accumulateLevel(accum: ReadSetBuilder): Unit = {
+    var i = _size
+    while (i > _undoThreshold) {
+      val h = _bucketAnys(handleI(i)).asInstanceOf[Handle[_]]
+      accum.add(h, STMImpl.version(h.meta))
+      i -= 1
+    }
   }
 }
 
