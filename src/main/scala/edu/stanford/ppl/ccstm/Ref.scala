@@ -56,7 +56,7 @@ object Ref {
   def apply(initialValue: Byte   ): Ref[Byte]    = new TByteRef(   initialValue)
   def apply(initialValue: Short  ): Ref[Short]   = new TShortRef(  initialValue)
   def apply(initialValue: Char   ): Ref[Char]    = new TCharRef(   initialValue)
-  def apply(initialValue: Int    ): Ref[Int]     = new TIntRef(    initialValue)
+  def apply(initialValue: Int    ): IntRef       = new TIntRef(    initialValue)
   def apply(initialValue: Long   ): Ref[Long]    = new TLongRef(   initialValue)
   def apply(initialValue: Float  ): Ref[Float]   = new TFloatRef(  initialValue)
   def apply(initialValue: Double ): Ref[Double]  = new TDoubleRef( initialValue)

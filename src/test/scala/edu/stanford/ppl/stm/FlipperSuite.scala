@@ -189,7 +189,7 @@ class FlipperSuite extends STMFunSuite {
   }
 
   def computeSequential(config: Config, P: Array[Ref[Boolean]]): Array[Ref[Int]] = {
-    val A = Array.tabulate(config.wordCount)({ _ => Ref(0) })
+    val A = Array.tabulate[Ref[Int]](config.wordCount)({ _ => Ref(0) })
     for (sync <- 0 until config.syncCount) {
       for (thread <- 0 until config.threadCount) {
         (new FlipperTask(config, A, P, true, thread, sync) {
