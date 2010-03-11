@@ -69,6 +69,8 @@ object STM {
     if (txn != null) {
       // subsumption
       block(txn)
+
+      // TODO: without partial rollback we can't properly implement failure atomicity (see issue #4)
     }
     else {
       // new transaction
