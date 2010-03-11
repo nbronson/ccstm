@@ -7,7 +7,7 @@ package edu.stanford.ppl.ccstm.impl
 import edu.stanford.ppl.ccstm._
 
 
-abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends AbstractTxn {
+abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadContext) extends AbstractTxn {
   import STMImpl._
   import Txn._
 
@@ -25,7 +25,6 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
   private def priority = STMImpl.hash(this, 0)
 
   {
-    val ctx = ThreadContext.get
     attach(ctx)
     _callbacks = ctx.takeCallbacks
     _readSet = ctx.takeReadSet
