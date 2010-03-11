@@ -113,7 +113,7 @@ class MaybeTxnSuite extends STMFunSuite {
     }
   }
 
-  def goesBothWaysDynamicDelegating(x: IntRef): Int = {
+  def goesBothWaysDynamicDelegating(x: IntRef) = {
     implicit val t = Txn.currentOrNull
     if (null == t) {
       STM.atomic(dynDelegatingImpl(x)(_))
