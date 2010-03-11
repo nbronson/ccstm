@@ -164,6 +164,25 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
   /** Enqueues an after-completionk callback with the default priority of 0. */
   def afterCompletion(callback: Txn => Unit)
 
+  /** Detaches this transaction from the current thread.  When combined with
+   *  `attach()` this can be used to migrate a `Txn` from one thread to another
+   *  while it is active.  A transaction may not be used from multiple threads
+   *  at the same time.  `attach()` must be called before the transaction is
+   *  used on the other thread, although this is not necessarily checked. There
+   *  is no need to attach or detach at the normal beginning and end of a
+   *  transaction, this pair of functions is used only for advanced scenarios
+   *  in which transaction processing needs to be migrated from one thread to
+   *  another.  With extreme care this may be used to suspend a transaction on
+   *  the current thread to run another one, but if there are any conflicts
+   *  between the transactions this can easily lead to deadlock.
+   */
+  def detach();
+
+  /** Attaches this transaction to the current thread after a called to
+   *  `detach()`.                                                                         
+   */
+  def attach();
+
   //////////////// internal Txn lifecycle stuff
 
   /** Calls <code>commit</code>, then throws the exception that caused rollback
@@ -208,4 +227,7 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
    *  Also adjusts the commit and rollback counters.
    */
   private[ccstm] def callAfter()
+
+  private[ccstm] def attach(ctx: impl.ThreadContext)
+  private[ccstm] def detach(ctx: impl.ThreadContext)
 }

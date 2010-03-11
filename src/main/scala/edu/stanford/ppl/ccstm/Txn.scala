@@ -4,12 +4,17 @@
 
 package edu.stanford.ppl.ccstm
 
+import impl.ThreadContext
+
 
 object Txn {
 
   val EnableCounters = "1tTyY" contains (System.getProperty("ccstm.counters", "") + "0").charAt(0)
 
   //////////////// Status
+
+  /** Returns the `Txn` associated with the current thread, or null if none. */
+  def current: Txn = impl.ThreadContext.get.txn.asInstanceOf[Txn]
 
   /** Represents the current status of a <code>Txn</code>. */
   sealed abstract class Status {
@@ -424,7 +429,7 @@ object Txn {
  *
  *  @author Nathan Bronson
  */
-sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(failureHistory) {
+final class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(failureHistory) {
   import Txn._
 
   /** Constructs a <code>Txn</code> with an empty failure history. */
@@ -628,4 +633,12 @@ sealed class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(f
       }
     }
   }
+
+  def detach() = detach(impl.ThreadContext.get)
+
+  def attach() = attach(impl.ThreadContext.get)
+
+  private[ccstm] def detach(ctx: ThreadContext): Unit = { ctx.txn = null }
+
+  private[ccstm] def attach(ctx: ThreadContext): Unit = { ctx.txn = this }
 }

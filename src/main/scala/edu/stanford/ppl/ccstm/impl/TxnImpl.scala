@@ -26,6 +26,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
 
   {
     val ctx = ThreadContext.get
+    attach(ctx)
     _callbacks = ctx.takeCallbacks
     _readSet = ctx.takeReadSet
     _writeBuffer = ctx.takeWriteBuffer
@@ -242,6 +243,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause]) extends Abstract
       _readSet = null
       _writeBuffer = null
       slotManager.release(_slot)
+      detach(ctx)
     }
   }
 

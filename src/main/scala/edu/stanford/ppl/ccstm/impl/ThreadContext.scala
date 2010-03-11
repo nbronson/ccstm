@@ -4,24 +4,32 @@
 
 package edu.stanford.ppl.ccstm.impl
 
+import edu.stanford.ppl.ccstm.Txn
 
 /** An object that holds the thread context for the current thread. */
-object ThreadContext extends ThreadLocal[ThreadContext] {
+private[ccstm] object ThreadContext extends ThreadLocal[ThreadContext] {
   override def initialValue: ThreadContext = new ThreadContext
 }
 
 /** A class that holds various objects that benefit from reuse by multiple
  *  transactions that execute on the same thread.
  */
-private[impl] final class ThreadContext {
+private[ccstm] final class ThreadContext {
   val rand = new FastSimpleRandom
 
+  private var _txn: Txn = null
   private var _callbacks: Callbacks = null
   private var _readSet: ReadSet = null
   private var _writeBuffer: WriteBuffer = null
   private var _strongRefSet: StrongRefSet = null
 
   var preferredSlot: STMImpl.Slot = rand.nextInt
+
+  def txn: Txn = _txn
+  def txn_=(v: Txn): Unit = {
+    if ((_txn eq null) == (v eq null)) throw new IllegalStateException("unmatched txn use")
+    _txn = v
+  }
 
   def takeCallbacks: Callbacks = {
     if (null == _callbacks) {
