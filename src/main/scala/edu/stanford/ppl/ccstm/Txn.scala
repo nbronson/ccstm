@@ -13,8 +13,16 @@ object Txn {
 
   //////////////// Status
 
+  /** Returns `Some(t)` if `t` is the transaction attached to the current
+   *  thread, or `None` if no transaction is attached.
+   */
+  def current: Option[Txn] = {
+    val t = currentOrNull
+    if (null != t) Some(t) else None
+  }
+
   /** Returns the `Txn` associated with the current thread, or null if none. */
-  def current: Txn = impl.ThreadContext.get.txn.asInstanceOf[Txn]
+  def currentOrNull: Txn = impl.ThreadContext.get.txn.asInstanceOf[Txn]
 
   /** Represents the current status of a <code>Txn</code>. */
   sealed abstract class Status {
@@ -417,22 +425,28 @@ object Txn {
 }
 
 /** An instance representing a single execution attempt for a single atomic
- *  block.  Most users will use the <code>Atomic</code> class to code atomic
- *  blocks, benefiting from automatic retry and a concise syntax.
- *  <p>
- *  The underlying STM will use the <code>failureHistory</code> in an
- *  implementation specific way to avoid starvation and livelock.
- *  @param failureHistory a list of the <code>Status.rollbackCause</code>s from
- *      earlier executions of the atomic block that this transaction will be
- *      used to execute, with the most recent first.
- *  @see edu.stanford.ppl.ccstm.Atomic
+ *  block.  For almost all cases, transaction should not be created directly.
+ *  The `STM.atomic` method should be used instead.
+ *  @see edu.stanford.ppl.ccstm.STM
  *
  *  @author Nathan Bronson
  */
-final class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(failureHistory) {
+final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: ThreadContext) extends impl.TxnImpl(failureHistory, ctx) {
   import Txn._
 
-  /** Constructs a <code>Txn</code> with an empty failure history. */
+  /** An instance representing a single execution attempt for a single atomic
+   *  block.  For almost all cases, transaction should not be created directly.
+   *  The `STM.atomic` method should be used instead.  The failure history is
+   *  used to avoid livelock.
+   *  @see edu.stanford.ppl.ccstm.STM
+   */
+  def this(failureHistory: List[Txn.RollbackCause]) = this(failureHistory, ThreadContext.get)
+
+  /** An instance representing a single execution attempt for a single atomic
+   *  block.  For almost all cases, transaction should not be created directly.
+   *  The `STM.atomic` method should be used instead.
+   *  @see edu.stanford.ppl.ccstm.STM
+   */
   def this() = this(Nil)
 
   // This inheritence hierarchy is a bit strange.  Method signatures and the

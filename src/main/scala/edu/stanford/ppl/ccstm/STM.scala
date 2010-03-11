@@ -5,6 +5,7 @@
 package edu.stanford.ppl.ccstm
 
 
+import impl.ThreadContext
 import runtime.NonLocalReturnException
 
 /** <code>STM</code> controls execution of atomic blocks with software
@@ -57,23 +58,36 @@ object STM {
    *  block.  If the block throws an exception, the transaction will be rolled
    *  back and the exception will be rethrown from this method without further
    *  retries.
+   *
+   *  If a transaction is already active on the current thread the block will
+   *  be run as part of the existing transaction.  In STM terminology this is
+   *  support for nested transactions using "flattening" or "subsumption".   
    */
   def atomic[Z](block: Txn => Z): Z = {
-    var hist: List[Txn.RollbackCause] = Nil
-    var txn = new Txn(hist)
-    var z = attemptImpl(txn, block)
-    while (txn.status ne Txn.Committed) {
-      val cause = txn.status.rollbackCause
-      cause match {
-        case x: Txn.ExplicitRetryCause => Txn.awaitRetryAndDestroy(x)
-        case _ => {}
-      }
-      // retry
-      hist = cause :: hist
-      txn = new Txn(hist)
-      z = attemptImpl(txn, block)
+    val ctx = ThreadContext.get
+    var txn = ctx.txn
+    if (txn != null) {
+      // subsumption
+      block(txn)
     }
-    z
+    else {
+      // new transaction
+      var hist: List[Txn.RollbackCause] = Nil
+      txn = new Txn(hist, ctx)
+      var z = attemptImpl(txn, block)
+      while (txn.status ne Txn.Committed) {
+        val cause = txn.status.rollbackCause
+        cause match {
+          case x: Txn.ExplicitRetryCause => Txn.awaitRetryAndDestroy(x)
+          case _ => {}
+        }
+        // retry
+        hist = cause :: hist
+        txn = new Txn(hist, ctx)
+        z = attemptImpl(txn, block)
+      }
+      z
+    }
   }
 
   /** Atomically executes a transaction that is composed from
@@ -97,6 +111,8 @@ object STM {
    *  @see edu.stanford.ppl.ccstm.AtomicFunc#orElse
    */
   def atomicOrElse[Z](blocks: (Txn => Z)*): Z = {
+    if (null != Txn.currentOrNull) throw new UnsupportedOperationException("nested orElse is not currently supported")
+
     val hists = new Array[List[Txn.RollbackCause]](blocks.length)
     while (true) {
       // give all of the blocks a chance

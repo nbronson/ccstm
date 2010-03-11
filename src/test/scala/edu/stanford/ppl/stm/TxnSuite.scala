@@ -120,4 +120,17 @@ class TxnSuite extends STMFunSuite {
     assert(y.nonTxn.get === 40)
     assert(z === 200)
   }
+
+  test("simple nesting") {
+    val x = Ref(10)
+    new Atomic { def body {
+      x += 1
+      new Atomic { def body {
+        assert(x.get === 11)
+        x += 2
+      }}.run
+      assert(x.get === 13)
+    }}.run
+    assert(x.nonTxn.get === 13)
+  }
 }
