@@ -18,10 +18,10 @@ object Txn {
    */
   def current: Option[Txn] = {
     val t = currentOrNull
-    if (null == t) None else Some(t)
+    if (null != t) Some(t) else None
   }
 
-  /** Returns the `Txn` attached with the current thread, or null if none. */
+  /** Returns the `Txn` attached to the current thread, or null if none. */
   def currentOrNull: Txn = impl.ThreadContext.get.txn.asInstanceOf[Txn]
 
   /** Represents the current status of a <code>Txn</code>. */
