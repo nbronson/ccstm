@@ -13,8 +13,16 @@ object Txn {
 
   //////////////// Status
 
-  /** Returns the `Txn` associated with the current thread, or null if none. */
-  def current: Txn = impl.ThreadContext.get.txn.asInstanceOf[Txn]
+  /** Returns `Some(t)` if `t` is the transaction attached to the current
+   *  thread, or `None` if no transaction is attached.
+   */
+  def current: Option[Txn] = {
+    val t = currentOrNull
+    if (null == t) None else Some(t)
+  }
+
+  /** Returns the `Txn` attached with the current thread, or null if none. */
+  def currentOrNull: Txn = impl.ThreadContext.get.txn.asInstanceOf[Txn]
 
   /** Represents the current status of a <code>Txn</code>. */
   sealed abstract class Status {
@@ -429,7 +437,7 @@ object Txn {
  *
  *  @author Nathan Bronson
  */
-final class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(failureHistory) {
+final class Txn(failureHistory: List[Txn.RollbackCause]) extends impl.TxnImpl(failureHistory) with MaybeTxn {
   import Txn._
 
   /** Constructs a <code>Txn</code> with an empty failure history. */
