@@ -64,7 +64,7 @@ abstract class Atomic extends (Txn => Unit) {
       def body { throw new IllegalStateException }
       override def retry(): Nothing = { throw new IllegalStateException }
       override private[Atomic] def bodies = b
-      override def run() { STM.atomicOrElse(b:_*) }
+      override def run()(implicit mt: MaybeTxn) { STM.atomicOrElse(b:_*) }
     }
   }
 
@@ -77,5 +77,5 @@ abstract class Atomic extends (Txn => Unit) {
    *  throws an exception, the transaction will be rolled back and the
    *  exception will be rethrown from this method without further retries.
    */
-  def run() { STM.atomic(this) }
+  def run()(implicit mt: MaybeTxn) { STM.atomic(this)(mt) }
 }

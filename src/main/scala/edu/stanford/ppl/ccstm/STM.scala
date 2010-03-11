@@ -63,9 +63,16 @@ object STM {
    *  be run as part of the existing transaction.  In STM terminology this is
    *  support for nested transactions using "flattening" or "subsumption".   
    */
-  def atomic[Z](block: Txn => Z): Z = {
-    val ctx = ThreadContext.get
-    var txn = ctx.txn
+  def atomic[Z](block: Txn => Z)(implicit mt: MaybeTxn): Z = {
+    var ctx: ThreadContext = null
+    var txn = (if (mt.isInstanceOf[Txn]) {
+      // statically known to be nested
+      mt.asInstanceOf[Txn]
+    } else {
+      // statically unknown, but maybe still dynamically nested
+      ctx = ThreadContext.get
+      ctx.txn
+    })
     if (txn != null) {
       // subsumption
       block(txn)
