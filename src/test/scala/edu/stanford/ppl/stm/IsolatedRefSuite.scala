@@ -144,7 +144,7 @@ class IsolatedRefSuite extends STMFunSuite {
         var i = 0
         while (i < 10) {
           i += 1
-          val v = !binder(x)
+          val v = binder(x)()
           binder(x) := v + 1
         }
       })

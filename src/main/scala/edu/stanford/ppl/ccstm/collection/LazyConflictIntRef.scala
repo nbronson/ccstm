@@ -119,7 +119,7 @@ object LazyConflictIntRef {
     }
 
     def compareAndSet(before: Int, after: Int): Boolean = {
-      if (this ==! before) {
+      if (this ==? before) {
         set(after)
         true
       } else {
@@ -195,7 +195,7 @@ object LazyConflictIntRef {
       }
     }
 
-    override def ==! (rhs: Int): Boolean = {
+    override def ==? (rhs: Int): Boolean = {
       if (_value == rhs) {
         record(new Op_==(rhs))
         true
@@ -314,7 +314,7 @@ class LazyConflictIntRef(initialValue: Int) extends IntRef {
   override def compare(rhs: Int)(implicit txn: Txn): Int = { bind compare rhs }
   override def <   (rhs: Int)(implicit txn: Txn): Boolean = { bind < rhs }
   override def >   (rhs: Int)(implicit txn: Txn): Boolean = { bind > rhs }
-  override def ==! (rhs: Int)(implicit txn: Txn): Boolean = { bind ==! rhs }
+  override def ==? (rhs: Int)(implicit txn: Txn): Boolean = { bind ==? rhs }
 
   //////////////// equality stuff in Ref uses handles, must be overriden:
 

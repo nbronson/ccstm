@@ -31,7 +31,7 @@ object Source {
     /** Performs a read in the current context.  Equivalent to <code>get</code>.
      *  @see edu.stanford.ppl.ccstm.Source.Bound#get
      */
-    def unary_! : T = get
+    def apply() : T = get
 
     /** Performs a transactional read of the value managed by the bound
      *  <code>Ref</code>.  If this view was created by <code>bind(txn)</code>,
@@ -133,7 +133,7 @@ trait Source[+T] {
   /** Performs a transactional read.  Equivalent to <code>get</code>.
    *  @see edu.stanford.ppl.ccstm.Source#get
    */
-  def unary_!(implicit txn: Txn): T
+  def apply()(implicit txn: Txn): T
 
   /** Performs a transactional read of the value managed by this
    *  <code>Ref</code>.  The returned value will take into account the

@@ -33,13 +33,13 @@ class WriteSkewSuite extends STMFunSuite {
             for (i <- 0 until incrCount) {
               if (null != failure) return
               new Atomic { def body {
-                if ((!other % 2) != 0) {
-                  if ((!self % 2) != 0) {
+                if ((other() % 2) != 0) {
+                  if ((self() % 2) != 0) {
                     fail("refs=" + refs.map(_.get))
                   }
                   retry
                 }
-                self := !self + 1
+                self := self() + 1
               }}.run
             }
           } catch {
