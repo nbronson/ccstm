@@ -63,8 +63,8 @@ class TxnSuite extends STMFunSuite {
   def nonLocalReturnHelper(x: Ref[Int]): Int = {
     STM.atomic((t: Txn) => {
       implicit val txn = t
-      x := !x + 1
-      return !x
+      x := x() + 1
+      return x()
     })
     return -1
   }

@@ -28,8 +28,8 @@ import runtime.NonLocalReturnException
  *     atomic(performTransfer(a, b, 5)(_))
  *
  *     def performTransfer(from: Ref[Int], to: Ref[Int], amount: Int)(implicit txn: Txn) {
- *       from := !from - amount
- *       to := !to + amount
+ *       from := from() - amount
+ *       to := to() + amount
  *     }
  *  </pre>
  *  or
@@ -40,8 +40,8 @@ import runtime.NonLocalReturnException
  *     val b = Ref(0)
  *     new Atomic { def body {
  *       val amount = 5
- *       a := !a - amount
- *       b := !b + amount
+ *       a := a() - amount
+ *       b := b() + amount
  *     }}.run
  *  </pre>
  *
@@ -181,7 +181,7 @@ object STM {
    *  executing the following transaction, but probably much more efficient:
    *  <pre>
    *    new AtomicFunc[Z]{ def body = {
-   *      val (a,b,z) = f(!refA, !refB)
+   *      val (a,b,z) = f(refA(), refB())
    *      refA := a
    *      refB := b
    *      z

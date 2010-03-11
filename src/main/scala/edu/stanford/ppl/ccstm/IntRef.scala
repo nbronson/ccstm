@@ -26,16 +26,14 @@ object IntRef {
     override def >= (rhs: Int): Boolean = !(this < rhs)
 
     /** Equivalent to <code>map(_ == ths)</code>, but more concise and
-     *  possibly more efficient.  The pneumonic is that you can replace
-     *  <code>(!ref == rhs)</code> with <code>(ref ==! rhs)</code.
+     *  possibly more efficient.
      */
-    def ==! (rhs: Int): Boolean = map(_ == rhs)
+    def ==? (rhs: Int): Boolean = map(_ == rhs)
 
     /** Equivalent to <code>map(_ != ths)</code>, but more concise and
-     *  possibly more efficient.  The pneumonic is that you can replace
-     *  <code>(!ref != rhs)</code> with <code>(ref !=! rhs)</code.
+     *  possibly more efficient.
      */
-    def !=! (rhs: Int): Boolean = !(this ==! rhs)
+    def !=? (rhs: Int): Boolean = !(this ==? rhs)
   }
 }
 
@@ -74,14 +72,12 @@ trait IntRef extends Ref[Int] {
   def >=  (rhs: Int)(implicit txn: Txn): Boolean = { !(this < rhs) }
 
   /** Equivalent to <code>map(_ == ths)</code>, but more concise and
-   *  possibly more efficient.  The pneumonic is that you can replace
-   *  <code>(!ref == rhs)</code> with <code>(ref ==! rhs)</code.
+   *  possibly more efficient.
    */
-  def ==! (rhs: Int)(implicit txn: Txn): Boolean = { map(_ == rhs) }
+  def ==? (rhs: Int)(implicit txn: Txn): Boolean = { map(_ == rhs) }
 
   /** Equivalent to <code>map(_ != ths)</code>, but more concise and
-   *  possibly more efficient.  The pneumonic is that you can replace
-   *  <code>(!ref != rhs)</code> with <code>(ref !=! rhs)</code.
+   *  possibly more efficient.
    */
-  def !=! (rhs: Int)(implicit txn: Txn): Boolean = { !(this ==! rhs) }
+  def !=? (rhs: Int)(implicit txn: Txn): Boolean = { !(this ==? rhs) }
 }

@@ -81,8 +81,8 @@ class HistogramSuite extends STMFunSuite {
                 buckets(Math.abs(hash(worker, i) % bucketCount)).nonTxn.transform(_ + 1)
               } else {
                 val nt = buckets(Math.abs(hash(worker, i) % bucketCount)).nonTxn
-                var x = !nt
-                while (!nt.compareAndSet(x, x + 1)) x = !nt
+                var x = nt()
+                while (!nt.compareAndSet(x, x + 1)) x = nt()
               }
               i += 1
             } else {
@@ -91,7 +91,7 @@ class HistogramSuite extends STMFunSuite {
                 while (j < samplesPerTxn && i + j < samplesPerWorker) {
                   val tv = buckets(Math.abs(hash(worker, i + j) % bucketCount))
                   //tv.getAndTransform(_ + 1)
-                  tv := !tv + 1
+                  tv := tv() + 1
                   //tv := tv.bind.readForWrite + 1
                   j += 1
                 }
