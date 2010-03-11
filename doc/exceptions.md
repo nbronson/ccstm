@@ -2,14 +2,14 @@
 
 ## User exceptions => rollback + propagate
 
-An exception thrown from inside to outside an atomic block will cause
-the transaction to be validated, rolled back, and then the exception
-will be rethrown without retrying the transaction.  This is not the only
-possible semantics, but in programs that do not use exceptions for control
-flow it minimizes the chances that partial results will be committed.
-Note that the normal optimistic reexecution will only be stopped if the
-transaction was valid when it threw the transaction.  The internal Scala
-exception `scala.runtime.NonLocalReturnException` is handled specially.
+An exception thrown from inside to outside an atomic block will
+cause the transaction to be rolled back and then the exception will be
+rethrown without retrying the transaction.  This is not the only possible
+semantics, but in programs that do not use exceptions for control flow it
+minimizes the chances that partial results will be committed.  Note that
+because CCSTM provides opacity (even partially-completed transactions
+are guaranteed to be consistent), it is not possible for an inconsistent
+transaction to incorrectly throw an exception.
 
 If you want to commit an atomic block prior to propagating an exception,
 try something like the following:
