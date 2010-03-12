@@ -10,8 +10,8 @@ for m in tflop; do
           /bin/echo -n "$c,"
           continue
         fi
-        grep 'TOTAL: T' $m/pass*/$c-$t.out 2>/dev/null | \
-            sed -e 's/.*T=//' -e 's/,.*//' | \
+        egrep '(TOTAL: T|Nb iterations)' pass*/$c-$t.out 2>/dev/null | \
+            sed -e 's/^[^=]*= *//' -e 's/,.*//' | \
             awk '{x += $1} END {printf("%d,", (NR==0 ? 0 : x/NR))}'
       done
       /bin/echo ""
