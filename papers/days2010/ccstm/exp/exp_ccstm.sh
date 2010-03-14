@@ -20,7 +20,7 @@ for pass in 0 1 2; do
         if grep '^TOTAL: T' $out >/dev/null 2>&1; then
           echo "$out already present and valid, skipping"
         else
-          ../../../../bin/proj_scala edu.stanford.ppl.stm.bank.Benchmark -n $t -a $a -s 4000 -i 1000000 -f $f > $out
+          ../../../../bin/proj_scala edu.stanford.ppl.stm.bank.Benchmark -n $t -a $a -s 20000 -i 1000000 -f $f > $out
         fi
       done
     done

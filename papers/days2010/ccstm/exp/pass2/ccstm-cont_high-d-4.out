@@ -1,4 +1,4 @@
-startup =       4000
+startup =       20000
 elapsed =       10000
 threads =       4
 accounts =      4
@@ -15,15 +15,15 @@ flavour =       d
 warming up
 timed execution
 
-TOTAL=4000000.0 [ 1008367.0 1006542.0 993736.0 991355.0 ]
+TOTAL=4000000.0 [ 984500.0 1022123.0 1000472.0 992905.0 ]
 
-10001 actual elapsed
+10013 actual elapsed
 
-T=1389057, R=0, W=0
-T=1564969, R=0, W=0
-T=1600891, R=0, W=0
-T=1550906, R=0, W=0
+T=316566, R=0, W=0
+T=316933, R=0, W=0
+T=315473, R=0, W=0
+T=320706, R=0, W=0
 
-TOTAL: T=6105823, R=0, W=0
---- 6,975 MB collected in 0.044 secs (0.3% of total), longest GC took 0.002 secs
-DATA gc:  total_k 7143319  total_secs 0.043914  max_secs 0.002351
+TOTAL: T=1269678, R=0, W=0
+--- 1546 MB collected in 0.491 secs (1.7% of total), longest GC took 0.184 secs
+DATA gc:  total_k 1583576  total_secs 0.490779  max_secs 0.183906

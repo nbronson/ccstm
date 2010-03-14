@@ -20,7 +20,7 @@ for pass in 0 1 2; do
         if grep 'Nb iterations' $out >/dev/null 2>&1; then
           echo "$out already present and valid, skipping"
         else
-          ../../../../bin/proj_java --deuce=$f org.deuce.benchmark.Driver -n $t -w 4000 org.deuce.benchmark.bank.Benchmark -n $a -i 100000 > $out
+          ../../../../bin/proj_java --deuce=$f org.deuce.benchmark.Driver -n $t -w 20000 org.deuce.benchmark.bank.Benchmark -n $a -i 100000 > $out
         fi
       done
     done

@@ -1,0 +1,25 @@
+Starting Multiverse JavaAgent
+Number of accounts  = 1
+Initial amount      = 100000.0
+Maximal transfer    = 10
+Read-all frequency  = 0%
+Write-all frequency = 0%
+Read-all threads    = 0
+Write-all threads   = 0
+Disjoint            = false
+Yield               = false
+
+Starting threads... 0
+End of warmup phase... 0
+End of test phase... 0
+Waiting for threads to finish...
+All threads returned successfully
+RESULTS:
+
+  Warmup duration (ms) = 4000
+  Test duration (ms)   = 10000
+  Nb iterations        = 65378678
+  Stats                = T=65378678, R=0, W=0, TOTAL=100000 [ 0=100000.0 ]
+    0 : 65378678 (T=65378678, R=0, W=0)
+--- 9,586 MB collected in 0.048 secs (0.3% of total), longest GC took 0.002 secs
+DATA gc:  total_k 9816392  total_secs 0.047991  max_secs 0.002452
