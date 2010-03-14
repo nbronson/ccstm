@@ -1,4 +1,4 @@
-Number of accounts  = 1
+Number of accounts  = 2
 Initial amount      = 100000.0
 Maximal transfer    = 10
 Read-all frequency  = 0%
@@ -17,8 +17,8 @@ RESULTS:
 
   Warmup duration (ms) = 20000
   Test duration (ms)   = 10000
-  Nb iterations        = 20332082
-  Stats                = T=20332082, R=0, W=0, TOTAL=100000 [ 0=100000.0 ]
-    0 : 20332082 (T=20332082, R=0, W=0)
---- 17,858 MB collected in 0.075 secs (0.3% of total), longest GC took 0.007 secs
-DATA gc:  total_k 18287504  total_secs 0.075145  max_secs 0.006852
+  Nb iterations        = 20312986
+  Stats                = T=20312986, R=0, W=0, TOTAL=200000 [ 0=42676.0 1=157324.0 ]
+    0 : 20312986 (T=20312986, R=0, W=0)
+--- 20,593 MB collected in 0.056 secs (0.2% of total), longest GC took 0.006 secs
+DATA gc:  total_k 21087504  total_secs 0.05597  max_secs 0.006215
