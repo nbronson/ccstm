@@ -31,7 +31,7 @@ class SpecializationsSuite extends STMFunSuite {
       new Atomic { def body {
         ref1 := dv
         ref2 := dv
-        arr1(0) = dv // TODO: should this be "arr(0) := dv" ?
+        arr1(0) = dv
         arr2(0) = dv
         exp := dv
       }}.run()
