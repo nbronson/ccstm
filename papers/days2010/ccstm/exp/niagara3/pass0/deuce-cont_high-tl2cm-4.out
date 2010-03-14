@@ -1,0 +1,29 @@
+TL2CM Initialized:
+Contention Manager: Polka busy-waiting [C=10]
+Number of accounts  = 4
+Initial amount      = 100000.0
+Maximal transfer    = 10
+Read-all frequency  = 0%
+Write-all frequency = 0%
+Read-all threads    = 0
+Write-all threads   = 0
+Disjoint            = false
+Yield               = false
+
+Starting threads... 0 1 2 3
+End of warmup phase... 0 1 2 3
+End of test phase... 0 1 2 3
+Waiting for threads to finish...
+All threads returned successfully
+RESULTS:
+
+  Warmup duration (ms) = 20006
+  Test duration (ms)   = 10008
+  Nb iterations        = 1089728
+  Stats                = T=1089728, R=0, W=0, TOTAL=458725 [ 0=129205.0 1=103535.0 2=85517.0 3=140468.0 ]
+    0 : 272740 (T=272740, R=0, W=0)
+    1 : 269184 (T=269184, R=0, W=0)
+    2 : 273150 (T=273150, R=0, W=0)
+    3 : 274654 (T=274654, R=0, W=0)
+--- 1280 MB collected in 0.375 secs (1.3% of total), longest GC took 0.150 secs
+DATA gc:  total_k 1310816  total_secs 0.37524  max_secs 0.15026
