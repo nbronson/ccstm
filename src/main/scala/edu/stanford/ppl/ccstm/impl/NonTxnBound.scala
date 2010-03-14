@@ -126,20 +126,29 @@ private[ccstm] class NonTxnBound[T](val unbind: Ref[T],
   def context: Option[Txn] = None
 
   def get: T = {
+    var tries = 0
     var m0 = 0L
-    var m1 = 0L
-    var v: T = null.asInstanceOf[T]
-    do {
+    while (tries < 100) {
       m0 = handle.meta
-      while (changing(m0)) {
+      if (changing(m0)) {
         weakAwaitUnowned(m0)
-        m0 = handle.meta
+      } else {
+        val v = handle.data
+        val m1 = handle.meta
+        if (changingAndVersion(m0) == changingAndVersion(m1)) {
+          return v
+        }
       }
-      v = handle.data
-      m1 = handle.meta
-      // TODO: fall back to pessimistic if we are starving
-    } while (changingAndVersion(m0) != changingAndVersion(m1))
-    v
+      tries += 1
+    }
+    return lockedGet
+  }
+
+  private def lockedGet: T = {
+    val m0 = acquireLock(false)
+    val z = handle.data
+    discardLock(m0)
+    z
   }
 
   def map[Z](f: (T) => Z): Z = f(get)
