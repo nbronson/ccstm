@@ -83,12 +83,12 @@ private[ccstm] final class CallbackList[T <: AnyRef] {
   }
 }
 
-// TODO: move magic numbers to the top of this file
-
 private final class CallbackPrioSlot {
+  def InitialCap = 8
+  def MaxInitialCap = 512
+
   var _count = 0
-  // TODO: make _elems an Array[T] without getting a BoxedAnyArray, maybe in 2.8?
-  var _elems = new Array[AnyRef](8)
+  var _elems = new Array[AnyRef](InitialCap)
   var _visited = 0
 
   def size = _count
@@ -102,9 +102,9 @@ private final class CallbackPrioSlot {
   }
 
   def clear() {
-    if (_elems.length > 512) {
+    if (_elems.length > MaxInitialCap) {
       // complete reset
-      _elems = new Array[AnyRef](8)
+      _elems = new Array[AnyRef](MaxInitialCap)
     } else {
       java.util.Arrays.fill(_elems, 0, _count, null)
     }

@@ -81,14 +81,13 @@ private[impl] class WriteBuffer {
     val ref = handle.ref
     val offset = handle.offset
     val slot = STMImpl.hash(ref, offset) & (_cap - 1)
-    val head = _dispatch(slot)
-    val i = find(ref, offset, head)
+    val i = find(ref, offset, _dispatch(slot))
     if (i != 0) {
       // hit, update an existing entry
       _bucketAnys(specValueI(i)) = value.asInstanceOf[AnyRef]
     } else {
       // miss, create a new entry
-      append(ref, offset, handle, value, slot, head)
+      append(ref, offset, handle, value, slot)
     }
   }
 
@@ -107,25 +106,24 @@ private[impl] class WriteBuffer {
     val ref = handle.ref
     val offset = handle.offset
     val slot = STMImpl.hash(ref, offset) & (_cap - 1)
-    val head = _dispatch(slot)
-    val i = find(ref, offset, head)
+    val i = find(ref, offset, _dispatch(slot))
     if (i != 0) {
       // hit
       return i
     } else {
       // miss, create a new entry using the existing data value
-      return append(ref, offset, handle, handle.data, slot, head)
+      return append(ref, offset, handle, handle.data, slot)
     }
   }
 
-  private def append(ref: AnyRef, offset: Int, handle: Handle[_], value: Any, slot: Int, head: Int): Int = {
+  private def append(ref: AnyRef, offset: Int, handle: Handle[_], value: Any, slot: Int): Int = {
     val s = _size + 1
     _bucketAnys(refI(s)) = ref
     _bucketAnys(specValueI(s)) = value.asInstanceOf[AnyRef]
     _bucketAnys(handleI(s)) = handle
     _bucketInts(offsetI(s)) = offset
-    _bucketInts(nextI(s)) = head
-    if (slot >= 0) _dispatch(slot) = s
+    _bucketInts(nextI(s)) = _dispatch(slot)
+    _dispatch(slot) = s
     _size = s
 
     if (shouldGrow) grow()

@@ -46,7 +46,7 @@ object Ref {
    *  the constructing transaction.
    */
   def apply[T](initialValue: T)(implicit m: ClassManifest[T]): Ref[T] = {
-    // TODO: can this check ClassTypeManifest instead (instanceof class is faster than instanceof interface)
+    // TODO: this is likely to be a hot spot, perhaps RFE a method in Manifest for this test?
     if (m.isInstanceOf[AnyValManifest[_]]) {
       newPrimitiveRef(initialValue)
     } else {

@@ -15,17 +15,26 @@ package edu.stanford.ppl.ccstm.impl
  *  are from http://nuclear.llnl.gov/CNP/rng/rngman/node4.html.
  */
 object FastSimpleRandom {
-  // TODO: (re)choose the number of slots with a bit more thought
-  private def Slots = 1024
-  
-  private val states = {
-    val z = new Array[Long](Slots)
-    for (i <- 0 until Slots) z(i) =  i * 0x123456789abcdefL
-    z
+  // 64 byte cache lines are typical, so there are 8 slots per cache line.
+  // This means that the probability that any two threads have false sharing is
+  // p = 8 / #slots.  If there are n processors, each of which is running 1
+  // thread, then the probability that no other threads have false sharing with
+  // the current thread is (1-p)^(n-1).  If p is small, that is about
+  // 1 - (n-1)p, which is pretty close to 1 - np.  If we want the probability
+  // of false conflict for a thread to be less than k, then we need np < k, or
+  // p < k/n, or 8/Slots < k/n, or #slots > 8n/k.  If we let k = 1/8, then we
+  // get #slots=64*n.
+  private val mask = {
+    val min = 64 * Runtime.getRuntime.availableProcessors
+    var slots = 1
+    while (slots < min) slots *= 2
+    slots - 1
   }
+  
+  private val states = Array.tabulate(mask + 1)({ _ * 0x123456789abcdefL })
 
   def nextInt(): Int = {
-    val id = System.identityHashCode(Thread.currentThread) & (Slots - 1)
+    val id = System.identityHashCode(Thread.currentThread) & mask
 
     val next = step(states(id))
     states(id) = next
