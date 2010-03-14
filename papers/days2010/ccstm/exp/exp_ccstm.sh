@@ -1,14 +1,18 @@
 # ccstm experiments
 
+# Usage: exp_ccstm.sh subdir
+
+m="$1"
+
 high_cont_mult=1
 low_cont_mult=64
 
 for pass in 0 1 2; do 
-  mkdir -p pass$pass
+  mkdir -p $m/pass$pass
   for t in 1 2 4 8 16 32 64 128 256; do 
     for f in d rfw t; do 
       for cont in low high; do 
-        echo pass-$pass-$t-$f-$cont
+        echo $m/pass-$pass-$t-$f-$cont
         if [ $cont = high ]; then
           a=`expr $t \* $high_cont_mult`
         elif [ $t = 1 ]; then
@@ -16,7 +20,7 @@ for pass in 0 1 2; do
         else
           a=`expr $t \* $low_cont_mult`
         fi
-        out=pass$pass/ccstm-cont_$cont-$f-$t.out
+        out=$m/pass$pass/ccstm-cont_$cont-$f-$t.out
         if grep '^TOTAL: T' $out >/dev/null 2>&1; then
           echo "$out already present and valid, skipping"
         else

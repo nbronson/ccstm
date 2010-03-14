@@ -24,7 +24,9 @@ while [ $# -gt 0 ]; do
     --gc=g1) JAVA_OPTS="$JAVA_OPTS -XX:+UnlockExperimentalVMOptions -XX:+UseG1GC" ;;
     --esc) JAVA_OPTS="$JAVA_OPTS -XX:+UnlockExperimentalVMOptions -XX:+DoEscapeAnalysis" ;;
     --coop) JAVA_OPTS="$JAVA_OPTS -XX:+UnlockExperimentalVMOptions -XX:+UseCompressedOops" ;;
+    --deuce=tl2cm) JAVA_OPTS="$JAVA_OPTS -javaagent:$CCSTM_BASE/bin/deuceAgent-1.3.0.jar -Dorg.deuce.transaction.contextClass=org.deuce.transaction.tl2cm.Context -Dorg.deuce.transaction.tl2cm.ContentionManager=Polka"
     --deuce=tl2) JAVA_OPTS="$JAVA_OPTS -javaagent:$CCSTM_BASE/bin/deuceAgent-1.3.0.jar -Dorg.deuce.transaction.contextClass=org.deuce.transaction.tl2.Context" ;;
+    --deuce=lsacm) JAVA_OPTS="$JAVA_OPTS -javaagent:$CCSTM_BASE/bin/deuceAgent-1.3.0.jar -Dorg.deuce.transaction.contextClass=org.deuce.transaction.lsacm.Context -Dorg.deuce.transaction.lsacm.cm=org.deuce.transaction.lsacm.cm.Timestamp" ;;
     --deuce=lsa) JAVA_OPTS="$JAVA_OPTS -javaagent:$CCSTM_BASE/bin/deuceAgent-1.3.0.jar -Dorg.deuce.transaction.contextClass=org.deuce.transaction.lsa.Context" ;;
     --multiverse) JAVA_OPTS="$JAVA_OPTS -javaagent:$CCSTM_BASE/bin/multiverse-alpha-0.4.jar" ;;
     -cp|-classpath)
