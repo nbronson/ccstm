@@ -58,6 +58,29 @@ to avoid the problems of weak isolation.  In the long term, an extension
 to Scala's types seems possible, but in the short term a reference-based
 approach seems the most practical.
 
+\subsection{Opacity}
+
+A subtle issue with STM is that, unless special care is taken, only
+committed transactions are guaranteed to be consistent.  Speculative
+transactions may observe an inconsistent state and only subsequently
+detect that they should roll back.  These `zombies' can produce
+surprising behavior by taking impossible branches or performing
+transactional accesses to the wrong object.  This problem is greatly
+magnified in a reference based STM, because the STM cannot provide a
+sandbox that isolates all actions taken by the zombie.  The read of a
+single impossible value may produce an infinite loop, so a transparent
+STM must either prevent inconsistent reads or instrument back edges
+to periodically revalidate the transaction.  Only the first option is
+available to an STM implemented as a library.
+
+The TL2~\cite{dice06tl2} and LSA~\cite{riegel06lsa} algorithms
+demonstrated how to use a global time-stamp to efficiently validate
+a transaction after each read, guaranteeing consistency for all
+intermediate states.  This correctness property was later formalized
+as \textit{opacity}~\cite{guerraoui08opacity}.  CCSTM is based on
+SwissTM~\cite{dragojevic09swisstm}, which adds eager detection of
+write-write conflicts to TL2's algorithm.
+
 \subsection{Irrevocable actions and structural conflicts}
 
 One of the side effects of CCSTM's alternate syntax for transactional barriers
@@ -112,27 +135,3 @@ on integer values, CCSTM provides \type{LazyConflictIntRef}, which
 uses an implicit ANT for inequalities, increment, and decrement; and
 \type{StripedIntRef}, which is optimized for low-contention increment
 and decrement with occasional reads.
-
-\subsection{Opacity}
-
-A subtle issue with STM is that, unless special care is taken, only
-committed transactions are guaranteed to be consistent.  Speculative
-transactions may observe an inconsistent state and only subsequently
-detect that they should roll back.  These `zombies' can produce
-surprising behavior by taking impossible branches or performing
-transactional accesses to the wrong object.  This problem is greatly
-magnified in a reference based STM, because the STM cannot provide a
-sandbox that isolates all actions taken by the zombie.  The read of a
-single impossible value may produce an infinite loop, so a transparent
-STM must either prevent inconsistent reads or instrument back edges
-to periodically revalidate the transaction.  Only the first option is
-available to an STM implemented as a library.
-
-The TL2~\cite{dice06tl2} and LSA~\cite{riegel06lsa} algorithms
-demonstrated how to use a global time-stamp to efficiently validate
-a transaction after each read, guaranteeing consistency for all
-intermediate states.  This correctness property was later formalized
-as \textit{opacity}~\cite{guerraoui08opacity}.  CCSTM is based on
-SwissTM~\cite{dragojevic09swisstm}, which adds eager detection of
-write-write conflicts to TL2's algorithm.
-
