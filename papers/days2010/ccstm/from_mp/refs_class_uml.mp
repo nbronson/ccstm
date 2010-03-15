@@ -22,7 +22,7 @@ beginfig(1);
     % base versions
     Interface.S("Source")
            ("get (implicit txn: Txn): A",
-            "unary_! (implicit txn: Txn) = get",
+            "apply() (implicit txn: Txn) = get",
             "...",
             "bind (implicit txn: Txn): Source.Bound[A]",
             "nonTxn: Source.Bound[A]");
@@ -50,7 +50,7 @@ beginfig(1);
     % bound versions
     Interface.BS("Source.Bound")
            ("get: A",
-            "unary_! = get",
+            "apply() = get",
             "...",
             "unbind: Source[A]",
             "context: Option[Txn]");
