@@ -15,6 +15,7 @@ TEX_SRCS=\
 	paper.tex \
 	perf.tex \
 	ref.tex \
+        semantics.tex \
 #
 TEX_DEPS=$(TEX_SRCS) \
 	../../common/ppl.bib \

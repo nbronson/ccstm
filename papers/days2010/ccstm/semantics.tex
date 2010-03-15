@@ -1,4 +1,9 @@
 
+CCSTM provides strong semantic guarantees for the memory locations that it
+manages, but does not attempt to hide the fact that transactions may be
+executed more than once.
+\todo{cursor}
+
 \subsection{Strong isolation}
 
 One of the benefits of the reference-based approach is that it avoids
@@ -39,31 +44,55 @@ for specific useful idioms.
 
 \item The system can use types to disallow direct access to any memory
 location that might be touched transactionally~\cite{moore08semantics}.
-This can take the form of extending the types and access rules on
-% todo: add a citation here
-normal mutable memory locations, or
-of boxing all transactionally-managed data inside some sort of cell,
-as in Haskell~\cite{harris05composable} or Clojure~\cite{hickey08clojure}.  We refer to the latter
-approach as a reference-based STM.
+This can take the form of extending the types and access rules on normal
+mutable memory locations, or of boxing all transactionally-managed
+data inside some sort of cell, as in Haskell~\cite{harris05composable}
+or Clojure~\cite{hickey08clojure}.  We refer to the latter approach as
+a reference-based STM.
 
 \end{packed_itemize}
 
 Scala favors safety and compile-time checking of program correctness,
 so the authors are of the opinion that it is only natural to employ types
-to avoid the problems of weak isolation.  In the long term an extension
-to Scala's types seems possible, but in the short term a library-based
+to avoid the problems of weak isolation.  In the long term, an extension
+to Scala's types seems possible, but in the short term a reference-based
 approach seems the most practical.
 
 \subsection{Irrevocable actions and structural conflicts}
 
-One of the side effects of an alternate syntax for transactional barriers
+One of the side effects of CCSTM's alternate syntax for transactional barriers
 is that it avoids creating the impression that the STM can magically
 parallelize all existing sequential code, or that atomic blocks are
 always a better replacement for locks.  There are both semantic and
-practical reasons why this is not the case.  The semantic problems come
+practical reasons why this is not the case, even for implicit STMs.
+
+The semantic problems come
 from actions that the STM cannot isolate or undo, such as I/O or calls to
 external libraries.  In the absence of any additional information about
 potential conflicts, the only way to execute safely is to serialize.
+CCSTM does not try to automatically handle irrevocable actions, but
+it provides handlers that allow user code to implement a variety of
+strategies.  Five types of callbacks may be registered with a transaction:
+\begin{packed_itemize}
+
+\item{\it before-completion} -- invoked before the transaction attempts to
+commit, regardless of whether it is already doomed;
+
+\item{\it read-resource} -- invoked each time the transaction's read
+set is validated, if any (CCSTM's algorithm can avoid validation for
+some read-only transactions);
+
+\item{\it write-resource} -- participates in a two-phase commit, voting on the
+outcome and then receiving the consensus decision;
+
+\item{\it after-commit} -- invoked after the transaction has committed, but
+before the application has been informed of the success; and
+
+\item{\it after-rollback} -- invoked after the transaction has rolled back, but
+before it is retried or failure is reported to the application.
+
+\end{packed_itemize}
+
 The practical problem with executing code that was not designed to
 be executed inside an atomic block is that such code often contains
 incidental shared accesses that the STM must treat as conflicts.
@@ -71,6 +100,18 @@ An example of this is the size field of a collection, which is often
 accessed by every mutating operation.  Unless care is taken to distribute
 the size over multiple memory locations, no concurrency will actually
 be available.
+
+CCSTM provides several mechanisms for reducing transaction conflicts with
+semantic conflict detection.  A sophisticated user can combine CCSTM's
+\code{unrecordedRead} primitive (Section~\ref{sec:unrecordedread}) with
+lifecycle callbacks to manually implement their own conflict detection.
+For simpler cases \type{Ref}\code{.map} (Section~\ref{sec:map})
+makes it trivial to use Abstract Nested Transactions (ANTs) to avoid
+rollback~\cite{harris07abstract}.  For the special case of contention
+on integer values, CCSTM provides \type{LazyConflictIntRef}, which
+uses an implicit ANT for inequalities, increment, and decrement; and
+\type{StripedIntRef}, which is optimized for low-contention increment
+and decrement with occasional reads.
 
 \subsection{Opacity}
 
@@ -91,41 +132,7 @@ The TL2~\cite{dice06tl2} and LSA~\cite{riegel06lsa} algorithms
 demonstrated how to use a global time-stamp to efficiently validate
 a transaction after each read, guaranteeing consistency for all
 intermediate states.  This correctness property was later formalized
-as \textit{opacity}~\cite{guerraoui08opacity}.  CCSTM uses the
-SwissTM~\cite{dragojevic09swisstm} algorithm, which guarantees opacity.
-
-%STMs often attempt to mimic the syntax used for lock-based critical
-%regions.  The beginning and end of the atomic block are declared, and all
-%memory accesses that occur within the dynamic scope of the atomic block
-%are transparently redirected to read or write barriers.  This has the
-%advantage that transactional accesses inherit the programming language's
-%syntax for reads and writes, which is both concise and familiar.
-%This familiarity is both a blessing and a curse, however.  It creates an
-%expectation that the STM can safely execute arbitrary existing sequential
-%code, which creates both semantic and performance challenges, and it
-%makes it more difficult for the programmer to convey semantic information
-%to the STM, which reduces opportunities for compile-time checking and
-%run-time scalability and performance improvements.
-
-%A Scala STM implemented inside the VM's JIT is likely to have the best
-%performance.  Past research has identified profitable transformations
-%that can be made by the optimizer if it has knowledge of barrier
-%usage~\cite{?}.  This approach is not a pragmatic one, however, because
-%the engineering effort required to produce a production quality VM with
-%this capacity is feasible only for a few organizations.
-
-%Bytecode rewriting is a promising technique.  Several bytecode rewriting STMs
-%have been described for the JVM, including Multiverse~\cite{multiversewebsite},
-%Deuce STM~\cite{??}, and AJ~\cite{popl09bronson}.  For Scala, this approach
-%has the advantage of allowing transactional execution of Java code,
-%including the Java standard libraries.
-
-%Bytecode rewriting has several drawbacks, however.  Because transactional
-%execution is dynamically scoped, it is not known at class loading time
-%whether or not transactional versions of an object or a method will
-%be required.  This means that all methods must be duplicated, adding
-%class loading overhead and increasing the size (and therefore decreasing
-%the spatial locality) of the VM's class data structures.  The bytecode
-%rewriter must be given special privileges, which complicates deployment
-%and limits the environments in which it may be used.
+as \textit{opacity}~\cite{guerraoui08opacity}.  CCSTM is based on
+SwissTM~\cite{dragojevic09swisstm}, which adds eager detection of
+write-write conflicts to TL2's algorithm.
 
