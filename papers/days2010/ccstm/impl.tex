@@ -1,8 +1,11 @@
 
-CCSTM's implementation is modeled on SwissTM~\cite{dragojevic09swisstm}.  Version
-management is lazy, but write permission is acquired eagerly.  Time-stamps
-are allocated 51 bits, making CCSTM immune from counter overflow in all
-but the most demanding production environments.
+CCSTM's version management and conflict detection use the SwissTM
+algorithm~\cite{dragojevic09swisstm}.  Version management is lazy, but
+write permission is acquired eagerly.  Time-stamps are allocated 51 bits,
+making CCSTM effectively immune from counter overflow.
+%\footnote{A program
+%that performs only non-transactional stores could trigger overflow in
+%2.4 years on the fastest machine in our lab.}.
 
 \subsection{Meta-data indirection}
 
@@ -25,9 +28,7 @@ a reference whose holder stores the value in an unboxed form.  As a
 more extreme example, CCSTM provides a transactional array-like class
 that internally uses one array for values and one array for meta-data,
 eliminating the $n$ intermediate objects that would be required by an
-\ytype{Array}{\xtype{Ref}{A}}.  \todo{revisit}  In some cases these storage optimizations
-return CCSTM to par with a VM-integrated STM, in some cases they make
-CCSTM's representation more compact.
+\ytype{Array}{\xtype{Ref}{A}}.
 
 \subsection{Global time-stamp optimizations}
 
@@ -48,7 +49,7 @@ a sequence of non-transactional writes to advance a reference's time-stamp to
 an arbitrary point in the future, without advancing the global time-stamp.
 If a transaction attempts to read such a far-future value it handles
 it via the normal GV6 mechanism, by advancing the global time-stamp and
-then revalidating.  \todo{why?} To limit the potential impact of these booby-trapped
+then revalidating.  To bound the potential impact of these booby-trapped
 references, we only allow non-transactional writes to advance time-stamps
 a limited distance into the future.  Even a small window (CCSTM defaults
 to 8) dramatically reduces contention on the global time-stamp.

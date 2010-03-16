@@ -252,86 +252,89 @@ that take an implicit \type{Txn}, although to reduce the API's surface
 area not all are mirrored. \vspace{4pt}\\
 \type{\bfseries Source.Bound}\textbf{ methods:}
 \begin{packed_itemize}
+\setlength{\itemsep}{4pt}
 
-\item \code{apply(): }\typeparam{T} -- Equivalent to \code{get}.
+\item \code{apply(): }\typeparam{T }-- Equivalent to \code{get}.
 
-\item \code{get: }\typeparam{T} -- Reads the value managed by the
+\item \code{get: }\typeparam{T }-- Reads the value managed by the
 bound \type{Ref}.  If this view is bound to a non-transactional context,
 the read will be strongly atomic and isolated with respect to all
 transactions, and will linearize before returning.
 
-\item \code{map[}\typeparam{Z}{](f: }\typeparam{T}{ => }\typeparam{Z}{): }\typeparam{Z}
--- Returns \code{f(get)}, possibly reevaluating \code{f}
+\item \code{map[}\typeparam{Z}\code{](f: }\typeparam{T}\code{ => }\typeparam{Z}\code{): }\typeparam{Z }--
+Returns \code{f(get)}, possibly reevaluating \code{f}
 to avoid rollbacks (\code{f} must be idempotent).
 
-\item \code{await(p: }\typeparam{T}{ => }\type{Boolean}\code{)} -- Blocks
+\item \code{await(p: }\typeparam{T}\code{ => }\type{Boolean}\code{) }-- Blocks
 until \code{p(get)} is true.  Transactional contexts block by rolling
 the transaction back using \code{retry}, the modular blocking primitive.
 Non-transactional contexts just block.
 
-\item \code{unrecordedRead: }\type{UnrecordedRead}\code{[}\typeparam{T}{]}
--- Returns an instance that wraps the value that would be returned by
+\item \code{unrecordedRead: }\type{UnrecordedRead}\code{[}\typeparam{T}\code{] }--
+Returns an instance that wraps the value that would be returned by
 \code{get}, but does not add anything to the transaction's read set
 (if any).
 
-\item \code{releasableRead: }\type{ReleasableRead}\code{[}\typeparam{T}{]}
--- Reads the value managed by the bound \type{Ref}, and returns that
+\item \code{releasableRead: }\type{ReleasableRead}\code{[}\typeparam{T}\code{] }--
+Reads the value managed by the bound \type{Ref}, and returns that
 value in an instance that allows the corresponding read set entry (if any)
 to be removed.
 
 \end{packed_itemize}
 \type{\bfseries Sink.Bound}\textbf{ methods:}
 \begin{packed_itemize}
+\setlength{\itemsep}{4pt}
 
-\item \code{:=(v: }\typeparam{T}{)} -- Equivalent to \code{set(v)}.
+\item \code{:=(v: }\typeparam{T}\code{) }-- Equivalent to \code{set(v)}.
 
-\item \code{set(v: }\typeparam{T}{)} -- Updates the value managed by the
+\item \code{set(v: }\typeparam{T}\code{) }-- Updates the value managed by the
 bound \type{Ref}.  If this view is bound to a non-transactional context,
 this method will linearize the store before returning.
 
-\item \code{tryWrite(v: }\typeparam{T}{): }\type{Boolean} -- Immediately
+\item \code{tryWrite(v: }\typeparam{T}\code{): }\type{Boolean }-- Immediately
 performs an update and returns true, or does nothing and returns false.
 
 \end{packed_itemize}
 \type{\bfseries Ref.Bound}\textbf{ methods:}
 \begin{packed_itemize}
+\setlength{\itemsep}{4pt}
 
-\item \code{readForWrite: }\typeparam{T} -- Returns the same value as
+\item \code{readForWrite: }\typeparam{T }-- Returns the same value as
 that returned by \code{get}, but adds the bound \type{Ref} to the write
 set of the transaction context, if any.
 
-\item \code{getAndSet(v: }\typeparam{T}{): }\typeparam{T} -- Atomically
+\item \code{getAndSet(v: }\typeparam{T}\code{): }\typeparam{T }-- Atomically
 invokes \code{set(v)} and returns the old value.  This is an atomic swap.
 
-\item \code{compareAndSet(b: }\typeparam{T}{, v: }\typeparam{T}{): }\type{Boolean}
--- Equivalent to atomically executing:
+\item \code{compareAndSet(b: }\typeparam{T}\code{, v: }\typeparam{T}\code{): }\type{Boolean }--
+Equivalent to atomically executing:
 \code{(b == get) \&\& \{ set(v); }\keyword{true}\code{ \}}
 
-\item \code{compareAndSetIdentity(b: }\typeparam{T}{, v: }\typeparam{T}{): }\type{Boolean}
--- Equivalent to atomically:
+\item \code{compareAndSetIdentity(b: }\typeparam{T}\code{, v: }\typeparam{T}\code{): }\type{Boolean }--
+Equivalent to atomically:
 \code{(b }\keyword{eq}\code{ get) \&\& \{ set(v); }\keyword{true}\code{ \}}
 
-\item \code{weakCompareAndSet(b: }\typeparam{T}{, v: }\typeparam{T}{): }\type{Boolean}
--- Works like \code{compareAndSet(b, v)}, but allows spurious failures.
+\item \code{weakCompareAndSet(b: }\typeparam{T}\code{, v: }\typeparam{T}\code{): }\type{Boolean }--
+Works like \code{compareAndSet(b, v)}, but allows spurious failures.
 
-\item \code{weakCompareAndSetIdentity(b: }\typeparam{T}{, v: }\typeparam{T}{): }\type{Boolean}
--- Works like \code{compareAndSetIdentity(b, v)}, but allows spurious failures.
+\item \code{weakCompareAndSetIdentity(b: }\typeparam{T}\code{, v: }\typeparam{T}\code{): }\type{Boolean }--
+Works like \code{compareAndSetIdentity(b, v)}, but allows spurious failures.
 
-\item \code{transform(f: }\typeparam{T}{ => }\typeparam{T}{)} --
+\item \code{transform(f: }\typeparam{T}\code{ => }\typeparam{T}\code{) }--
 Atomically replaces the value \code{v} stored in the bound \type{Ref}
 with \code{f(v)}.
 
-\item \code{getAndTransform(f: }\typeparam{T}{ => }\typeparam{T}{): }\typeparam{T}
--- Atomically replaces the value \code{v} stored in the \type{Ref}
+\item \code{getAndTransform(f: }\typeparam{T}\code{ => }\typeparam{T}\code{): }\typeparam{T }--
+Atomically replaces the value \code{v} stored in the \type{Ref}
 with \code{f(v)}, returning the old value.
 
-\item \code{tryTransform(f: }\typeparam{T}{ => }\typeparam{T}{): }\type{Boolean} 
--- Immediately atomically transforms this reference and returns true,
+\item \code{tryTransform(f: }\typeparam{T}\code{ => }\typeparam{T}\code{): }\type{Boolean }--
+Immediately atomically transforms this reference and returns true,
 or returns false.
 
-\item \code{transformIfDefined(pf: PartialFunction[}\typeparam{T}{,}\typeparam{T}{]):} \\
-\type{Boolean}
--- Atomically replaces the value \code{v} stored in the bound \type{Ref}
+\item \code{transformIfDefined(pf: }\type{PartialFunction}\code{[}\typeparam{T}\code{,}\typeparam{T}\code{]):} \\
+\type{Boolean }--
+Atomically replaces the value \code{v} stored in the bound \type{Ref}
 with \code{f(v)} if \code{pf.isDefinedAt(v)}, returning true, otherwise
 leaves the value unchanged and returns false.
 

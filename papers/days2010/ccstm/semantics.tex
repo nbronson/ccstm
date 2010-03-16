@@ -92,13 +92,13 @@ One of the side effects of CCSTM's alternate syntax for transactional barriers
 is that it avoids creating the impression that the STM can magically
 parallelize all existing sequential code, or that atomic blocks are
 always a better replacement for locks.  There are both semantic and
-practical reasons why this is not the case, even for implicit STMs.
+practical reasons why this is not the case, even for STMs with deep
+integration into the VM.
 
-The semantic problems come
+The semantic problems with hiding rollback and retry come
 from actions that the STM cannot isolate or undo, such as I/O or calls to
-external libraries.  In the absence of any additional information about
-potential conflicts, the only way to execute safely is to serialize.
-CCSTM does not try to automatically handle irrevocable actions, but
+external libraries.
+CCSTM does not try to automatically handle irrevocable actions.  Instead,
 it provides handlers that allow user code to implement a variety of
 strategies.  Five types of callbacks may be registered with a transaction:
 \begin{packed_itemize}
