@@ -1,0 +1,40 @@
+\begin{figure}
+\begin{lstlisting}{name=Code}
+class Account(initialBalance: Money) {
+  private val _balance = Ref(initialBalance)
+
+  def balance: Source[Money] = _balance
+
+  def deposit(amount: Money
+        )(implicit txn: Txn): Unit = {
+    assert(amount >= 0)
+    _balance := _balance() + amount
+  }
+
+  def withdraw(amount: Money
+        )(implicit txn: Txn): Unit = {
+    assert(amount >= 0)
+    if (_balance() < amount)
+      throw new OverdraftException
+    _balance := _balance() - amount
+  }
+}
+
+object Account {
+  def transfer(src: Account, dst: Account,
+        amount: Money): Unit = {
+    STM.atomic { implicit t => #\label{fig:example:ccstm:G}#
+      src.withdraw(amount)
+      dst.deposit(amount)
+    } #\label{fig:example:ccstm:H}#
+  }
+}
+\end{lstlisting}
+
+\caption{One way to implement the atomic balance transfer function
+using CCSTM.  This code uses \code{apply()} and \code{:=} operators
+for performing transactional reads and writes, and expresses the atomic
+block as an anonymous \type{Txn => Unit}.}
+
+\label{fig:example:ccstm}
+\end{figure}

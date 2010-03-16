@@ -9,6 +9,9 @@
 TEX_SRCS=\
 	conclusion.tex \
 	discussion.tex \
+        fig_example_ccstm.tex \
+        fig_example_nosync.tex \
+        fig_refclasses.tex \
 	impl.tex \
 	intro.tex \
 	library.tex \

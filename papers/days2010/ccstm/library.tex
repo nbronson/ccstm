@@ -43,8 +43,8 @@ threads, the result is a pay-as-you-go transactional memory suitable
 for experimentation and incremental adoption.
 
 Scala's flexible syntax makes a library-only STM tractable.  Operator
-overloading makes transactional loads and stores more concise,
-and implicit parameters allow the current transaction context to be
+overloading makes transactional loads and stores concise, and implicit
+parameters allow the current transaction context to be statically
 threaded through the code without explicitly including it in each call.
-The resulting STM can be considered to be an embedded domain-specific
-language (DSL) for expressing optimistic concurrency.
+The resulting STM can be considered an embedded DSL
+for optimistic concurrency.

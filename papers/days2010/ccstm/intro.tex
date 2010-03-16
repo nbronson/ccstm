@@ -18,7 +18,7 @@ require elaborate fine-grained decomposition to yield scalability.
 In this paper we describe the design of CCSTM, a library-based STM
 for Scala.  CCSTM deliberately sidesteps many of the 
 semantic difficulties common in software implementations of transactional
-memory, by limiting its focus.  We view CCSTM as a domain-specific language
+memory, by limiting its focus.  We view CCSTM as a domain specific language
 (DSL)
 for use by parallel programmers that wish to build algorithms and data
 structures using optimistic concurrency control.  CCSTM is not a drop-in replacement for
@@ -78,11 +78,9 @@ that do not interfere with components of the system that do not use it
 
 \item We introduce \code{unrecordedRead}, a new STM primitive that relaxes
 read atomicity while allowing manual validation.  To demonstrate its
-use, we implement \type{Ref}\code{.map}, a simple but restricted form of
-Abstract Nested Transaction~\cite{harris07abstract}.  \code{x.map(f)}
-returns the same value as \code{f(x.get)}, but does not require the
-transaction to roll back if \code{x} is changed concurrently but
-\code{f(x.get)} remains the same (Sections~\ref{sec:unrecordedread}
+use, we implement \type{Ref}\code{.map}, a simple but powerful restricted 
+Abstract Nested Transaction~\cite{harris07abstract}
+(Sections~\ref{sec:unrecordedread}
 and~\ref{sec:map}).
 
 \item We briefly overview CCSTM's implementation, including a

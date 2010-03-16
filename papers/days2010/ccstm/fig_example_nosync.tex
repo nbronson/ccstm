@@ -1,0 +1,34 @@
+\begin{figure}
+\begin{lstlisting}{name=Code}
+class Account(initialBalance: Money) {
+  private var _balance = initialBalance
+
+  def balance: Money = _balance
+
+  def deposit(amount: Money): Unit = {
+    assert(amount >= 0)
+    _balance += amount
+  }
+
+  def withdraw(amount: Money): Unit = {
+    assert(amount >= 0)
+    if (_balance < amount)
+      throw new OverdraftException
+    _balance -= amount
+  }
+}
+
+object Account {
+  def transfer(src: Account, dst: Account,
+        amount: Money): Unit = {
+    src.withdraw(amount)
+    dst.deposit(amount)
+  }
+}
+\end{lstlisting}
+
+\caption{Code that performs an account transfer without
+any locking or other concurrency control.}
+
+\label{fig:example:nosync}
+\end{figure}
