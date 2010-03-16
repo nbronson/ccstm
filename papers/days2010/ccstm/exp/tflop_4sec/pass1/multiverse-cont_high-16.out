@@ -1,0 +1,40 @@
+Starting Multiverse JavaAgent
+Number of accounts  = 16
+Initial amount      = 100000.0
+Maximal transfer    = 10
+Read-all frequency  = 0%
+Write-all frequency = 0%
+Read-all threads    = 0
+Write-all threads   = 0
+Disjoint            = false
+Yield               = false
+
+Starting threads... 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+End of warmup phase... 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+End of test phase... 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+Waiting for threads to finish...
+All threads returned successfully
+RESULTS:
+
+  Warmup duration (ms) = 4000
+  Test duration (ms)   = 10000
+  Nb iterations        = 14983957
+  Stats                = T=14983957, R=0, W=0, TOTAL=1600000 [ 0=91618.0 1=98409.0 2=93036.0 3=98710.0 4=104800.0 5=96867.0 6=110199.0 7=97318.0 8=107151.0 9=91665.0 10=96765.0 11=114908.0 12=90048.0 13=99259.0 14=108565.0 15=100682.0 ]
+    0 : 893250 (T=893250, R=0, W=0)
+    1 : 836288 (T=836288, R=0, W=0)
+    2 : 1383206 (T=1383206, R=0, W=0)
+    3 : 841975 (T=841975, R=0, W=0)
+    4 : 771351 (T=771351, R=0, W=0)
+    5 : 900739 (T=900739, R=0, W=0)
+    6 : 901365 (T=901365, R=0, W=0)
+    7 : 969022 (T=969022, R=0, W=0)
+    8 : 1024491 (T=1024491, R=0, W=0)
+    9 : 755576 (T=755576, R=0, W=0)
+    10 : 921529 (T=921529, R=0, W=0)
+    11 : 914700 (T=914700, R=0, W=0)
+    12 : 1421470 (T=1421470, R=0, W=0)
+    13 : 1007468 (T=1007468, R=0, W=0)
+    14 : 746958 (T=746958, R=0, W=0)
+    15 : 694569 (T=694569, R=0, W=0)
+--- 8,339 MB collected in 0.033 secs (0.2% of total), longest GC took 0.003 secs
+DATA gc:  total_k 8539912  total_secs 0.032685  max_secs 0.00309
