@@ -21,7 +21,7 @@ private object TPairRef {
  *
  *  @author Nathan Bronson
  */
-class TPairRef[A,B](initialA: A, initialB: B) extends Ref[(A,B)] with impl.Handle[(A,B)] {
+class TPairRef[A,B](initialA: A, initialB: B) extends impl.Handle[(A,B)] with Ref[(A,B)] {
 
   def this(initialPair: (A,B)) = this(initialPair._1, initialPair._2)
 

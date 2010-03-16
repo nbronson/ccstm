@@ -19,7 +19,7 @@ private object TFloatRef {
  *
  *  @author Nathan Bronson
  */
-class TFloatRef(initialValue: Float) extends Ref[Float] with impl.Handle[Float] {
+class TFloatRef(initialValue: Float) extends impl.Handle[Float] with Ref[Float] {
 
   protected def handle: impl.Handle[Float] = this
 

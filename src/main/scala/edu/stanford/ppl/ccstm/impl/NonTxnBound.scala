@@ -231,7 +231,10 @@ private[ccstm] class NonTxnBound[T](val unbind: Ref[T],
   def readForWrite: T = get
 
   def compareAndSet(before: T, after: T): Boolean = {
-    // try to acquire ownership
+    // Try to acquire ownership.  If we can get it easily then we hold the lock
+    // while evaluating before == handle.data, otherwise we try to perform an
+    // invisible read to determine if the CAS will succeed, only waiting for
+    // the lock if the CAS might go ahead.
     val m0 = handle.meta
     if (owner(m0) != UnownedSlot) {
       return invisibleCAS(before, after)
