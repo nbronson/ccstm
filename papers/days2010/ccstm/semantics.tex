@@ -1,8 +1,11 @@
 
 CCSTM provides strong semantic guarantees for the memory locations that it
 manages, but does not attempt to hide the fact that transactions may be
-executed more than once.
-\todo{cursor}
+executed more than once.  All accesses to \type{Ref} instances are strongly
+isolated and atomic, and transactions guarantee opacity.  CCSTM does not
+handle or prevent irrevocable actions inside transactions, but it provides a
+rich set of life cycle callbacks that allow a variety of strategies to be
+implemented.
 
 \subsection{Strong isolation}
 
