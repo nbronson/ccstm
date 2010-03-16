@@ -117,7 +117,7 @@ class TArray[T](private val _data: AtomicArray[T], metaMapping: TArray.MetaMappi
   private val _meta = new AtomicLongArray(Math.min(_metaIndexMask + 1, length))
   private def _metaIndex(i: Int) = (i >> _metaIndexShift) & _metaIndexMask
 
-  private def getRef(index: Int): Ref[T] = new Ref[T] with Handle[T] {
+  private def getRef(index: Int): Ref[T] = new Handle[T] with Ref[T] {
 
     protected def handle: Handle[T] = this
 

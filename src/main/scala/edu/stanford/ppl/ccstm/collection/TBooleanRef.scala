@@ -19,7 +19,7 @@ private object TBooleanRef {
  *
  *  @author Nathan Bronson
  */
-class TBooleanRef(initialValue: Boolean) extends Ref[Boolean] with impl.Handle[Boolean] {
+class TBooleanRef(initialValue: Boolean) extends impl.Handle[Boolean] with Ref[Boolean] {
 
   protected def handle: impl.Handle[Boolean] = this
 

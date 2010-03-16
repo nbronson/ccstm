@@ -15,7 +15,7 @@ package edu.stanford.ppl.ccstm.impl
  *  See <code>MetaHolder</code> for a pre-built implementation of the
  *  <code>meta*</code> methods.
  */
-private[ccstm] trait Handle[T] {
+private[ccstm] abstract class Handle[T] {
   private[ccstm] def meta: Long
   private[ccstm] def meta_=(v: Long)
   private[ccstm] def metaCAS(before: Long, after: Long): Boolean

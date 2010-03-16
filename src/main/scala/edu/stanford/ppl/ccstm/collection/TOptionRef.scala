@@ -21,7 +21,7 @@ private object TOptionRef {
  *
  *  @author Nathan Bronson
  */
-class TOptionRef[T](initialValue: Option[T]) extends Ref[Option[T]] with impl.Handle[Option[T]] {
+class TOptionRef[T](initialValue: Option[T]) extends impl.Handle[Option[T]] with Ref[Option[T]] {
   import TOptionRef._
 
   protected def handle: impl.Handle[Option[T]] = this

@@ -19,7 +19,7 @@ private object TIntRef {
  *
  *  @author Nathan Bronson
  */
-class TIntRef(initialValue: Int) extends IntRef with impl.Handle[Int] {
+class TIntRef(initialValue: Int) extends impl.Handle[Int] with IntRef {
 
   protected def handle: impl.Handle[Int] = this
 

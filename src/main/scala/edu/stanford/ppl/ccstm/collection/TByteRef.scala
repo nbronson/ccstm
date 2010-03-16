@@ -19,7 +19,7 @@ private object TByteRef {
  *
  *  @author Nathan Bronson
  */
-class TByteRef(initialValue: Byte) extends Ref[Byte] with impl.Handle[Byte] {
+class TByteRef(initialValue: Byte) extends impl.Handle[Byte] with Ref[Byte] {
 
   protected def handle: impl.Handle[Byte] = this
 
