@@ -20,12 +20,12 @@ methods of an internal trait called a \type{Holder}.  This indirection
 allows multiple storage strategies to be easily provided, which can
 yield an important reduction in the number of live objects in the VM.
 For example, if the static or manifest type of the initial value is known
-to be an \keyword{int}, then the \type{Ref} factory method will return
+to be an \keyword{Int}, then the \type{Ref} factory method will return
 a reference whose holder stores the value in an unboxed form.  As a
 more extreme example, CCSTM provides a transactional array-like class
 that internally uses one array for values and one array for meta-data,
 eliminating the $n$ intermediate objects that would be required by an
-\ytype{Array}{\xtype{Ref}{A}}.  In some cases these storage optimizations
+\ytype{Array}{\xtype{Ref}{A}}.  \todo{revisit}  In some cases these storage optimizations
 return CCSTM to par with a VM-integrated STM, in some cases they make
 CCSTM's representation more compact.
 
@@ -48,7 +48,7 @@ a sequence of non-transactional writes to advance a reference's time-stamp to
 an arbitrary point in the future, without advancing the global time-stamp.
 If a transaction attempts to read such a far-future value it handles
 it via the normal GV6 mechanism, by advancing the global time-stamp and
-then revalidating.  To limit the potential impact of these booby-trapped
+then revalidating.  \todo{why?} To limit the potential impact of these booby-trapped
 references, we only allow non-transactional writes to advance time-stamps
 a limited distance into the future.  Even a small window (CCSTM defaults
 to 8) dramatically reduces contention on the global time-stamp.
@@ -91,7 +91,7 @@ on the \type{Txn} instance itself.  No such instance is available for
 threads blocked by a non-transactional write, or that are performing a
 conditional retry, so the system also maintains 64 lists we refer to as
 `wakeup channels'.  These channels contain a list of pending wakeups,
-which are single-shot gates (compare to Java's \type{CountDownLatch}
+which are single-shot gates (similar to a Java \type{CountDownLatch}
 with a count of 1).  Each memory location is associated with a wakeup
 channel by hashing its identity.  To await the modification of a
 memory location, a thread enqueues a new pending wakeup instance,
@@ -103,17 +103,17 @@ multiple memory locations simultaneously by enqueuing its pending wakeup
 instance to multiple channels.  The choice of 64 wakeup channels makes
 it easy to accumulate the effects of a transaction in a \keyword{long}.
 If a system makes extremely heavy use of the \code{retry} mechanism by
-having many blocked threads, a larger number of channels may be required.
+having many blocked threads, a larger number of channels might be appropriate.
 
 \subsection{JVM versus CLR}
 
-Scala is designed to target both the JVM and the CLR virtual
-machines.  In its current implementation, CCSTM uses the following
-classes from \type{java.util.concurrent} to implement atomic
-compare-and-swap for fields and array elements: \type{AtomicInteger},
-\type{AtomicLong}, \type{AtomicLongArray}, \type{AtomicReferenceArray},
-\type{At\-om\-ic\-LongFieldUpdater}, and \type{AtomicReferenceField\-Up\-dat\-er}.
-The authors are not experts in the CLR memory model, but we believe
-that it would be straightforward to retarget CCSTM to the CLR by using
-methods in \type{System::Threading::Interlocked}.
+Scala is designed to target both the JVM and the CLR virtual machines.  In
+its current implementation, CCSTM uses many of the \type{Atomic*} classes
+from \type{java.util.concurrent} to perform atomic compare-and-swaps and
+volatile array accesses.  The authors are not experts on the CLR memory
+model, but we believe that it would be straightforward to retarget CCSTM
+to the CLR by using methods in \type{System::Threading::Interlocked}.
 
+%compare-and-swap for fields and array elements: \type{AtomicInteger},
+%\type{AtomicLong}, \type{AtomicLongArray}, \type{AtomicReferenceArray},
+%\type{At\-om\-ic\-LongFieldUpdater}, and \type{AtomicReferenceField\-Up\-dat\-er}.

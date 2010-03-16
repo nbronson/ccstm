@@ -26,14 +26,14 @@ There are three potential responses to the weak isolation between direct memory
 accesses and concurrent transactions:
 \begin{packed_itemize}
 
-\item The system can provide strong isolation and atomicity by redirecting
+\item The runtime can provide strong isolation and atomicity by redirecting
 all memory accesses to barriers, even non-transactional accesses.
 While there has been some research in using dynamic recompilation
 to reduce the performance penalty of strong isolation, these require
 either deep integration with the VM's JIT~\cite{schneider08dynamic}
 or a substantial warmup period~\cite{bronson09dbo}.
 
-\item The system can declare that a conflicting concurrent access
+\item The language can declare that a conflicting concurrent access
 from both inside and outside a transaction is an error.  This doesn't
 sound too onerous, but the optimistic nature of transactions means that
 failed speculations must also be considered: inconsistent transactions
@@ -45,11 +45,11 @@ whole-program reasoning to guarantee correctness.  The privatization
 problem and its dual, the publication problem, refer to isolation failure
 for specific useful idioms.
 
-\item The system can use types to disallow direct access to any memory
+\item The type system can prevent direct access to any memory
 location that might be touched transactionally~\cite{moore08semantics}.
 This can take the form of extending the type and access rules on normal
-mutable memory locations, or of boxing all transactionally-managed
-data inside some sort of cell, as in Haskell~\cite{harris05composable}
+mutable memory locations, or of encapsulating transactionally-managed
+data as private variables of some sort of cell, as in Haskell~\cite{harris05composable}
 and Clojure~\cite{hickey08clojure}.  We refer to the latter approach as
 a reference-based STM.
 
@@ -137,6 +137,6 @@ For simpler cases \type{Ref}\code{.map} (Section~\ref{sec:map})
 makes it trivial to use Abstract Nested Transactions (ANTs) to avoid
 rollback~\cite{harris07abstract}.  For the special case of contention
 on integer values, CCSTM provides \type{LazyConflictIntRef}, which
-uses ANTs for all inequality comparisons, increments, and decrements; and
+uses ANTs for all inequality comparisons, increments, and decrements, and
 \type{StripedIntRef}, which is optimized for low-contention increment
 and decrement with occasional reads.
