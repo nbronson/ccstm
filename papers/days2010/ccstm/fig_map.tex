@@ -1,14 +1,14 @@
 \begin{figure}
 \begin{lstlisting}{name=Code}
 class Ref[T] {
-  // ...
+  ...
   def map[Z](f: T => Z)(implicit t: Txn): Z = {
     val u0 = unrecordedRead
     val result = f(u0.value)
-    addReadResource(new Txn.ReadResource {
+    t.addReadResource(new Txn.ReadResource {
       var u = u0 // latest unrecorded read
   
-      def valid(t: Txn) = {
+      def valid(t2: Txn) = {
         if (u.stillValid) {
           true
         } else {
