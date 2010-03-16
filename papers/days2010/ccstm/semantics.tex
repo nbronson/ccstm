@@ -3,7 +3,7 @@ CCSTM provides strong semantic guarantees for the memory locations that it
 manages, but does not attempt to hide the fact that transactions may be
 executed more than once.  All accesses to \type{Ref} instances are strongly
 isolated and atomic, and transactions guarantee opacity.  CCSTM does not
-handle or prevent irrevocable actions inside transactions, but it provides a
+handle or prevent irrevocable actions inside transactions.  Instead, it provides a
 rich set of life cycle callbacks that allow a variety of strategies to be
 implemented.
 
@@ -14,13 +14,13 @@ isolation problems between transactional and non-transactional accesses to
 the same memory location, without requiring any changes to the underlying
 type system.
 
-At its most basic, a software transactional memory is a way of isolating
-a group of memory accesses and verifying that those accesses are
-equivalent to some serial execution.  The STM manages reads and writes
-by redirecting them to \textit{barriers}, code fragments that actually
-implement the atomicity and isolation.  These properties can only be
-guaranteed, however, if no non-transactional code bypasses the barriers
-and accesses a memory location directly.
+At its most basic, a software transactional memory is a way of isolating a
+group of memory accesses and verifying that those accesses are equivalent
+to some serial execution.  The STM barriers that perform the transactional
+reads and writes include code that blocks or rolls back any accesses that
+violate atomicity or isolation.  If non-transactional code bypasses the
+barriers and accesses an STM-managed memory location directly, however,
+the barriers can no longer detect all violations.
 
 There are three potential responses to the weak isolation between direct memory
 accesses and concurrent transactions:
@@ -47,10 +47,10 @@ for specific useful idioms.
 
 \item The system can use types to disallow direct access to any memory
 location that might be touched transactionally~\cite{moore08semantics}.
-This can take the form of extending the types and access rules on normal
+This can take the form of extending the type and access rules on normal
 mutable memory locations, or of boxing all transactionally-managed
 data inside some sort of cell, as in Haskell~\cite{harris05composable}
-or Clojure~\cite{hickey08clojure}.  We refer to the latter approach as
+and Clojure~\cite{hickey08clojure}.  We refer to the latter approach as
 a reference-based STM.
 
 \end{packed_itemize}
@@ -59,7 +59,9 @@ Scala favors safety and compile-time checking of program correctness,
 so the authors are of the opinion that it is only natural to employ types
 to avoid the problems of weak isolation.  In the long term, an extension
 to Scala's types seems possible, but in the short term a reference-based
-approach seems the most practical.
+approach seems the most practical.  CCSTM provides strong isolation by
+encapsulating all transactionally-managed memory locations inside 
+references.
 
 \subsection{Opacity}
 
@@ -135,6 +137,6 @@ For simpler cases \type{Ref}\code{.map} (Section~\ref{sec:map})
 makes it trivial to use Abstract Nested Transactions (ANTs) to avoid
 rollback~\cite{harris07abstract}.  For the special case of contention
 on integer values, CCSTM provides \type{LazyConflictIntRef}, which
-uses an implicit ANT for inequalities, increment, and decrement; and
+uses ANTs for all inequality comparisons, increments, and decrements; and
 \type{StripedIntRef}, which is optimized for low-contention increment
 and decrement with occasional reads.

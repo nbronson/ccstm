@@ -5,27 +5,25 @@ class Account(initialBalance: Money) {
 
   def balance: Source[Money] = _balance
 
-  def deposit(amount: Money
-        )(implicit txn: Txn): Unit = {
-    assert(amount >= 0)
-    _balance := _balance() + amount
+  def deposit(m: Money)(implicit t: Txn) {
+    assert(m >= 0)
+    _balance := _balance() + m
   }
 
-  def withdraw(amount: Money
-        )(implicit txn: Txn): Unit = {
-    assert(amount >= 0)
-    if (_balance() < amount)
+  def withdraw(m: Money)(implicit t: Txn) {
+    assert(m >= 0)
+    if (_balance() < m)
       throw new OverdraftException
-    _balance := _balance() - amount
+    _balance := _balance() - m
   }
 }
 
 object Account {
   def transfer(src: Account, dst: Account,
-        amount: Money): Unit = {
+               m: Money) {
     STM.atomic { implicit t => #\label{fig:example:ccstm:G}#
-      src.withdraw(amount)
-      dst.deposit(amount)
+      src.withdraw(m)
+      dst.deposit(m)
     } #\label{fig:example:ccstm:H}#
   }
 }

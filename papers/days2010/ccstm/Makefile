@@ -11,6 +11,7 @@ TEX_SRCS=\
 	discussion.tex \
         fig_example_ccstm.tex \
         fig_example_nosync.tex \
+        fig_map.tex \
         fig_refclasses.tex \
 	impl.tex \
 	intro.tex \

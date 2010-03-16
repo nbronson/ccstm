@@ -118,30 +118,34 @@ only after it might take a different path.  Similarly, \code{orElse}
 composes two alternatives that are each satisfactory, and requests that
 whichever one can avoid the dead end should be executed.
 
-\type{Atomic} provides a \code{retry} method.  As a contrived example,
-the bank could use \code{retry} if they wished to delay a withdrawal
-rather than trigger an \code{OverdraftException}:
-\lstset{numbers=none}
-\begin{lstlisting}
-object atomic {
-  def withdrawWhenPossible(amount: Money
-        )(implicit txn: Txn): Unit = {
-    assert(amount >= 0)
-    if (!_balance < amount)
-      retry
-    _balance := !_balance - amount
-  }
-\end{lstlisting}
-\lstset{numbers=left}
+Currently, CCSTM encodes \code{retry} as a method of the \code{STM} object, and 
+combines composition and atomic execution of a sequence of atomic blocks into
+\code{STM.atomicOrElse[}\typeparam{Z}\code{](blocks: (}\type{Txn}\code{ => }\typeparam{Z}\code{)*): }\typeparam{Z}.
+While we have experimented with an implicit conversion from 
+\type{Txn}\code{ => }\typeparam{Z} to an \type{AtomicBlock} that provides a
+rich interface, we have not yet found a syntax that works well.  If
+\code{retry} is used without \code{orElse}, then the normal \code{STM.atomic}
+method may be used.
 
-A chain of \type{Atomic} or \type{AtomicFunc} instances may be chained
-with \code{orElse}, a single \code{run()} terminates the alternatives.
-If a collection of \type{Txn}\code{~=>~}\typeparam{Z} is available then
-they can be passed to:
+As a contrived example,
+the bank could use modular blocking to withdraw money from exactly one of a number of
+accounts, blocking until success:
 \lstset{numbers=none}
 \begin{lstlisting}
-object STM {
-  def retryOrElse[Z](blocks: (Txn => Z)*): Z
+class Account {
+  ...
+  def withdrawOrRetry(m: Money
+        )(implicit t: Txn) {
+    if (_balance() < m) STM.retry
+    _balance := _balance() - m
+  }
+}
+object Account {
+  def fromAny(m: Money, srcs: Account*) {
+    val blocks = srcs map { s =>
+        { (t: Txn) => s.withdrawOrRetry(m)(t) } }
+    STM.atomicOrElse(blocks: _*)
+  }
 }
 \end{lstlisting}
 \lstset{numbers=left}
@@ -151,32 +155,29 @@ object STM {
 \subsection{Relaxed isolation}
 \label{sec:unrecordedread}
 
-Some algorithms can benefit from transactional reads that are not
-atomic, but that observe speculative stores made by the current
-transaction.  The inconsistent value may be used to make a heuristic decision,
-such as a hash table resize, or algorithm-specific knowledge
-may be used to guarantee atomic behavior of the transaction despite
-a subsequent invalidation, as in early release when searching a binary tree.
+Some algorithms can benefit from transactional reads that are not atomic,
+but that observe speculative stores made by the current transaction.
+The inconsistent value may be used to make a heuristic decision, such as a
+hash table resize, algorithm-specific knowledge may be used to guarantee
+atomic behavior of the transaction despite a subsequent invalidation,
+as in early release when searching a binary tree, or life cycle callbacks
+may be used to provide customized validation.
 
-Previous TM systems have provided several mechanisms for relaxing atomicity and
-isolation.
-Open nested transactions allow the actions of a
-nested transaction to be committed in a non-nested fashion.  Escape actions
-suspend the current transaction temporarily~\cite{harris04exceptions}.  Early
-release
-allows reads to be removed from the read set prior to
-commit~\cite{HerlihyLMS03}.  CCSTM's static transaction scoping makes escape
-actions trivial.  Accesses via \code{nonTxn} are escaped when executed by the
-code that implements an atomic block\footnote{One of the motivations for the
-creation of CCSTM was to study transactional collection class implementations
-that interleave escaped actions internally.}
-CCSTM also provides principled support for
-early release, via \type{Source.Bound.releasableRead}.  This method returns
-a \type{ReleasableRead} instance that provides both the read value
-and a method that removes the access from the transaction's read set.
+Previous TM systems have provided several mechanisms for relaxing
+atomicity and isolation.  Early release allows reads to be removed
+from the read set prior to commit~\cite{HerlihyLMS03}.  Escape actions
+suspend the current transaction temporarily~\cite{harris04exceptions}.
+Open nested transactions allow the actions of a nested transaction
+to be committed in a non-nested fashion.  CCSTM's static transaction
+scoping makes escape actions trivial.  Accesses via \code{nonTxn}
+are escaped when executed by the code that implements an atomic
+block. CCSTM also provides principled support for early release,
+via \type{Source.Bound.releasableRead}.  This method returns a
+\type{ReleasableRead} instance that provides both the read value and
+a method that removes the access from the transaction's read set.
 This interface eliminates the danger that an algorithm will remove a
-read that it did not perform, but it still requires careful reasoning to
-provide correctness.
+read that it did not perform, but it still requires careful reasoning
+to provide correctness.  CCSTM does not support open nesting.
 
 As an alternative to a releasable read, CCSTM provides a new
 abstraction, \code{unrecordedRead}.  This method performs a
@@ -204,18 +205,18 @@ from A to B, then back to A.}.
 \subsection{Semantic conflict detection for reads}
 \label{sec:map}
 
-Unrecorded reads can be paired with life cycle callbacks to implement a simple
-yet powerful form of Abstract Nested Transaction~\ref{harris07abstract}.
-If an unrecorded read is coupled with a read-resource callback that
-performs a semantic validation, rollback may be avoided.  This is exposed
-to the user as \code{map}:
-\lstset{numbers=none}
-\begin{lstlisting}
-trait Source[+A] {
-  def map[B](f: A => B)(implicit txn: Txn): B
-}
-\end{lstlisting}
-\lstset{numbers=left}
+Unrecorded reads can be paired with life cycle callbacks to implement
+Abstract Nested Transactions~\ref{harris08abstract}.  For the simple case where
+a single transactional read is modified by an idempotent function, we provide
+\code{map[}\typeparam{Z}\code{](f: }\typeparam{T}\code{ => }\typeparam{Z}\code{): }\typeparam{Z}.
+
+%\lstset{numbers=none}
+%\begin{lstlisting}
+%trait Source[+T] {
+%  def map[Z](f: T => Z)(implicit txn: Txn): Z
+%}
+%\end{lstlisting}
+%\lstset{numbers=left}
 \code{x.map(f)} returns the same value as \code{f(x.get)}, but no rollback
 is triggered by a conflicting write to \code{x} if the result of the mapping
 does not change.  Without this
@@ -232,102 +233,109 @@ Consider a branch that should be taken only if the transactional value of
 \lstset{numbers=left}
 If the observed value of \code{x} was 200 and a concurrent transaction $U$ commits
 a change of \code{x} to 201, the STM must roll back $T$.  If the comparison is
-moved inside of \code{map}, however, then no rollback is required:
+moved inside \code{map}, however, no rollback is required:
 \lstset{numbers=none}
 \begin{lstlisting}
   if (x.map(_ > 100)) { ... }
 \end{lstlisting}
 \lstset{numbers=left}
 By allowing the programmer to express more of his or her intention to CCSTM,
-\code{map} can reduce rollbacks, leading to better scalability.
+\code{map} reduces rollbacks and leads to better scalability.
+Figure~\ref{fig:map} shows how \code{map} may be implemented using
+\code{unrecordedRead} and a validation handler.
 
-\subsection{Additional reference operations}
+\input{fig_map.tex}
+
+\subsection{All of the ways to read or write a CCSTM reference}
 
 What follows is the complete listing of the access operations provided by
-\type{Ref.Bound}.  Many of these methods have equivalents in \type{Ref},
-although to reduce the API's surface area some are not mirrored.
-
-\textbf{Source.Bound methods:}
+\type{Ref.Bound}.  Many of these methods have equivalents in \type{Ref}
+that take an implicit \type{Txn}, although to reduce the API's surface
+area not all are mirrored. \vspace{4pt}\\
+\type{\bfseries Source.Bound}\textbf{ methods:}
 \begin{packed_itemize}
 
-\item \code{apply(): T} -- Equivalent to \code{get}.
+\item \code{apply(): }\typeparam{T} -- Equivalent to \code{get}.
 
-\item \code{get : T} -- Reads the value managed by the bound \type{Ref}.
-If this view is bound to a non-transactional context, the read will be
-strongly atomic and isolated with respect to all transactions, and will
-linearize before returning.
+\item \code{get: }\typeparam{T} -- Reads the value managed by the
+bound \type{Ref}.  If this view is bound to a non-transactional context,
+the read will be strongly atomic and isolated with respect to all
+transactions, and will linearize before returning.
 
-\item \code{map[Z](f: T => Z): Z} -- Returns \code{f(get)}, possibly 
-reevaluating \code{f} to avoid rollbacks (\code{f} must be idempotent).
+\item \code{map[}\typeparam{Z}{](f: }\typeparam{T}{ => }\typeparam{Z}{): }\typeparam{Z}
+-- Returns \code{f(get)}, possibly reevaluating \code{f}
+to avoid rollbacks (\code{f} must be idempotent).
 
-\item \code{await(p: T => Boolean)} -- Blocks until \code{p(get)} is true.
-Transactional contexts block using \code{retry}, the modular blocking
-primitive.  Non-transactional contexts just block the current thread.
+\item \code{await(p: }\typeparam{T}{ => }\type{Boolean}\code{)} -- Blocks
+until \code{p(get)} is true.  Transactional contexts block by rolling
+the transaction back using \code{retry}, the modular blocking primitive.
+Non-transactional contexts just block.
 
-\item \code{unrecordedRead: UnrecordedRead[T]} -- Returns an instance
-that wraps the value that would be returned by \code{get}, but does not
-add anything to the transaction's read set (if any).
+\item \code{unrecordedRead: }\type{UnrecordedRead}\code{[}\typeparam{T}{]}
+-- Returns an instance that wraps the value that would be returned by
+\code{get}, but does not add anything to the transaction's read set
+(if any).
 
-\item \code{releasableRead: ReleasableRead[T]} -- Reads the value managed by
-the bound \type{Ref}, and returns that value in an instance that allows the
-corresponding read set entry (if any) to be removed.
+\item \code{releasableRead: }\type{ReleasableRead}\code{[}\typeparam{T}{]}
+-- Reads the value managed by the bound \type{Ref}, and returns that
+value in an instance that allows the corresponding read set entry (if any)
+to be removed.
 
 \end{packed_itemize}
-
-\textbf{Sink.Bound methods:}
+\type{\bfseries Sink.Bound}\textbf{ methods:}
 \begin{packed_itemize}
 
-\item \code{:=(v: T)} -- Equivalent to \code{set(v)}.
+\item \code{:=(v: }\typeparam{T}{)} -- Equivalent to \code{set(v)}.
 
-\item \code{set(v: T)} -- Updates the value managed by the bound \code{Ref}. 
-If this view is bound to a non-transactional context, this method will
-linearize the store before returning.
+\item \code{set(v: }\typeparam{T}{)} -- Updates the value managed by the
+bound \type{Ref}.  If this view is bound to a non-transactional context,
+this method will linearize the store before returning.
 
-\item \code{tryWrite(v: T): Boolean} -- Immediately performs an update and
-returns true, or does nothing and returns false.
+\item \code{tryWrite(v: }\typeparam{T}{): }\type{Boolean} -- Immediately
+performs an update and returns true, or does nothing and returns false.
 
 \end{packed_itemize}
-
-\textbf{Ref.Bound methods:}
+\type{\bfseries Ref.Bound}\textbf{ methods:}
 \begin{packed_itemize}
 
-\item \code{readForWrite: T} -- Returns the same value as that returned
-by \code{get}, but adds the bound \code{Ref} to the write set of the
-transaction context, if any.
+\item \code{readForWrite: }\typeparam{T} -- Returns the same value as
+that returned by \code{get}, but adds the bound \type{Ref} to the write
+set of the transaction context, if any.
 
-\item \code{getAndSet(v: T): T} -- Atomically invokes \code{set(v)}
-and returns the old value.  This is an atomic swap.
+\item \code{getAndSet(v: }\typeparam{T}{): }\typeparam{T} -- Atomically
+invokes \code{set(v)} and returns the old value.  This is an atomic swap.
 
-\item \code{compareAndSet(b: T, v: T): Boolean} -- Equivalent to atomically executing:
-\lstset{numbers=none}
-\begin{lstlisting}
-(b == get) && { set(v) ; true }
-\end{lstlisting}
+\item \code{compareAndSet(b: }\typeparam{T}{, v: }\typeparam{T}{): }\type{Boolean}
+-- Equivalent to atomically executing:
+\code{(b == get) \&\& \{ set(v); }\keyword{true}\code{ \}}
 
-\item \code{compareAndSetIdentity(b: T, v: T): Boolean} -- Equivalent 
-to atomically executing: 
-\lstset{numbers=none}
-\begin{lstlisting}
-(b eq get) && { set(v) ; true }
-\end{lstlisting}
+\item \code{compareAndSetIdentity(b: }\typeparam{T}{, v: }\typeparam{T}{): }\type{Boolean}
+-- Equivalent to atomically:
+\code{(b }\keyword{eq}\code{ get) \&\& \{ set(v); }\keyword{true}\code{ \}}
 
-\item \code{weakCompareAndSet(b: T, v: T): Boolean} -- Works like \code{compareAndSet}, but allows spurious failures.
+\item \code{weakCompareAndSet(b: }\typeparam{T}{, v: }\typeparam{T}{): }\type{Boolean}
+-- Works like \code{compareAndSet(b, v)}, but allows spurious failures.
 
-\item \code{weakCompareAndSetIdentity(b: T, v: T): Boolean} -- Works like 
-\code{compareAndSetIdentity}, but allows spurious failures.
+\item \code{weakCompareAndSetIdentity(b: }\typeparam{T}{, v: }\typeparam{T}{): }\type{Boolean}
+-- Works like \code{compareAndSetIdentity(b, v)}, but allows spurious failures.
 
-\item \code{transform(f: T => T)} -- Atomically replaces the value \code{v} stored in the \code{Ref}
+\item \code{transform(f: }\typeparam{T}{ => }\typeparam{T}{)} --
+Atomically replaces the value \code{v} stored in the bound \type{Ref}
 with \code{f(v)}.
 
-\item \code{getAndTransform(f: T => T): T} -- Atomically replaces the value \code{v} stored in the \code{Ref}
+\item \code{getAndTransform(f: }\typeparam{T}{ => }\typeparam{T}{): }\typeparam{T}
+-- Atomically replaces the value \code{v} stored in the \type{Ref}
 with \code{f(v)}, returning the old value.
 
-\item \code{tryTransform(f: T => T): Boolean} -- Either atomically transforms this reference without 
-blocking and returns true, or returns false.
+\item \code{tryTransform(f: }\typeparam{T}{ => }\typeparam{T}{): }\type{Boolean} 
+-- Immediately atomically transforms this reference and returns true,
+or returns false.
 
-\item \code{transformIfDef(pf: PartialFunction[T,T]): Boolean} -- Atomically replaces 
-the value \code{v} stored in the \code{Ref} with \code{f(v)},
-if \code{pf.isDefinedAt(v)} returning true, otherwise leaves the element unchanged and returns false.
+\item \code{transformIfDefined(pf: PartialFunction[}\typeparam{T}{,}\typeparam{T}{]):} \\
+\type{Boolean}
+-- Atomically replaces the value \code{v} stored in the bound \type{Ref}
+with \code{f(v)} if \code{pf.isDefinedAt(v)}, returning true, otherwise
+leaves the value unchanged and returns false.
 
 \end{packed_itemize}
 

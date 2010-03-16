@@ -29,9 +29,10 @@ accessor methods:
 \begin{lstlisting}
 class Node {
   private val _next: Ref[Node] = ..
-  def next(implicit txn: Txn): Node = !_next
-  def next_=(v: Node)(implicit txn: Txn): Unit =
-      _next := v
+  def next(implicit txn: Txn): Node = _next()
+  def next_=(v: Node)(implicit txn: Txn) {
+    _next := v
+  }
 }
 \end{lstlisting}
 \lstset{numbers=left}
@@ -80,9 +81,9 @@ might look like:
 class Account ... {
   import STM.dynamic
 
-  def deposit(amount: Money): Unit = {
+  def deposit(amount: Money) {
     assert(amount >= 0)
-    _balance := !_balance + amount
+    _balance := _balance() + amount
   }
 }
 \end{lstlisting}

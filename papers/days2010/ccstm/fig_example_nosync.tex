@@ -5,24 +5,24 @@ class Account(initialBalance: Money) {
 
   def balance: Money = _balance
 
-  def deposit(amount: Money): Unit = {
-    assert(amount >= 0)
-    _balance += amount
+  def deposit(m: Money) {
+    assert(m >= 0)
+    _balance += m
   }
 
-  def withdraw(amount: Money): Unit = {
-    assert(amount >= 0)
-    if (_balance < amount)
+  def withdraw(m: Money) {
+    assert(m >= 0)
+    if (_balance < m)
       throw new OverdraftException
-    _balance -= amount
+    _balance -= m
   }
 }
 
 object Account {
   def transfer(src: Account, dst: Account,
-        amount: Money): Unit = {
-    src.withdraw(amount)
-    dst.deposit(amount)
+               m: Money) {
+    src.withdraw(m)
+    dst.deposit(m)
   }
 }
 \end{lstlisting}
