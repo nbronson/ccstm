@@ -55,41 +55,41 @@ class Account(initialBalance: Money) {
   def deposit(amount: Money
         )(implicit txn: Txn): Unit = {
     assert(amount >= 0)
-    _balance := !_balance + amount
+    _balance := _balance() + amount
   }
 
   def withdraw(amount: Money
         )(implicit txn: Txn): Unit = {
     assert(amount >= 0)
-    if (!_balance < amount)
+    if (_balance() < amount)
       throw new OverdraftException
-    _balance := !_balance - amount
+    _balance := _balance() - amount
   }
 }
 
 object Account {
   def transfer(src: Account, dst: Account,
         amount: Money): Unit = {
-    new Atomic { def body {
+    STM.atomic { implicit t => #\label{fig:example:ccstm:G}#
       src.withdraw(amount)
       dst.deposit(amount)
-    }}.run()
+    } #\label{fig:example:ccstm:H}#
   }
 }
 \end{lstlisting}
 
 \caption{One way to implement the atomic balance transfer function
-using CCSTM.  This code uses \code{unary\_!} and \code{:=} operators
-(ML-inspired) for performing transactional reads and writes, and
-expresses the atomic block by extending \code{Atomic}.}
+using CCSTM.  This code uses \code{apply()} and \code{:=} operators
+for performing transactional reads and writes, and expresses the atomic
+block as an anonymous \type{Txn => Unit}.}
 
 \label{fig:example:ccstm}
 \end{figure}
 
 CCSTM allows the atomic balance transfer to be expressed easily,
 guaranteeing that both balance adjustments are performed atomically and
-without deadlock.  Figure~\ref{fig:example:ccstm} gives the transactional
-code.
+without deadlock.  Figure~\ref{fig:example:ccstm} shows one way to
+express this using CCSTM.
 
 \subsection{References -- \xtype{\bfseries Ref}{A} and \xtype{\bfseries Ref.Bound}{A}}
 
@@ -100,7 +100,7 @@ contravariant \type{Sink} trait.  The current transactional context is passed
 during
 each method call via an implicit parameter.  Reads and writes on a
 reference may be performed with the \code{get} and \code{set} methods,
-respectively, or with the ML-inspired \code{unary\_!} and \code{:=}
+respectively, or with the more concise \code{apply()} and \code{:=}
 operators.  Section~\ref{sec:syntax} discusses
 the choice of method names in more detail.
 
@@ -117,10 +117,6 @@ decompose the covariant and contravariant operations of \xtype{Ref}{A}.}
 
 \label{fig:refclasses}
 \end{figure*}
-
-
-
-
 
 
 Non-transactional access to the contents of a reference are provided by a view
@@ -150,19 +146,20 @@ manually validate it.
 
 \subsection{Declaring and executing an atomic block}
 
-CCSTM currently provides two syntaxes for declaring atomic blocks.  The first,
-shown in Figure~\ref{fig:example:ccstm}, involves extending the
-abstract class \type{Atomic} and implementing the method \code{body:
-}\type{Unit}.  The base class introduces an implicit \type{Txn} into the
-static scope of the body, resulting in a relatively concise syntax for
-inline transactions.  This form produces an extra set of curly braces
-and several extra tokens, but it uses only one line to open the scope
-and one to close it.  \xtype{AtomicFunc}{Z} provides a similar syntax
-for atomic blocks that return a value.
+Atomic execution is provided in CCSTM by the \code{atomic} method of
+the \code{STM} object, which takes an argument with type
+\type{Txn => }\typeparam{Z} and returns a value of type \typeparam{Z}.
+We have found two idiomatic ways to bind the \type{Txn} to an implicit
+value.
 
-The second syntax is to pass a function \type{Txn}\code{~=>~}\typeparam{Z}
-to the \code{atomic} method on the \type{STM} object.  This syntax is more
-concise when invoking a method.  The \type{Account}\code{.transfer} method
+The most concise mechanism for expressing a short block of code is to use
+Scala 2.8's support for the \keyword{implicit} modifier on parameters to
+anonymous functions.  This form is shown in Figure~\ref{fig:example:ccstm}
+on Lines~\ref{fig:example:ccstm:G} to~\ref{fig:example:ccstm:H}.
+
+The most concise way to call a transactional method that declares an implicit
+\type{Txn} parameter is to pass the partially applied method to
+\code{STM.atomic}.  The \type{Account}\code{.transfer} method
 might be decomposed into:
 \lstset{numbers=none}
 \begin{lstlisting}
@@ -178,39 +175,7 @@ def transferInTxn(src: Account, dst: Account,
 \end{lstlisting}
 \lstset{numbers=left}
 
-One of the new features of Scala 2.8 is support for an \keyword{implicit}
-modifier on parameters to anonymous methods (ScalaTrac ticket \#1492).
-This will make \type{STM}\code{.atomic} more concise for inline
-transactions, as in (with the addition of an \keyword{import}):
-\lstset{numbers=none}
-\begin{lstlisting}
-  atomic { implicit txn: Txn =>
-    src.withdraw(amount)
-    dst.deposit(amount)
-  }
-\end{lstlisting}
-\lstset{numbers=left}
-This will also allow a syntax that leverages \keyword{for} comprehensions.
-This syntax has a special elegance; it implies that the block may be
-executed multiple times, which is exactly the essence of optimistic
-concurrency!
-\lstset{numbers=none}
-\begin{lstlisting}
-  for (implicit txn <- atomic) {
-    src.withdraw(amount)
-    dst.deposit(amount)
-  }
-\end{lstlisting}
-\lstset{numbers=left}
-Both of these syntaxes can be supported by an \type{atomic} object:
-\lstset{numbers=none}
-\begin{lstlisting}
-object atomic {
-  def apply[Z](body: Txn => Z): Z
-  def foreach[Z](body: Txn => Z): Z
-}
-\end{lstlisting}
-\lstset{numbers=left}
+\todo{nesting}
 
 The decision to statically scope CCSTM's transactions was made for
 performance reasons.  To dynamically scope the transactions, the
@@ -227,7 +192,7 @@ and from there to the dynamically scoped value.
 
 CCSTM supports the \code{retry} and \code{orElse} primitives introduced by
 Harris et al. in Haskell's STM~\cite{harris05ctm}, although the current
-lack of nesting support makes them less expressive than the original.
+lack of partial rollback when nesting makes them less expressive than the original.
 The \code{retry} primitive causes the surrounding transaction to be rolled
 back, but retry is postponed until at least one of the values read by
 the transaction has changed.  \code{orElse} combines two transactions,
