@@ -18,6 +18,19 @@ equal to the number of threads.  Each transaction touches two accounts.}
   \label{fig:highcont}
 \end{figure}
 
+CCSTM's implementation as an unprivileged library introduces several possible inefficiencies:
+\type{Ref} adds a level of indirection;
+JVM erasure adds boxing overheads for \xtype{Ref}{T} when \typeparam{T} is a
+primitive type; dynamic scoping involves a hash table lookup, either implicitly
+inside \type{ThreadLocal} or explicitly with a \type{Thread} key; low-level
+atomic operations performed by the STM cannot use the unchecked primitives in
+\code{sun.misc.Unsafe}; \todo{more}
+
+must use \type{ThreadLocal} or a map keyed on
+\type{Thread}, both of which add a hash table lookup , which is slower
+than adding a field to the underlying thread instance.
+
+
 To verify that CCSTM's library-based design does not impose a prohibitive
 performance penalty, we compared it to Deuce STM and Multiverse, STMs for
 the JVM that perform bytecode rewriting during class
