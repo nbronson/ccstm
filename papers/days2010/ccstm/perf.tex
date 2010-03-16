@@ -18,33 +18,23 @@ equal to the number of threads.  Each transaction touches two accounts.}
   \label{fig:highcont}
 \end{figure}
 
-CCSTM's implementation as an unprivileged library introduces several possible inefficiencies:
-\type{Ref} adds a level of indirection;
-JVM erasure adds boxing overheads for \xtype{Ref}{T} when \typeparam{T} is a
-primitive type; dynamic scoping involves a hash table lookup, either implicitly
-inside \type{ThreadLocal} or explicitly with a \type{Thread} key; low-level
-atomic operations performed by the STM cannot use the unchecked primitives in
-\code{sun.misc.Unsafe}; \todo{more}
-
-must use \type{ThreadLocal} or a map keyed on
-\type{Thread}, both of which add a hash table lookup , which is slower
-than adding a field to the underlying thread instance.
-
+CCSTM's implementation as an unprivileged library introduces several
+overheads when compared to a bytecode rewriting STM or modified VM:
+\type{Ref} adds a level of indirection; JVM erasure adds boxing overheads
+for \xtype{Ref}{T} when \typeparam{T} is a primitive type; avoiding boxing
+for long-term storage requires that the underlying memory locations
+be accessed through virtual methods; dynamic scoping involves a hash
+table lookup, either implicitly inside \type{ThreadLocal} or explicitly
+with a \type{Thread} key; and low-level atomic operations performed by
+the STM cannot use the unchecked primitives in \code{sun.misc.Unsafe}.
+The actual impact of these overheads, however, is reduced or eliminated
+by the compiler optimizations of a modern JVM and the out-of-order
+superscalar pipeline of a modern processor.
 
 To verify that CCSTM's library-based design does not impose a prohibitive
 performance penalty, we compared it to Deuce STM and Multiverse, STMs for
 the JVM that perform bytecode rewriting during class
 loading~\cite{deucestm,multiverse}.
-
-Experiments were run on a Dell Precision T7500n with two quad-core
-2.66Ghz Intel Xeon X5550 processors, and 24GB of RAM.  Hyper-Threading was
-enabled, yielding a total of 16 hardware thread contexts.  We used Scala
-version 2.8.0.Beta1.  We ran our experiments in
-Sun's Java~SE Runtime Environment, build 1.6.0\_16-b01, using the HotSpot
-64-Bit Server VM.  Deuce STM was version 1.3.0.  Multiverse was version 0.4.
-%We enabled dynamic escape analysis and compressed
-%oops.
-
 We performed a direct encoding of Deuce STM's bank benchmark into
 Scala+CCSTM, and compared this version to the Java original running
 under the bytecode rewriting STMs.  (While the example code in this paper uses an
@@ -56,31 +46,48 @@ as the maximum of the throughput with or without contention management.
 For almost all configurations we tested, contention management reduced
 throughput.  CCSTM and Multiverse were tested using their default
 configuration.
-
 This benchmark includes its own harness, which we configured so
-that no overdrafts were triggered.  We used a 4 second warmup, and
+that no overdrafts were triggered.  We used a 20 second warmup, and
 then measured the number of transactions committed during 10 seconds,
-averaging across three invocations of the JVM.  For the low-contention
+averaging across three invocations of the JVM.
+
+Experiments were run on a Dell Precision T7500n with two quad-core
+2.66Ghz Intel Xeon X5550 processors, and 24GB of RAM.  Hyper-Threading was
+enabled, yielding a total of 16 hardware thread contexts.  We used Scala
+version 2.8.0.Beta1.  We ran our experiments in
+Sun's Java~SE Runtime Environment, build 1.6.0\_16-b01, using the HotSpot
+64-Bit Server VM with dynamic escape analysis and compressed object pointers
+enabled.  Deuce STM was version 1.3.0.  Multiverse was version 0.4.
+
+For the low-contention
 experiment (Figure~\ref{fig:lowcont}) we set the number of accounts
 to 64 times the number of threads.  For the high-contention experiment
 (Figure~\ref{fig:highcont}) we set the number of accounts to the number of
 threads.  Single-threaded execution is not included in the high-contention
 setup, as it has no contention.  Because at most 16 threads are executing
 at any time, high-contention runs have fewer conflicts at 32 and 64
-threads than for lower thread counts, and so can continue to scale.
+threads than for lower thread counts, and so can continue to scale so long as
+blocked threads do not consume too many resources.  This effect is present
+to a lesser degree for the low-contention runs, where CCSTM's throughput
+continues to rise gradually as its rollback rate
+drops from 1.0\% at 16 threads to 0.5\% at 32 and 0.4\% at 64.
 
-\todo{talk about multiverse}
-The TL2 version of Deuce STM is faster than CCSTM for both experiments when
-the multi-threading level is less than or equal to one.  The difference
-is largest for the high-contention scenario, where threads are often
-obstructed.  Deuce STM does not block threads that cannot proceed, and it
-does not even use sleeps or yields.  This strategy works well when every
-thread gets its own hardware context, but results in a catastrophic
-performance dropoff for higher thread counts.  CCSTM's synchronization
-implementation is more expensive, but yields stable performance even at
-high multi-threading levels.
+One of the Deuce STM variants is faster than CCSTM for both experiments
+when the multi-threading level is less than or equal to one.  The
+difference is largest for the high-contention scenario, where threads
+are often obstructed.  Deuce STM does not block threads that cannot
+proceed, and it does not even use sleeps or yields.  This strategy works
+well when every thread gets its own hardware context, but results in a
+catastrophic performance dropoff for higher thread counts.  Multiverse
+uses an exponential backoff algorithm that puts threads to sleep, which
+handles high multithreading levels better than busy-waiting but is not
+intelligent about waking only threads that have a chance to proceed.
+CCSTM's blocking synchronization implementation is the most expensive,
+but produces the most stable scalability curve.
 
-Deuce STM and CCSTM have different algorithms and engineering tradeoffs,
-so these experiments do not allow us to exactly measure the overhead
-imposed by the library-only design.  They do demonstrate, however,
-that any overhead that does exist is small enough to be tolerable.
+The three STMs have different algorithms, feature sets and engineering
+tradeoffs, so these experiments do not allow us to exactly measure
+the overhead imposed by the library-only design.  They do demonstrate,
+however, that the practical overheads that exist are small enough to be
+tolerable.  We leave as future work a breakdown of the costs inside CCSTM.
+
