@@ -1,6 +1,7 @@
 \begin{figure}
 \begin{lstlisting}{name=Code}
 class Ref[T] {
+  // ...
   def map[Z](f: T => Z)(implicit t: Txn): Z = {
     val u0 = unrecordedRead
     val result = f(u0.value)
@@ -22,10 +23,10 @@ class Ref[T] {
 }
 \end{lstlisting}
 
-\caption{An implementation of \type{Ref}\code{.map} that combines the
-\code{unrecordedRead} primitive with a read-resource life cycle callback.
-Conflicting changes to the reference do not require the transaction to
-be rolled back if \code{f(get)} does not change.}
+\caption{\type{Ref}\code{.map} implemented by \code{unrecordedRead}
+and a \type{ReadResource} callback.  The callback is invoked during read
+set validation.  Conflicting changes to the reference do not require
+the transaction to be rolled back if \code{f(get)} does not change.}
 
 \label{fig:map}
 \end{figure}

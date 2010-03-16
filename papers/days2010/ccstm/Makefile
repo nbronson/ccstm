@@ -7,6 +7,7 @@
 #BASE=ppopp207-bronson
 
 TEX_SRCS=\
+        advanced.tex \
 	conclusion.tex \
 	discussion.tex \
         fig_example_ccstm.tex \

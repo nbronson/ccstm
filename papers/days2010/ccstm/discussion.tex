@@ -46,7 +46,7 @@ method \code{m} needs a transaction internally, should it add an
 \keyword{implicit} \type{Txn} parameter?  If it doesn't, then it
 cannot be composed.  If it does, then the caller must always provide
 an atomic block.  If the programmer wishes to provide both a simple
-and a composable version of the method then he or she must come up with
+and a composable version of the method then he must come up with
 two names.
 
 The need for two versions of \code{m} parallels the transactional and
