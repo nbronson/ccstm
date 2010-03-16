@@ -1,7 +1,11 @@
+
+\input{fig_example_ccstm.tex}
+\input{fig_refclasses.tex}
+
 As a recurring example of the ways in which CCSTM allows optimistic concurrency
 to be expressed, consider a class that encapsulates the balance of a
-checking account\footnote{This example is from the bank benchmark included
-in Deuce STM~\cite{deucestm}.}.  Absent any concurrency control, we might
+checking account\footnote{This example is adapted from Deuce STM's bank
+benchmark~\cite{deucestm}.}.  Absent any concurrency control, we might
 write the code in Figure~\ref{fig:example:nosync}.  (Here \type{Money}
 is an immutable numeric type suitable for representing quantities of
 a currency.)  Adding pessimistic concurrency control to this code by
@@ -10,16 +14,13 @@ because both the source and destination account must be locked during
 a \code{transfer}.  Unless a global lock order is followed this can
 easily lead to deadlock.
 
-\input{fig_example_nosync.tex}
+%\input{fig_example_nosync.tex}
 
 CCSTM allows the atomic balance transfer to be expressed easily,
 guaranteeing that both balance adjustments are performed atomically and
 without deadlock.  Figure~\ref{fig:example:ccstm} shows one way to
 express this using CCSTM.
 
-\input{fig_example_ccstm.tex}
-
-\input{fig_refclasses.tex}
 
 \subsection{References -- \xtype{\bfseries Ref}{A} and \xtype{\bfseries Ref.Bound}{A}}
 
@@ -57,7 +58,7 @@ requiring an escape action.  The non-isolated access
 is visually differentiated by including the token \code{nonTxn}.  In
 Section~\ref{sec:unrecordedread} we will introduce \code{unrecordedRead},
 a way of relaxing isolation for reads while retaining the ability to
-manually validate it.
+validate them.
 
 \subsection{Declaring and executing an atomic block}
 
@@ -77,6 +78,7 @@ The most concise way to call a transactional method that declares an implicit
 \code{STM.atomic}.  The \type{Account}\code{.transfer} method
 might be decomposed into:
 \lstset{numbers=none}
+\lstset{xleftmargin=0.125in}
 \begin{lstlisting}
 def transfer(src: Account, dst: Account,
       amount: Money): Unit = {
@@ -89,6 +91,7 @@ def transferInTxn(src: Account, dst: Account,
 }
 \end{lstlisting}
 \lstset{numbers=left}
+\lstset{xleftmargin=0.25in}
 
 \todo{nesting}
 
@@ -127,10 +130,11 @@ rich interface, we have not yet found a syntax that works well.  If
 \code{retry} is used without \code{orElse}, then the normal \code{STM.atomic}
 method may be used.
 
-As a contrived example,
+As a (hopefully) contrived example,
 the bank could use modular blocking to withdraw money from exactly one of a number of
 accounts, blocking until success:
 \lstset{numbers=none}
+\lstset{xleftmargin=0.125in}
 \begin{lstlisting}
 class Account {
   ...
@@ -149,6 +153,7 @@ object Account {
 }
 \end{lstlisting}
 \lstset{numbers=left}
+\lstset{xleftmargin=0.25in}
 
 %Ref eq vs ==
 
@@ -228,7 +233,7 @@ Consider a branch that should be taken only if the transactional value of
 \code{x} is greater than 100, executed by a transaction $T$:
 \lstset{numbers=none}
 \begin{lstlisting}
-  if (x() > 100) { ... }
+if (x() > 100) { ... }
 \end{lstlisting}
 \lstset{numbers=left}
 If the observed value of \code{x} was 200 and a concurrent transaction $U$ commits
@@ -236,7 +241,7 @@ a change of \code{x} to 201, the STM must roll back $T$.  If the comparison is
 moved inside \code{map}, however, no rollback is required:
 \lstset{numbers=none}
 \begin{lstlisting}
-  if (x.map(_ > 100)) { ... }
+if (x.map(_ > 100)) { ... }
 \end{lstlisting}
 \lstset{numbers=left}
 By allowing the programmer to express more of his or her intention to CCSTM,
@@ -248,7 +253,7 @@ Figure~\ref{fig:map} shows how \code{map} may be implemented using
 
 \subsection{All of the ways to read or write a CCSTM reference}
 
-What follows is the complete listing of the access operations provided by
+What follows is the complete list of the access operations provided by
 \type{Ref.Bound}.  Many of these methods have equivalents in \type{Ref}
 that take an implicit \type{Txn}, although to reduce the API's surface
 area not all are mirrored. \vspace{4pt}\\
