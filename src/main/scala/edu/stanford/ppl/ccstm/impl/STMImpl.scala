@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicLong
  *  write buffer, but since write permission is acquired eagerly the write
  *  permission bit is used to gate lookup in the write buffer.  (Write buffer
  *  lookups may miss only if metadata is shared.)
- *  <p>
+ * 
  *  Metadata is a 64 bit long, of which 1 bit records whether any pending
  *  wakeups should be triggered if the associated data is changed, 11 bits
  *  record the write permission owner (0 means no owner, 1 means non-txn
@@ -24,7 +24,10 @@ import java.util.concurrent.atomic.AtomicLong
  *  51 bits record the version number.  2^51 is a bit more than 2*10^15.  On a
  *  hypothetical computer that could perform a non-transactional write in 10
  *  nanoseconds (each of which requires at least 2 atomic CAS-s), version
- *  numbers would not overflow for 250 days of continuous writes.
+ *  numbers would not overflow for 250 days of continuous writes.  For
+ *  reference my laptop, a Core2 Duo @ 2.8 Ghz, requires 45 nanoseconds for 
+ *  that write (even with a very large ccstm.nontxn.runahead value).  A dual-
+ *  socket 2.66 Ghz Xeon X5550 can perform it in 35 nanoseconds.
  *
  *  @author Nathan Bronson
  */
