@@ -44,8 +44,8 @@
 
 \lstset{
   language=Scala,
-  basicstyle=\fontsize{7.5}{9}\selectfont\tt,
-%  basicstyle=\fontsize{7}{8}\selectfont\tt,
+%  basicstyle=\fontsize{7.5}{9}\selectfont\tt,
+  basicstyle=\fontsize{7}{8}\selectfont\tt,
 %  basicstyle=\selectfont\tt,
   keywordstyle=\bfseries,
   numbers=left,
@@ -128,13 +128,13 @@ functionality such as modular blocking, non-transactional compare-and-swap,
 manually-validated reads, and deferrable transformation using pure
 functions.
 
-In an additional departure from typical STM designs, CCSTM's transactions
-use a hybrid of static and dynamic binding.  The current transaction
-context is passed to \type{Ref} instances via an implicit parameter,
-avoiding the performance penalty that would result from evaluating a
-dynamic binding during each access.  Nesting of transactions, however,
-is resolved dynamically, allowing composition without requiring each
-intervening method to declare an implicit \type{Txn} parameter.
+In an additional departure from typical STM designs, CCSTM uses a
+hybrid of static and dynamic transaction scoping.  \type{Ref}'s methods
+are bound to current transaction via a \keyword{implicit} parameter.
+When an atomic block is entered, however, nesting is resolved dynamically.
+This hybrid approach avoids the overheads of a dynamic lookup for most
+STM operations without requiring the transaction to be statically threaded
+throughout the user's code.
 
 \end{abstract}
 

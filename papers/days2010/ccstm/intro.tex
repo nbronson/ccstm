@@ -27,37 +27,32 @@ for automatic parallelization of arbitrary code.
 
 The most fundamental design choice for CCSTM was the decision to implement
 it entirely as a Scala library.  Unlike STMs that transparently instrument
-all loads and stores of shared mutable state, transactional accesses in
-CCSTM are explicit method calls to a Scala \keyword{trait}\footnote{Custom
-accessor methods may used to eliminate the syntactic overhead for some
-situations.}.  We refer to the resulting STM as `reference-based',
-because all memory locations managed by the STM are boxed inside
-transactional references.  Both transactional and non-transactional
-access to the managed references goes through methods implemented by
-instances of this \xtype{Ref}{A}.
+all loads and stores of shared mutable state, accesses in CCSTM are
+explicit method calls on a Scala \keyword{trait} \type{Ref}.  We refer to
+the resulting STM as `reference-based', because memory locations managed
+by the STM are accessed only through an additional level of indirection.
 
-While a reference-based STM imposes a syntactic burden for simple loads
-and stores, it provides advantages.  Encapsulating transactionally-managed
-data eliminates the weak isolation issues that plague transparent STMs.
-In addition, the \type{Ref} provides a first-class object that names a
-memory location, which enables CCSTM to provide additional functionality
-to the user in a natural way.
+While a reference-based STM adds one or two characters of program text
+to basic loads and stores, it leads to a safer and more full-featured
+interface.  The encapsulation of transactionally-managed data allows CCSTM
+to provide strong atomicity and isolation with no performance impact on
+code that doesn't use the STM.  In addition, \type{Ref} instances provide
+a first-class entity that names a memory location, which enables CCSTM
+to provide additional functionality to the user in a natural way.
 
 %As a
 %practical benefit, the extra level of indirection provided by \type{Ref}
 %allows multiple implementations, allowing tradeoffs between the cost of
 %validation and the likelihood of rollback.
 
-CCSTM's second departure from the typical STM interface is that it uses
-a hybrid of static and dynamic transaction scoping.  Static resolution
-is used for methods on \type{Ref}, while dynamic lookup is used to
-perform nesting when entering a new atomic region.  Static resolution
-is accomplished by an implicit \type{Txn} parameter passed to methods
-of \type{Ref}.  This results in very low overheads, which is important
-because barrier methods are called very frequently.  Dynamic resolution
-uses a \type{ThreadLocal} to determine if a new atomic region should
-be nested, which reduces the need to thread the implicit \type{Txn}
-through all of the user's methods.
+CCSTM's second departure from the typical STM interface is that it uses a
+hybrid of static and dynamic transaction scoping.  \type{Ref}'s methods
+locate the transaction via an implicit parameter of type \type{Txn},
+which must be part of the lexical scope during compilation; this
+avoids the overhead of a dynamic lookup for most calls to the STM.
+Nesting of atomic regions, however, is resolved dynamically using a
+\type{ThreadLocal}; this avoids the need to add an implicit \type{Txn}
+parameter to every method called inside a transaction.
 
 %This decision
 %was made for pragmatic reasons, because performing a dynamically-scoped
@@ -76,9 +71,9 @@ and data structures, while restricting itself to implementation techniques
 that do not interfere with components of the system that do not use it
 (Section~\ref{sec:ref}).
 
-\item We introduce \code{unrecordedRead}, a new STM primitive that relaxes
+\item We introduce \code{unrecordedRead}, an STM primitive that relaxes
 read atomicity while allowing manual validation.  To demonstrate its
-use, we implement \type{Ref}\code{.map}, a simple but powerful restricted 
+use, we implement \type{Ref}\code{.map}, a simple but powerful form of
 Abstract Nested Transaction~\cite{harris07abstract}
 (Sections~\ref{sec:unrecordedread}
 and~\ref{sec:map}).

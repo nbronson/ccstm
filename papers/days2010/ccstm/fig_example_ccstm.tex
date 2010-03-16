@@ -19,8 +19,7 @@ class Account(initialBalance: Money) {
 }
 
 object Account {
-  def transfer(src: Account, dst: Account,
-               m: Money) {
+  def transfer(src: Account, dst: Account, m: Money) {
     STM.atomic { implicit t => #\label{fig:example:ccstm:G}#
       src.withdraw(m)
       dst.deposit(m)

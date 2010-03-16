@@ -2,24 +2,17 @@
 \input{fig_example_ccstm.tex}
 \input{fig_refclasses.tex}
 
-As a recurring example of the ways in which CCSTM allows optimistic concurrency
-to be expressed, consider a class that encapsulates the balance of a
-checking account\footnote{This example is adapted from Deuce STM's bank
+As a recurring example, consider a class that encapsulates the balance of
+a checking account\footnote{This example is adapted from Deuce STM's bank
 benchmark~\cite{deucestm}.}.  Absent any concurrency control, we might
-write the code in Figure~\ref{fig:example:nosync}.  (Here \type{Money}
-is an immutable numeric type suitable for representing quantities of
-a currency.)  Adding pessimistic concurrency control to this code by
-locking accesses to \type{Account} instances is not straightforward,
-because both the source and destination account must be locked during
-a \code{transfer}.  Unless a global lock order is followed this can
-easily lead to deadlock.
-
-%\input{fig_example_nosync.tex}
-
-CCSTM allows the atomic balance transfer to be expressed easily,
-guaranteeing that both balance adjustments are performed atomically and
-without deadlock.  Figure~\ref{fig:example:ccstm} shows one way to
-express this using CCSTM.
+write the code in Figure~\ref{fig:example:nosync}.  Adding pessimistic
+concurrency control to this code by locking accesses to \type{Account}
+instances is not straightforward, because both the source and destination
+account must be locked during a \code{transfer}.  Unless a global lock
+order is followed this can easily lead to deadlock.  CCSTM allows the
+atomic balance transfer to be expressed easily, guaranteeing that both
+balance adjustments are performed atomically and without deadlock.
+Figure~\ref{fig:example:ccstm} shows one way to express this using CCSTM.
 
 
 \subsection{References -- \xtype{\bfseries Ref}{A} and \xtype{\bfseries Ref.Bound}{A}}

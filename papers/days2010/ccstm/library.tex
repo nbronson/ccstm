@@ -2,7 +2,7 @@
 An experimental feature such as software transactional memory should
 strive to impose only negligible costs on code that does not use it.
 Runtime performance costs are the most obvious, but extra complexity in
-the compiler, libraries, and language rules should be minimized.
+the compiler, libraries, and language rules should also be minimized.
 A pay-as-you-go philosophy facilitates incremental adoption, it allows
 multiple implementations to coexist, and it reduces the penalty for
 failure.
@@ -12,27 +12,22 @@ is to mimic lock-based critical regions.  Users of such an STM declare
 the beginning and the end of an atomic block, and all memory accesses
 that occur within the dynamic scope of the block are transparently
 redirected to the STM.  For a VM language like Scala this redirection
-can be introduced by the VM's JIT, by bytecode rewriting at class
-load time, or during the initial
-compilation of the high-level language.  The dynamic scoping of such an approach,
-however, means that it is generally not possible to
-limit instrumentation to only classes that are used in an atomic block.
-An STM that is deeply integrated into the VM's JIT can minimize the
-performance and code bloat impacts of the instrumentation by performing it
-%todo, add citation
-lazily, but the required engineering effort to add this support
-to a production quality VM is prohibitively large.  Instrumentation of
-the bytecode at compilation or class loading has the lowest engineering
-cost, but results in two copies of each method.
-This is the strategy adopted by the Multiverse~\cite{multiverse} and
-Deuce STM~\cite{deucestm} STMs for the Java language.
-While this cost may eventually be considered acceptable, it places a
-high hurdle to integration into Scala's standard library.
-An additional drawback of
-an instrumentation approach is that it is not composable.  If module
-\textit{A} is constructed with the STM \textit{S} and module \textit{B}
-is constructed with the STM \textit{T}, then \textit{A} and \textit{B}
-can't be used in the same program.
+can be introduced by the VM's JIT, by bytecode rewriting at class load
+time, or during the initial compilation of the high-level language.
+The dynamic scoping of such an approach, however, means that it is
+generally not possible to limit instrumentation to only classes that
+are used in an atomic block.  An STM that is deeply integrated into
+the VM's JIT can minimize the performance and code bloat impacts of the
+instrumentation by performing it citation lazily, but the engineering
+effort to add this support to a production VM is prohibitively large.
+Instrumentation of the bytecode at compilation or class loading has
+the lowest engineering cost, but results in two copies of each method.
+This is the strategy adopted by the Multiverse~\cite{multiverse} and Deuce
+STM~\cite{deucestm} STMs for the JVM.  While this cost may eventually
+be considered acceptable, it places a high hurdle to integration into
+Scala's standard library.  An additional drawback of bytecode rewriting
+is that it is not composable.  If two modules use different STMs then
+they cannot be used in the same program.
 
 The alternative approach adopted by CCSTM is to require the programmer to perform
 explicit calls to the STM.  While less convenient for simple uses, this

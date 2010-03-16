@@ -34,22 +34,27 @@ Sun's Java~SE Runtime Environment, build 1.6.0\_16-b01, using the HotSpot
 
 We performed a direct encoding of Deuce STM's bank benchmark into
 Scala+CCSTM, and compared this version to the Java original running
-under the bytecode rewriting STMs.  Deuce STM provides two algorithms,
-TL2 and LSA.  In addition it allows an optional contention manager to
+under the bytecode rewriting STMs.  (While the example code in this paper uses an
+immutable \type{Money} numeric type, the evaluated benchmark uses 32-bit
+floating point values like the original.)  Deuce STM provides two algorithms,
+TL2 and LSA.  In addition, it allows an optional contention manager to
 be used.  For each run, we report the throughput of a Deuce STM algorithm
 as the maximum of the throughput with or without contention management.
 For almost all configurations we tested, contention management reduced
-throughput.  This benchmark includes its own harness, which we configured
-so that no overdrafts were triggered.  We used a 4 second warmup, and
+throughput.  CCSTM and Multiverse were tested using their default
+configuration.
+
+This benchmark includes its own harness, which we configured so
+that no overdrafts were triggered.  We used a 4 second warmup, and
 then measured the number of transactions committed during 10 seconds,
 averaging across three invocations of the JVM.  For the low-contention
-experiment (Figure~\ref{fig:lowcont}) we set the number of accounts to
-64 times the number of threads.  For the high-contention experiment
-(Figure~\ref{fig:highcont}) we set the number of accounts to the
-number of threads.  Single-threaded execution is not included in the
-high-contention setup, as it has no contention.  Because at most 16
-threads are executing at any time, the high-contention runs have fewer
-conflicts at 32 and 64 threads than for lower thread counts.
+experiment (Figure~\ref{fig:lowcont}) we set the number of accounts
+to 64 times the number of threads.  For the high-contention experiment
+(Figure~\ref{fig:highcont}) we set the number of accounts to the number of
+threads.  Single-threaded execution is not included in the high-contention
+setup, as it has no contention.  Because at most 16 threads are executing
+at any time, high-contention runs have fewer conflicts at 32 and 64
+threads than for lower thread counts, and so can continue to scale.
 
 \todo{talk about multiverse}
 The TL2 version of Deuce STM is faster than CCSTM for both experiments when
