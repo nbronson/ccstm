@@ -61,6 +61,7 @@ the \code{STM} object, which takes an argument with type
 We have found two idiomatic ways to bind the \type{Txn} to an implicit
 value.
 
+\color{green}
 The most concise mechanism for expressing a short block of code is to use
 Scala 2.8's support for the \keyword{implicit} modifier on parameters to
 anonymous functions.  This form is shown in Figure~\ref{fig:example:ccstm}
@@ -98,3 +99,4 @@ parameter into the transactional version of every method.  A library-only
 STM running on the JVM must restrict itself to \type{ThreadLocal},
 which navigates from the \type{Thread} to a thread-local hash table,
 and from there to the dynamically scoped value.
+\color{black}
