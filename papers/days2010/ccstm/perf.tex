@@ -83,10 +83,11 @@ share processing resources and this strategy results in a catastrophic
 performance dropoff.  Multiverse uses an exponential backoff algorithm
 using \code{Thread.sleep}.  This approach handles high multithreading
 levels better than busy-waiting, but results in extra context switches as
-threads awake to recheck their blocking condition.  For low thread counts
-of the high-contention experiment sleeping works very well, because
-it leads to intervals of single-threaded execution that Multiverse optimizes
-very well.  CCSTM's blocking synchronization implementation is the most
+threads awake to recheck their blocking condition.  Sleeping works very well
+for low thread counts
+of the high-contention configuration, because
+it leads to intervals of uncontended single-threaded execution.
+CCSTM's blocking synchronization implementation is the most
 expensive at low thread counts, but it yields a robust scaling curve.
 
 The three STMs have different algorithms, feature sets and engineering
