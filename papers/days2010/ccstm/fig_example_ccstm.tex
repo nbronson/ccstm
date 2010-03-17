@@ -12,7 +12,7 @@ class Account(initialBalance: Money) {
 
   def withdraw(m: Money)(implicit t: Txn) {
     assert(m >= 0)
-    if (_balance() < m)
+    if (_balance() < m) #\label{fig:example:ccstm:D}#
       throw new OverdraftException
     _balance := _balance() - m
   }

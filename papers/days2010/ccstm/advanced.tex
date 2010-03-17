@@ -2,31 +2,32 @@
 \subsection{Relaxed isolation}
 \label{sec:unrecordedread}
 
-Some algorithms can benefit from transactional reads that are not atomic,
-but that observe speculative stores made by the current transaction.
+Some algorithms can benefit from transactional reads that are not guaranteed to
+be consistent, but
+that still observe speculative stores made by the current transaction.
 The inconsistent value may be used to make a heuristic decision, such as a
 hash table resize, algorithm-specific knowledge may be used to guarantee
 atomic behavior of the transaction despite a subsequent invalidation,
 as in early release when searching a binary tree, or life cycle callbacks
-may be used to provide customized validation.
+may validate using specific knowledge.
 
 Previous TM systems have provided several mechanisms for relaxing
 atomicity and isolation.  Early release allows reads to be removed
 from the read set prior to commit~\cite{HerlihyLMS03}.  Escape actions
 suspend the current transaction temporarily~\cite{harris04exceptions}.
-Open nested transactions allow the actions of a nested transaction
-to be committed in a non-nested fashion.  CCSTM's static transaction
-scoping makes escape actions trivial.  Accesses via \code{nonTxn}
-are escaped when executed by the code that implements an atomic
-block. CCSTM also provides principled support for early release,
-via \type{Source.Bound.releasableRead}.  This method returns a
-\type{ReleasableRead} instance that provides both the read value and
-a method that removes the access from the transaction's read set.
-This interface eliminates the danger that an algorithm will remove a
-read that it did not perform, but it still requires careful reasoning
-to provide correctness.  CCSTM does not support open nesting.
+Open nested transactions allow the actions of a nested transaction to
+be committed in a non-nested fashion.  CCSTM supports early release
+and escape actions for individual accesses.  Escape action are
+implemented by simply using a \code{nonTxn} bound view from inside
+a transaction.  Early release is supported in a principled manner
+by \type{Source.Bound}\code{.releasableRead}.  This method returns a
+\type{ReleasableRead} instance that bundles the requested value with
+a method that removes the record of the access from the transaction's
+read set.  This interface eliminates the danger that an algorithm will
+remove a read that it did not perform, but it still requires careful
+reasoning to guarantee correctness after the read has been released.
 
-As an alternative to a releasable read, CCSTM provides a new
+As an alternative to a releasable read, CCSTM includes a new
 abstraction, \code{unrecordedRead}.  This method performs a
 transactional read, but instead of adding an entry to the read set it
 bundles the read's meta-data into an \type{UnrecordedRead} instance.
@@ -42,7 +43,7 @@ the read during commit, validation is exposed to the programmer via the
 method \code{stillValid}.  An unrecorded read is considered to still be
 valid if the only changes that have been made to the referenced memory
 location were performed by the read's transaction.  This definition also
-provides a meaning for unrecorded reads of the \code{nonTxn} bound view:
+produces a meaning for unrecorded reads of the \code{nonTxn} bound view:
 \code{stillValid} will return true only if no change has been made to the
 managed value.  This leverages the STM's meta-data to solve
 the ABA problem\footnote{The ABA problem is when an observer falsely
@@ -54,16 +55,10 @@ from A to B, then back to A.}.
 
 Unrecorded reads can be paired with life cycle callbacks to implement
 Abstract Nested Transactions~\cite{harris07abstract}.  For the simple case where
-a single transactional read is modified by an idempotent function, we provide
+a single transactional read is modified by an idempotent function, \type{Ref}
+provides
 \code{map[}\typeparam{Z}\code{](f: }\typeparam{T}\code{ => }\typeparam{Z}\code{): }\typeparam{Z}.
-
-%\lstset{numbers=none}
-%\begin{lstlisting}
-%trait Source[+T] {
-%  def map[Z](f: T => Z)(implicit txn: Txn): Z
-%}
-%\end{lstlisting}
-%\lstset{numbers=left}
+A transactional call to
 \code{x.map(f)} returns the same value as \code{f(x.get)}, but no rollback
 is triggered by a conflicting write to \code{x} if the result of the mapping
 does not change.  Without this
@@ -71,24 +66,26 @@ semantic conflict detection, the STM must initiate rollback any time \code{x}
 is changed concurrently, even if that change is masked by the application of
 \code{f}.
 
-Consider a branch that should be taken only if the transactional value of
-\code{x} is greater than 100, executed by a transaction $T$:
+Consider the branch taken by Figure~\ref{fig:example:ccstm}'s
+Line~\ref{fig:example:ccstm:D} during an attempt to withdraw 1,000
+\type{Money} from an account with a balance of 500.  At this point
+\code{\_balance} will be included in the transaction's read set, so a
+concurrent deposit of 100 will cause the withdrawal transaction to be
+rolled back despite not changing the withdrawal's outcome.  Although only
+a single bit of information about the balance was retained, the STM
+must conservatively assume that any change invalidates the speculative
+execution.  If we move the inequality application into a predicate
+applied by \code{map}, however, the STM can recompute that bit and
+determine that the withdrawal transaction is still valid:
 \lstset{numbers=none}
 \begin{lstlisting}
-if (x() > 100) { ... }
-\end{lstlisting}
-\lstset{numbers=left}
-If the observed value of \code{x} was 200 and a concurrent transaction $U$ commits
-a change of \code{x} to 201, the STM must roll back $T$.  If the comparison is
-moved inside \code{map}, however, no rollback would be required.  This would be
-written:
-\lstset{numbers=none}
-\begin{lstlisting}
-if (x.map(_ > 100)) { ... }
+// if (_balance() < m) ...
+if (_balance.map(_ < m)) ...
 \end{lstlisting}
 \lstset{numbers=left}
 By allowing the programmer to express more of her intention to CCSTM,
-\code{map} reduces rollbacks and leads to better scalability.
+\code{map} can avoid rollbacks and lead to better scalability, especially for
+transactions that have already performed a substantial quantity of work.
 Figure~\ref{fig:map} shows how \code{map} may be implemented using
 \code{unrecordedRead} and a validation handler.
 
@@ -96,12 +93,12 @@ Figure~\ref{fig:map} shows how \code{map} may be implemented using
 
 \subsection{All of the ways to read or write a CCSTM reference}
 
-\todo{formatting}
-
 What follows is the complete list of the access operations provided by
 \type{Ref.Bound}.  Many of these methods have equivalents in \type{Ref}
 that take an implicit \type{Txn}, although to reduce the API's surface
-area some methods are not mirrored.
+area some methods are not mirrored.  All of the methods are defined
+for both transactional and non-transactional contexts, even if they are
+useful for only one of those.
 
 {
 \setlength{\leftskip}{12pt}

@@ -40,13 +40,13 @@ Scala+CCSTM, and compared this version to the Java original running
 under the bytecode rewriting STMs.  (While the example code in this paper uses an
 immutable \type{Money} numeric type, the evaluated benchmark uses 32-bit
 floating point values like the original.)  Deuce STM provides two algorithms,
-TL2 and LSA.  In addition, it allows an optional contention manager to
-be used.  For each run, we report the throughput of a Deuce STM algorithm
-as the maximum of the throughput with or without contention management.
-For almost all configurations we tested, contention management reduced
+TL2 and LSA, each of which has optional contention management (CM).
+For each configuration and thread count, we report the throughput of a Deuce STM algorithm
+as the maximum of the throughput with the Timestamp CM or with no CM.
+For almost all configurations we tested, CM reduced
 throughput.  CCSTM and Multiverse were tested using their default
 configuration.
-This benchmark includes its own harness, which we configured so
+The bank benchmark includes its own harness, which we configured so
 that no overdrafts were triggered.  We used a 20 second warmup, and
 then measured the number of transactions committed during 10 seconds,
 averaging across three invocations of the JVM.
@@ -70,20 +70,23 @@ threads than for lower thread counts, and so can continue to scale so long as
 blocked threads do not consume too many resources.  This effect is present
 to a lesser degree for the low-contention runs, where CCSTM's throughput
 continues to rise gradually as its rollback rate
-drops from 1.0\% at 16 threads to 0.5\% at 32 and 0.4\% at 64.
+drops from 1.0\% at 16 threads to 0.5\% at 32 and 0.3\% at 64.
 
-One of the Deuce STM variants is faster than CCSTM for both experiments
-when the multi-threading level is less than or equal to one.  The
-difference is largest for the high-contention scenario, where threads
-are often obstructed.  Deuce STM does not block threads that cannot
-proceed, and it does not even use sleeps or yields.  This strategy works
-well when every thread gets its own hardware context, but results in a
-catastrophic performance dropoff for higher thread counts.  Multiverse
-uses an exponential backoff algorithm that puts threads to sleep, which
-handles high multithreading levels better than busy-waiting but is not
-intelligent about waking only threads that have a chance to proceed.
-CCSTM's blocking synchronization implementation is the most expensive,
-but produces the most stable scalability curve.
+For low contention configurations, Deuce STM and CCSTM have similar
+performance and scalability, so long as the multithreading level is less
+than or equal to one.  Under high contention Deuce STM substantially
+outperforms CCSTM, so long as each thread gets its own hardware context.
+This is because Deuce STM uses busy-waiting, which avoids context switches
+for blocked threads.  At thread counts 32 and 64, however, threads must
+share processing resources and this strategy results in a catastrophic
+performance dropoff.  Multiverse uses an exponential backoff algorithm
+using \code{Thread.sleep}.  This approach handles high multithreading
+levels better than busy-waiting, but results in extra context switches as
+threads awake to recheck their blocking condition.  For low thread counts
+of the high-contention experiment sleeping works very well, because
+it leads to intervals of single-threaded execution that Multiverse optimizes
+very well.  CCSTM's blocking synchronization implementation is the most
+expensive at low thread counts, but it yields a robust scaling curve.
 
 The three STMs have different algorithms, feature sets and engineering
 tradeoffs, so these experiments do not allow us to exactly measure

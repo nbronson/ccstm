@@ -36,7 +36,7 @@ named \type{Ref.Bound}.  Views may also be bound to a transactional context
 via \type{Ref}\code{.bind}.  These bound references do not require a \type{Txn}
 parameter, but may only be used until the end of the transaction.
 Figure~\ref{fig:refclasses} shows the
-\keyword{extends} relationship between the traits that implement unbound
+subclassing relationship between the traits that implement unbound
 and bound references, and some of their methods.  The separation between
 \type{Ref}, \type{Source}, and \type{Sink}, and the operator syntax for
 accesses are modeled after Spiewak's Scala STM~\cite{github:spiewak}.
