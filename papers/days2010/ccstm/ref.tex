@@ -55,31 +55,32 @@ validate them.
 
 \subsection{Declaring and executing an atomic block}
 
-Atomic execution is provided in CCSTM by the \code{atomic} method of
-the \code{STM} object, which takes an argument with type
-\type{Txn => }\typeparam{Z} and returns a value of type \typeparam{Z}.
-We have found two idiomatic ways to bind the \type{Txn} to an implicit
-value.
+CCSTM's atomic blocks are functions with type
+\code{(}\type{Txn}\code{ => }\typeparam{Z}\code{)}.
+Transactional execution is provided by passing a block to the
+\code{atomic} method of the \code{STM} object.  This method creates or
+joins a transaction, passes the transaction context to the block, attempts
+to commit the transaction, and retries the block if the transaction could not
+be committed.
 
-\color{green}
-The most concise mechanism for expressing a short block of code is to use
-Scala 2.8's support for the \keyword{implicit} modifier on parameters to
-anonymous functions.  This form is shown in Figure~\ref{fig:example:ccstm}
-on Lines~\ref{fig:example:ccstm:G} to~\ref{fig:example:ccstm:H}.
-
-The most concise way to call a transactional method that declares an implicit
-\type{Txn} parameter is to pass the partially applied method to
-\code{STM.atomic}.  The \type{Account}\code{.transfer} method
+We have found two idiomatic ways to make the block's \type{Txn} argument available as
+an implicit value.  For inline transactions, the most concise code adds the
+\keyword{implicit} modifier to a closure's parameter\footnote{This syntax is new in
+Scala 2.8.}, as shown in Figure~\ref{fig:example:ccstm}
+on Lines~\ref{fig:example:ccstm:G} to~\ref{fig:example:ccstm:H}.  This syntax
+can be shortened even further if \code{STM.atomic} is imported.
+If the transaction's body consists only of a call to a method that threads the
+implicit \type{Txn} parameter, the method can be passed to \code{STM.atomic} by
+partially applying it.  In this style the \type{Account}\code{.tra\-ns\-fer} method
 might be decomposed into:
 \lstset{numbers=none}
 \lstset{xleftmargin=0.125in}
 \begin{lstlisting}
-def transfer(src: Account, dst: Account,
-      amount: Money): Unit = {
-  STM.atomic(transferInTxn(src, dst, amount)(_))
+def transfer(src: Account, dst: Account, m: Money) {
+  STM.atomic(transferInTxn(src, dst, m)(_))
 }
 def transferInTxn(src: Account, dst: Account,
-      amount: Money)(implicit txn: Txn): Unit = {
+      m: Money)(implicit txn: Txn) {
   src.withdraw(amount)
   dst.deposit(amount)
 }
@@ -87,16 +88,57 @@ def transferInTxn(src: Account, dst: Account,
 \lstset{numbers=left}
 \lstset{xleftmargin=0.25in}
 
-\todo{nesting}
+The decision to statically bind CCSTM's transactions to \type{Ref}
+invocations was made for performance reasons.  To dynamically scope
+the transactions, the current transaction must be identified by each
+read and write barrier.  This is an extremely frequent operation.
+Bytecode rewriting STMs have two options for efficiently performing this
+lookup: they can add a field to the system-wide \type{Thread} class,
+or they can weave a \type{Txn} parameter into the transactional version
+of every method.  A library-only STM running on the JVM must restrict
+itself to \type{ThreadLocal}, which navigates from the \type{Thread}
+to a thread-local hash table, and from there to the dynamically scoped
+value.  We do not include a detailed experimental comparison, but we
+have observed that the cost of a single \type{ThreadLocal} lookup can
+be up to half of the amortized cost of performing a statically-bound
+read in a large transaction.
 
-The decision to statically scope CCSTM's transactions was made for
-performance reasons.  To dynamically scope the transactions, the
-current transaction must be identified by each read and write barrier.
-This is an extremely frequent operation.  Bytecode rewriting STMs have
-two options for efficiently performing this lookup: they can add a field
-to the system-wide \type{Thread} class, or they can weave a \type{Txn}
-parameter into the transactional version of every method.  A library-only
-STM running on the JVM must restrict itself to \type{ThreadLocal},
-which navigates from the \type{Thread} to a thread-local hash table,
-and from there to the dynamically scoped value.
-\color{black}
+\subsection{Dynamic scoping for nested transactions}
+
+Statically scoped transactions using an implicit \type{Txn} are invisible
+when making calls to \type{Ref}, but they add clutter when decomposing the
+work of an atomic block into methods.  Each method that expects to be run
+in a transaction must declare the implicit parameter.  This mechanism also
+makes it difficult to make methods that can be called from both inside and
+outside a transaction.  For example, the expected behavior for a call to
+\code{deposit} from a non-transactional context is clear, but this won't
+be allowed.  The worst pitfall of the purely-static approach comes if a
+transaction is active but is not available in the lexical scope, leading
+the user to create a new transaction that is not nested in the active one!
+
+The solution is for \type{Ref}'s method to bind the \type{Txn} statically,
+while \code{STM.atomic} searches the thread's dynamic scope for an active
+\type{Txn}.  This means that a method that should be callable from either
+context may omit the implicit \type{Txn} parameter and create a new atomic
+block.  When called from a transactional context the new atomic block will
+be nested or subsumed in the outer one.  With this strategy \code{deposit}
+might be coded:
+
+\lstset{numbers=none}
+\lstset{xleftmargin=0.125in}
+\begin{lstlisting}
+def deposit(m: Money) {
+  assert(m >= 0)
+  STM.atomic { implicit t =>
+    _balance := _balance() + m
+  }
+}
+\end{lstlisting}
+\lstset{numbers=left}
+\lstset{xleftmargin=0.25in}
+
+The current CCSTM implementation flattens nested transactions, so
+when called from the atomic block in \code{transfer} this version of
+\code{deposit} will perform its work in the outer context.  If called
+when no transaction is active on the thread (regardless of the static
+scope) it will create a new transaction.
