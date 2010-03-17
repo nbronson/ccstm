@@ -42,7 +42,8 @@ immutable \type{Money} numeric type, the evaluated benchmark uses 32-bit
 floating point values like the original.)  Deuce STM provides two algorithms,
 TL2 and LSA, each of which has optional contention management (CM).
 For each configuration and thread count, we report the throughput of a Deuce STM algorithm
-as the maximum of the throughput with the Timestamp CM or with no CM.
+as the maximum of the throughput with no CM or with CM (Polka for TL2, Timestamp for
+LSA).
 For almost all configurations we tested, CM reduced
 throughput.  CCSTM and Multiverse were tested using their default
 configuration.

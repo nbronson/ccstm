@@ -71,8 +71,8 @@ receive the highest priority in the system.
 \subsection{Polite blocking}
 
 An important design goal for CCSTM is support for incremental use inside
-a larger application.  This means that exponential back-off is not a
-suitable mechanism for blocking.  Many STMs target parallel speedups
+a larger application.  This means that busy waiting or exponential back-off are not
+suitable mechanisms for blocking.  Many STMs target parallel speedups
 for CPU-bound applications.  Assumed (often implicitly) is that all
 threads belong to the STM and that the number of software threads can be
 chosen to match the number of hardware execution contexts.  CCSTM makes
@@ -109,7 +109,7 @@ having many blocked threads, a larger number of channels might be appropriate.
 \subsection{JVM versus CLR}
 
 Scala is designed to target both the JVM and the CLR virtual machines.  In
-its current implementation, CCSTM uses many of the \type{Atomic*} classes
+its current implementation, CCSTM uses the \type{Atomic*} classes
 from \type{java.util.concurrent} to perform atomic compare-and-swaps and
 volatile array accesses.  The authors are not experts on the CLR memory
 model, but we believe that it would be straightforward to retarget CCSTM

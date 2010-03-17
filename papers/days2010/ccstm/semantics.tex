@@ -78,13 +78,14 @@ STM must either prevent inconsistent reads or instrument back edges
 to periodically revalidate the transaction.  Only the first option is
 available to an STM implemented as a library.
 
+\todo{McRT?}
 The TL2~\cite{dice06tl2} and LSA~\cite{riegel06lsa} algorithms
-demonstrated how to use a global time-stamp to efficiently validate
+use a global time-stamp to efficiently validate
 a transaction after each read, guaranteeing consistency for all
-intermediate states.  This correctness property was later formalized
+intermediate states.  This correctness property is formalized
 as \textit{opacity}~\cite{guerraoui08opacity}.  CCSTM is based on
 SwissTM~\cite{dragojevic09swisstm}, which adds eager detection of
-write-write conflicts to TL2's algorithm.
+write-write conflicts to TL2's validation algorithm.
 
 \subsection{Irrevocable actions and structural conflicts}
 
@@ -107,8 +108,8 @@ strategies.  Five types of callbacks may be registered with a transaction:
 commit, regardless of whether it is already doomed;
 
 \item{\it read-resource} -- invoked each time the transaction's read
-set is validated, if any (CCSTM's algorithm can avoid validation for
-some read-only transactions);
+set is validated (CCSTM can avoid validation for
+most read-only transactions);
 
 \item{\it write-resource} -- participates in a two-phase commit, voting on the
 outcome and then receiving the consensus decision;
@@ -126,17 +127,18 @@ be executed inside an atomic block is that such code often contains
 incidental shared accesses that the STM must treat as conflicts.
 An example of this is the size field of a collection, which is often
 accessed by every mutating operation.  Unless care is taken to distribute
-the size over multiple memory locations, no concurrency will actually
+this variable over multiple memory locations, no concurrency will actually
 be available.
 
 CCSTM provides several mechanisms for reducing transaction conflicts with
-semantic conflict detection.  A sophisticated user can combine CCSTM's
-\code{unrecordedRead} primitive (Section~\ref{sec:unrecordedread}) with
+semantic conflict detection.  A sophisticated user can combine the
+\code{releasableRead} or \code{unrecordedRead} primitive (Section~\ref{sec:unrecordedread}) with
 lifecycle callbacks to manually implement their own conflict detection.
-For simpler cases \type{Ref}\code{.map} (Section~\ref{sec:map})
+For simple cases, \type{Ref}\code{.map} (Section~\ref{sec:map})
 makes it trivial to use Abstract Nested Transactions (ANTs) to avoid
 rollback~\cite{harris07abstract}.  For the special case of contention
-on integer values, CCSTM provides \type{LazyConflictIntRef}, which
+on integer values, CCSTM includes \type{LazyConflictIntRef}, which
 uses ANTs for all inequality comparisons, increments, and decrements, and
 \type{StripedIntRef}, which is optimized for low-contention increment
-and decrement with occasional reads.
+and decrement with occasional reads.  Both of these classes implement
+\ytype{Ref}{Int}.

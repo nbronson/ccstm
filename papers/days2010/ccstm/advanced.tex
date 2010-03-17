@@ -114,7 +114,7 @@ more efficient than a simple transaction.
 \setlength{\parindent}{-12pt}
 \setlength{\parskip}{3pt}
 
-\vspace{2pt}
+\vspace{4pt}
 \type{\bfseries Source.Bound:}
 
 \code{apply(): }\typeparam{T }\\ Equivalent to \code{get}.
@@ -143,7 +143,7 @@ Reads the value managed by the bound \type{Ref}, and returns that
 value in an instance that allows the corresponding read set entry (if any)
 to be removed.
 
-\vspace{3pt}
+\vspace{4pt}
 \type{\bfseries Sink.Bound:}
 
 \code{:=(v: }\typeparam{T}\code{) }\\ Equivalent to \code{set(v)}.
@@ -155,7 +155,7 @@ this method will linearize the store before returning.
 \code{tryWrite(v: }\typeparam{T}\code{): }\type{Boolean }\\ Immediately
 performs an update and returns true, or does nothing and returns false.
 
-\vspace{3pt}
+\vspace{4pt}
 \type{\bfseries Ref.Bound extends Source.Bound with Sink.Bound:}
 
 \code{readForWrite: }\typeparam{T }\\ Returns the same value as
@@ -198,9 +198,9 @@ leaves the value unchanged and returns false.
 
 }
 
-\subsection{Removing storage indirection in user classes}
-
-\todo{TxnFieldUpdater}
+%\subsection{Removing storage indirection in user classes}
+%
+%\todo{TxnFieldUpdater}
 
 \subsection{Conditional retry}
 
@@ -218,10 +218,10 @@ composes two alternatives that are each satisfactory, and requests that
 whichever one can avoid the dead end should be executed.
 
 Currently, CCSTM encodes \code{retry} as a method of the \code{STM} object, and 
-combines composition and atomic execution of a sequence of atomic blocks into
+combines composition and execution of atomic blocks into
 \code{STM.atomicOrElse[}\typeparam{Z}\code{](blocks: (}\type{Txn}\code{ => }\typeparam{Z}\code{)*): }\typeparam{Z}.
 While we have experimented with an implicit conversion from 
-\type{Txn}\code{ => }\typeparam{Z} to an \type{AtomicBlock} that provides a
+\code{(}\type{Txn}\code{ => }\typeparam{Z}\code{)} to an \type{AtomicBlock} that provides a
 rich interface, we have not yet found a syntax that works well.  If
 \code{retry} is used without \code{orElse}, then the normal \code{STM.atomic}
 method may be used.
@@ -241,7 +241,7 @@ class Account {
   }
 }
 object Account {
-  def fromAny(m: Money, srcs: Account*) {
+  def withdrawFromSomeone(m: Money, srcs: Account*) {
     val blocks = srcs map { s =>
         { (t: Txn) => s.withdrawOrRetry(m)(t) } }
     STM.atomicOrElse(blocks: _*)
