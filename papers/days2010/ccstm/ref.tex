@@ -104,6 +104,7 @@ be up to half of the amortized cost of performing a statically-bound
 read in a large transaction.
 
 \subsection{Dynamic scoping for nested transactions}
+\label{sec:hybrid}
 
 Statically scoped transactions using an implicit \type{Txn} are invisible
 when making calls to \type{Ref}, but they add clutter when decomposing the

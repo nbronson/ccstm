@@ -71,27 +71,34 @@ and data structures, while restricting itself to implementation techniques
 that do not interfere with components of the system that do not use it
 (Section~\ref{sec:ref}).
 
+\item We show how a hybrid of static and dynamic transaction scoping can
+be used to reduce the performance penalty of a library-based STM while
+retaining ease of use (Section~\ref{sec:hybrid}).
+
 \item We introduce \code{unrecordedRead}, an STM primitive that relaxes
-read atomicity while allowing manual validation.  To demonstrate its
-use, we implement \type{Ref}\code{.map}, a simple but powerful form of
-Abstract Nested Transaction~\cite{harris07abstract}
-(Sections~\ref{sec:unrecordedread}
-and~\ref{sec:map}).
+read atomicity while allowing manual validation
+(Section~\ref{sec:unrecordedread}).
+
+%.  To demonstrate its
+%use, we implement \type{Ref}\code{.map}, a simple but powerful form of
+%Abstract Nested Transaction~\cite{harris07abstract}
+%(Sections~\ref{sec:unrecordedread}
+%and~\ref{sec:map}).
 
 \item We briefly overview CCSTM's implementation, including a
-novel optimization to reduce the global time-stamp contention of
-non-transactional isolated writes (Section~\ref{sec:impl}).
-
-\item We summarize some of the discussions that led from the original
-design goal to the current syntax.  We point out the parts that work
-well and the parts that are cumbersome, and hypothesize about ways to
-address the latter (Section~\ref{sec:discussion}).
+novel optimization for isolation write barriers
+(Section~\ref{sec:impl}).
 
 \item We compare the performance of CCSTM to Deuce STM and Multiverse,
 STMs for the JVM that use bytecode rewriting~\cite{deucestm,multiverse}.
 We find that CCSTM's implementation as an unprivileged library
 does not impose a significant performance or scalability penalty
 (Section~\ref{sec:perf}).
+
+\item We summarize some of the discussions that led from the original
+design goal to the current syntax.  We point out the parts that work
+well and the parts that are cumbersome, and hypothesize about ways to
+address the latter (Section~\ref{sec:discussion}).
 
 \end{packed_enum}
 

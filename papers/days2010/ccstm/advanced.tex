@@ -1,4 +1,7 @@
 
+A CCSTM \type{Ref} provides both a value that names a specific memory
+location, and a namespace for operations beyond loads and stores.
+
 \subsection{Relaxed isolation}
 \label{sec:unrecordedread}
 
@@ -91,14 +94,20 @@ Figure~\ref{fig:map} shows how \code{map} may be implemented using
 
 \input{fig_map.tex}
 
-\subsection{All of the ways to read or write a CCSTM reference}
+\subsection{All of the ways to read and/or write}
 
 What follows is the complete list of the access operations provided by
 \type{Ref.Bound}.  Many of these methods have equivalents in \type{Ref}
 that take an implicit \type{Txn}, although to reduce the API's surface
-area some methods are not mirrored.  All of the methods are defined
+area some methods are not mirrored.  Every access operation in \type{Ref} is
+present in \type{Ref.Bound}.  All of the methods are defined
 for both transactional and non-transactional contexts, even if they are
-useful for only one of those.
+mainly useful only for one of those. 
+\type{Source.Bound} declares methods that
+read, \type{Sink.Bound} declares methods that write, and \type{Ref.Bound}
+declares methods that simultaneously read and write.
+Several of the methods that read and write are both more concise and
+more efficient than a simple transaction.
 
 {
 \setlength{\leftskip}{12pt}
