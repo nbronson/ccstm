@@ -10,7 +10,7 @@ low_cont_mult=64
 for pass in 0 1 2; do 
   mkdir -p $m/pass$pass
   for t in 1 2 4 8 16 32 64 128 256; do 
-    for f in tl2cm lsacm; do 
+    for f in tl2 lsa tl2cm lsacm; do 
       for cont in low high; do 
         echo $m/pass-$pass-$t-$f-$cont
         if [ $cont = high ]; then
