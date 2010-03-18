@@ -100,8 +100,9 @@ itself to \type{ThreadLocal}, which navigates from the \type{Thread}
 to a thread-local hash table, and from there to the dynamically scoped
 value.  We do not include a detailed experimental comparison, but we
 have observed that the cost of a single \type{ThreadLocal} lookup can
-be up to half of the amortized cost of performing a statically-bound
-read in a large transaction.
+increase the per-read cost by up to 50\% over
+performing statically-bound
+reads in a large transaction.
 
 \subsection{Dynamic scoping for nested transactions}
 \label{sec:hybrid}

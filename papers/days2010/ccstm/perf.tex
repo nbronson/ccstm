@@ -1,23 +1,4 @@
 
-\begin{figure}
-  \centering \includegraphics[clip=true,width=3in]{build/low_cont}
-
-\caption{Throughput for the bank benchmark in a low contention scenario,
-on a machine with 16 hardware thread contexts.  The number of accounts
-is 64 times the number of threads.}
-
-  \label{fig:lowcont}
-\end{figure}
-
-\begin{figure}
-  \centering \includegraphics[clip=true,width=3in]{build/high_cont}
-
-\caption{Throughput for a high contention scenario.  The number of accounts is
-equal to the number of threads.  Each transaction touches two accounts.}
-
-  \label{fig:highcont}
-\end{figure}
-
 CCSTM's implementation as an unprivileged library introduces several
 overheads when compared to a bytecode rewriting STM or modified VM:
 \type{Ref} adds a level of indirection; JVM erasure adds boxing overheads
@@ -72,6 +53,25 @@ blocked threads do not consume too many resources.  This effect is present
 to a lesser degree for the low-contention runs, where CCSTM's throughput
 continues to rise gradually as its rollback rate
 drops from 1.0\% at 16 threads to 0.5\% at 32 and 0.3\% at 64.
+
+\begin{figure}
+  \centering \includegraphics[clip=true,width=3in]{build/low_cont}
+
+\caption{Throughput for the bank benchmark in a low contention scenario,
+on a machine with 16 hardware thread contexts.  The number of accounts
+is 64 times the number of threads.}
+
+  \label{fig:lowcont}
+\end{figure}
+
+\begin{figure}
+  \centering \includegraphics[clip=true,width=3in]{build/high_cont}
+
+\caption{Throughput for a high contention scenario.  The number of accounts is
+equal to the number of threads.  Each transaction touches two accounts.}
+
+  \label{fig:highcont}
+\end{figure}
 
 For low contention configurations, Deuce STM and CCSTM have similar
 performance and scalability, so long as the multithreading level is less

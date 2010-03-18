@@ -42,8 +42,8 @@ may execute conflicting accesses after they have become doomed.
 Restrictions on commit order can prevent some of the most surprising
 behaviors~\cite{sgla08}, but the resulting systems still require
 whole-program reasoning to guarantee correctness.  The privatization
-problem and its dual, the publication problem, refer to isolation failure
-for specific useful idioms.
+and publication problems refer to isolation failure
+for specific idioms.
 
 \item The type system can prevent direct access to any memory
 location that might be touched transactionally~\cite{moore08semantics}.
@@ -78,7 +78,6 @@ STM must either prevent inconsistent reads or instrument back edges
 to periodically revalidate the transaction.  Only the first option is
 available to an STM implemented as a library.
 
-\todo{McRT?}
 The TL2~\cite{dice06tl2} and LSA~\cite{riegel06lsa} algorithms
 use a global time-stamp to efficiently validate
 a transaction after each read, guaranteeing consistency for all

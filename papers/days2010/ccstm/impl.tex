@@ -49,7 +49,7 @@ a sequence of non-transactional writes to advance a reference's time-stamp to
 an arbitrary point in the future, without advancing the global time-stamp.
 If a transaction attempts to read such a far-future value it handles
 it via the normal GV6 mechanism, by advancing the global time-stamp and
-then revalidating.  To bound the potential impact of these booby-trapped
+then revalidating.  To limit the potential impact of these booby-trapped
 references, we only allow non-transactional writes to advance time-stamps
 a limited distance into the future.  Even a small window (CCSTM defaults
 to 8) dramatically reduces contention on the global time-stamp.
@@ -59,7 +59,7 @@ to 8) dramatically reduces contention on the global time-stamp.
 Optimistic concurrency control is vulnerable to the \textit{starving
 elder} problem, in which a large transaction can never be committed because
 it is continually violated by small transactions.  CCSTM uses a simple
-contention manage scheme to prevent this.  Each execution attempt is
+contention management scheme to prevent this.  Each execution attempt is
 assigned a random priority that is used to resolve write-write conflicts.
 If a transaction has not yet begun to commit, then a higher priority
 transaction may doom it and steal its locks.  In addition, transactions
@@ -70,21 +70,20 @@ receive the highest priority in the system.
 
 \subsection{Polite blocking}
 
-An important design goal for CCSTM is support for incremental use inside
-a larger application.  This means that busy waiting or exponential back-off are not
-suitable mechanisms for blocking.  Many STMs target parallel speedups
-for CPU-bound applications.  Assumed (often implicitly) is that all
-threads belong to the STM and that the number of software threads can be
-chosen to match the number of hardware execution contexts.  CCSTM makes
-neither of these assumptions, and so takes care to block using the normal
-synchronization primitives of the underlying VM.
+An important design goal for CCSTM is support for incremental use inside a
+larger application.  This means that busy waiting or exponential back-off
+are not suitable mechanisms for blocking.  Many STMs target parallel
+speedups for only CPU-bound applications, and so assume that they own all
+threads and perform all synchronization.  CCSTM makes neither of these
+assumptions, taking care to block using the normal synchronization
+primitives of the underlying VM.
 
 Blocking may be required to obtain write permission, or because of an
 explicit use of the \code{retry} primitive.  Writers and waiters must
 agree on a condition variable that will be used to signal that the
 waiter should re-attempt whatever action led to their choice to block.
 If the set of condition variables is too small, there will be many
-spurious wakeups.  If the set is too large, then transaction commit may need to
+spurious wakeups.  If the set is too large, then transaction commits may need to
 perform a large amount of extra work.
 
 Accesses that are blocked by another transaction await notification

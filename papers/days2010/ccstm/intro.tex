@@ -45,14 +45,13 @@ to provide additional functionality to the user in a natural way.
 %allows multiple implementations, allowing tradeoffs between the cost of
 %validation and the likelihood of rollback.
 
-CCSTM's second departure from the typical STM interface is that it uses a
-hybrid of static and dynamic transaction scoping.  \type{Ref}'s methods
-locate the transaction via an implicit parameter of type \type{Txn},
-which must be part of the lexical scope during compilation; this
-avoids the overhead of a dynamic lookup for most calls to the STM.
-Nesting of atomic regions, however, is resolved dynamically using a
-\type{ThreadLocal}; this avoids the need to add an implicit \type{Txn}
-parameter to every method called inside a transaction.
+CCSTM departs from the dynamic transaction scoping typical of STMs, using
+a hybrid approach.  \type{Ref}'s methods locate the transaction via an
+implicit parameter of type \type{Txn}, which must be part of the lexical
+scope during compilation; this avoids the overhead of a dynamic lookup for
+most calls to the STM.  Nesting of atomic regions, however, is resolved
+dynamically using a \type{ThreadLocal}; this avoids the need to add an
+implicit \type{Txn} parameter to every method called inside a transaction.
 
 %This decision
 %was made for pragmatic reasons, because performing a dynamically-scoped
@@ -64,6 +63,7 @@ parameter to every method called inside a transaction.
 
 In this paper:
 \begin{packed_enum}
+\setlength{\itemsep}{5pt}
 
 \item We describe CCSTM, a reference-based STM for Scala.  CCSTM focuses
 on helping parallel programmers build optimistically concurrent algorithms
@@ -85,14 +85,12 @@ read atomicity while allowing manual validation
 %(Sections~\ref{sec:unrecordedread}
 %and~\ref{sec:map}).
 
-\item We briefly overview CCSTM's implementation, including a
+\item We briefly present CCSTM's implementation, including a
 novel optimization for isolation write barriers
 (Section~\ref{sec:impl}).
 
-\item We compare the performance of CCSTM to Deuce STM and Multiverse,
-STMs for the JVM that use bytecode rewriting~\cite{deucestm,multiverse}.
-We find that CCSTM's implementation as an unprivileged library
-does not impose a significant performance or scalability penalty
+\item We demonstrate that although CCSTM is an unprivileged library,
+its performance is comparable to JVM STMs that use bytecode rewriting
 (Section~\ref{sec:perf}).
 
 \item We summarize some of the discussions that led from the original
