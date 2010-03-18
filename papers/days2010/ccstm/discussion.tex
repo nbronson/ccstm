@@ -17,43 +17,46 @@ inference for generic methods or data structures.  If \code{x} is a
 would return false.
 
 \item \code{unary\_!} -- A unary operator is the most concise explicit
-way of denoting a read, and prefix forms of these are the only ones that don't
-trigger Scala's line merging heuristic.  Initially we settled on a \code{!}
-prefix for reads.  This works well for arithmetic expressions, but it can be
-confusing when used in a conditional test, as in
-\code{("foo" == !x)} or \code{(!x == "foo")}.  It also does not chain well,
-leading to extra parenthenses: \code{(!x).length}.  Because of these problems,
-we found ourself reverting to the more verbose forms \code{("foo" == x.get)}
-and \code{x.get.length}.
+way of denoting a read, and prefix forms of these are the only ones
+that don't trigger Scala's line merging heuristic.  Initially we
+settled on a \code{!} prefix for reads.  This works well for arithmetic
+expressions, but it can be confusing when used in a conditional test,
+as in \code{(!x == "foo")}.  It also does not chain well, requiring
+extra parentheses: \code{(!x).length}.  Because of these problems, we
+found ourself often reverting to the more verbose forms \code{(x.get ==
+"foo")} and \code{x.get.length}.
 
 \item \code{apply()} -- This is the only operator-like suffix method
 that can safely occur at the end of the line, which means that it chains
 properly in complex operations.  We initially avoided using it for read
-barriers, because \code{()} is often used idiomatically in Scala to
-denote side-effecting methods.
-\todo{cursor}
-
+barriers, because \code{()} is often used in Scala to help draw attention
+to side-effecting methods.  Although read barriers do not themselves
+perform a mutation, their access to shared mutable state also requires
+extra care.  The current CCSTM code base uses \code{apply()} for concise
+representation of read barriers.
 
 \end{packed_enum}
 
-\color{green}
-In the code that we have written so far we have mixed \code{unary\_!} and
-\code{.get}, falling back on the more verbose form inside conditionals and
-complicated expressions.  For fields that are almost always accessed inside
-an atomic block, another scheme that works well is to create transactional
-accessor methods:
+For fields that are almost always accessed inside an atomic block, we
+have also found it convenient to create transactional accessor methods.
+The full \type{Ref} is published via a longer name for non-transactional
+or advance operations, while the basic property name is available within
+a transaction using Scala's basic field syntax:
 \lstset{numbers=none}
+\lstset{xleftmargin=0.125in}
 \begin{lstlisting}
 class Node {
-  private val _next: Ref[Node] = ..
-  def next(implicit txn: Txn): Node = _next()
+  val nextRef: Ref[Node] = ..
+  def next(implicit txn: Txn): Node = nextRef()
   def next_=(v: Node)(implicit txn: Txn) {
-    _next := v
+    nextRef := v 
   }
 }
 \end{lstlisting}
+\lstset{xleftmargin=0.25in}
 \lstset{numbers=left}
 
+\color{green}
 \subsection{Nested transactions}
 
 CCSTM currently does not support nested atomic blocks, an important
