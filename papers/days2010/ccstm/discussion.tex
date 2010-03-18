@@ -1,25 +1,42 @@
-\color{green}
+
 STM research is mature enough that the most difficult design decisions
 for CCSTM were all found in the interface.
 
 \subsection{Read barrier syntax}
 \label{sec:syntax}
 
-The choice of \code{!x} as the preferred encoding for a transactional
-read of \code{x} was inspired by ML's reference syntax.  Three alternatives
-were considered for a concise transactional read:
+The most difficult syntactic choice was the method name for a
+transactional read.  Three concise alternatives were considered:
+
 \begin{packed_enum}
-\item \code{apply()} -- This chains more easily than a prefix operator, without
-triggering Scala's line merging heuristic.  Idiomatic Scala uses \code{()} to
-denote a side-effecting method, however, which is confusing.
+
 \item An implicit conversion from \xtype{Ref}{A} to \typeparam{A} -- This is
-the most concise, but it interferes with further implicit conversions and
-can lead to surprises.
-\item \code{unary\_!} -- This adds only a single character, but it can be
-confusing when a transactional read is used as part of a boolean condition.
-It can be difficult to chain without parentheses.
+the most concise, but it interferes with further implicit conversions and type
+inference for generic methods or data structures.  If \code{x} is a
+\ytype{Ref}{String} holding \code{"foo"}, for example, \code{("foo" == x)}
+would return false.
+
+\item \code{unary\_!} -- A unary operator is the most concise explicit
+way of denoting a read, and prefix forms of these are the only ones that don't
+trigger Scala's line merging heuristic.  Initially we settled on a \code{!}
+prefix for reads.  This works well for arithmetic expressions, but it can be
+confusing when used in a conditional test, as in
+\code{("foo" == !x)} or \code{(!x == "foo")}.  It also does not chain well,
+leading to extra parenthenses: \code{(!x).length}.  Because of these problems,
+we found ourself reverting to the more verbose forms \code{("foo" == x.get)}
+and \code{x.get.length}.
+
+\item \code{apply()} -- This is the only operator-like suffix method
+that can safely occur at the end of the line, which means that it chains
+properly in complex operations.  We initially avoided using it for read
+barriers, because \code{()} is often used idiomatically in Scala to
+denote side-effecting methods.
+\todo{cursor}
+
+
 \end{packed_enum}
 
+\color{green}
 In the code that we have written so far we have mixed \code{unary\_!} and
 \code{.get}, falling back on the more verbose form inside conditionals and
 complicated expressions.  For fields that are almost always accessed inside
@@ -90,4 +107,13 @@ class Account ... {
 \lstset{numbers=left}
 If \code{deposit} were executed outside a transaction a runtime error would be
 generated, rather than the compile-time error produced by the existing CCSTM.
+
+Future: Partial rollback
+
+Future: Collections
+
+Future: Plugin
+
+Future: @specialized
+
 \color{black}
