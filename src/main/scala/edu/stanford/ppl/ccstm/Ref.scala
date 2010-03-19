@@ -353,14 +353,29 @@ trait Ref[T] extends Source[T] with Sink[T] {
    */
   def bind(implicit txn: Txn): Ref.Bound[T] = new impl.TxnBound(this, handle, txn)
 
-  /** Returns a view that can be used to perform individual reads and writes to
-   *  this reference outside any transactional context.  Each operation acts as
-   *  if it was performed in its own transaction.  The returned instance is
-   *  valid for the lifetime of the program.
+  /** Returns a view that acts as if each operation is performed in an atomic
+   *  block containing that single operation.  The new single-operation
+   *  transaction will be nested inside an existing transaction if one is
+   *  active (see `Txn.current`).  The returned instance is valid for the
+   *  lifetime of the program.
    *  @return a view into the value of this <code>Ref</code>, that will perform
    *      each operation as if in its own transaction.
    */
-  def nonTxn: Ref.Bound[T] = new impl.NonTxnBound(this, nonTxnHandle)
+  def single: Ref.Bound[T] = new impl.DynBound(this, nonTxnHandle, handle)
+
+  /** Returns a view that can be used to perform individual reads and writes to
+   *  this reference outside any transactional context, regardless of whether a
+   *  transaction is active on the current thread.  Each operation acts as if
+   *  it was performed in its own transaction while any active transaction is
+   *  suspended.  The returned instance is valid for the lifetime of the
+   *  program.
+   *  @return a view into the value of this <code>Ref</code>, that will bypass
+   *      any active transaction.
+   */
+  def escaped: Ref.Bound[T] = new impl.NonTxnBound(this, nonTxnHandle)
+
+  @deprecated("consider replacing with Ref.single, otherwise use Ref.escaped")
+  def nonTxn: Ref.Bound[T] = escaped
 
   override def hashCode: Int = {
     val h = handle

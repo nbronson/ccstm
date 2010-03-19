@@ -87,8 +87,16 @@ trait Sink[-T] {
    */
   def bind(implicit txn: Txn): Sink.Bound[T]
 
-  /** The restriction of <code>Ref.nonTxn</code> to <code>Sink</code>.
-   *  @see edu.stanford.ppl.ccstm.Ref#nonTxn
+  /** The restriction of <code>Ref.single</code> to <code>Sink</code>.
+   *  @see edu.stanford.ppl.ccstm.Ref#single
    */
+  def single: Sink.Bound[T]
+
+  /** The restriction of <code>Ref.escaped</code> to <code>Sink</code>.
+   *  @see edu.stanford.ppl.ccstm.Ref#escaped
+   */
+  def escaped: Sink.Bound[T]
+
+  @deprecated("consider replacing with Sink.single, otherwise use Sink.escaped")
   def nonTxn: Sink.Bound[T]
 }

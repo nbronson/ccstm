@@ -170,9 +170,17 @@ trait Source[+T] {
    */
   def bind(implicit txn: Txn): Source.Bound[T]
 
-  /** The restriction of <code>Ref.nonTxn</code> to <code>Source</code>.
-   *  @see edu.stanford.ppl.ccstm.Ref#nonTxn
+  /** The restriction of <code>Ref.single</code> to <code>Source</code>.
+   *  @see edu.stanford.ppl.ccstm.Ref#single
    */
+  def single: Source.Bound[T]
+
+  /** The restriction of <code>Ref.escaped</code> to <code>Source</code>.
+   *  @see edu.stanford.ppl.ccstm.Ref#escaped
+   */
+  def escaped: Source.Bound[T]
+
+  @deprecated("consider replacing with Source.single, otherwise use Source.escaped")
   def nonTxn: Source.Bound[T]
 
   // implicit access to unrecordedRead is omitted to discourage its use
