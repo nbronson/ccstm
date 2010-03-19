@@ -6,23 +6,36 @@ package edu.stanford.ppl.ccstm
 
 import impl.ThreadContext
 
-
 object Txn {
 
   val EnableCounters = "1tTyY" contains (System.getProperty("ccstm.counters", "") + "0").charAt(0)
 
   //////////////// Status
 
-  /** Returns `Some(t)` if `t` is the transaction attached to the current
-   *  thread, or `None` if no transaction is attached.
+  /** Returns `Some(t)` if `t` is statically or dynamically attached to the
+   *  current thread, or `None` if no transaction is attached.  If an implicit
+   *  `Txn` is available, that is used, otherwise a dynamic lookup is
+   *  performed.
    */
-  def current: Option[Txn] = {
+  def current(implicit mt: MaybeTxn): Option[Txn] = {
     val t = currentOrNull
     if (null != t) Some(t) else None
   }
 
-  /** Returns the `Txn` attached to the current thread, or null if none. */
-  def currentOrNull: Txn = impl.ThreadContext.get.txn.asInstanceOf[Txn]
+  /** Equivalent to `current getOrElse null`. */
+  def currentOrNull(implicit mt: MaybeTxn): Txn = {
+    mt match {
+      case t: Txn => t
+      case TxnUnknown => dynCurrentOrNull 
+    }
+  }
+
+  /** Performs a dynamic lookup of the currently active transaction, returning
+   *  an active `Txn` or null.
+   */
+  private[ccstm] def dynCurrentOrNull: Txn = {
+    ThreadContext.get.txn.asInstanceOf[Txn]
+  }
 
   /** Represents the current status of a <code>Txn</code>. */
   sealed abstract class Status {

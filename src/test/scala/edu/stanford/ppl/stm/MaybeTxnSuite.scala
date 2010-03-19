@@ -8,6 +8,38 @@ import edu.stanford.ppl.ccstm._
 import edu.stanford.ppl._
 
 class MaybeTxnSuite extends STMFunSuite {
+  test("TxnUnknown is found") {
+    assert(context eq TxnUnknown)
+  }
+
+  test("Txn is found") {
+    STM.atomic { t0 =>
+      implicit val t = t0
+      assert(context eq t)
+    }
+  }
+
+  private def context(implicit mt: MaybeTxn) = mt
+
+//  test("Inline nesting") {
+//    val x = Ref(10)
+//    STM.atomic { implicit t =>
+//      assert(x() === 10)
+//      x := 11
+//      STM.atomic { implicit t =>
+//        assert(x() === 11)
+//        x := 12
+//        STM.atomic { implicit t =>
+//          assert(x() == 12)
+//          x := 13
+//        }
+//        assert(x() === 13)
+//      }
+//      assert(x() === 13)
+//    }
+//    assert(x.nonTxn() === 13)
+//  }
+
   test("call with txn") {
     val x = Ref(10)
     //STM.atomic { implicit t => // this is syntactically valid, but confuses IDEA
@@ -34,7 +66,7 @@ class MaybeTxnSuite extends STMFunSuite {
     assert(goesBothWaysDynamicGeneric(x) === 10)
   }
 
-  test("perf", ExhaustiveTest) {
+  if (false) test("perf", ExhaustiveTest) {
     val numTxns = 1000
     val opsPerTxn = 10000
     for (p <- 0 until 10) {
@@ -77,7 +109,7 @@ class MaybeTxnSuite extends STMFunSuite {
 
   def goesBothWaysStatic(x: IntRef)(implicit ctx: MaybeTxn): Int = {
     implicit val t: Txn = ctx match {
-      case TxnUnknown => Txn.currentOrNull
+      case TxnUnknown => Txn.currentOrNull(TxnUnknown)
       case x: Txn => x
     }
     if (null == t) {

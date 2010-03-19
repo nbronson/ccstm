@@ -64,6 +64,8 @@ object STM {
    *  support for nested transactions using "flattening" or "subsumption".   
    */
   def atomic[Z](block: Txn => Z)(implicit mt: MaybeTxn): Z = {
+    // this basically performs the work of Txn.current, but retains the
+    // underlying ThreadContext if no txn is active
     var ctx: ThreadContext = null
     var txn = (if (mt.isInstanceOf[Txn]) {
       // statically known to be nested
@@ -119,7 +121,7 @@ object STM {
    *  @see edu.stanford.ppl.ccstm.Atomic#orElse
    *  @see edu.stanford.ppl.ccstm.AtomicFunc#orElse
    */
-  def atomicOrElse[Z](blocks: (Txn => Z)*): Z = {
+  def atomicOrElse[Z](blocks: (Txn => Z)*)(implicit mt: MaybeTxn): Z = {
     if (null != Txn.currentOrNull) throw new UnsupportedOperationException("nested orElse is not currently supported")
 
     val hists = new Array[List[Txn.RollbackCause]](blocks.length)
