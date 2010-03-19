@@ -64,7 +64,7 @@ class Node {
 \lstset{xleftmargin=0.25in}
 \lstset{numbers=left}
 
-\subsection{Non-transactional reads}
+\subsection{Dynamically scoped non-transactional reads}
 
 The bound view returned by \type{Ref}\code{.nonTxn} makes
 non-transactional reads and writes explicit.  This makes those accesses
@@ -100,4 +100,16 @@ for partial rollback are for the life cycle callbacks, which must be
 extended to allow notification of the commit or rollback of a nested
 context prior to the completion of the top level transaction.
 
+\subsection{\keyword{\bfseries @specialized}}
+
+The \keyword{@specialized} annotation has the potential to reduce
+boxing overheads for read and write barriers that access a primitive
+type~\cite{dragos09specialization}.  CCSTM already avoids long-term
+boxing by using separate implementations of \type{Ref} for each primitive
+(selecting using a \type{ClassManifest} during creation if the type is
+not statically known), but boxing occurs during the reused portions of
+the barrier code.  The current implementation of \keyword{@specialized}
+interacts non-trivially with the manual specialization of \type{Ref}
+that is already performed, but restructuring of CCSTM's concrete classes
+may enable performance improvements.
 
