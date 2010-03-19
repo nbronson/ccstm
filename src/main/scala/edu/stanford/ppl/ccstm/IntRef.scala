@@ -46,7 +46,7 @@ object IntRef {
  */
 trait IntRef extends Ref[Int] {
 
-  override def bind(implicit txn: Txn): IntRef.Bound = new Ref.TxnBound(this, handle, txn) with IntRef.Bound {
+  override def bind(implicit txn: Txn): IntRef.Bound = new impl.TxnBound(this, handle, txn) with IntRef.Bound {
     override val unbind: IntRef = IntRef.this
   }
 
