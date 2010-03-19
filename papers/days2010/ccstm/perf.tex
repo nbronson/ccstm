@@ -77,8 +77,8 @@ For low contention configurations, Deuce STM and CCSTM have similar
 performance and scalability, so long as the multithreading level is less
 than or equal to one.  Under high contention Deuce STM substantially
 outperforms CCSTM, so long as each thread gets its own hardware context.
-This is because Deuce STM uses busy-waiting, which avoids context switches
-for blocked threads.  At thread counts 32 and 64, however, threads must
+This is because Deuce STM never yields, sleeps, or blocks, which avoids 
+the cost of context switches.  At thread counts 32 and 64, however, threads must
 share processing resources and this strategy results in a catastrophic
 performance drop off.  Multiverse uses an exponential back off algorithm
 using \code{Thread.sleep}.  This approach handles high multithreading
@@ -92,7 +92,7 @@ expensive at low thread counts, but it yields a robust scaling curve.
 
 The three STMs have different algorithms, feature sets and engineering
 tradeoffs, so these experiments do not allow us to exactly measure
-the overhead imposed by the library-only design.  They do demonstrate,
+the overhead imposed by the library-based design.  They do demonstrate,
 however, that the practical overheads that exist are small enough to be
 tolerable.  We leave as future work a breakdown of the costs inside CCSTM.
 

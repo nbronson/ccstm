@@ -18,7 +18,7 @@
 \newenvironment{packed_enum}{
 \begin{enumerate}
   \setlength{\topsep}{0pt}
-  \setlength{\itemsep}{2pt}
+  \setlength{\itemsep}{5pt}
   \setlength{\parskip}{0pt}
   \setlength{\parsep}{0pt}
 }{\end{enumerate}}
@@ -26,7 +26,7 @@
 \newenvironment{packed_itemize}{
 \begin{itemize}
   \setlength{\topsep}{0pt}
-  \setlength{\itemsep}{2pt}
+  \setlength{\itemsep}{5pt}
   \setlength{\parskip}{0pt}
   \setlength{\parsep}{0pt}
 }{\end{itemize}}
@@ -107,36 +107,44 @@
 
 \begin{abstract}
 
-\todo{motivate library-only, trim detail}
-
-We introduce CCSTM, a library-only
-software transactional memory (STM) for Scala, and
-give an overview of its design and implementation.
+We introduce CCSTM, a library-based software transactional memory (STM)
+for Scala, and give an overview of its design and implementation.
 Our design philosophy is that CCSTM should be a useful tool for the
 parallel programmer, rather than a parallelization mechanism for arbitrary
-sequential code.  This frees us from the semantic tar pits that surround
-privatization, strong isolation, and irrevocable system calls.
-It also allows us to express the STM using Scala classes and methods, a design
-choice that has far-reaching consequences.
+sequential code, or the sole synchronization primitive in a system.
 
-Transactional accesses in CCSTM are performed via explicit method calls
-on instances that implement a trait \type{Ref}.  These transactional
-references may be long-lived, or may be transient accessors to bulk
-transactional data such as an array.  Scala's operator overloading keeps
-the syntactic overhead low for basic reads and writes.  The \type{Ref}
-trait serves as a first-class representation of a transactionally-managed
-memory location, providing a natural way to express additional STM
-functionality such as modular blocking, non-transactional compare-and-swap,
-manually-validated reads, and deferrable transformation using pure
-functions.
+%This frees us from the semantic tar pits that surround privatization,
+%strong isolation, and irrevocable system calls.
 
-In an additional departure from typical STM designs, CCSTM uses a
-hybrid of static and dynamic transaction scoping.  \type{Ref}'s methods
-are bound to current transaction via a \keyword{implicit} parameter.
-When an atomic block is entered, however, nesting is resolved dynamically.
-This hybrid approach avoids the overheads of a dynamic lookup for most
-STM operations without requiring the transaction to be statically threaded
-throughout the user's code.
+CCSTM expresses transactional reads and writes as explicit method calls on
+instances of a reference type.  Scala's flexible method names, implicit
+parameters, and closures keep the syntax concise, and the reference
+instances provide a natural way to express additional STM functionality.
+We use a novel hybrid of static and dynamic transaction scoping to
+retain composability while avoiding the barrier overheads that would
+otherwise result from an implementation as an unprivileged library.
+Experiments results show that CCSTM's performance and scalability are
+on par with bytecode rewriting STMs.
+
+
+%Transactional accesses in CCSTM are performed via explicit method calls
+%on instances that implement a trait \type{Ref}.  These transactional
+%references may be long-lived, or may be transient accessors to bulk
+%transactional data such as an array.  Scala's operator overloading keeps
+%the syntactic overhead low for basic reads and writes.  The \type{Ref}
+%trait serves as a first-class representation of a transactionally-managed
+%memory location, providing a natural way to express additional STM
+%functionality such as modular blocking, non-transactional compare-and-swap,
+%manually-validated reads, and deferrable transformation using pure
+%functions.
+%
+%In an additional departure from typical STM designs, CCSTM uses a
+%hybrid of static and dynamic transaction scoping.  \type{Ref}'s methods
+%are bound to current transaction via a \keyword{implicit} parameter.
+%When an atomic block is entered, however, nesting is resolved dynamically.
+%This hybrid approach avoids the overheads of a dynamic lookup for most
+%STM operations without requiring the transaction to be statically threaded
+%throughout the user's code.
 
 \end{abstract}
 

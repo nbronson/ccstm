@@ -95,7 +95,7 @@ read and write barrier.  This is an extremely frequent operation.
 Bytecode rewriting STMs have two options for efficiently performing this
 lookup: they can add a field to the system-wide \type{Thread} class,
 or they can weave a \type{Txn} parameter into the transactional version
-of every method.  A library-only STM running on the JVM must restrict
+of every method.  A library-based STM running on the JVM must restrict
 itself to \type{ThreadLocal}, which navigates from the \type{Thread}
 to a thread-local hash table, and from there to the dynamically scoped
 value.  We do not include a detailed experimental comparison, but we

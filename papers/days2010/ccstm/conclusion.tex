@@ -1,14 +1,18 @@
-\color{green}
-CCSTM demonstrates that it is possible to provide a library-only
-implementation of STM for Scala.  The resulting
-syntax is relatively concise and the performance is on par with a bytecode
-rewriting STM.  The transactional references that encode CCSTM's interface
-add some clutter to the user's code, but they also provide a natural way
-for the programmer to take advantage of more sophisticated features such
-as semantic conflict detection.
 
-We found that the primary challenge in our approach was that statically
-scoped transactions reduce composability.  The next step for CCSTM is
-to explore a hybrid approach that uses static scopes for barriers but
-dynamic scopes to coordinate nested transactions.
-\color{black}
+STM's high level programming model addresses many of the challenges of
+shared memory multithreading, but to be most useful its benefits should
+be provided in a pay-as-you-go fashion.  CCSTM accomplishes this by
+providing transactional memory as a normal Scala library.
+
+CCSTM uses Scala's features to embed STM as a DSL, rather than using
+bytecode rewriting or VM modifications to mimic \keyword{synchronized}.
+Its syntax is relatively concise, and its performance is on par
+with bytecode rewriting STMs.  The references that encapsulate
+transactionally-managed memory locations add some clutter to the user's
+code, but they also provide a natural way for the programmer to take
+advantage of more sophisticated features such as semantic conflict
+detection.  The implementation is careful to avoid busy-waiting or
+polling when a transaction is blocked, delivering good performance
+despite contention and high multithreading levels.  CCSTM demonstrates
+that a library-based STM can be usable and performant.
+

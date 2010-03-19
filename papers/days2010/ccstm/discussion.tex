@@ -10,7 +10,7 @@ transactional read.  Four alternatives were considered:
 
 \begin{packed_enum}
 
-\item Using property syntax to emulate a \keyword{var }\code{ elem}
+\item Using property syntax to emulate a \keyword{var }\code{elem}
 in the \type{Ref} class -- To read the transactional value held by a
 reference \code{x} the caller would use \code{x.elem}, and to update it
 they would write \code{x.elem = v}.  This approach is self-consistent,
@@ -93,13 +93,11 @@ dynamic lookup finds an active transaction or a non-transactional binding
 \subsection{Partial rollback of nested transactions}
 
 We plan to extend CCSTM's implementation to support partial rollback.
-This is important to properly support the \keyword{orElse} operator, and
+This is important to properly support composition with \keyword{orElse}, and
 it is also required to provide failure atomicity (rollback without retry
 after a user exception).  The only changes to the CCSTM API required
 for partial rollback are for the life cycle callbacks, which must be
 extended to allow notification of the commit or rollback of a nested
 context prior to the completion of the top level transaction.
-
-\subsection{Collection classes}
 
 
