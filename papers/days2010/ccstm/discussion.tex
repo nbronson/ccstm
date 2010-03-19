@@ -10,11 +10,10 @@ transactional read.  Four alternatives were considered:
 
 \begin{packed_enum}
 
-\item Using property syntax to emulate a \keyword{var }\code{elem}
-in the \type{Ref} class -- To read the transactional value held by a
-reference \code{x} the caller would use \code{x.elem}, and to update it
-they would write \code{x.elem = v}.  This approach is self-consistent,
-but it is much too verbose.
+\item \code{elem} -- A pair of methods \code{elem} and \code{elem\_=}
+could be used to provide the illusion that transactional data was actually
+stored in a variable of \type{Ref}.  This approach is self-consistent,
+but is much too verbose.
 
 \item An implicit conversion from \xtype{Ref}{A} to \typeparam{A} --
 This is the most concise, but it interferes with further implicit
@@ -78,7 +77,7 @@ accesses inconvenient, but this may actually be beneficial if it discourages
 premature optimization using relaxed isolation.
 
 The main disadvantage that we have observed is that code composability is
-hindered by the escape actions semantics of \code{nonTxn}.  The advanced
+hindered by the escape action semantics of \code{nonTxn}.  The advanced
 \type{Ref.Bound} operations such as \code{transform} and \code{getAndSet}
 (Section~\ref{sec:advanced}) allow some small transactions to be
 rewritten as a single operation, but this changes the semantics if

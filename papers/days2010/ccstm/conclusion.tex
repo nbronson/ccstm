@@ -5,8 +5,8 @@ be provided in a pay-as-you-go fashion.  CCSTM accomplishes this by
 providing transactional memory as a normal Scala library.
 
 CCSTM uses Scala's features to embed STM as a DSL, rather than using
-bytecode rewriting or VM modifications to mimic \keyword{synchronized}.
-Its syntax is relatively concise, and its performance is on par
+bytecode rewriting or VM modifications to transparently redirect loads and
+stores.  Its syntax is concise, and its performance is on par
 with bytecode rewriting STMs.  The references that encapsulate
 transactionally-managed memory locations add some clutter to the user's
 code, but they also provide a natural way for the programmer to take
