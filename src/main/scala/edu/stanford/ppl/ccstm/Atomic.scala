@@ -17,7 +17,7 @@ package edu.stanford.ppl.ccstm
  *    val ty: Ref[Int] = ..
  *
  *    new Atomic { def body {
- *      if (!tx &gt; 10) ty := 20
+ *      if (tx() &gt; 10) ty := 20
  *    }}.run
  *  </pre>
  *

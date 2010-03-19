@@ -16,6 +16,8 @@ object Ref {
 
   /** Returns a new <code>Ref</code> instance suitable for holding instances of
    *  <code>T</code>.
+   *
+   *  If you have an initial value available, `apply` is a better option.
    */
   def make[T]()(implicit m: ClassManifest[T]): Ref[T] = {
     (m.newArray(0).asInstanceOf[AnyRef] match {
@@ -44,7 +46,7 @@ object Ref {
    *  the constructing transaction.
    */
   def apply[T](initialValue: T)(implicit m: ClassManifest[T]): Ref[T] = {
-    // TODO: can this check ClassTypeManifest instead (instanceof class is faster than instanceof interface)
+    // TODO: this is likely to be a hot spot, perhaps RFE a method in Manifest for this test?
     if (m.isInstanceOf[AnyValManifest[_]]) {
       newPrimitiveRef(initialValue)
     } else {
@@ -283,10 +285,9 @@ object Ref {
  *  STM.
  *  <p>
  *  In a transactional context (one in which an implicit <code>Txn</code> is
- *  available), reads and writes are performed with either <code>get</code> and
- *  <code>set</code>, or with the ML-inspired <code>unary_!</code> and
- *  <code>:=</code>.  A <code>Txn</code> may be bound with a <code>Ref</code>,
- *  the resulting <code>Ref.Bound</code> instance does not need access to the
+ *  available), reads and writes of a `Ref x` are performed with either `x.get`
+ *  and `x.set(v)`, or with `x()` and `x := v`.  A `Txn` may be bound with a
+ *  `Ref`, the resulting `Ref.Bound` instance does not need access to the
  *  implicit transaction, so it may be more convenient when passing refs to a
  *  method.  The bound instance is only valid for the duration of the
  *  transaction.
@@ -322,7 +323,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
 
   //////////////// Source stuff
 
-  def unary_!(implicit txn: Txn): T = get
+  def apply()(implicit txn: Txn): T = get
   def get(implicit txn: Txn): T = txn.get(handle)
   def map[Z](f: (T) => Z)(implicit txn: Txn): Z = txn.map(handle, f)
 

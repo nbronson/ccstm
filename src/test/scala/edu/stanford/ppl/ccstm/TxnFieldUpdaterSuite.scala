@@ -36,9 +36,9 @@ class TxnFieldUpdaterSuite extends STMFunSuite {
     val r = new TFUSObj
     new Atomic { def body {
       assert(IField(r).get === 0)
-      assert(!IField(r) === 0)
+      assert(IField(r)() === 0)
       assert(SField(r).get === "abc")
-      assert(!SField(r) === "abc")
+      assert(SField(r)() === "abc")
 
       IField(r).set(1)
       assert(IField(r).get === 1)

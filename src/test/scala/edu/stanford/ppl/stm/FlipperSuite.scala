@@ -209,7 +209,7 @@ class FlipperSuite extends STMFunSuite {
         new FlipperTask(config, A, P, false, thread, sync) {
           implicit var txn: Txn = null
 
-          def read[T](ref: Ref[T]): T = !ref
+          def read[T](ref: Ref[T]): T = ref()
           def write[T](ref: Ref[T], v: T) { ref := v }
           def doWork(task: => Unit) {
             new Atomic { def body {

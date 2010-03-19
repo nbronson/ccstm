@@ -87,7 +87,7 @@ object TSPAnts {
   val pheromones = Map.empty[Edge,Ref[Double]] ++ (for (e <- edges.toList) yield (e -> Ref(InitP)))
 
   def prob(edge: Edge)(implicit txn: Txn) = {
-    Math.pow(!pheromones(edge), PFactor) * Math.pow(1.0 / distances(edge), DFactor)
+    Math.pow(pheromones(edge)(), PFactor) * Math.pow(1.0 / distances(edge), DFactor)
   }
 
   val probs = Map.empty[Edge,Ref[Double]] ++ (for (e <- edges.toList) yield (e -> Ref(STM.atomic(prob(e)(_)))))
@@ -173,7 +173,7 @@ object TSPAnts {
       // are we the new best?
       if (len < bestLength.nonTxn.get) {
         new Atomic { def body {
-          if (len < !bestLength) {
+          if (len < bestLength()) {
             bestLength := len
             bestTour := t
           }

@@ -35,7 +35,7 @@ object TxnFieldUpdater {
     private val offset = TxnFieldUpdater.getOffset(m.erasure, fieldName)
 
     private[ccstm] def applyImpl[X,Y,Z](instance: InstanceImpl[X,Y,Z]): Ref[ValueImpl[X,Y,Z]] =
-        new Ref[ValueImpl[X,Y,Z]] with Handle[ValueImpl[X,Y,Z]] {
+        new Handle[ValueImpl[X,Y,Z]] with Ref[ValueImpl[X,Y,Z]] {
       protected def handle: Handle[ValueImpl[X,Y,Z]] = this
 
       private[ccstm] def meta: Long = instance.meta
