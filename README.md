@@ -8,7 +8,5 @@ might start with the Scala Days 2010 Workshop paper:
 If you are navigating in the code the most important interfaces are the Ref
 trait and the STM object
 
-* [src/main/scala/edu/stanford/ppl/ccstm/Ref.scala](http://github.com/nbronson/ccstm/blob/master/src/main/scala/edu/stanford/ppl/ccstm/Ref.scala)
-* [src/main/scala/edu/stanford/ppl/ccstm/STM.scala](src/main/scala/edu/stanford/ppl/ccstm/STM.scala)
-* [src/main/scala/edu/stanford/ppl/ccstm/Ref.scala](http://github.com/nbronson/ccstm/blob/master/src/main/scala/edu/stanford/ppl/ccstm/Ref.scala)
-* [src/main/scala/edu/stanford/ppl/ccstm/STM.scala](src/main/scala/edu/stanford/ppl/ccstm/STM.scala)
+* [src/main/scala/edu/stanford/ppl/ccstm/Ref.scala](ccstm/blob/master/src/main/scala/edu/stanford/ppl/ccstm/Ref.scala)
+* [src/main/scala/edu/stanford/ppl/ccstm/STM.scala](ccstm/blob/master/src/main/scala/edu/stanford/ppl/ccstm/STM.scala)
