@@ -80,16 +80,15 @@ premature optimization using relaxed isolation.
 The main disadvantage that we have observed is that code composability is
 hindered by the escape actions semantics of \code{nonTxn}.  The advanced
 \type{Ref.Bound} operations such as \code{transform} and \code{getAndSet}
-(Section~\ref{sec:advanced}) allow some small transactions to be rewritten
-as a single operation, but this changes the semantics if there is an
-active transaction.  This is similar to the problem that led us to use
-dynamic scoping for nesting (Section~\ref{sec:hybrid}), but with less
-possibility to amortize the costs of the required \type{ThreadLocal}
-lookup.
-We may add a third binding mechanism that requests a transactional
-binding (like \type{Ref}\code{.bind}) if a dynamic lookup finds an active
-transaction or a non-transactional binding (like \type{Ref}\code{.nonTxn})
-if none is found.
+(Section~\ref{sec:advanced}) allow some small transactions to be
+rewritten as a single operation, but this changes the semantics if
+there is an active transaction.  This is similar to the problem that
+led us to use dynamic scoping for nesting (Section~\ref{sec:hybrid}),
+but with less possibility to amortize the costs of the required
+\type{ThreadLocal} lookup.  We may add a third binding mechanism that
+requests a transactional binding (like \type{Ref}\code{.bind}) if a
+dynamic lookup finds an active transaction or a non-transactional binding
+(like \type{Ref}\code{.nonTxn}) if none is found.
 
 \subsection{Partial rollback of nested transactions}
 
@@ -101,67 +100,6 @@ for partial rollback are for the life cycle callbacks, which must be
 extended to allow notification of the commit or rollback of a nested
 context prior to the completion of the top level transaction.
 
-\color{green}
-\subsection{Nested transactions}
+\subsection{Collection classes}
 
-CCSTM currently does not support nested atomic blocks, an important
-omission.  A larger problem, though, is that the static scoping
-of transactions would make composing such blocks difficult.  If a
-method \code{m} needs a transaction internally, should it add an
-\keyword{implicit} \type{Txn} parameter?  If it doesn't, then it
-cannot be composed.  If it does, then the caller must always provide
-an atomic block.  If the programmer wishes to provide both a simple
-and a composable version of the method then he must come up with
-two names.
 
-The need for two versions of \code{m} parallels the transactional and
-non-transactional access to a \type{Ref}, which was resolved there by the
-\type{Ref} $\leftrightarrow$ \type{Ref.Bound} correspondence.  Rather than
-coming up with two method names, the same method name can be used in
-two classes.  \type{Ref}\code{.nonTxn} and \type{Ref.Bound}\code{.unbind}
-convert from an instance suitable for one context to the other.  While it
-may be tolerable to manage these parallel classes in the library itself,
-it seems burdensome to ask the programmer to perform a similar task.
-
-A possible solution is to provide dynamic scoping for the declaration
-of atomic blocks, but static scoping for barriers.  Because nested
-transactions are likely to be less common than barriers, there is less
-performance motivation for avoiding the thread-local lookup.
-
-It seems dangerous to mix static and dynamic scoping, but we notice that
-for all but the most subtle uses, the static and dynamic scopes should be
-identical.  This means that we can provide an execution mode that checks
-the
-static scopes against the dynamic ones, and triggers an exception 
-if they don't match.  This checking mode would be slower on a per-barrier
-basis, so like asserts it might be disabled during production use.
-
-For applications that don't spend a large portion of their time in barriers, we
-should also consider providing full dynamic scoping for transactions.
-Interestingly, this could be enabled in a per-module fashion by providing an
-implicit function that performs the required thread-local lookup.  The result
-might look like:
-\lstset{numbers=none}
-\begin{lstlisting}
-class Account ... {
-  import STM.dynamic
-
-  def deposit(amount: Money) {
-    assert(amount >= 0)
-    _balance := _balance() + amount
-  }
-}
-\end{lstlisting}
-\lstset{numbers=left}
-If \code{deposit} were executed outside a transaction a runtime error would be
-generated, rather than the compile-time error produced by the existing CCSTM.
-
-Future: Partial rollback
-
-Future: Collections
-
-Future: Plugin
-
-Future: @specialized
-
-\color{black}
