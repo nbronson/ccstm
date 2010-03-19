@@ -132,7 +132,7 @@ be available.
 CCSTM provides several mechanisms for reducing transaction conflicts with
 semantic conflict detection.  A sophisticated user can combine the
 \code{releasableRead} or \code{unrecordedRead} primitive (Section~\ref{sec:unrecordedread}) with
-lifecycle callbacks to manually implement their own conflict detection.
+life cycle callbacks to manually implement their own conflict detection.
 For simple cases, \type{Ref}\code{.map} (Section~\ref{sec:map})
 makes it trivial to use Abstract Nested Transactions (ANTs) to avoid
 rollback~\cite{harris07abstract}.  For the special case of contention

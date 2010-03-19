@@ -36,7 +36,7 @@ found ourself often reverting to the more verbose forms \code{(x.get ==
 safely occur at the end of the line, which allows it to be placed after
 the expression that produces the \type{Ref} to read.  This means that
 it chains properly in complex operations.  We initially avoided using
-\code{apply()} for read barriers, because inclusion of optional parenthses
+\code{apply()} for read barriers, because inclusion of optional parentheses
 on a method call is often used in Scala to draw attention to side effects.
 We decided that using \code{()} in read barriers was warranted, however;
 although read barriers don't perform any visible mutation, their access

@@ -80,7 +80,7 @@ outperforms CCSTM, so long as each thread gets its own hardware context.
 This is because Deuce STM uses busy-waiting, which avoids context switches
 for blocked threads.  At thread counts 32 and 64, however, threads must
 share processing resources and this strategy results in a catastrophic
-performance dropoff.  Multiverse uses an exponential backoff algorithm
+performance drop off.  Multiverse uses an exponential back off algorithm
 using \code{Thread.sleep}.  This approach handles high multithreading
 levels better than busy-waiting, but results in extra context switches as
 threads awake to recheck their blocking condition.  Sleeping works very well
