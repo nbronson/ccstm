@@ -88,16 +88,30 @@ class TArray[T](private val _data: AtomicArray[T], metaMapping: TArray.MetaMappi
     }
   }
 
-  def nonTxn: Bound[T] = new Bound[T] {
+  def single: Bound[T] = new Bound[T] {
     def unbind = TArray.this
-    def context = None
-    def apply(index: Int): T = getRef(index).nonTxn.get
-    def update(index: Int, v: T) = getRef(index).nonTxn.set(v)
+    def context = Txn.current
+    def apply(index: Int): T = getRef(index).single.get
+    def update(index: Int, v: T) = getRef(index).single.set(v)
     def refs: immutable.IndexedSeq[Ref.Bound[T]] = new immutable.IndexedSeq[Ref.Bound[T]] {
       def length = unbind.length
-      def apply(index: Int) = getRef(index).nonTxn
+      def apply(index: Int) = getRef(index).single
     }
   }
+
+  def escaped: Bound[T] = new Bound[T] {
+    def unbind = TArray.this
+    def context = None
+    def apply(index: Int): T = getRef(index).escaped.get
+    def update(index: Int, v: T) = getRef(index).escaped.set(v)
+    def refs: immutable.IndexedSeq[Ref.Bound[T]] = new immutable.IndexedSeq[Ref.Bound[T]] {
+      def length = unbind.length
+      def apply(index: Int) = getRef(index).escaped
+    }
+  }
+
+  @deprecated("consider replacing with TArray.single")
+  def nonTxn = escaped
 
   def refs: immutable.IndexedSeq[Ref[T]] = new immutable.IndexedSeq[Ref[T]] {
     def length: Int = TArray.this.length
