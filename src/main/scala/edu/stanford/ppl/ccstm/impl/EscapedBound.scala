@@ -10,7 +10,7 @@ import edu.stanford.ppl.ccstm._
 private[ccstm] class EscapedBound[T](val unbind: Ref[T],
                                     protected val handle: Handle[T]) extends Ref.Bound[T] {
 
-  def context: Binding = Escaped
+  def mode: BindingMode = Escaped
 
   def get: T = NonTxn.get(handle)
   def map[Z](f: (T) => Z): Z = f(NonTxn.get(handle))

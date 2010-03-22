@@ -376,7 +376,7 @@ class IsolatedRefSuite extends STMFunSuite {
     test(fact + ": " + binder + ": txn unrecordedRead/write mix") {
       val x = fact(1)
       val b = binder(x)
-      if (b.context.isInstanceOf[Txn]) {
+      if (b.mode.isInstanceOf[Txn]) {
         val u1 = b.unrecordedRead
         b := 2
         val u2 = b.unrecordedRead

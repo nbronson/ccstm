@@ -9,15 +9,15 @@ import impl.ThreadContext
 /** One of `Single`, `Escaped`, or an instance of `Txn`
  *  @see edu.stanford.ppl.ccstm.Ref.Bound#context
  */
-sealed trait Binding {
+sealed trait BindingMode {
   //def dynContext: Option[Txn]
 }
 
-object Single extends Binding {
+object Single extends BindingMode {
   //def dynContext: Option[Txn] = Txn.current
 }
 
-object Escaped extends Binding {
+object Escaped extends BindingMode {
   //def dynContext: Option[Txn] = None
 }
 
@@ -460,7 +460,7 @@ object Txn {
  *  @author Nathan Bronson
  */
 final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: ThreadContext
-        ) extends impl.TxnImpl(failureHistory, ctx) with MaybeTxn with Binding {
+        ) extends impl.TxnImpl(failureHistory, ctx) with MaybeTxn with BindingMode {
   import Txn._
 
   /** An instance representing a single execution attempt for a single atomic

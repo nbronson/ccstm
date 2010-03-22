@@ -10,7 +10,7 @@ private[ccstm] class SingleBound[T](val unbind: Ref[T],
                                     nonTxnHandle: Handle[T],
                                     txnHandle: Handle[T]) extends Ref.Bound[T] {
 
-  def context: Binding = Single
+  def mode: BindingMode = Single
   
   def get: T = Txn.dynCurrentOrNull match {
     case null => NonTxn.get(nonTxnHandle)

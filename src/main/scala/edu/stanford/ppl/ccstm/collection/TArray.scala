@@ -29,7 +29,7 @@ object TArray {
   
   trait Bound[T] extends mutable.IndexedSeq[T] {
     def unbind: TArray[T]
-    def context: Option[Txn]
+    def mode: BindingMode
     def length: Int = unbind.length
     def apply(index: Int): T
     def update(index: Int, v: T)
@@ -79,7 +79,7 @@ class TArray[T](private val _data: AtomicArray[T], metaMapping: TArray.MetaMappi
 
   def bind(implicit txn: Txn): Bound[T] = new Bound[T] {
     def unbind = TArray.this
-    def context = Some(txn)
+    def mode: BindingMode = txn
     def apply(index: Int): T = getRef(index).get
     def update(index: Int, v: T) = getRef(index).set(v)
     def refs: immutable.IndexedSeq[Ref.Bound[T]] = new immutable.IndexedSeq[Ref.Bound[T]] {
@@ -90,7 +90,7 @@ class TArray[T](private val _data: AtomicArray[T], metaMapping: TArray.MetaMappi
 
   def single: Bound[T] = new Bound[T] {
     def unbind = TArray.this
-    def context = Txn.current
+    def mode: BindingMode = Single
     def apply(index: Int): T = getRef(index).single.get
     def update(index: Int, v: T) = getRef(index).single.set(v)
     def refs: immutable.IndexedSeq[Ref.Bound[T]] = new immutable.IndexedSeq[Ref.Bound[T]] {
@@ -101,7 +101,7 @@ class TArray[T](private val _data: AtomicArray[T], metaMapping: TArray.MetaMappi
 
   def escaped: Bound[T] = new Bound[T] {
     def unbind = TArray.this
-    def context = None
+    def mode: BindingMode = Escaped
     def apply(index: Int): T = getRef(index).escaped.get
     def update(index: Int, v: T) = getRef(index).escaped.set(v)
     def refs: immutable.IndexedSeq[Ref.Bound[T]] = new immutable.IndexedSeq[Ref.Bound[T]] {

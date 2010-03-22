@@ -56,7 +56,7 @@ object LazyConflictIntRef {
 
     private var _updaterRegistered = false
 
-    def context: Binding = txn
+    def mode: BindingMode = txn
 
     //////////////// Source
 

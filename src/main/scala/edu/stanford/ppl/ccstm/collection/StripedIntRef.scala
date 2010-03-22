@@ -28,7 +28,7 @@ class StripedIntRef(initialValue: Int) extends IntRef {
 
   override def escaped: Bound = new IntRef.Bound {
     def unbind = StripedIntRef.this
-    def context: Binding = Escaped
+    def mode: BindingMode = Escaped
 
     def get: Int = STM.atomic(unbind.get(_))
 
@@ -89,7 +89,7 @@ class StripedIntRef(initialValue: Int) extends IntRef {
 
   override def bind(implicit txn: Txn): Bound = new IntRef.Bound {
     def unbind = StripedIntRef.this
-    def context: Binding = txn
+    def mode: BindingMode = txn
 
     def get: Int = {
       unbind.get

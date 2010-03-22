@@ -102,7 +102,7 @@ object Ref {
      *  if any.  Equivalent to <code>get</code> when called from a
      *  non-transactional context.
      *  @return the current value of the bound <code>Ref</code>, as observed by
-     *      the binding context.
+     *      the mode context.
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
      */
@@ -112,7 +112,7 @@ object Ref {
      *  atomic swap, equivalent to atomically performing a <code>get</code>
      *  followed by <code>set(v)</code>.
      *  @return the previous value of the bound <code>Ref</code>, as observed
-     *      by the binding context.
+     *      by the mode context.
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
      */
@@ -214,14 +214,14 @@ object Ref {
     def transformIfDefined(pf: PartialFunction[T,T]): Boolean
 
     override def equals(rhs: Any) = rhs match {
-      case b: Bound[_] => (context == b.context) && (unbind == b.unbind)
+      case b: Bound[_] => (mode == b.mode) && (unbind == b.unbind)
       case _ => false
     }
 
-    override def hashCode: Int = (context.hashCode * 137) ^ unbind.hashCode ^ 101
+    override def hashCode: Int = (mode.hashCode * 137) ^ unbind.hashCode ^ 101
 
     override def toString: String = {
-      "Bound(" + unbind + ", " + context + " => " + get + ")"
+      "Bound(" + unbind + ", " + mode + " => " + get + ")"
     }
   }
 }
@@ -336,7 +336,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
    */
   def source: Source[T] = this
 
-  //////////////// Binding
+  //////////////// BindingMode
 
   /** Returns a reference view that does not require an implicit
    *  <code>Txn</code> parameter on each method call, but instead always
@@ -382,14 +382,14 @@ trait Ref[T] extends Source[T] with Sink[T] {
   }
 
   override def equals(rhs: Any): Boolean = {
-    rhs match {
+    (this eq rhs.asInstanceOf[AnyRef]) || (rhs match {
       case r: Ref[_] => {
         val h1 = handle
         val h2 = r.handle
         (h1.ref eq h2.ref) && (h1.offset == h2.offset)
       }
       case _ => false
-    }
+    })
   }
 
   override def toString: String = {
