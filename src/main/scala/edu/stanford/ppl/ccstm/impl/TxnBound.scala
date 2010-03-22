@@ -11,7 +11,7 @@ private[ccstm] class TxnBound[T](val unbind: Ref[T],
                                  protected val handle: impl.Handle[T],
                                  txn: Txn) extends Ref.Bound[T] {
 
-  def context: Option[Txn] = Some(txn)
+  def context: Binding = txn
 
   def get: T = txn.get(handle)
   def map[Z](f: (T) => Z): Z = txn.map(handle, f)

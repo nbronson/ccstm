@@ -221,8 +221,7 @@ object Ref {
     override def hashCode: Int = (context.hashCode * 137) ^ unbind.hashCode ^ 101
 
     override def toString: String = {
-      val c = (context match { case Some(t) => t.toString; case None => "nonTxn" }) 
-      "Bound(" + unbind + ", " + c + " => " + get + ")"
+      "Bound(" + unbind + ", " + context + " => " + get + ")"
     }
   }
 }
@@ -361,7 +360,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *  @return a view into the value of this <code>Ref</code>, that will perform
    *      each operation as if in its own transaction.
    */
-  def single: Ref.Bound[T] = new impl.DynBound(this, nonTxnHandle, handle)
+  def single: Ref.Bound[T] = new impl.SingleBound(this, nonTxnHandle, handle)
 
   /** Returns a view that can be used to perform individual reads and writes to
    *  this reference outside any transactional context, regardless of whether a
@@ -372,7 +371,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *  @return a view into the value of this <code>Ref</code>, that will bypass
    *      any active transaction.
    */
-  def escaped: Ref.Bound[T] = new impl.NonTxnBound(this, nonTxnHandle)
+  def escaped: Ref.Bound[T] = new impl.EscapedBound(this, nonTxnHandle)
 
   @deprecated("consider replacing with Ref.single, otherwise use Ref.escaped")
   def nonTxn: Ref.Bound[T] = escaped

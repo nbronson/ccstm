@@ -24,10 +24,11 @@ class StripedIntRef(initialValue: Int) extends IntRef {
 
   protected def handle: Handle[Int] = throw new UnsupportedOperationException
 
+  // TODO: add single version
 
-  override def nonTxn: Bound = new IntRef.Bound {
+  override def escaped: Bound = new IntRef.Bound {
     def unbind = StripedIntRef.this
-    def context: Option[Txn] = None
+    def context: Binding = Escaped
 
     def get: Int = STM.atomic(unbind.get(_))
 
@@ -88,7 +89,7 @@ class StripedIntRef(initialValue: Int) extends IntRef {
 
   override def bind(implicit txn: Txn): Bound = new IntRef.Bound {
     def unbind = StripedIntRef.this
-    def context: Option[Txn] = Some(txn)
+    def context: Binding = txn
 
     def get: Int = {
       unbind.get

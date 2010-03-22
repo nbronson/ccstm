@@ -50,11 +50,16 @@ trait IntRef extends Ref[Int] {
     override val unbind: IntRef = IntRef.this
   }
 
-  override def nonTxn: IntRef.Bound = new impl.NonTxnBound(this, nonTxnHandle) with IntRef.Bound {
+  // TODO: add single version
+
+  override def escaped: IntRef.Bound = new impl.EscapedBound(this, nonTxnHandle) with IntRef.Bound {
     override val unbind: IntRef = IntRef.this
 
     override def += (delta: Int): Unit = NonTxn.getAndAdd(handle, delta)
   }
+
+  @deprecated("consider replacing with Ref.single, otherwise use Ref.escaped")
+  override def nonTxn: IntRef.Bound = escaped 
 
   //////////////// convenience functions for ints
 

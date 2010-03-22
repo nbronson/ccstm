@@ -23,11 +23,13 @@ object Sink {
      */
     def unbind: Sink[T]
 
-    /** Returns <code>Some(txn)</code> if this view is bound to a transaction
-     *  <code>txn</code>, <code>None</code> if it is bound to the
-     *  non-transactional context.
+    /** Returns the `Binding` instance that describes how this bound view was
+     *  created.
+     *  @see edu.stanford.ppl.ccstm.Single
+     *  @see edu.stanford.ppl.ccstm.Escaped
+     *  @see edu.stanford.ppl.ccstm.Txn
      */
-    def context: Option[Txn]
+    def context: Binding
 
     /** Writes to the bound <code>Ref</code>, equivalent to <code>set</code>.
      *  @see edu.stanford.ppl.ccstm.Sink.Bound#set

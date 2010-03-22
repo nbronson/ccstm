@@ -56,7 +56,7 @@ object LazyConflictIntRef {
 
     private var _updaterRegistered = false
 
-    def context: Option[Txn] = Some(txn)
+    def context: Binding = txn
 
     //////////////// Source
 

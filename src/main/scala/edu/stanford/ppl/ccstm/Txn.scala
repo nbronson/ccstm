@@ -6,6 +6,21 @@ package edu.stanford.ppl.ccstm
 
 import impl.ThreadContext
 
+/** One of `Single`, `Escaped`, or an instance of `Txn`
+ *  @see edu.stanford.ppl.ccstm.Ref.Bound#context
+ */
+sealed trait Binding {
+  //def dynContext: Option[Txn]
+}
+
+object Single extends Binding {
+  //def dynContext: Option[Txn] = Txn.current
+}
+
+object Escaped extends Binding {
+  //def dynContext: Option[Txn] = None
+}
+
 object Txn {
 
   val EnableCounters = "1tTyY" contains (System.getProperty("ccstm.counters", "") + "0").charAt(0)
@@ -444,7 +459,8 @@ object Txn {
  *
  *  @author Nathan Bronson
  */
-final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: ThreadContext) extends impl.TxnImpl(failureHistory, ctx) with MaybeTxn {
+final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: ThreadContext
+        ) extends impl.TxnImpl(failureHistory, ctx) with MaybeTxn with Binding {
   import Txn._
 
   /** An instance representing a single execution attempt for a single atomic
@@ -477,6 +493,8 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
   /** Values of <code>TxnLocal</code>s for this transaction, created lazily. */
   private[ccstm] var locals: java.util.IdentityHashMap[TxnLocal[_],Any] = null
 
+
+  //def dynContext: Option[Txn] = Some(this)
   
   def status: Status = _status
 

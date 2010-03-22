@@ -1,16 +1,16 @@
 /* CCSTM - (c) 2009-2010 Stanford University - PPL */
 
-// DynBound
+// SingleBound
 
 package edu.stanford.ppl.ccstm.impl
 
 import edu.stanford.ppl.ccstm._
 
-private[ccstm] class DynBound[T](val unbind: Ref[T],
-                                 nonTxnHandle: Handle[T],
-                                 txnHandle: Handle[T]) extends Ref.Bound[T] {
+private[ccstm] class SingleBound[T](val unbind: Ref[T],
+                                    nonTxnHandle: Handle[T],
+                                    txnHandle: Handle[T]) extends Ref.Bound[T] {
 
-  def context: Option[Txn] = Txn.current
+  def context: Binding = Single
   
   def get: T = Txn.dynCurrentOrNull match {
     case null => NonTxn.get(nonTxnHandle)

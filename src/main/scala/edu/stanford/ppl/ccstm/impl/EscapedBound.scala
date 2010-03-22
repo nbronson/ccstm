@@ -1,16 +1,16 @@
 /* CCSTM - (c) 2009-2010 Stanford University - PPL */
 
-// NonTxnBound
+// EscapedBound
 
 package edu.stanford.ppl.ccstm.impl
 
 
 import edu.stanford.ppl.ccstm._
 
-private[ccstm] class NonTxnBound[T](val unbind: Ref[T],
+private[ccstm] class EscapedBound[T](val unbind: Ref[T],
                                     protected val handle: Handle[T]) extends Ref.Bound[T] {
 
-  def context: Option[Txn] = None
+  def context: Binding = Escaped
 
   def get: T = NonTxn.get(handle)
   def map[Z](f: (T) => Z): Z = f(NonTxn.get(handle))
