@@ -299,7 +299,8 @@ class StripedIntRef(initialValue: Int) extends IntRef {
   }
 
   override def transform(f: Int => Int)(implicit txn: Txn) {
-    set(f(get))
+    val x = get
+    this += f(x) - x
   }
 
   override def transformIfDefined(pf: PartialFunction[Int,Int])(implicit txn: Txn): Boolean = {
@@ -307,7 +308,7 @@ class StripedIntRef(initialValue: Int) extends IntRef {
     if (!pf.isDefinedAt(x)) {
       false
     } else {
-      set(pf(x))
+      this += pf(x) - x
       true
     }
   }
