@@ -74,18 +74,18 @@ class TxnSlotManagerSuite extends FunSuite {
       val txn = Thread.currentThread.getName
       for (p <- 0 until 10) {
         var i = 0
-        val t0 = System.currentTimeMillis
+        val t0 = System.nanoTime
         var s = 0
         while (i < count) {
           s = mgr.assign(txn, s)
           i += 1
           mgr.release(s)
         }
-        val elapsed = System.currentTimeMillis - t0
+        val elapsed = System.nanoTime - t0
         bests(t) = bests(t) min elapsed
       }
     }
     val best = bests(0) min bests(1)
-    println("best latency for " + count + " assign+release was " + best + " millis")
+    println("best latency for " + count + " assign+release pairs was " + (best / count) + " nanos/pair")
   }
 }

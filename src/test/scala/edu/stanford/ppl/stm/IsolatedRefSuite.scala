@@ -20,78 +20,52 @@ class IsolatedRefSuite extends STMFunSuite {
    *  from a Ref.  The bound views may be reused, or not, and they may be
    *  non-transactional or transactional.
    */
-  sealed trait Binder {
-    def apply[T](v: Ref[T]): Ref.Bound[T]
-    def reset() {}
-  }
-
-  case object FreshNonTxn extends Binder {
-    def apply[T](v: Ref[T]) = v.nonTxn
-  }
-
-  case object ReuseNonTxn extends Binder {
+  class Binder(reuse: Boolean, txnLen: Int, single: Boolean) {
     private val cache = new IdentityHashMap[Ref[_],Ref.Bound[_]]
+    private var txn: Txn = null
+    private var accesses = 0
 
-    def apply[T](v: Ref[T]) = {
-      var z = cache.get(v)
-      if (null == z) {
-        z = v.nonTxn
-        cache.put(v, z)
+    def apply[T](v: Ref[T]): Ref.Bound[T] = {
+      if (txnLen > 0) {
+        if (accesses == txnLen) reset()
+        accesses += 1
+        if (null == txn) txn = new Txn
       }
-      z.asInstanceOf[Ref.Bound[T]]
-    }
-  }
-
-  case class FreshTxn(txnLen: Int) extends Binder {
-    var txn: Txn = null
-    var accesses = 0
-
-    def apply[T](v: Ref[T]) = {
-      if (accesses == txnLen) reset()
-      accesses += 1
-      if (null == txn) txn = new Txn
-      v.bind(txn)
-    }
-
-    override def reset() {
-      if (null != txn) {
-        val s = txn.commit()
-        assert(s === Txn.Committed)
-        txn = null
-        accesses = 0
+      if (reuse) {
+        val z = cache.get(v)
+        if (null != z) return z.asInstanceOf[Ref.Bound[T]]
       }
-    }
-  }
-
-  case class ReuseTxn(txnLen: Int) extends Binder {
-    private val cache = new IdentityHashMap[Ref[_],Ref.Bound[_]]
-    var txn: Txn = null
-    var accesses = 0
-
-    def apply[T](v: Ref[T]) = {
-      if (accesses == txnLen) reset()
-      accesses += 1
-      if (null == txn) txn = new Txn
-      if (cache.containsKey(v)) {
-        cache.get(v).asInstanceOf[Ref.Bound[T]]
+      val z = (if (single) {
+        v.single
+      } else if (txnLen > 0) {
+        v.bind(txn)
       } else {
-        val z = v.bind(txn)
-        cache.put(v, z)
-        z
-      }
+        v.escaped
+      })
+      if (reuse) cache.put(v, z)
+      z
     }
 
-    override def reset() {
+    def reset() {
       if (null != txn) {
         val s = txn.commit()
         assert(s === Txn.Committed)
         txn = null
         accesses = 0
       }
-      cache.clear
+      if (reuse) cache.clear
     }
   }
 
+  case object FreshEscaped extends Binder(false, 0, false)
+  case object FreshSingleNonTxn extends Binder(false, 0, true)
+  case class FreshSingleTxn(txnLen: Int) extends Binder(false, txnLen, true)
+  case class FreshTxn(txnLen: Int) extends Binder(false, txnLen, false)
+
+  case object ReuseEscaped extends Binder(true, 0, false)
+  case object ReuseSingleNonTxn extends Binder(true, 0, true)
+  case class ReuseSingleTxn(txnLen: Int) extends Binder(true, txnLen, true)
+  case class ReuseTxn(txnLen: Int) extends Binder(true, txnLen, false)
 
   sealed trait IntRefFactory {
     def apply(initialValue: Int): Ref[Int]
@@ -116,7 +90,12 @@ class IsolatedRefSuite extends STMFunSuite {
   }
 
 
-  val binders = List(FreshNonTxn, ReuseNonTxn, FreshTxn(1), ReuseTxn(1), FreshTxn(2), ReuseTxn(2), FreshTxn(8), ReuseTxn(8), FreshTxn(1000), ReuseTxn(1000))
+  val binders = List(
+    FreshEscaped, FreshSingleNonTxn, FreshSingleTxn(1), FreshTxn(1),
+    FreshSingleTxn(2), FreshTxn(2), FreshSingleTxn(8), FreshTxn(8),
+    FreshSingleTxn(1000), FreshTxn(1000), ReuseEscaped, ReuseSingleNonTxn,
+    ReuseSingleTxn(1), ReuseTxn(1), ReuseSingleTxn(2), ReuseTxn(2),
+    ReuseSingleTxn(8), ReuseTxn(8), ReuseSingleTxn(1000), ReuseTxn(1000))
   val factories = List(TAnyRefFactory, TIntRefFactory, LazyConflictIntRefFactory, StripedIntRefFactory)
   for (f <- factories; b <- binders) createTests(b, f)
 
@@ -129,44 +108,53 @@ class IsolatedRefSuite extends STMFunSuite {
       binder.reset()
     }
 
-    test(fact + ": " + binder + ": transform(_+1) should be fast", ExhaustiveTest) {
-      runIncrTest((x: Ref[Int]) => {
-        var i = 0
-        while (i < 10) {
-          i += 1
-          binder(x).transform(_ + 1)
-        }
-      })
-    }
-
-    test(fact + ": " + binder + ": x:=!x+1 should be fast", ExhaustiveTest) {
-      runIncrTest((x: Ref[Int]) => {
-        var i = 0
-        while (i < 10) {
-          i += 1
-          val v = binder(x)()
-          binder(x) := v + 1
-        }
-      })
-    }
-
-    def runIncrTest(incrTenTimes: Ref[Int] => Unit) {
-      val x = fact(1)
-      var best = java.lang.Long.MAX_VALUE
-      for (pass <- 0 until 100000) {
-        val begin = System.nanoTime
-        incrTenTimes(x)
-        val elapsed = System.nanoTime - begin
-        best = best min elapsed
+    runIncrTest(fact + ": " + binder + ": transform(_+1)") { x =>
+      var i = 0
+      while (i < 10) {
+        i += 1
+        binder(x).transform(_ + 1)
       }
-      assert(binder(x).get === 1000001)
-      println("best was " + (best / 10.0) + " nanos/call")
+    }
 
-      // We should be able to get less than 5000 nanos, even on a Niagara.
-      // On most platforms we should be able to do much better than this.
-      // The exception is StripedIntRef, which has relatively expensive reads.
-      assert(best / 10 < 5000 * fact.incrLimitFactor)
-      binder.reset()
+    runIncrTest(fact + ": " + binder + ": x:=!x+1") { x =>
+      var i = 0
+      while (i < 10) {
+        i += 1
+        val v = binder(x)()
+        binder(x) := v + 1
+      }
+    }
+
+    if (fact(1).isInstanceOf[IntRef]) {
+      runIncrTest(fact + ": " + binder + ": x+=1") { x =>
+        var i = 0
+        while (i < 10) {
+          i += 1
+          val b = binder(x)
+          b.asInstanceOf[IntRef.Bound] += 1
+        }
+      }
+    }
+
+    def runIncrTest(name: String)(incrTenTimes: Ref[Int] => Unit) {
+      test(name + " should be fast", ExhaustiveTest) {
+        val x = fact(1)
+        var best = java.lang.Long.MAX_VALUE
+        for (pass <- 0 until 10000) {
+          val begin = System.nanoTime
+          incrTenTimes(x)
+          val elapsed = System.nanoTime - begin
+          best = best min elapsed
+        }
+        assert(binder(x).get === 100001)
+        println(name + ": best was " + (best / 10.0) + " nanos/call")
+
+        // We should be able to get less than 5000 nanos, even on a Niagara.
+        // On most platforms we should be able to do much better than this.
+        // The exception is StripedIntRef, which has relatively expensive reads.
+        assert(best / 10 < 5000 * fact.incrLimitFactor)
+        binder.reset()
+      }
     }
   
     test(fact + ": " + binder + ": map") {

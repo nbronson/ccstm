@@ -5,7 +5,7 @@
 package edu.stanford.ppl.ccstm.collection
 
 import edu.stanford.ppl.ccstm._
-
+import impl.{NonTxn, SingleProxyBound}
 
 object LazyConflictIntRef {
   
@@ -307,6 +307,19 @@ class LazyConflictIntRef(initialValue: Int) extends IntRef {
   }
 
   override def bind(implicit txn: Txn): IntRef.Bound = bound.get
+
+  override def single: IntRef.Bound = new SingleProxyBound(this) with IntRef.Bound {
+    override def unbind: IntRef = LazyConflictIntRef.this
+    
+    override def += (delta: Int) {
+      if (delta != 0) {
+        Txn.dynCurrentOrNull match {
+          case null => NonTxn.getAndAdd(nonTxnHandle, delta)
+          case txn: Txn => unbind.bind(txn) += delta
+        }
+      }
+    }
+  }
 
   //////////////// txn int functions forward to bound versions
 

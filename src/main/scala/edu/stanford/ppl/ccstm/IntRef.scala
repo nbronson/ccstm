@@ -50,7 +50,16 @@ trait IntRef extends Ref[Int] {
     override val unbind: IntRef = IntRef.this
   }
 
-  // TODO: add single version
+  override def single: IntRef.Bound = new impl.SingleBound(this, nonTxnHandle, handle) with IntRef.Bound {
+    override val unbind: IntRef = IntRef.this
+
+    override def += (delta: Int) {
+      Txn.dynCurrentOrNull match {
+        case null => NonTxn.getAndAdd(nonTxnHandle, delta)
+        case txn: Txn => txn.getAndTransform(txnHandle, { (i: Int) => i + delta })
+      }
+    }
+  }
 
   override def escaped: IntRef.Bound = new impl.EscapedBound(this, nonTxnHandle) with IntRef.Bound {
     override val unbind: IntRef = IntRef.this

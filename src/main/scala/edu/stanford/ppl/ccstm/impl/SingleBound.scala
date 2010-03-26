@@ -7,8 +7,8 @@ package edu.stanford.ppl.ccstm.impl
 import edu.stanford.ppl.ccstm._
 
 private[ccstm] class SingleBound[T](val unbind: Ref[T],
-                                    nonTxnHandle: Handle[T],
-                                    txnHandle: Handle[T]) extends Ref.Bound[T] {
+                                    val nonTxnHandle: Handle[T],
+                                    val txnHandle: Handle[T]) extends Ref.Bound[T] {
 
   def mode: BindingMode = Single
   

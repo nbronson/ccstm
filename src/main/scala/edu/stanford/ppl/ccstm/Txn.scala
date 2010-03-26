@@ -15,10 +15,12 @@ sealed trait BindingMode {
 
 object Single extends BindingMode {
   //def dynContext: Option[Txn] = Txn.current
+  override def toString = "Single"
 }
 
 object Escaped extends BindingMode {
   //def dynContext: Option[Txn] = None
+  override def toString = "Escaped"
 }
 
 object Txn {

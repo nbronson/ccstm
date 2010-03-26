@@ -8,7 +8,7 @@ package edu.stanford.ppl.ccstm.impl
 import edu.stanford.ppl.ccstm._
 
 private[ccstm] class EscapedBound[T](val unbind: Ref[T],
-                                    protected val handle: Handle[T]) extends Ref.Bound[T] {
+                                     protected val handle: Handle[T]) extends Ref.Bound[T] {
 
   def mode: BindingMode = Escaped
 

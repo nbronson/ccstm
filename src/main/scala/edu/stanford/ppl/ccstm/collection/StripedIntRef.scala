@@ -4,9 +4,8 @@
 
 package edu.stanford.ppl.ccstm.collection
 
-import edu.stanford.ppl.ccstm.impl.Handle
-import edu.stanford.ppl.ccstm.IntRef.Bound
 import edu.stanford.ppl.ccstm._
+import edu.stanford.ppl.ccstm.impl.{SingleProxyBound, Handle}
 
 class StripedIntRef(initialValue: Int) extends IntRef {
   private def NumStripes = 16
@@ -24,9 +23,20 @@ class StripedIntRef(initialValue: Int) extends IntRef {
 
   protected def handle: Handle[Int] = throw new UnsupportedOperationException
 
-  // TODO: add single version
+  override def single: IntRef.Bound = new SingleProxyBound(this) with IntRef.Bound {
+    override def unbind: IntRef = StripedIntRef.this
 
-  override def escaped: Bound = new IntRef.Bound {
+    override def += (delta: Int) {
+      if (delta != 0) {
+        Txn.dynCurrentOrNull match {
+          case null => aStripe.escaped += delta
+          case txn: Txn => aStripe.+=(delta)(txn)
+        }
+      }
+    }
+  }
+
+  override def escaped: IntRef.Bound = new IntRef.Bound {
     def unbind = StripedIntRef.this
     def mode: BindingMode = Escaped
 
@@ -82,12 +92,12 @@ class StripedIntRef(initialValue: Int) extends IntRef {
 
     override def += (delta: Int) {
       if (delta != 0) {
-        aStripe.nonTxn += delta
+        aStripe.escaped += delta
       }
     }
   }
 
-  override def bind(implicit txn: Txn): Bound = new IntRef.Bound {
+  override def bind(implicit txn: Txn): IntRef.Bound = new IntRef.Bound {
     def unbind = StripedIntRef.this
     def mode: BindingMode = txn
 
