@@ -14,38 +14,44 @@ See `TArray` and `TxnFieldUpdater`.
 ## An example
 
 As a simple example, consider a set of integers stored as a sorted
-singly-linked list.  If `add(e)` returns true if the set was changed and false
-if `e` was already a member, we might encode this in Scala as
+singly-linked list.  We might encode this in Scala as
 
     class IntSet {
       class Node(val e: Int, var next: Node)
     
-      val header = new Node(0, null)
+      val header = new Node(-1, null)
 
-      def add(e: Int) = {
+      def contains(e: Int) = {
         @tailrec
-        def loop(prev: Node): Boolean = {
+        def loop(cur: Node): Boolean = {
+          cur != null && (cur.e == e || loop(cur.next))
+        }
+        loop(header.next)
+      }
+
+      def add(e: Int) {
+        @tailrec
+        def loop(prev: Node) {
           val cur = prev.next
-          if (cur == null || cur.e > e) {
+          if (cur == null || cur.e > e)
             prev.next = new Node(e, cur)
-            true
-          } else {
-            cur.e != e && loop(cur)
-          }
+          else if (cur.e != e)
+            loop(cur)
         }
         loop(header)
       }
     }
 
-The set of primes less than 10 would be represented as
+In this data structure the set of primes less than 10 would be represented as
 
-             +----+
-    head ==> |e: 2|    +----+
-             |next ==> |e: 3|    +----+
-             +----+    |next ==> |e: 5|    +----------+
-                       +----+    |next ==> |e: 7      |
-                                 +----+    |next: null|
-                                           +----------+
+               +-----+
+    header ==> |e: -1|   +----+
+               |next ==> |e: 2|    +----+
+               +-----+   |next ==> |e: 3|    +----+
+                         +----+    |next ==> |e: 5|    +----------+
+                                   +----+    |next ==> |e: 7      |
+                                             +----+    |next: null|
+                                                       +----------+
 
 Without some sort of concurrency control, this implementation won't be
 safe if it is accessed simultaneously by multiple threads, and any of
@@ -93,19 +99,27 @@ We can now write the complete transactional version of `IntSet`:
         val next = Ref(next0)
       }
 
-      val header = new Node(0, null)
+      val header = new Node(-1, null)
       
-      def add(e: Int) = STM.atomic { implicit t =>
+      def contains(e: Int) = STM.atomic { implicit t =>
         @tailrec
-        def loop(prev: Node): Boolean = {
-          val cur = prev.next()
-          if (cur == null || cur.e > e) {
-            prev.next := new Node(e, cur)
-            true
-          } else {
-            cur.e != e && loop(cur)
-          }
+        def loop(cur: Node): Boolean = {
+          cur != null && (cur.e == e || loop(cur.next()))
         }
-        loop(header)
+        loop(header.next())
+      }
+
+      def add(e: Int) {
+        STM.atomic { implicit t =>
+          @tailrec
+          def loop(prev: Node) {
+            val cur = prev.next()
+            if (cur == null || cur.e > e)
+              prev.next := new Node(e, cur)
+            else if (cur.e != e)
+              loop(cur)
+          }
+          loop(header)
+        }
       }
     }

@@ -12,20 +12,26 @@ object IntSet {
   class Unsynchronized {
     class Node(val e: Int, var next: Node)
 
-    val dummy = new Node(0, null)
+    val header = new Node(-1, null)
 
-    def add(e: Int) = {
+    def contains(e: Int) = {
       @tailrec
-      def loop(prev: Node): Boolean = {
-        val cur = prev.next
-        if (cur == null || cur.e > e) {
-          prev.next = new Node(e, cur)
-          true
-        } else {
-          cur.e != e && loop(cur)
-        }
+      def loop(cur: Node): Boolean = {
+        cur != null && (cur.e == e || loop(cur.next))
       }
-      loop(dummy)
+      loop(header.next)
+    }
+
+    def add(e: Int) {
+      @tailrec
+      def loop(prev: Node) {
+        val cur = prev.next
+        if (cur == null || cur.e > e)
+          prev.next = new Node(e, cur)
+        else if (cur.e != e)
+          loop(cur)
+      }
+      loop(header)
     }
   }
 
@@ -34,20 +40,28 @@ object IntSet {
       val next = Ref(next0)
     }
 
-    val header = new Node(0, null)
+    val header = new Node(-1, null)
 
-    def add(e: Int) = STM.atomic { implicit t =>
+    def contains(e: Int) = STM.atomic { implicit t =>
       @tailrec
-      def loop(prev: Node): Boolean = {
-        val cur = prev.next()
-        if (cur == null || cur.e > e) {
-          prev.next := new Node(e, cur)
-          true
-        } else {
-          cur.e != e && loop(cur)
-        }
+      def loop(cur: Node): Boolean = {
+        cur != null && (cur.e == e || loop(cur.next()))
       }
-      loop(header)
+      loop(header.next())
+    }
+
+    def add(e: Int) {
+      STM.atomic { implicit t =>
+        @tailrec
+        def loop(prev: Node) {
+          val cur = prev.next()
+          if (cur == null || cur.e > e)
+            prev.next := new Node(e, cur)
+          else if (cur.e != e)
+            loop(cur)
+        }
+        loop(header)
+      }
     }
   }
 }
