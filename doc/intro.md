@@ -1,20 +1,41 @@
 # CCSTM - An Introduction
 
 CCSTM is a library-based software transactional memory (STM) for Scala.
-It uses optimistic concurrency control to coordinate concurrent accesses
-to shared mutable state, replacing the use of locks.  CCSTM only manages
-memory locations encapsulated in instances of a class `Ref[A]`[^1],
-allowing atomic blocks to be expressed directly in Scala with no bytecode
-rewriting or language modifications.  Atomic blocks are speculatively
-executed in parallel and automatically retried until successful.
+It makes it easier to use optimistic concurrency control to coordinate
+thread-safe access to shared data structures, replacing the use of locks.
+CCSTM only manages memory locations encapsulated in instances of a class
+`Ref[A]`[^1], allowing atomic blocks to be expressed directly in Scala
+with no bytecode rewriting or language modifications.  Atomic blocks
+are speculatively executed in parallel and automatically retried until
+successful.
 
 [^1]: `Ref` instances may be transient, allowing for storage without an extra
 level of indirection.  See `TArray` and `TxnFieldUpdater`.
 
+## Optimistic concurrency control
+
+If two operations both access the same data and at least one of them
+changes it, then we say that they *conflict*.  Conflicting operations
+are those that must be coordinated to ensure thread safety.
+
+Optimistic concurrency control is based on the observation that,
+often, potential conflicts don't actually occur.  It is possible
+that two insertions into a large red-black tree will both cause a root
+rotation, for example, but it is quite unlikely.  Pessimistic concurrency
+control using locks must prevent parallel execution whenever there is a
+**possibility** of a conflict.  Optimistic concurrency control adds the
+possibility that speculative execution will be rolled back and retried,
+requiring it to serialize only for conflicts that **actually** occur.
+
+Software transactional memory allows the user to declare that blocks
+of their code should occur atomically.  Most STMs use optimistic
+concurrency control to implement atomic blocks, which are also referred
+to as transactions.
+
 ## An example
 
 As a simple example, consider a set of integers stored as a sorted
-singly-linked list.  One way to encode this in Scala is
+singly-linked list.  One (thread-unsafe) way to encode this in Scala is
 
     class IntSet {
       private class Node(val e: Int, var next: Node)
@@ -42,8 +63,7 @@ singly-linked list.  One way to encode this in Scala is
       }
     }
 
-In this data structure the set of primes less than 10 would be
-represented as
+The set of primes less than 10 would be represented as
 
                +------+    +-----+
     primes ==> |header ==> |e: -1|   +----+
@@ -59,10 +79,7 @@ multiple threads, unless none of the threads calls `add(e)` for an element
 `e` that is not already in the set.  If thread *T* calls `add(0)` and
 thread *U* calls `add(1)` on the set of primes less than 10, for example,
 both *T* and *U* could decide to insert a new node after the header.
-If that happens, both methods will return but only one of the elements
-would actually have been inserted.
-
-## Optimistic concurrency control
+If that happens only one of the elements would actually be inserted.
 
 Many method calls on `IntSet` can safely run in parallel.
 `primes.contains(4)` and `primes.add(6)` will not interfere with each
@@ -71,18 +88,19 @@ already in the set.  Taking advantage of this potential parallelism can
 be tricky, though, because it is not easy to tell ahead of time whether
 or not a pair of methods conflict.
 
-Optimistic concurrency control (OCC) uses *speculation* to run methods in
-parallel before it can be proved that this is safe.  When the optimism
-pays off (`add(5)` and `add(5)`) then extra parallelism is obtained.
-If the optimism was incorrect (`add(0)` and `add(1)`) then one or both
-of the speculative attempts must be *rolled back* and retried.
+Optimistic concurrency control uses speculation to run methods in
+parallel before it can be proved that there won't be any conflicts.
+When the optimism pays off (`add(5)` and `add(5)`) then extra parallelism
+is obtained.  If the optimism was incorrect (`add(0)` and `add(1)`) then
+one or both of the speculative attempts must be rolled back and retried.
 
 CCSTM makes it easy to use optimistic concurrency control to manage
-shared data in your program.  It takes care of tracking the reads and
-writes performed in a speculative block, and it performs the bookkeeping
-required to support rollback and retry.
+shared data in your program.  CCSTM tracks reads and writes that are
+performed through instances of `Ref`, checks for conflicts involving
+those accesses, restores old `Ref` contents on rollback, and automatically
+retries transactions until they are successful.
 
-### Replacing variables with CCSTM references
+## Replacing variables with CCSTM references
 
 To use CCSTM, `IntSet` must store its mutable data inside `Ref`s.
 `Ref`'s companion object provides an `apply[A](initialValue: A)` method
@@ -95,25 +113,27 @@ in a `Ref[Node]`.  Note that the reference itself is a `val`, not a `var`:
       val next = Ref(next0)
     }
 
-### Syntax for an atomic block
+## Syntax for an atomic block
 
 To execute a block of code atomically using CCSTM, pass it to
-`STM.atomic[A](block: Txn => A)`.  This method will create a new
-transaction or join an existing one, then pass the transaction to
-the block.  The `Txn` must be passed to `Ref`'s methods, but this is
-accomplished using Scala's `implicit` parameters.  The two most important
-methods of `Ref[A]` are `apply()(implicit t: Txn): A`, which performs
-a transactional read,m and `:=(v: A)(implicit t: Txn)`, which performs
-a transactional write.  (These are also available as `get` and `set`.)
-The `Txn` parameter can be omitted from the code if an implicit `Txn`
-is available in the current scope, which leads to the idiomatic way of
-writing a CCSTM transaction:
+`STM.atomic[A](block: Txn => A)`.  This method will create or join a
+transaction, then pass the transaction to the block.  The two most
+important methods of `Ref[A]` are `apply()(implicit t: Txn): A`,
+which performs a transactional read, and `:=(v: A)(implicit t: Txn)`,
+which performs a transactional write.  (These are also available as
+`get(implicit t: Txn)` and `set(v)(implicit t: Txn)`.)  The `Txn`
+parameter can be omitted from the code if an implicit `Txn` is available
+in the current scope, which leads to the idiomatic way of writing a
+CCSTM transaction:
 
     STM.atomic { implicit t =>
-      // the body
+      ...
     }
 
-We can now write the complete transactional version of `IntSet`:
+We can now write the complete transactional version of `IntSet`.
+This implementation acts as if each call to `contains` or `add` occurs
+atomically, but it allows them to run in parallel unless they perform
+a conflicting access to one of the `Node.next` references.
 
     import scala.annotation.tailrec
     import edu.stanford.ppl.ccstm._
@@ -147,3 +167,73 @@ We can now write the complete transactional version of `IntSet`:
         }
       }
     }
+
+## Speculative execution
+
+TODO: describe how a RollbackError can be thrown from any Ref method
+
+## Composability
+
+An important advantage of software transactions is their composability.
+Now that we have a transactional `IntSet`, we can build larger transactions.
+If we want to guarantee that an element isn't inserted into both `first` and
+`second`, for example, we could write:
+
+    def addToFirst(first: IntSet, second: IntSet, e: Int) =
+        STM.atomic { implicit t =>
+      if (second.contains(e)) {
+        false
+      } else {
+        first.add(e)
+        true
+      }
+    }
+
+This method will coordinate properly with calls on individual `IntSet`s, and
+with other calls to `addToFirst`.  No deadlock can occur, even for cases that
+are tricky when using locks, such as `addToFirst(a,b)` in parallel with
+`addToFirst(b,a)`.
+
+## Single-access transactions
+
+CCSTM provides a special syntax for atomic blocks that consist of a single
+operation on a `Ref`.  Instead of
+
+    STM.atomic { implicit t => ref.operation }
+
+you can write
+
+    ref.single.operation
+
+`Ref.single` returns a view of the `Ref` of type `Ref.Bound`.  The bound
+view has methods that mirror those of `Ref`, but don't take an implicit
+`Txn` parameter.  The view's methods act as if they are performed in
+their own atomic block.  This means that if a transaction is already
+active they will join the transaction, but if none is present they will
+create a new one.  Single-access transactions are faster the corresponding
+atomic block.
+
+The bound views support basic reads (`ref.single()`) and writes
+(`ref.single := v`), as well as operations that perform both a read
+and a write.  Perhaps the most useful is `getAndTransform(f: A => A)`,
+which atomically replaces the value `v` stored in the `Ref` with `f(v)`,
+and then returns the old value.
+
+A possible use of `Ref.single` in our transactional `IntSet` would be
+to check if the set is empty.  This requires only a single transactional
+read:
+
+    class IntSet {
+      ...
+      def isEmpty = header.next.single() == null
+    }
+
+## Overview
+
+CCSTM implements optimistic concurrency control as a Scala library.
+To make operations transactional, move shared variables into `Ref`
+instances and wrap the work in a call to `STM.atomic`.  The resulting
+transactions will be run in parallel unless they perform a conflicting
+access, in which case they will be rolled back and tried again.
+Transactions can be nested.  CCSTM provides optimized syntax and execution
+for transactions that perform a single method call on a single `Ref`.
