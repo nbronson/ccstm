@@ -170,7 +170,16 @@ a conflicting access to one of the `Node.next` references.
 
 ## Speculative execution
 
-TODO: describe how a RollbackError can be thrown from any Ref method
+CCSTM verifies during every `Ref` read or write that the transaction
+is consistent.  If the values read by a transaction didn't all exist at
+a single point in time, then the `Ref` operation throws a `RollbackError`
+that is trapped by `STM.atomic`.  To complete the rollback, CCSTM discards
+all of the speculative writes performed by the failed transaction attempt.
+Rollback can also be triggered after the closure passed to `STM.atomic`
+has completed, but before the transaction has been committed.  Either way,
+the atomic block will automatically be reexecuted until it is successful.
+CCSTM includes a contention manager that guarantees that each atomic
+block will eventually succeed.
 
 ## Composability
 
