@@ -1,5 +1,10 @@
 # Exception Handling in Transactions
 
+**Important:** Until partial rollback of nested transactions (issue #4)
+is completed, exceptions thrown by a nested transaction and caught in
+an outer transaction will not have the same semantics as those thrown
+at the top level.
+
 ## User exceptions => rollback + propagate
 
 An exception thrown from inside to outside an atomic block will
@@ -33,7 +38,9 @@ exception before the transaction has decided to commit, the transaction
 will be rolled back.  The exception will be rethrown after rollback or
 commit is complete; the remaining callbacks and handlers will be invoked.
 If more than one exception is caught only one of them will be rethrown.
-
+If an exception occurs after a decision to commit, it will be passed
+to `Txn.handlePostDecisionException` and the transaction will still
+be committed.
 
 ## Internally thrown exceptions subclass `RollbackError`
 
