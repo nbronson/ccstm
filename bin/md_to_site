@@ -5,7 +5,7 @@ set -e
 
 DOC=`dirname $0`/../doc
 RELHSRC=../src/highlight
-RELTARGET=../target/doc
+RELTARGET=../target/site
 
 EXTRA='\n <link rel=\"stylesheet\" title=\"Default\" href=\"highlight/default.css\">\n <script type=\"text/javascript\" src=\"highlight/highlight.pack.js\"></script> \n <script type=\"text/javascript\"> \n hljs.initHighlightingOnLoad();\n </script>'
 
