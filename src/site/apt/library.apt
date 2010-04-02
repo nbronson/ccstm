@@ -1,0 +1,84 @@
+    ----
+    Library-Based STM Versus Bytecode-Rewriting
+    ----
+
+CCSTM - Library-Based STM Versus Bytecode-Rewriting
+
+  One of the fundamental design decisions of CCSTM was that is should be
+  an unprivileged library.  It does not attempt to provide transactional
+  behavior for existing code, rather it is a tool to make it easy to write
+  code that uses optimistic concurrency control.  Transactional reads and
+  writes in CCSTM are explicit method calls on instances of <<<Ref>>>.
+  Scala's concise syntax and implicit parameters make this compact,
+  but the syntax is not identical to non-transactional code.
+
+  Bytecode rewriting STMs modify class files as they are being
+  loaded by the JVM, typically generating both a transactional and
+  a non-transactional version of every method.  In the transactional
+  version, the normal bytecodes for field and array accesses are replaced
+  with code sequences that invoke the STM.
+
+  The decision between a library-based and bytecode-rewriting STM has
+  many implications for the transactional code and for the system in
+  which that code resides:
+
+  * <<Existing code>>
+
+    Bytecode-rewriting STMs can provide transactional execution for
+    existing sequential code without any changes.  This means that
+    transactions can include accesses to shared data structures whose
+    source code is not available or that cannot be changed, and it
+    minimizes the effort required to code with transactions even when
+    source code is available.
+
+    Not all sequential code will actually work well in transactions,
+    however.  I/O and native method calls cause problems, because they
+    can't be rolled back.  Much existing code also has incidental data
+    dependencies (such as the <<<modCount>>> in many Java collections)
+    that will prevent parallel execution of transactions.
+
+  * <<Strong atomicity and isolation>>
+
+    Perhaps the biggest problem with accessing existing data structures
+    in a transaction occurs when both transactional and non-transactional
+    accesses occur.  Bytecode-rewriting STMs can't take advantage of the
+    type system to identify or prevent such heterogeneous accesses, and
+    dynamically identifying those accesses is prohibitively expensive.
+    Weak isolation and atomicity substantially complicate the apparent
+    simplicity of the transactional programming model.
+
+    A library-based STM, on the other hand, can easily intercept all
+    accesses to transactionally-managed data without imposing any
+    performance penalty on the rest of the system.  This means that
+    accesses from outside a transaction (single-operation transactions
+    in CCSTM's terminology) interact properly with transactions.
+
+  * <<Advanced operations>>
+
+    CCSTM's <<<Ref>>>s provide many advanced operations in addition
+    to the basic read and write.  These are difficult to provide in a
+    bytecode-rewriting STM because memory locations have no first-class
+    representation in Scala.  Some examples of these are <<<map>>>,
+    <<<transform>>>, <<<getAndSet>>>, and <<<unrecordedRead>>>.  See the
+    <<<Ref>>> and <<<Ref.Bound>>> ScalaDoc for more operations.
+
+  * <<Privilege and composability>>
+
+    CCSTM is an unprivileged Scala library, simplifying its testing
+    and deployment.  In addition, this means that code written using
+    CCSTM can coexist with code written using another library-based STM,
+    or with a different version of CCSTM (so long as separate class
+    loaders are used).  Bytecode-rewriting STMs, on the other hand, must
+    be registered as privileged agents with the JVM.  Without special
+    care, the transformations that they perform are not composable with
+    other bytecode modifications.  This lack of composability is not
+    necessarily a problem for projects that are taking advantage of STM,
+    but it is a risk for a modular component that would like to use it.
+    If library <A> chooses bytecode-rewriting STM <X> and library <B>
+    chooses STM <Y>, <A> and <B> won't both be usable in the same system.
+
+* Summary
+
+  Bytecode-rewriting STMS can provide a more convenient syntax, and may be able
+  to run existing code without modification.  Library-based STMs like CCSTM
+  provide a higher level of safety and composability.
