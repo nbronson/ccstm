@@ -139,7 +139,7 @@ class FlipperSuite extends STMFunSuite {
 
       println()      
       for (i <- 0 until expected.length) {
-        assert(expected(i).nonTxn.get === actual(i).nonTxn.get)
+        assert(expected(i).single.get === actual(i).single.get)
       }
     }
   }
@@ -193,8 +193,8 @@ class FlipperSuite extends STMFunSuite {
     for (sync <- 0 until config.syncCount) {
       for (thread <- 0 until config.threadCount) {
         (new FlipperTask(config, A, P, true, thread, sync) {
-          def read[T](ref: Ref[T]): T = ref.nonTxn.get
-          def write[T](ref: Ref[T], v: T) { ref.nonTxn := v }
+          def read[T](ref: Ref[T]): T = ref.escaped.get
+          def write[T](ref: Ref[T], v: T) { ref.escaped := v }
           def doWork(task: => Unit) { task }
         })()
       }

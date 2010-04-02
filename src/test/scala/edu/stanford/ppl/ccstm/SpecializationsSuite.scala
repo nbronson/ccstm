@@ -19,11 +19,11 @@ class SpecializationsSuite extends STMFunSuite {
       val exp = explicitRef
       val dv = defaultValue
 
-      assert(dv === ref1.asInstanceOf[Source[Any]].nonTxn.get)
-      assert(dv === ref2.asInstanceOf[Source[Any]].nonTxn.get)
-      assert(dv == arr1.refs(0).asInstanceOf[Source[Any]].nonTxn.get)
-      assert(dv == arr2.refs(0).asInstanceOf[Source[Any]].nonTxn.get)
-      assert(dv == explicitRef.asInstanceOf[Source[Any]].nonTxn.get)
+      assert(dv === ref1.asInstanceOf[Source[Any]].single.get)
+      assert(dv === ref2.asInstanceOf[Source[Any]].single.get)
+      assert(dv == arr1.refs(0).asInstanceOf[Source[Any]].single.get)
+      assert(dv == arr2.refs(0).asInstanceOf[Source[Any]].single.get)
+      assert(dv == explicitRef.asInstanceOf[Source[Any]].single.get)
       assert(ref1.getClass === expectedImpl)
       assert(ref2.getClass === expectedImpl)
       assert(explicitRef.getClass === expectedImpl)

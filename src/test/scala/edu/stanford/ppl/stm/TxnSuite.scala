@@ -37,7 +37,7 @@ class TxnSuite extends STMFunSuite {
       assert(b1.get === 3)
       assert(b2.get === 3)
     }}.run
-    assert(x.nonTxn.get === 3)
+    assert(x.single.get === 3)
   }
 
   class UserException extends Exception
@@ -50,13 +50,13 @@ class TxnSuite extends STMFunSuite {
         throw new UserException
       }}.run
     }
-    assert(x.nonTxn.get === 1)
+    assert(x.single.get === 1)
   }
 
   test("non-local return") {
     val x = Ref(1)
     val y = nonLocalReturnHelper(x)
-    assert(x.nonTxn.get === 2)
+    assert(x.single.get === 2)
     assert(y === 2)
   }
 
@@ -74,7 +74,7 @@ class TxnSuite extends STMFunSuite {
     val y = Ref(false)
     val z = Ref(false)
     for ((ref,name) <- List((x,"x"), (y,"y"), (z,"z"))) {
-      new Thread("wakeup") { override def run { Thread.sleep(200) ; ref.nonTxn := true }}.start()
+      new Thread("wakeup") { override def run { Thread.sleep(200) ; ref.single := true }}.start()
 
       val result = Ref("")
       var sleeps = 0
@@ -84,8 +84,8 @@ class TxnSuite extends STMFunSuite {
           (txn: Txn) => { if (z.get(txn)) result.set("z")(txn) else txn.retry },
           (txn: Txn) => { sleeps += 1; txn.retry }
         )
-      ref.nonTxn := false
-      assert(result.nonTxn.get === name)
+      ref.single := false
+      assert(result.single.get === name)
       assert(sleeps <= 1)
     }
   }
@@ -108,7 +108,7 @@ class TxnSuite extends STMFunSuite {
       false
     }}
     assert(a.run() === false)
-    x.nonTxn := 2
+    x.single := 2
     assert(a.run() === true)
   }
 
@@ -116,8 +116,8 @@ class TxnSuite extends STMFunSuite {
     val x = Ref(10)
     val y = new LazyConflictIntRef(20)
     val z = STM.transform2(x, y, (a: Int, b: Int) => (a+2*b, b+2*a, a*b))
-    assert(x.nonTxn.get === 50)
-    assert(y.nonTxn.get === 40)
+    assert(x.single.get === 50)
+    assert(y.single.get === 40)
     assert(z === 200)
   }
 
@@ -128,9 +128,43 @@ class TxnSuite extends STMFunSuite {
       new Atomic { def body {
         assert(x.get === 11)
         x += 2
+        assert(x.bind.mode eq currentTxn)
       }}.run
       assert(x.get === 13)
+      assert(x.bind.mode eq currentTxn)
     }}.run
-    assert(x.nonTxn.get === 13)
+    assert(x.single.get === 13)
+  }
+
+  test("mode Single") {
+    val x = Ref(10)
+    val xs = x.single
+    STM.atomic { implicit t =>
+      x += 1
+      assert(x() === 11)
+      assert(xs() === 11)
+      xs += 1
+      assert(x() === 12)
+      assert(xs() === 12)
+      x.single += 1
+      assert(x() === 13)
+      assert(xs() === 13)
+      assert(x.single() === 13)
+      x.single := 14
+      assert(x() === 14)
+      assert(xs.mode == Single)
+    }
+  }
+
+  test("mode Escaped") {
+    val x = Ref(10)
+    STM.atomic { implicit t =>
+      x += 1
+      assert(x() === 11)
+      assert(x.escaped() === 10)
+      assert(x.escaped.mode == Escaped)
+      val f = x.escaped.tryWrite(20)
+      assert(f === false)
+    }
   }
 }
