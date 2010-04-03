@@ -167,4 +167,32 @@ class TxnSuite extends STMFunSuite {
       assert(f === false)
     }
   }
+
+  test("uncontended R+W txn perf") {
+    val x = Ref("abc")
+    var best = java.lang.Long.MAX_VALUE
+    for (pass <- 0 until 100000) {
+      val begin = System.nanoTime
+      var i = 0
+      while (i < 5) {
+        i += 1
+        STM.atomic { implicit t =>
+          assert(x() == "abc")
+          x := "def"
+        }
+        STM.atomic { implicit t =>
+          assert(x() == "def")
+          x := "abc"
+        }
+      }
+      val elapsed = System.nanoTime - begin
+      best = best min elapsed
+    }
+    println("uncontended R+W txn: best was " + (best / 10.0) + " nanos/txn")
+
+    // We should be able to get less than 5000 nanos, even on a Niagara.
+    // On most platforms we should be able to do much better than this.
+    // The exception is StripedIntRef, which has relatively expensive reads.
+    assert(best / 10 < 5000)
+  }
 }
