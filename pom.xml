@@ -153,4 +153,22 @@
       </plugin>
     </plugins>
   </reporting>
+
+  <distributionManagement>
+    <repository>
+      <id>ccstm.repo.releases</id>
+      <name>CCSTM Release Repository at PPL</name>
+      <url>scpexe://ppl.stanford.edu/var/www/html/ppl/ccstm/repo-releases</url>
+    </repository>
+    <snapshotRepository>
+      <id>ccstm.repo.snapshot</id>
+      <name>CCSTM Snapshot Repository at PPL</name>
+      <url>scpexe://ppl.stanford.edu/var/www/html/ppl/ccstm/repo-snapshot</url>
+    </snapshotRepository>
+    <site>
+      <id>ccstm.site</id>
+      <name>CCSTM Site at PPL</name>
+      <url>scpexe://ppl.stanford.edu/var/www/html/ppl/ccstm/site</url>
+    </site>
+  </distributionManagement>
 </project>
