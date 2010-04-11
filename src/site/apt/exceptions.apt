@@ -39,7 +39,7 @@ STM.atomic { implicit t =>
 
 * Exceptions thrown by registered callbacks
 
-  If a transaction lifecycle callback or resource handler throws an
+  If a transaction life-cycle callback or resource handler throws an
   exception before the transaction has decided to commit, the transaction
   will be rolled back.  The exception will be rethrown after rollback
   or commit is complete; the remaining callbacks and handlers will

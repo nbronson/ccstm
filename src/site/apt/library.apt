@@ -66,23 +66,36 @@ CCSTM - Library-Based STM Versus Bytecode-Rewriting
     <<<transform>>>, <<<getAndSet>>>, and <<<unrecordedRead>>>.  See the
     <<<Ref>>> and <<<Ref.Bound>>> ScalaDoc for more operations.
 
-  * <<Privilege and composability>>
+  * <<Deployment>>
 
-    CCSTM is an unprivileged Scala library, simplifying its testing
-    and deployment.  In addition, this means that code written using
-    CCSTM can coexist with code written using another library-based STM,
-    or with a different version of CCSTM (so long as separate class
-    loaders are used).  Bytecode-rewriting STMs, on the other hand, must
-    be registered as privileged agents with the JVM.  Without special
-    care, the transformations that they perform are not composable with
-    other bytecode modifications.  This lack of composability is not
-    necessarily a problem for projects that are taking advantage of STM,
-    but it is a risk for a modular component that would like to use it.
-    If library <A> chooses bytecode-rewriting STM <X> and library <B>
-    chooses STM <Y>, <A> and <B> won't both be usable in the same system.
+    CCSTM is an unprivileged Scala library, making its deployment as
+    simple as any other library.  Bytecode-rewriting STMs, on the other
+    hand, must be registered as privileged agents with the JVM using the
+    <<<agentlib>>> or <<<javaagent>>> mechanism.  If a bytecode-rewriting
+    STM wants to allow transactions to include library classes from the
+    system class path, then those classes may need to be instrumented
+    off-line.
+
+  * <<Coexistence with other STMs>>
+
+    Bytecode-rewriting STMs instrument methods of all loaded classes.
+    This means that without some sort of higher-level cooperation, only
+    a single STM may be used in a JVM.  Library-based STMs, on the other
+    hand, do not affect code that does not use them.  Separate components
+    of the system may use different STM implementations.  (We use the
+    term coexistence rather than composability because it is unlikely
+    that atomic blocks from different library-based STMs can be nested.)
+
+    End users do not necessarily need to be concerned that an STM can't
+    coexist with other implementations, but it is a big problem for
+    library authors.  Without that ability, the use of STM in a library
+    component places a global constraint on any program that depends
+    on that component.  If library <A> chooses bytecode-rewriting STM
+    <X> and library <B> (or the end user) chooses STM <Y>, <A> and <B>
+    won't both be usable in the same system.
 
 * Summary
 
-  Bytecode-rewriting STMS can provide a more convenient syntax, and may be able
-  to run existing code without modification.  Library-based STMs like CCSTM
-  provide a higher level of safety and composability.
+  Bytecode-rewriting STMS provide a more convenient syntax, and may be
+  able to run existing code without modification.  Library-based STMs
+  like CCSTM provide a higher level of safety and composability.
