@@ -17,10 +17,14 @@ CCSTM - References and Bound Views
 
   CCSTM provides three different access modes for STM-managed data
 
-  * transactional - Access occurs in the context of an existing <<<Txn>>>
-  * single - Access occurs (as if) in a new single-operation transaction
-  * escaped - Access occurs (as if) in a new top-level transaction, ignoring
-    any transaction active on the current thread
+    * <<transactional>>: Access occurs in the context of an existing
+    <<<Txn>>>
+
+    * <<single>>: Access occurs (as if) in a new single-operation
+    transaction
+
+    * <<escaped>>: Access occurs (as if) in a new top-level transaction,
+    ignoring any transaction active on the current thread
 
   <<<Ref>>>'s operations use only the transactional access mode, requiring
   that the current transaction be passed via an implicit parameter of

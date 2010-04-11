@@ -40,18 +40,22 @@ CCSTM - Library-Based STM Versus Bytecode-Rewriting
   * <<Strong atomicity and isolation>>
 
     Perhaps the biggest problem with accessing existing data structures
-    in a transaction occurs when both transactional and non-transactional
-    accesses occur.  Bytecode-rewriting STMs can't take advantage of the
-    type system to identify or prevent such heterogeneous accesses, and
-    dynamically identifying those accesses is prohibitively expensive.
-    Weak isolation and atomicity substantially complicate the apparent
-    simplicity of the transactional programming model.
+    in a transaction is the interaction of simultaneous transactional and
+    non-transactional accesses.  Unless they are handled specially (or
+    disallowed) non-transactional reads might observe uncommitted values
+    and non-transactional writes might corrupt concurrent atomic blocks.
+    Bytecode-rewriting STMs can't take advantage of the type system to
+    identify or prevent such heterogeneous accesses, and dynamically
+    identifying or preventing those accesses is prohibitively expensive.
+    The result is termed <weak isolation> or <weak atomicity>, and it
+    substantially complicates the simplicity, safety and composability
+    of the transactional programming model.
 
-    A library-based STM, on the other hand, can easily intercept all
-    accesses to transactionally-managed data without imposing any
-    performance penalty on the rest of the system.  This means that
-    accesses from outside a transaction (single-operation transactions
-    in CCSTM's terminology) interact properly with transactions.
+    A library-based STM using references can easily intercept all accesses
+    to transactionally-managed data without imposing any performance
+    penalty on the rest of the system.  This means that accesses from
+    outside a transaction (single-operation transactions in CCSTM's
+    terminology) interact properly with transactions.
 
   * <<Advanced operations>>
 

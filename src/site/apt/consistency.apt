@@ -17,10 +17,11 @@ CCSTM - Consistency
 
 * Linearizability
 
-  * All successful transactions have a linearization point at some instant
-    between their creation and their commit
-  * All reads and writes (to CCSTM-managed data) by a successful
-    transaction appear to occur instantly at its linearization point
+    * All successful transactions have a linearization point at some
+      instant between their creation and their commit
+
+    * All reads and writes (to CCSTM-managed data) by a successful
+      transaction appear to occur instantly at its linearization point
 
   Linearizability is a stronger property than
   serializability.  For more details see the Wikipedia page
