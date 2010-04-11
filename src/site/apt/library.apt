@@ -12,7 +12,7 @@ CCSTM - Library-Based STM Versus Bytecode-Rewriting
   Scala's concise syntax and implicit parameters make this compact,
   but the syntax is not identical to non-transactional code.
 
-  Bytecode rewriting STMs modify class files as they are being
+  Bytecode-rewriting STMs modify class files as they are being
   loaded by the JVM, typically generating both a transactional and
   a non-transactional version of every method.  In the transactional
   version, the normal bytecodes for field and array accesses are replaced
@@ -79,12 +79,13 @@ CCSTM - Library-Based STM Versus Bytecode-Rewriting
   * <<Coexistence with other STMs>>
 
     Bytecode-rewriting STMs instrument methods of all loaded classes.
-    This means that without some sort of higher-level cooperation, only
-    a single STM may be used in a JVM.  Library-based STMs, on the other
-    hand, do not affect code that does not use them.  Separate components
-    of the system may use different STM implementations.  (We use the
-    term coexistence rather than composability because it is unlikely
-    that atomic blocks from different library-based STMs can be nested.)
+    This means that without some sort of higher-level cooperation,
+    only a single STM may be used in a JVM.  Library-based STMs, on the
+    other hand, do not affect code that does not use them, so separate
+    components of the system may use different STM implementations.
+    (We use the term coexistence rather than composability because it
+    is unlikely that atomic blocks from different library-based STMs
+    can be nested.)
 
     End users do not necessarily need to be concerned that an STM can't
     coexist with other implementations, but it is a big problem for
