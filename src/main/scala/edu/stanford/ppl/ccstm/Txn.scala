@@ -7,7 +7,7 @@ package edu.stanford.ppl.ccstm
 import impl.ThreadContext
 
 /** One of `Single`, `Escaped`, or an instance of `Txn`
- *  @see edu.stanford.ppl.ccstm.Ref.Bound#context
+ *  @see edu.stanford.ppl.ccstm.Ref.Bound#mode
  */
 sealed trait BindingMode {
   //def dynContext: Option[Txn]
@@ -288,11 +288,14 @@ object Txn {
     }
   }
 
-  /** Returns the number of transactions that have committed. */
+  /** Returns the number of transactions that have committed.  Only maintained
+   *  if `EnableCounters` is true.
+   */
   def commitCount = commitCounter.get
 
   /** Returns the number of transaction that rolled back for any reason,
-   *  including for an explicit retry.
+   *  including for an explicit retry.  Only maintained if `EnableCounters` is
+   *  true.
    */
   def rollbackCount = (explicitRetryCount
           + userExceptionCount
@@ -304,7 +307,8 @@ object Txn {
 
   /** Returns the number of transactions that rolled back due to a concurrency
    *  control failure, which includes invalid reads, invalid read resources,
-   *  write conflicts, and vetoing write resources.
+   *  write conflicts, and vetoing write resources.  Only maintained if
+   *  `EnableCounters` is true.
    */
   def optimisticFailureCount = (invalidReadCount
           + invalidReadResourceCount
@@ -312,42 +316,50 @@ object Txn {
           + vetoingWriteResourceCount)
 
   /** Returns the number of transactions that rolled back with a
-   *  <code>ExplicitRetryCause</code> rollback cause.
+   *  `ExplicitRetryCause` rollback cause.  Only maintained if `EnableCounters`
+   *  is true.
    */
   def explicitRetryCount = explicitRetryCounter.get
 
   /** Returns the number of transactions that rolled back with a
-   *  <code>UserExceptionCause</code> rollback cause.
+   *  `UserExceptionCause` rollback cause.  Only maintained if `EnableCounters`
+   *  is true.
    */
   def userExceptionCount = userExceptionCounter.get
 
   /** Returns the number of transactions that rolled back with a
-   *  <code>CallbackExceptionCause</code> rollback cause.
+   *  `CallbackExceptionCause` rollback cause.  Only maintained if
+   *  `EnableCounters` is true.
    */
   def callbackExceptionCount = callbackExceptionCounter.get
 
   /** Returns the number of transactions that rolled back with a
-   *  <code>InvalidReadCause</code> rollback cause.
+   *  `InvalidReadCause` rollback cause.  Only maintained if `EnableCounters`
+   *  is true.
    */
   def invalidReadCount = invalidReadCounter.get
 
   /** Returns the number of transactions that rolled back with a
-   *  <code>InvalidReadResourceCause</code> rollback cause.
+   *  `InvalidReadResourceCause` rollback cause.  Only maintained if
+   *  `EnableCounters` is true.
    */
   def invalidReadResourceCount = invalidReadResourceCounter.get
 
   /** Returns the number of transactions that rolled back with a
-   *  <code>WriteConflictCause</code> rollback cause.
+   *  `WriteConflictCause` rollback cause.  Only maintained if `EnableCounters`
+   *  is true.
    */
   def writeConflictCount = writeConflictCounter.get
 
   /** Returns the number of transactions that rolled back with a
-   *  <code>VetoingWriteResourceCause</code> rollback cause.
+   *  `VetoingWriteResourceCause` rollback cause.  Only maintained if
+   *  `EnableCounters` is true.
    */
   def vetoingWriteResourceCount = vetoingWriteResourceCounter.get
 
   /** Returns the number of transactions that were attempted using the
-   *  pessimistic barging mode, and that committed.
+   *  pessimistic barging mode, and that committed.  Only maintained if
+   *  `EnableCounters` is true.
    */
   def bargingCommitCount = bargingCommitCounter.get
 
@@ -455,9 +467,9 @@ object Txn {
 }
 
 /** An instance representing a single execution attempt for a single atomic
- *  block.  For almost all cases, transaction should not be created directly.
- *  The `STM.atomic` method should be used instead.
- *  @see edu.stanford.ppl.ccstm.STM
+ *  block.  In almost all cases, `Txn` instances should be obtained by passing
+ *  a block to `STM.atomic`.
+ *  @see edu.stanford.ppl.ccstm.STM#atomic
  *
  *  @author Nathan Bronson
  */
@@ -466,16 +478,16 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
   import Txn._
 
   /** An instance representing a single execution attempt for a single atomic
-   *  block.  For almost all cases, transaction should not be created directly.
-   *  The `STM.atomic` method should be used instead.  The failure history is
-   *  used to avoid livelock.
-   *  @see edu.stanford.ppl.ccstm.STM
+   *  block.  In almost all cases, `Txn` instances should be obtained by passing
+   *  a block to `STM.atomic`.  The failure history is used to avoid
+   *  performance pathologies such as starving elders.
+   *  @see edu.stanford.ppl.ccstm.STM#atomic
    */
   def this(failureHistory: List[Txn.RollbackCause]) = this(failureHistory, ThreadContext.get)
 
   /** An instance representing a single execution attempt for a single atomic
-   *  block.  For almost all cases, transaction should not be created directly.
-   *  The `STM.atomic` method should be used instead.
+   *  block.  In almost all cases, `Txn` instances should be obtained by passing
+   *  a block to `STM.atomic`.
    *  @see edu.stanford.ppl.ccstm.STM
    */
   def this() = this(Nil)
@@ -491,6 +503,10 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
   // indirection is that the methods actually implemented in an STM-specific
   // manner are xxxImpl-s, forwarded to from the real methods so that none of
   // the useful Txn functionality is not directly visible in the Txn class.
+  // We set this up this way so that we could experiment with different
+  // concrete implementations.  There are no longer separate implementations
+  // (at least on the same git branch), so at some point in the future we might
+  // rearrange everything to something more normal.
   
   /** Values of <code>TxnLocal</code>s for this transaction, created lazily. */
   private[ccstm] var locals: java.util.IdentityHashMap[TxnLocal[_],Any] = null

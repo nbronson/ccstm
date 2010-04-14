@@ -37,12 +37,9 @@ object IntRef {
   }
 }
 
-/** Adds convenience functions for comparison and increment/decrement to
- *  <code>Ref[Int]</code>.  Alternate implementations of <code>Ref[Int]</code>
- *  may be able to obtain greater concurrency when using these operations.
- *  @see edu.stanford.ppl.ccstm.collection.TIntRef
- *  @see edu.stanford.ppl.ccstm.collection.LazyConflictIntRef
- *  @see edu.stanford.ppl.ccstm.collection.StripedIntRef
+/** Adds functions for comparison and increment/decrement to `Ref[Int]`.
+ *  Implementations of `Ref[Int]` may provide better performance and/or
+ *  concurrency when using these operations.
  */
 trait IntRef extends Ref[Int] {
 

@@ -11,6 +11,7 @@ package edu.stanford.ppl.ccstm
  *  anonymous subclasses that implement <code>body</code> have an implicit
  *  transaction in scope.  If/when Scala allows anonymous function parameters
  *  to be marked implicit, this class will probably become obsolete.
+ *  (As of Scala 2.8.0.Beta1 this obsolescense has occurred.)
  *  <p>
  *  Typical usage:<pre>
  *    val tx: Ref[Int] = ..
@@ -20,6 +21,8 @@ package edu.stanford.ppl.ccstm
  *      if (tx() &gt; 10) ty := 20
  *    }}.run
  *  </pre>
+ *
+ *  @deprecated Prefer `STM.atomic` with a closure taking a parameter marked `implicit`
  *
  *  @author Nathan Bronson
  */

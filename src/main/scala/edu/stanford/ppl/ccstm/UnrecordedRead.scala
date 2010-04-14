@@ -7,9 +7,9 @@ package edu.stanford.ppl.ccstm
 
 /** Holds the result of an unrecorded read, which may be used to avoid
  *  transaction conflicts, or to detect ABA changes when performing
- *  non-transactional accesses.  <code>ReleasableRead</code>s provide a
+ *  single-operation transactions.  <code>ReleasableRead</code>s provide a
  *  related functionality.
- *  <p>
+ *
  *  When an unrecorded read is performed in a transaction, the caller is
  *  responsible for guaranteeing that the transaction's behavior is correct,
  *  even if the read becomes invalid prior to commit.  Unrecorded reads may be
