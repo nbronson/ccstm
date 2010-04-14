@@ -8,44 +8,54 @@ package edu.stanford.ppl.ccstm
 import impl.ThreadContext
 import runtime.NonLocalReturnException
 
-/** <code>STM</code> controls execution of atomic blocks with software
- *  transactional memory transactions.  A convenient style of programming is
- *  obtained by importing <code>edu.stanford.ppl.ccstm.STM._</code>; this makes
- *  <code>atomic</code> and <code>retry</code> accessible directly.
- *  <p>
- *  <code>STM.atomic</code> works best when the work of atomic blocks is
- *  performed by named functions, due to an inability to mark the block's
- *  transaction argument as <code>implicit</code>.  If you prefer to code
- *  atomic blocks inline, you may prefer the style provided by subclassing the
- *  <code>Atomic</code> class.
- *  <p>
- *  For example:<pre>
- *     import edu.stanford.ppl.ccstm._
- *     import edu.stanford.ppl.ccstm.STM._
+/** The `STM` object manages atomic execution of code blocks using software
+ *  transactional memory.  The transactions provide linearizability for all of
+ *  the reads and writes to data stored in `Ref` instances.  Atomic blocks are
+ *  functions from `Txn` to any type.  `Ref`'s methods require that the `Txn`
+ *  be available as an implicit parameter.  Scala allows the implicit modifier
+ *  to be included on the argument to an anonymous method, leading to the
+ *  idiomatic CCSTM atomic block
  *
- *     val a = Ref(10)
- *     val b = Ref(0)
- *     atomic(performTransfer(a, b, 5)(_))
+ *      STM.atomic { implicit t =>
+ *        // body
+ *      }
  *
- *     def performTransfer(from: Ref[Int], to: Ref[Int], amount: Int)(implicit txn: Txn) {
- *       from := from() - amount
- *       to := to() + amount
- *     }
- *  </pre>
- *  or
- *  <pre>
- *     import edu.stanford.ppl.ccstm._
+ *  If there are no name collisions, you can import `STM.atomic` (or `STM._`)
+ *  to make atomic blocks slightly shorter.
  *
- *     val a = Ref(10)
- *     val b = Ref(0)
- *     new Atomic { def body {
- *       val amount = 5
- *       a := a() - amount
- *       b := b() + amount
- *     }}.run
- *  </pre>
+ *  Atomic blocks nest, so when modularizing your code you can chose to either
+ *  pass the `Txn` instance or create a new atomic block.
  *
- *  @see edu.stanford.ppl.ccstm.Atomic
+ *  Some examples
+ *
+ *      import edu.stanford.ppl.ccstm._
+ *      import edu.stanford.ppl.ccstm.STM._
+ *
+ *      class Account(bal0: BigDecimal) {
+ *        private val bal = Ref(bal0)
+ *
+ *        def tryWithdrawal(m: BigDecimal) = STM.atomic { implicit t =>
+ *          if (bal() >= m) {
+ *            bal := bal() - m
+ *            true
+ *          } else {
+ *            false
+ *          }
+ *        }
+ *
+ *        def deposit(m: BigDecimal)(implicit txn: Txn) {
+ *          bal := bal() + m
+ *        }
+ *      }
+ *       
+ *      object Account {
+ *        def tryTransfer(from: Account, to: Account, m: BigDecimal) = 
+ *              STM.atomic { impliict t =>
+ *          from.tryWithdrawal(m) && { to.deposit(m) ; true }
+ *        }
+ *      }
+ *
+ *  @see edu.stanford.ppl.ccstm.Ref
  *
  *  @author Nathan Bronson
  */
