@@ -213,7 +213,7 @@ object Ref {
      *  @param pf a partial function that is safe to call multiple times, and
      *      safe to call later in the enclosing context, if any.
      *  @return `pf.isDefinedAt``(''v''), where ''v'' is the element held by 
-            this `Ref` on entry.
+     *      this `Ref` on entry.
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
      */

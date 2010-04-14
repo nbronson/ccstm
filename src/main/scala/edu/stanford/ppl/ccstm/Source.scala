@@ -48,9 +48,13 @@ object Source {
      *  `pred(x) == pred(y)` if `x == y`.
      *
      *  If this bound view is `v`, this method is equivalent to
-     *      STM.atomic { implicit t =>
-     *        if (!pref(v.get)) STM.retry
-     *      }
+     *
+     *  <pre>
+     *  STM.atomic { implicit t =>
+     *    if (!pref(v.get)) STM.retry
+     *  }
+     *  </pre>
+     *
      *  If you want to wait for a predicate that involves more than one `Ref`
      *  then just use `retry` directly.
      *

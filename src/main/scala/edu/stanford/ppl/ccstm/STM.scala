@@ -16,9 +16,11 @@ import runtime.NonLocalReturnException
  *  to be included on the argument to an anonymous method, leading to the
  *  idiomatic CCSTM atomic block
  *
- *      STM.atomic { implicit t =>
- *        // body
- *      }
+ *  <pre>
+ *  STM.atomic { implicit t =>
+ *    // body
+ *  }
+ *  </pre>
  *
  *  If there are no name collisions, you can import `STM.atomic` (or `STM._`)
  *  to make atomic blocks slightly shorter.
@@ -28,32 +30,34 @@ import runtime.NonLocalReturnException
  *
  *  Some examples
  *
- *      import edu.stanford.ppl.ccstm._
- *      import edu.stanford.ppl.ccstm.STM._
+ *  <pre>
+ *  import edu.stanford.ppl.ccstm._
+ *  import edu.stanford.ppl.ccstm.STM._
  *
- *      class Account(bal0: BigDecimal) {
- *        private val bal = Ref(bal0)
+ *  class Account(bal0: BigDecimal) {
+ *    private val bal = Ref(bal0)
  *
- *        def tryWithdrawal(m: BigDecimal) = STM.atomic { implicit t =>
- *          if (bal() >= m) {
- *            bal := bal() - m
- *            true
- *          } else {
- *            false
- *          }
- *        }
- *
- *        def deposit(m: BigDecimal)(implicit txn: Txn) {
- *          bal := bal() + m
- *        }
+ *    def tryWithdrawal(m: BigDecimal) = STM.atomic { implicit t =>
+ *      if (bal() >= m) {
+ *        bal := bal() - m
+ *        true
+ *      } else {
+ *        false
  *      }
- *       
- *      object Account {
- *        def tryTransfer(from: Account, to: Account, m: BigDecimal) = 
- *              STM.atomic { impliict t =>
- *          from.tryWithdrawal(m) && { to.deposit(m) ; true }
- *        }
- *      }
+ *    }
+ *
+ *    def deposit(m: BigDecimal)(implicit txn: Txn) {
+ *      bal := bal() + m
+ *    }
+ *  }
+ *
+ *  object Account {
+ *    def tryTransfer(from: Account, to: Account, m: BigDecimal) = 
+ *          STM.atomic { impliict t =>
+ *      from.tryWithdrawal(m) && { to.deposit(m) ; true }
+ *    }
+ *  }
+ *  </pre>
  *
  *  @see edu.stanford.ppl.ccstm.Ref
  *

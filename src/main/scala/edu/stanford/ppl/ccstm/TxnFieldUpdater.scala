@@ -202,69 +202,71 @@ object TxnFieldUpdater {
  *  building block for a red-black tree, but the second will involve fewer
  *  non-transient objects:
  *
- *      class IndirectNode[K,V](key0: K, value0: V) {
- *        val color = Ref(false)
- *        val key = Ref(key0)
- *        val value = Ref(value0)
- *        val left = Ref[IndirectNode[K,V]](null)
- *        val right = Ref[IndirectNode[K,V]](null)
- *      }
+ *  <pre>
+ *  class IndirectNode[K,V](key0: K, value0: V) {
+ *    val color = Ref(false)
+ *    val key = Ref(key0)
+ *    val value = Ref(value0)
+ *    val left = Ref[IndirectNode[K,V]](null)
+ *    val right = Ref[IndirectNode[K,V]](null)
+ *  }
  *
- *      ///////
+ *  ///////
  *
- *      object DirectNode {
- *        val Color = new TxnFieldUpdater[DirectNode[_,_],Boolean]("color") {
- *          protected def getField(instance: DirectNode[_,_]) = instance._color
- *          protected def setField(instance: DirectNode[_,_], v: Boolean) { instance._color = v }
- *        }
+ *  object DirectNode {
+ *    val Color = new TxnFieldUpdater[DirectNode[_,_],Boolean]("color") {
+ *      protected def getField(instance: DirectNode[_,_]) = instance._color
+ *      protected def setField(instance: DirectNode[_,_], v: Boolean) { instance._color = v }
+ *    }
  *
- *        val Key = new TxnFieldUpdater.Generic[DirectNode[_,_]]("key") {
- *          type Instance[X] = DirectNode[X,_]
- *          type Value[X] = X
- *          protected def getField[K](instance: DirectNode[K,_]) = instance._key
- *          protected def setField[K](instance: DirectNode[K,_], v: K) { instance._key = v }
- *        }
+ *    val Key = new TxnFieldUpdater.Generic[DirectNode[_,_]]("key") {
+ *      type Instance[X] = DirectNode[X,_]
+ *      type Value[X] = X
+ *      protected def getField[K](instance: DirectNode[K,_]) = instance._key
+ *      protected def setField[K](instance: DirectNode[K,_], v: K) { instance._key = v }
+ *    }
  *
- *        val Value = new TxnFieldUpdater.Generic[DirectNode[_,_]]("value") {
- *          type Instance[X] = DirectNode[_,X]
- *          type Value[X] = X
- *          protected def getField[V](instance: DirectNode[_,V]) = instance._value
- *          protected def setField[V](instance: DirectNode[_,V], v: V) { instance._value = v }
- *        }
+ *    val Value = new TxnFieldUpdater.Generic[DirectNode[_,_]]("value") {
+ *      type Instance[X] = DirectNode[_,X]
+ *      type Value[X] = X
+ *      protected def getField[V](instance: DirectNode[_,V]) = instance._value
+ *      protected def setField[V](instance: DirectNode[_,V], v: V) { instance._value = v }
+ *    }
  *
- *        val Left = new TxnFieldUpdater.Generic2[DirectNode[_,_]]("left") {
- *          type Instance[X,Y] = DirectNode[X,Y]
- *          type Value[X,Y] = DirectNode[X,Y]
- *          protected def getField[K,V](instance: DirectNode[K,V]) = instance._left
- *          protected def setField[K,V](instance: DirectNode[K,V], v: DirectNode[K,V]) { instance._left = v }
- *        }
+ *    val Left = new TxnFieldUpdater.Generic2[DirectNode[_,_]]("left") {
+ *      type Instance[X,Y] = DirectNode[X,Y]
+ *      type Value[X,Y] = DirectNode[X,Y]
+ *      protected def getField[K,V](instance: DirectNode[K,V]) = instance._left
+ *      protected def setField[K,V](instance: DirectNode[K,V], v: DirectNode[K,V]) { instance._left = v }
+ *    }
  *
- *        val Right = new TxnFieldUpdater.Generic2[DirectNode[_,_]]("right") {
- *          type Instance[X,Y] = DirectNode[X,Y]
- *          type Value[X,Y] = DirectNode[X,Y]
- *          protected def getField[K,V](instance: DirectNode[K,V]) = instance._right
- *          protected def setField[K,V](instance: DirectNode[K,V], v: DirectNode[K,V]) { instance._right = v }
- *        }
- *      }
+ *    val Right = new TxnFieldUpdater.Generic2[DirectNode[_,_]]("right") {
+ *      type Instance[X,Y] = DirectNode[X,Y]
+ *      type Value[X,Y] = DirectNode[X,Y]
+ *      protected def getField[K,V](instance: DirectNode[K,V]) = instance._right
+ *      protected def setField[K,V](instance: DirectNode[K,V], v: DirectNode[K,V]) { instance._right = v }
+ *    }
+ *  }
  *
- *      class DirectNode[K,V](key0: K, value0: V) extends MetaHolder {
- *        @volatile private var _color = false
- *        @volatile private var _key = key0
- *        @volatile private var _value0 = value0
- *        @volatile private var _left: DirectNode[K,V] = null
- *        &#064;volatile private var _right: DirectNode[K,V] = null
+ *  class DirectNode[K,V](key0: K, value0: V) extends MetaHolder {
+ *    &#64;volatile private var _color = false
+ *    &#64;volatile private var _key = key0
+ *    &#64;volatile private var _value0 = value0
+ *    &#64;volatile private var _left: DirectNode[K,V] = null
+ *    &#64;volatile private var _right: DirectNode[K,V] = null
  *
- *        def color = DirectNode.Color(this)
- *        def key = DirectNode.Key(this)
- *        def value = DirectNode.Value(this)
- *        def left = DirectNode.Left(this)
- *        def right = DirectNode.Right(this)
+ *    def color = DirectNode.Color(this)
+ *    def key = DirectNode.Key(this)
+ *    def value = DirectNode.Value(this)
+ *    def left = DirectNode.Left(this)
+ *    def right = DirectNode.Right(this)
  *
- *        // alternate property-like style
- *        //def valueRef = DirectNode.Value(this)
- *        //def value(implicit txn: Txn) = valueRef.get()
- *        //def value_=(v: V)(implicit txn: Txn) = valueRef.set(v)
- *      }
+ *    // alternate property-like style
+ *    //def valueRef = DirectNode.Value(this)
+ *    //def value(implicit txn: Txn) = valueRef.get()
+ *    //def value_=(v: V)(implicit txn: Txn) = valueRef.set(v)
+ *  }
+ *  </pre>
  */
 abstract class TxnFieldUpdater[T <: MetaHolder,V](fieldName: String)(implicit m: ClassManifest[T]
         ) extends TxnFieldUpdater.Impl[T](fieldName) {
