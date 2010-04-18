@@ -6,7 +6,6 @@ package edu.stanford.ppl.ccstm
 
 
 import impl.ThreadContext
-import runtime.NonLocalReturnException
 
 /** The `STM` object manages atomic execution of code blocks using software
  *  transactional memory.  The transactions provide linearizability for all of
@@ -173,20 +172,35 @@ object STM {
     Left(z)
   }
 
+  private val controlThrowableClass: Class[_] = {
+    try {
+      Class.forName("scala.util.control.ControlThrowable")
+    } catch {
+      case x: ClassNotFoundException =>
+          Class.forName("scala.util.control.ControlException")
+    }
+  }
+
   private def attemptImpl[Z](txn: Txn, block: Txn => Z): Z = {
-    var nonLocalReturn: NonLocalReturnException[_] = null
+    var nonLocalReturn: Throwable = null
     var result: Z = null.asInstanceOf[Z]
     try {
       result = block(txn)
     }
     catch {
       case RollbackError => {}
-      case x: NonLocalReturnException[_] => {
-        // This has the opposite behavior from other exception types.  We don't
-        // trigger rollback, and we rethrow only if the transaction _commits_.
-        nonLocalReturn = x
+      case x => {
+        // TODO: remove the dynamic check after we no longer compile for 2.8.0.Beta1
+        // 2.8.0.Beta1 should catch scala.runtime.NonLocalReturnException
+        // 2.8.0.RC1 should catch subclasses of scala.util.control.ControlThrowable
+        if (controlThrowableClass.isAssignableFrom(x.getClass)) {
+          // This has the opposite behavior from other exception types.  We don't
+          // trigger rollback, and we rethrow only if the transaction _commits_.
+          nonLocalReturn = x
+        } else {
+          txn.forceRollback(Txn.UserExceptionCause(x))
+        }
       }
-      case x => txn.forceRollback(Txn.UserExceptionCause(x))
     }
     txn.commitAndRethrow()
     if (null != nonLocalReturn && txn.status == Txn.Committed) throw nonLocalReturn
