@@ -127,12 +127,7 @@ object LazyConflictIntRef {
       }
     }
 
-    def weakCompareAndSet(before: Int, after: Int): Boolean = compareAndSet(before, after)
-
     def compareAndSetIdentity[A <: Int with AnyRef](before: A, after: Int): Boolean = {
-      throw new UnsupportedOperationException("identity comparisons are not valid on Int")
-    }
-    def weakCompareAndSetIdentity[A <: Int with AnyRef](before: A, after: Int): Boolean = {
       throw new UnsupportedOperationException("identity comparisons are not valid on Int")
     }
 

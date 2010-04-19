@@ -72,14 +72,6 @@ class StripedIntRef(initialValue: Int) extends IntRef {
       throw new UnsupportedOperationException
     }
 
-    def weakCompareAndSet(before: Int, after: Int): Boolean = {
-      compareAndSet(before, after)
-    }
-
-    def weakCompareAndSetIdentity[A <: Int with AnyRef](before: A, after: Int): Boolean = {
-      throw new UnsupportedOperationException
-    }
-
     def transform(f: Int => Int) { STM.atomic(unbind.transform(f)(_)) }
 
     def getAndTransform(f: Int => Int): Int = STM.atomic(unbind.bind(_).getAndTransform(f))
@@ -215,14 +207,6 @@ class StripedIntRef(initialValue: Int) extends IntRef {
     }
 
     def compareAndSetIdentity[A <: Int with AnyRef](before: A, after: Int): Boolean = {
-      throw new UnsupportedOperationException
-    }
-
-    def weakCompareAndSet(before: Int, after: Int): Boolean = {
-      compareAndSet(before, after)
-    }
-
-    def weakCompareAndSetIdentity[A <: Int with AnyRef](before: A, after: Int): Boolean = {
       throw new UnsupportedOperationException
     }
 

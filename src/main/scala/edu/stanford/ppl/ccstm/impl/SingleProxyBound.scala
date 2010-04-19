@@ -31,10 +31,6 @@ private[ccstm] class SingleProxyBound[T](unbind0: Ref[T]) extends Ref.Bound[T] {
   def compareAndSet(before: T, after: T): Boolean = dynBound.compareAndSet(before, after)
   def compareAndSetIdentity[R <: AnyRef with T](before: R, after: T): Boolean =
     dynBound.compareAndSetIdentity(before, after)
-  def weakCompareAndSet(before: T, after: T): Boolean =
-    dynBound.weakCompareAndSet(before, after)
-  def weakCompareAndSetIdentity[R <: AnyRef with T](before: R, after: T): Boolean =
-    dynBound.weakCompareAndSetIdentity(before, after)
   def transform(f: T => T): Unit = dynBound.transform(f)
   def getAndTransform(f: T => T): T = dynBound.getAndTransform(f)
   def tryTransform(f: T => T): Boolean = dynBound.tryTransform(f)

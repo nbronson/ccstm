@@ -26,8 +26,6 @@ private[ccstm] class TxnBound[T](val unbind: Ref[T],
   def getAndSet(v: T): T = txn.getAndSet(handle, v)
   def compareAndSet(before: T, after: T): Boolean = txn.compareAndSet(handle, before, after)
   def compareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = txn.compareAndSetIdentity(handle, before, after)
-  def weakCompareAndSet(before: T, after: T): Boolean = txn.weakCompareAndSet(handle, before, after)
-  def weakCompareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = txn.weakCompareAndSetIdentity(handle, before, after)
   def transform(f: T => T) {
     // this isn't as silly as it seems, because some Bound implementations
     // override getAndTransform()

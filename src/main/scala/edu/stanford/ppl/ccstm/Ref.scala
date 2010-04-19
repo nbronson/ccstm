@@ -158,22 +158,6 @@ object Ref {
      */
     def compareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean
 
-    /** Works like <code>compareAndSet</code>, but allows spurious failures.  A
-     *  false return from this method does not necessarily mean that the
-     *  previous value of the <code>Ref</code> is not equal to
-     *  <code>before</code>.
-     *  @see edu.stanford.ppl.ccstm.Ref.Bound#compareAndSet
-     */
-    def weakCompareAndSet(before: T, after: T): Boolean
-
-    /** Works like <code>compareAndSetIdentity</code>, but allows spurious
-     *  failures.  A false return from this method does not necessarily mean
-     *  that the previous value of the <code>Ref</code> has a different
-     *  reference identity than <code>before</code>.
-     *  @see edu.stanford.ppl.ccstm.Ref.Bound#compareAndSetIdentity
-     */
-    def weakCompareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean
-
     /** Atomically replaces the value ''v'' stored in the `Ref` with
      *  `f`(''v'').  Some implementations may defer execution of `f` or call
      *  `f` multiple times.

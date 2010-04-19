@@ -58,14 +58,6 @@ private[ccstm] class SingleBound[T](val unbind: Ref[T],
     case null => NonTxn.compareAndSetIdentity(nonTxnHandle, before, after)
     case txn: Txn => txn.compareAndSetIdentity(txnHandle, before, after)
   }
-  def weakCompareAndSet(before: T, after: T): Boolean = Txn.dynCurrentOrNull match {
-    case null => NonTxn.compareAndSet(nonTxnHandle, before, after)
-    case txn: Txn => txn.weakCompareAndSet(txnHandle, before, after)
-  }
-  def weakCompareAndSetIdentity[R <: AnyRef with T](before: R, after: T): Boolean = Txn.dynCurrentOrNull match {
-    case null => NonTxn.compareAndSetIdentity(nonTxnHandle, before, after)
-    case txn: Txn => txn.weakCompareAndSetIdentity(txnHandle, before, after)
-  }
   def transform(f: T => T): Unit = Txn.dynCurrentOrNull match {
     case null => NonTxn.getAndTransform(nonTxnHandle, f)
     case txn: Txn => txn.getAndTransform(txnHandle, f)

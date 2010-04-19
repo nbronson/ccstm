@@ -25,8 +25,6 @@ private[ccstm] class EscapedBound[T](val unbind: Ref[T],
   def getAndSet(v: T): T = NonTxn.getAndSet(handle, v)
   def compareAndSet(before: T, after: T): Boolean = NonTxn.compareAndSet(handle, before, after)
   def compareAndSetIdentity[R <: AnyRef with T](before: R, after: T): Boolean = NonTxn.compareAndSetIdentity(handle, before, after)
-  def weakCompareAndSet(before: T, after: T): Boolean = NonTxn.compareAndSet(handle, before, after)
-  def weakCompareAndSetIdentity[R <: AnyRef with T](before: R, after: T): Boolean = NonTxn.compareAndSetIdentity(handle, before, after)
   def transform(f: T => T) { NonTxn.getAndTransform(handle, f) }
   def getAndTransform(f: T => T): T = NonTxn.getAndTransform(handle, f)
   def tryTransform(f: T => T): Boolean = NonTxn.tryTransform(handle, f)

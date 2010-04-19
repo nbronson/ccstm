@@ -303,45 +303,6 @@ class IsolatedRefSuite extends STMFunSuite {
       binder.reset()
     }
 
-    test(fact + ": " + binder + ": successful weakCompareAndSet") {
-      val x = fact(1)
-      while (!binder(x).weakCompareAndSet(1, 2)) {
-        assert(binder(x).get === 1)
-      }
-      assert(binder(x).get === 2)
-      binder.reset()
-    }
-  
-    test(fact + ": " + binder + ": failing weakCompareAndSet") {
-      val x = fact(1)
-      val f = binder(x).weakCompareAndSet(2, 3)
-      assert(!f)
-      assert(binder(x).get === 1)
-      binder.reset()
-    }
-  
-    test(fact + ": " + binder + ": successful weakCompareAndSetIdentity") {
-      val ref1 = new java.lang.Integer(3)
-      val ref2 = new java.lang.Integer(4)
-      val x = Ref(ref1)
-      while (!binder(x).weakCompareAndSetIdentity(ref1, ref2)) {
-        assert(binder(x).get eq ref1)
-      }
-      assert(binder(x).get eq ref2)
-      binder.reset()
-    }
-  
-    test(fact + ": " + binder + ": failing weakCompareAndSetIdentity") {
-      val ref1 = new java.lang.Integer(3)
-      val ref2 = new java.lang.Integer(3)
-      val ref3 = new java.lang.Integer(4)
-      val x = Ref(ref1)
-      val f = binder(x).weakCompareAndSetIdentity(ref2, ref3)
-      assert(!f)
-      assert(binder(x).get eq ref1)
-      binder.reset()
-    }
-  
     test(fact + ": " + binder + ": unrecordedRead immediate use") {
       val x = fact(1)
       val u = binder(x).unrecordedRead

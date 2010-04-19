@@ -644,14 +644,6 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
     })
   }
 
-  def weakCompareAndSet[T](handle: Handle[T], before: T, after: T): Boolean = {
-    compareAndSet(handle, before, after)
-  }
-
-  def weakCompareAndSetIdentity[T, R <: T with AnyRef](handle: Handle[T], before: R, after: T): Boolean = {
-    compareAndSetIdentity(handle, before, after)
-  }
-
   def getAndTransform[T](handle: Handle[T], f: T => T): T = {
     requireActive()
 
