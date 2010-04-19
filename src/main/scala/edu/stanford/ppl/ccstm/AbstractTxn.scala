@@ -18,8 +18,8 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
 
   //////////////// Functions implemented in Txn, but available to the STM-specific base class
 
-  /** Returns the transaction's current status.  The status may change at any
-   *  time.
+  /** Returns the transaction's current status.  The status may change due to
+   *  the actions of a concurrent thread.
    */
   def status: Status
 
@@ -66,8 +66,8 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
    *  <p>
    *  CCSTM guarantees that all reads will be consistent with those from a
    *  point-in-time snapshot, even without any manual validation, so use of
-   *  this method by user code should be rare.  The provided consistency
-   *  guarantee is referred to as "opacity".
+   *  this method by user code should be rare.  CCSTM always provides the
+   *  consistency guarantee referred to as "opacity".
    */
   def explicitlyValidateReads()
 
@@ -96,7 +96,7 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
    *  <code>readResource.valid</code>.  This register/validate pair
    *  corresponds to the most common use case for read resources.  If the
    *  caller takes responsibility for validating the read resource then they
-   *  may use the two-argument form of this method.  If the validation fails
+   *  may use the three-argument form of this method.  If the validation fails
    *  then the transaction will be immediately rolled back and this method will
    *  not return.  If two read resources have different priorities then the one
    *  with the smaller priority will be validated first, otherwise the one
@@ -168,7 +168,7 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
    *  `attach()` this can be used to migrate a `Txn` from one thread to another
    *  while it is active.  A transaction may not be used from multiple threads
    *  at the same time.  `attach()` must be called before the transaction is
-   *  used on the other thread, although this is not necessarily checked. There
+   *  used on the other thread, although this may or may not be checked. There
    *  is no need to attach or detach at the normal beginning and end of a
    *  transaction, this pair of functions is used only for advanced scenarios
    *  in which transaction processing needs to be migrated from one thread to
