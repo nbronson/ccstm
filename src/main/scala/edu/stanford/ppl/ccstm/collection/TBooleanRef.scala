@@ -21,7 +21,7 @@ private object TBooleanRef {
  */
 class TBooleanRef(initialValue: Boolean) extends impl.Handle[Boolean] with Ref[Boolean] {
 
-  protected def handle: impl.Handle[Boolean] = this
+  private[ccstm] def handle: impl.Handle[Boolean] = this
 
   @volatile private[ccstm] var meta: Long = 0L
   private[ccstm] def metaCAS(before: Long, after: Long) = {

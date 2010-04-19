@@ -21,7 +21,7 @@ private object TFloatRef {
  */
 class TFloatRef(initialValue: Float) extends impl.Handle[Float] with Ref[Float] {
 
-  protected def handle: impl.Handle[Float] = this
+  private[ccstm] def handle: impl.Handle[Float] = this
 
   @volatile private[ccstm] var meta: Long = 0L
   private[ccstm] def metaCAS(before: Long, after: Long) = {

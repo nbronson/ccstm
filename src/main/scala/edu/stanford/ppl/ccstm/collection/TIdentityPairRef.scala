@@ -33,7 +33,7 @@ class TIdentityPairRef[A,B](initialA: A, initialB: B
 
   import TIdentityPairRef._
 
-  protected def handle: impl.Handle[IdentityPair[A,B]] = this
+  private[ccstm] def handle: impl.Handle[IdentityPair[A,B]] = this
 
   @volatile private[ccstm] var meta: Long = 0L
   private[ccstm] def metaCAS(before: Long, after: Long) = {

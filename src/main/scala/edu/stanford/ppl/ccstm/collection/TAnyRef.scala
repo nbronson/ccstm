@@ -21,7 +21,7 @@ private object TAnyRef {
  */
 class TAnyRef[T](initialValue: T) extends impl.Handle[T] with Ref[T] {
 
-  protected def handle: impl.Handle[T] = this
+  private[ccstm] def handle: impl.Handle[T] = this
 
   @volatile private[ccstm] var meta: Long = 0L
   private[ccstm] def metaCAS(before: Long, after: Long) = {

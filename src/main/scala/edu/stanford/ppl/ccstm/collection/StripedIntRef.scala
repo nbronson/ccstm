@@ -21,7 +21,7 @@ class StripedIntRef(initialValue: Int) extends IntRef {
     a
   }
 
-  protected def handle: Handle[Int] = throw new UnsupportedOperationException
+  private[ccstm] def handle: Handle[Int] = throw new UnsupportedOperationException
 
   override def single: IntRef.Bound = new SingleProxyBound(this) with IntRef.Bound {
     override def unbind: IntRef = StripedIntRef.this

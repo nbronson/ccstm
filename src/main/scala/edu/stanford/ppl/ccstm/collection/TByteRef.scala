@@ -21,7 +21,7 @@ private object TByteRef {
  */
 class TByteRef(initialValue: Byte) extends impl.Handle[Byte] with Ref[Byte] {
 
-  protected def handle: impl.Handle[Byte] = this
+  private[ccstm] def handle: impl.Handle[Byte] = this
 
   @volatile private[ccstm] var meta: Long = 0L
   private[ccstm] def metaCAS(before: Long, after: Long) = {

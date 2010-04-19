@@ -21,7 +21,7 @@ private object TCharRef {
  */
 class TCharRef(initialValue: Char) extends impl.Handle[Char] with Ref[Char] {
 
-  protected def handle: impl.Handle[Char] = this
+  private[ccstm] def handle: impl.Handle[Char] = this
 
   @volatile private[ccstm] var meta: Long = 0L
   private[ccstm] def metaCAS(before: Long, after: Long) = {

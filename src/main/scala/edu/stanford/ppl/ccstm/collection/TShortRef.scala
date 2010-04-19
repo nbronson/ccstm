@@ -21,7 +21,7 @@ private object TShortRef {
  */
 class TShortRef(initialValue: Short) extends impl.Handle[Short] with Ref[Short] {
 
-  protected def handle: impl.Handle[Short] = this
+  private[ccstm] def handle: impl.Handle[Short] = this
 
   @volatile private[ccstm] var meta: Long = 0L
   private[ccstm] def metaCAS(before: Long, after: Long) = {

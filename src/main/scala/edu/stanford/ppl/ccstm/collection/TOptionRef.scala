@@ -24,7 +24,7 @@ private object TOptionRef {
 class TOptionRef[T](initialValue: Option[T]) extends impl.Handle[Option[T]] with Ref[Option[T]] {
   import TOptionRef._
 
-  protected def handle: impl.Handle[Option[T]] = this
+  private[ccstm] def handle: impl.Handle[Option[T]] = this
 
   @volatile private[ccstm] var meta: Long = 0L
   private[ccstm] def metaCAS(before: Long, after: Long) = {

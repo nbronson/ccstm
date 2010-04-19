@@ -21,7 +21,7 @@ private object TIntRef {
  */
 class TIntRef(initialValue: Int) extends impl.Handle[Int] with IntRef {
 
-  protected def handle: impl.Handle[Int] = this
+  private[ccstm] def handle: impl.Handle[Int] = this
 
   @volatile private[ccstm] var meta: Long = 0L
   private[ccstm] def metaCAS(before: Long, after: Long) = {

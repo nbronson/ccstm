@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.{AtomicLong, AtomicReference}
 
 
 /** A linearizable counter class with adaptive striping. */
-class Counter {
+private[ccstm] class Counter {
   private val SuccessMask = 127
   private val GrowThreshold = 8
   private val MaxSlots = 4 * Runtime.getRuntime.availableProcessors

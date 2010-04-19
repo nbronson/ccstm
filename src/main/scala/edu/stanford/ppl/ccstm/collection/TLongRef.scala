@@ -21,7 +21,7 @@ private object TLongRef {
  */
 class TLongRef(initialValue: Long) extends impl.Handle[Long] with Ref[Long] {
 
-  protected def handle: impl.Handle[Long] = this
+  private[ccstm] def handle: impl.Handle[Long] = this
 
   @volatile private[ccstm] var meta: Long = 0L
   private[ccstm] def metaCAS(before: Long, after: Long) = {

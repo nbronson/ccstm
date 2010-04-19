@@ -276,7 +276,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *  This is the only method for which the default <code>Ref</code>
    *  implementation is not sufficient.
    */
-  protected def handle: impl.Handle[T]
+  private[ccstm] def handle: impl.Handle[T]
 
   /** Provides access to the handle for use by non-transactional direct access. */ 
   private[ccstm] def nonTxnHandle = handle

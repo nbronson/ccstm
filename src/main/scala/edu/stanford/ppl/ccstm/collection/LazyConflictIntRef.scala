@@ -294,7 +294,7 @@ class LazyConflictIntRef(initialValue: Int) extends IntRef {
     }
   }
 
-  protected def handle: impl.Handle[Int] = throw new UnsupportedOperationException
+  private[ccstm] def handle: impl.Handle[Int] = throw new UnsupportedOperationException
   override private[ccstm] def nonTxnHandle = underlying.nonTxnHandle
 
   override def get(implicit txn: Txn): Int = bind.get

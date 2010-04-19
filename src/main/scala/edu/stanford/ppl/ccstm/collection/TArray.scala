@@ -133,7 +133,7 @@ class TArray[T](private val _data: AtomicArray[T], metaMapping: TArray.MetaMappi
 
   private def getRef(index: Int): Ref[T] = new Handle[T] with Ref[T] {
 
-    protected def handle: Handle[T] = this
+    private[ccstm] def handle: Handle[T] = this
 
     private[ccstm] def metaOffset = _metaIndex(index)
 

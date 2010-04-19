@@ -21,7 +21,7 @@ private object TDoubleRef {
  */
 class TDoubleRef(initialValue: Double) extends impl.Handle[Double] with Ref[Double] {
 
-  protected def handle: impl.Handle[Double] = this
+  private[ccstm] def handle: impl.Handle[Double] = this
 
   @volatile private[ccstm] var meta: Long = 0L
   private[ccstm] def metaCAS(before: Long, after: Long) = {

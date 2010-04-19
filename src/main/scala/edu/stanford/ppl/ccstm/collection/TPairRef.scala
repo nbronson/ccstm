@@ -27,7 +27,7 @@ class TPairRef[A,B](initialA: A, initialB: B) extends impl.Handle[(A,B)] with Re
 
   import TPairRef._
 
-  protected def handle: impl.Handle[(A,B)] = this
+  private[ccstm] def handle: impl.Handle[(A,B)] = this
 
   @volatile private[ccstm] var meta: Long = 0L
   private[ccstm] def metaCAS(before: Long, after: Long) = {
