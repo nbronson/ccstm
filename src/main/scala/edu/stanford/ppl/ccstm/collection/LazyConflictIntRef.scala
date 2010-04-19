@@ -103,7 +103,7 @@ object LazyConflictIntRef {
       record(new Set(v))
     }
 
-    def tryWrite(v: Int): Boolean = {
+    def trySet(v: Int): Boolean = {
       set(v)
       true
     }

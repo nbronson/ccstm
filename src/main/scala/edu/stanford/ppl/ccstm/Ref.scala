@@ -178,7 +178,7 @@ object Ref {
 
     /** Either atomically transforms this reference without blocking and
      *  returns true, or returns false.  `transform` is to `tryTransform` as
-     *  `set` is to `tryWrite`.  A true return value does not necessarily mean
+     *  `set` is to `trySet`.  A true return value does not necessarily mean
      *  that `f` has already been called, just that the transformation will be
      *  performed in the bound context if it commits.
      *  @param f a function that is safe to call multiple times, and safe to

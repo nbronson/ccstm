@@ -37,9 +37,9 @@ private[ccstm] class SingleBound[T](val unbind: Ref[T],
     case null => NonTxn.set(nonTxnHandle, v)
     case txn: Txn => txn.set(txnHandle, v)
   }
-  def tryWrite(v: T): Boolean = Txn.dynCurrentOrNull match {
-    case null => NonTxn.tryWrite(nonTxnHandle, v)
-    case txn: Txn => txn.tryWrite(txnHandle, v)
+  def trySet(v: T): Boolean = Txn.dynCurrentOrNull match {
+    case null => NonTxn.trySet(nonTxnHandle, v)
+    case txn: Txn => txn.trySet(txnHandle, v)
   }
 
   def readForWrite: T = Txn.dynCurrentOrNull match {

@@ -353,10 +353,10 @@ class IsolatedRefSuite extends STMFunSuite {
       binder.reset()
     }
 
-    test(fact + ": " + binder + ": tryWrite") {
+    test(fact + ": " + binder + ": trySet") {
       val x = fact(1)
       assert(binder(x).get === 1)
-      while (!binder(x).tryWrite(2)) {
+      while (!binder(x).trySet(2)) {
         assert(binder(x).get === 1)
       }
       assert(binder(x).get === 2)

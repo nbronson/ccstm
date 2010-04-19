@@ -163,7 +163,7 @@ class TxnSuite extends STMFunSuite {
       assert(x() === 11)
       assert(x.escaped() === 10)
       assert(x.escaped.mode == Escaped)
-      val f = x.escaped.tryWrite(20)
+      val f = x.escaped.trySet(20)
       assert(f === false)
     }
   }

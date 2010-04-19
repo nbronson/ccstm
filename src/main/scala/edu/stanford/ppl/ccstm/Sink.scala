@@ -47,7 +47,7 @@ object Sink {
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
      */
-    def tryWrite(v: T): Boolean
+    def trySet(v: T): Boolean
   }
 }
 

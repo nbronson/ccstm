@@ -595,7 +595,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
     handle.data
   }
 
-  def tryWrite[T](handle: Handle[T], v: T): Boolean = {
+  def trySet[T](handle: Handle[T], v: T): Boolean = {
     requireActive()
 
     val m0 = handle.meta

@@ -19,7 +19,7 @@ private[ccstm] class EscapedBound[T](val unbind: Ref[T],
   def releasableRead: ReleasableRead[T] = NonTxn.releasableRead(handle)
 
   def set(v: T) { NonTxn.set(handle, v) }
-  def tryWrite(v: T): Boolean = NonTxn.tryWrite(handle, v)
+  def trySet(v: T): Boolean = NonTxn.trySet(handle, v)
 
   def readForWrite: T = NonTxn.get(handle)
   def swap(v: T): T = NonTxn.swap(handle, v)

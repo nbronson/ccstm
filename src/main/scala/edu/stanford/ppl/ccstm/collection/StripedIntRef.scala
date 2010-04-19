@@ -60,7 +60,7 @@ class StripedIntRef(initialValue: Int) extends IntRef {
 
     def set(v: Int) { STM.atomic(unbind.set(v)(_)) }
 
-    def tryWrite(v: Int): Boolean = STM.atomic(unbind.bind(_).tryWrite(v))
+    def trySet(v: Int): Boolean = STM.atomic(unbind.bind(_).trySet(v))
 
     def readForWrite: Int = get
 
@@ -173,7 +173,7 @@ class StripedIntRef(initialValue: Int) extends IntRef {
       unbind.set(v)
     }
 
-    def tryWrite(v: Int): Boolean = {
+    def trySet(v: Int): Boolean = {
       tryTransform(i => v)
     }
 

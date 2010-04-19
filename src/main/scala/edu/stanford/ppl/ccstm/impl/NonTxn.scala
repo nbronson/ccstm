@@ -215,7 +215,7 @@ private[ccstm] object NonTxn {
     z
   }
 
-  def tryWrite[T](handle: Handle[T], v: T): Boolean = {
+  def trySet[T](handle: Handle[T], v: T): Boolean = {
     val m0 = tryAcquireLock(handle, true)
     if (m0 == 0L) {
       false

@@ -24,7 +24,7 @@ private[ccstm] class SingleProxyBound[T](unbind0: Ref[T]) extends Ref.Bound[T] {
   def releasableRead: ReleasableRead[T] = dynBound.releasableRead
 
   def set(v: T): Unit = dynBound.set(v)
-  def tryWrite(v: T): Boolean = dynBound.tryWrite(v)
+  def trySet(v: T): Boolean = dynBound.trySet(v)
 
   def readForWrite: T = dynBound.readForWrite
   def swap(v: T): T = dynBound.swap(v)

@@ -20,7 +20,7 @@ private[ccstm] class TxnBound[T](val unbind: Ref[T],
   def releasableRead: ReleasableRead[T] = txn.releasableRead(handle)
 
   def set(v: T) { txn.set(handle, v) }
-  def tryWrite(v: T): Boolean = txn.tryWrite(handle, v)
+  def trySet(v: T): Boolean = txn.trySet(handle, v)
 
   def readForWrite: T = txn.readForWrite(handle)
   def swap(v: T): T = txn.swap(handle, v)
