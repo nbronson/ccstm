@@ -9,7 +9,7 @@ import impl.NonTxn
 
 object IntRef {
 
-  trait Bound extends Ref.Bound[Int] with Ordered[Int] {
+  trait View extends Ref.View[Int] with Ordered[Int] {
     def unbind: IntRef
 
     /** Increments the bound <code>IntRef</code> by <code>delta</code>.
@@ -43,11 +43,11 @@ object IntRef {
  */
 trait IntRef extends Ref[Int] {
 
-  override def bind(implicit txn: Txn): IntRef.Bound = new impl.TxnBound(this, handle, txn) with IntRef.Bound {
+  override def bind(implicit txn: Txn): IntRef.View = new impl.TxnView(this, handle, txn) with IntRef.View {
     override val unbind: IntRef = IntRef.this
   }
 
-  override def single: IntRef.Bound = new impl.SingleBound(this, nonTxnHandle, handle) with IntRef.Bound {
+  override def single: IntRef.View = new impl.SingleView(this, nonTxnHandle, handle) with IntRef.View {
     override val unbind: IntRef = IntRef.this
 
     override def += (delta: Int) {
@@ -58,14 +58,14 @@ trait IntRef extends Ref[Int] {
     }
   }
 
-  override def escaped: IntRef.Bound = new impl.EscapedBound(this, nonTxnHandle) with IntRef.Bound {
+  override def escaped: IntRef.View = new impl.EscapedView(this, nonTxnHandle) with IntRef.View {
     override val unbind: IntRef = IntRef.this
 
     override def += (delta: Int): Unit = NonTxn.getAndAdd(handle, delta)
   }
 
   @deprecated("consider replacing with Ref.single, otherwise use Ref.escaped")
-  override def nonTxn: IntRef.Bound = escaped 
+  override def nonTxn: IntRef.View = escaped
 
   //////////////// convenience functions for ints
 

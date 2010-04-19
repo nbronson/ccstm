@@ -16,16 +16,16 @@ import java.util.IdentityHashMap
  */
 class IsolatedRefSuite extends STMFunSuite {
 
-  /** Binder implementations provide a way of obtaining Ref.Bound instances
+  /** Binder implementations provide a way of obtaining Ref.View instances
    *  from a Ref.  The bound views may be reused, or not, and they may be
    *  non-transactional or transactional.
    */
   class Binder(reuse: Boolean, txnLen: Int, single: Boolean) {
-    private val cache = new IdentityHashMap[Ref[_],Ref.Bound[_]]
+    private val cache = new IdentityHashMap[Ref[_],Ref.View[_]]
     private var txn: Txn = null
     private var accesses = 0
 
-    def apply[T](v: Ref[T]): Ref.Bound[T] = {
+    def apply[T](v: Ref[T]): Ref.View[T] = {
       if (txnLen > 0) {
         if (accesses == txnLen) reset()
         accesses += 1
@@ -33,7 +33,7 @@ class IsolatedRefSuite extends STMFunSuite {
       }
       if (reuse) {
         val z = cache.get(v)
-        if (null != z) return z.asInstanceOf[Ref.Bound[T]]
+        if (null != z) return z.asInstanceOf[Ref.View[T]]
       }
       val z = (if (single) {
         v.single
@@ -131,7 +131,7 @@ class IsolatedRefSuite extends STMFunSuite {
         while (i < 10) {
           i += 1
           val b = binder(x)
-          b.asInstanceOf[IntRef.Bound] += 1
+          b.asInstanceOf[IntRef.View] += 1
         }
       }
     }

@@ -5,7 +5,7 @@
 package edu.stanford.ppl.ccstm.collection
 
 import edu.stanford.ppl.ccstm._
-import edu.stanford.ppl.ccstm.impl.{SingleProxyBound, Handle}
+import edu.stanford.ppl.ccstm.impl.{SingleProxyView, Handle}
 
 class StripedIntRef(initialValue: Int) extends IntRef {
   private def NumStripes = 16
@@ -23,7 +23,7 @@ class StripedIntRef(initialValue: Int) extends IntRef {
 
   private[ccstm] def handle: Handle[Int] = throw new UnsupportedOperationException
 
-  override def single: IntRef.Bound = new SingleProxyBound(this) with IntRef.Bound {
+  override def single: IntRef.View = new SingleProxyView(this) with IntRef.View {
     override def unbind: IntRef = StripedIntRef.this
 
     override def += (delta: Int) {
@@ -36,7 +36,7 @@ class StripedIntRef(initialValue: Int) extends IntRef {
     }
   }
 
-  override def escaped: IntRef.Bound = new IntRef.Bound {
+  override def escaped: IntRef.View = new IntRef.View {
     def unbind = StripedIntRef.this
     def mode: BindingMode = Escaped
 
@@ -89,7 +89,7 @@ class StripedIntRef(initialValue: Int) extends IntRef {
     }
   }
 
-  override def bind(implicit txn: Txn): IntRef.Bound = new IntRef.Bound {
+  override def bind(implicit txn: Txn): IntRef.View = new IntRef.View {
     def unbind = StripedIntRef.this
     def mode: BindingMode = txn
 

@@ -7,7 +7,7 @@ package edu.stanford.ppl.ccstm
 import impl.ThreadContext
 
 /** One of `Single`, `Escaped`, or an instance of `Txn`
- *  @see edu.stanford.ppl.ccstm.Ref.Bound#mode
+ *  @see edu.stanford.ppl.ccstm.Ref.View#mode
  */
 sealed trait BindingMode {
   //def dynContext: Option[Txn]

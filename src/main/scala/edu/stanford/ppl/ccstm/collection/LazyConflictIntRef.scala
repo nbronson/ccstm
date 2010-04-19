@@ -5,7 +5,7 @@
 package edu.stanford.ppl.ccstm.collection
 
 import edu.stanford.ppl.ccstm._
-import impl.{NonTxn, SingleProxyBound}
+import impl.{NonTxn, SingleProxyView}
 
 object LazyConflictIntRef {
   
@@ -47,7 +47,7 @@ object LazyConflictIntRef {
   private class Transform(f: Int => Int)       extends Update { def apply(v: Int) = f(v) }
 
 
-  class TxnBound(txn: Txn, val unbind: LazyConflictIntRef) extends IntRef.Bound with Txn.ReadResource {
+  class TxnView(txn: Txn, val unbind: LazyConflictIntRef) extends IntRef.View with Txn.ReadResource {
     private val _ubound = unbind.underlying.bind(txn)
     private var _read: UnrecordedRead[Int] = _ubound.unrecordedRead
     private var _value: Int = _read.value
@@ -281,9 +281,9 @@ class LazyConflictIntRef(initialValue: Int) extends IntRef {
 
   private val underlying = new TIntRef(initialValue)
 
-  private val bound = new TxnLocal[LazyConflictIntRef.TxnBound] {
+  private val bound = new TxnLocal[LazyConflictIntRef.TxnView] {
     override def initialValue(txn: Txn) = {
-      val b = new LazyConflictIntRef.TxnBound(txn, LazyConflictIntRef.this)
+      val b = new LazyConflictIntRef.TxnView(txn, LazyConflictIntRef.this)
       txn.addReadResource(b, Int.MinValue / 2)
       b
     }
@@ -301,9 +301,9 @@ class LazyConflictIntRef(initialValue: Int) extends IntRef {
     bind.transformIfDefined(pf)
   }
 
-  override def bind(implicit txn: Txn): IntRef.Bound = bound.get
+  override def bind(implicit txn: Txn): IntRef.View = bound.get
 
-  override def single: IntRef.Bound = new SingleProxyBound(this) with IntRef.Bound {
+  override def single: IntRef.View = new SingleProxyView(this) with IntRef.View {
     override def unbind: IntRef = LazyConflictIntRef.this
     
     override def += (delta: Int) {

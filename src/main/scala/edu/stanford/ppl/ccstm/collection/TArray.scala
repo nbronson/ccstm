@@ -27,13 +27,13 @@ object TArray {
   def apply[T](data: Traversable[T], metaMapping: TArray.MetaMapping)(implicit m: ClassManifest[T]) = new TArray[T](data, metaMapping)
 
   
-  trait Bound[T] extends mutable.IndexedSeq[T] {
+  trait View[T] extends mutable.IndexedSeq[T] {
     def unbind: TArray[T]
     def mode: BindingMode
     def length: Int = unbind.length
     def apply(index: Int): T
     def update(index: Int, v: T)
-    def refs: immutable.IndexedSeq[Ref.Bound[T]]
+    def refs: immutable.IndexedSeq[Ref.View[T]]
   }
 
   /** <code>MetaMapping</code> defines the mapping from elements of the array
@@ -77,34 +77,34 @@ class TArray[T](private val _data: AtomicArray[T], metaMapping: TArray.MetaMappi
   def apply(index: Int)(implicit txn: Txn) = getRef(index).get
   def update(index: Int, v: T)(implicit txn: Txn) = getRef(index).set(v)
 
-  def bind(implicit txn: Txn): Bound[T] = new Bound[T] {
+  def bind(implicit txn: Txn): View[T] = new View[T] {
     def unbind = TArray.this
     def mode: BindingMode = txn
     def apply(index: Int): T = getRef(index).get
     def update(index: Int, v: T) = getRef(index).set(v)
-    def refs: immutable.IndexedSeq[Ref.Bound[T]] = new immutable.IndexedSeq[Ref.Bound[T]] {
+    def refs: immutable.IndexedSeq[Ref.View[T]] = new immutable.IndexedSeq[Ref.View[T]] {
       def length = unbind.length
       def apply(index: Int) = getRef(index).bind
     }
   }
 
-  def single: Bound[T] = new Bound[T] {
+  def single: View[T] = new View[T] {
     def unbind = TArray.this
     def mode: BindingMode = Single
     def apply(index: Int): T = getRef(index).single.get
     def update(index: Int, v: T) = getRef(index).single.set(v)
-    def refs: immutable.IndexedSeq[Ref.Bound[T]] = new immutable.IndexedSeq[Ref.Bound[T]] {
+    def refs: immutable.IndexedSeq[Ref.View[T]] = new immutable.IndexedSeq[Ref.View[T]] {
       def length = unbind.length
       def apply(index: Int) = getRef(index).single
     }
   }
 
-  def escaped: Bound[T] = new Bound[T] {
+  def escaped: View[T] = new View[T] {
     def unbind = TArray.this
     def mode: BindingMode = Escaped
     def apply(index: Int): T = getRef(index).escaped.get
     def update(index: Int, v: T) = getRef(index).escaped.set(v)
-    def refs: immutable.IndexedSeq[Ref.Bound[T]] = new immutable.IndexedSeq[Ref.Bound[T]] {
+    def refs: immutable.IndexedSeq[Ref.View[T]] = new immutable.IndexedSeq[Ref.View[T]] {
       def length = unbind.length
       def apply(index: Int) = getRef(index).escaped
     }

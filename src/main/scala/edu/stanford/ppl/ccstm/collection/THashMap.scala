@@ -45,7 +45,7 @@ class THashMap[A,B] extends TMap[A,B] {
   }
 
 
-  def escaped: TMap.Bound[A,B] = new TMap.AbstractEscapedBound[A,B,THashMap[A,B]](this) {
+  def escaped: TMap.View[A,B] = new TMap.AbstractEscapedView[A,B,THashMap[A,B]](this) {
 
     override def size(): Int = {
       sizeRef.escaped.get
@@ -122,7 +122,7 @@ class THashMap[A,B] extends TMap[A,B] {
     }
   }
 
-  def bind(implicit txn0: Txn): TMap.Bound[A, B] = new TMap.AbstractTxnBound[A,B,THashMap[A,B]](txn0, this) {
+  def bind(implicit txn0: Txn): TMap.View[A, B] = new TMap.AbstractTxnView[A,B,THashMap[A,B]](txn0, this) {
     def iterator: Iterator[(A,B)] = new Iterator[(A,B)] {
       private var apparentSize = 0
       private val iter = predicates.entrySet().iterator

@@ -9,9 +9,9 @@ import edu.stanford.ppl.ccstm._
 
 object TMap {
   trait Source[A,+B] {
-    def single: TMap.BoundSource[A,B]
-    def escaped: TMap.BoundSource[A,B]
-    def bind(implicit txn: Txn): TMap.BoundSource[A,B]
+    def single: TMap.SourceView[A,B]
+    def escaped: TMap.SourceView[A,B]
+    def bind(implicit txn: Txn): TMap.SourceView[A,B]
 
     def isEmpty(implicit txn: Txn): Boolean
     def size(implicit txn: Txn): Int
@@ -30,22 +30,22 @@ object TMap {
   }
 
   trait Sink[A,-B] {
-    def single: TMap.BoundSink[A,B]
-    def escaped: TMap.BoundSink[A,B]
-    def bind(implicit txn: Txn): TMap.BoundSink[A,B]
+    def single: TMap.SinkView[A,B]
+    def escaped: TMap.SinkView[A,B]
+    def bind(implicit txn: Txn): TMap.SinkView[A,B]
 
     def update(key: A, value: B)(implicit txn: Txn)
     def -=(key: A)(implicit txn: Txn)
   }
 
-  trait BoundSource[A,+B] extends scala.collection.Map[A,B] {
+  trait SourceView[A,+B] extends scala.collection.Map[A,B] {
     def unbind: TMap.Source[A,B]
     def mode: BindingMode
 
     override def default(key: A): B = unbind.default(key)
   }
 
-  trait BoundSink[A,-B] {
+  trait SinkView[A,-B] {
     def unbind: TMap.Sink[A,B]
     def mode: BindingMode
 
@@ -53,36 +53,36 @@ object TMap {
     def -= (key: A): this.type
   }
 
-  trait Bound[A,B] extends BoundSource[A,B] with BoundSink[A,B] with scala.collection.mutable.Map[A,B] {
+  trait View[A,B] extends SourceView[A,B] with SinkView[A,B] with scala.collection.mutable.Map[A,B] {
     def unbind: TMap[A,B]
 
     def += (kv: (A, B)) = { update(kv._1, kv._2); this }
   }
 
-  private[collection] class SingleBound[A,B,M <: TMap[A,B]](val unbind: M) extends Bound[A,B] {
+  private[collection] class SingleView[A,B,M <: TMap[A,B]](val unbind: M) extends View[A,B] {
     def mode = Single
 
-    private def dynBound = Txn.dynCurrentOrNull match {
+    private def dynView = Txn.dynCurrentOrNull match {
       case null => unbind.escaped
       case txn => unbind.bind(txn)
     }
 
-    override def isEmpty: Boolean = dynBound.isEmpty
-    override def size: Int = dynBound.size
+    override def isEmpty: Boolean = dynView.isEmpty
+    override def size: Int = dynView.size
 
-    override def apply(key: A): B = dynBound.apply(key)
-    def get(key: A): Option[B] = dynBound.get(key)
+    override def apply(key: A): B = dynView.apply(key)
+    def get(key: A): Option[B] = dynView.get(key)
 
-    override def put(key: A, value: B): Option[B] = dynBound.put(key, value)
-    override def update(key: A, value: B) { dynBound.update(key, value) }
+    override def put(key: A, value: B): Option[B] = dynView.put(key, value)
+    override def update(key: A, value: B) { dynView.update(key, value) }
 
-    override def remove(key: A): Option[B] = dynBound.remove(key)
-    def -=(key: A) = { dynBound.-=(key); this }
+    override def remove(key: A): Option[B] = dynView.remove(key)
+    def -=(key: A) = { dynView.-=(key); this }
 
-    def iterator = dynBound.iterator
+    def iterator = dynView.iterator
   }
 
-  private[collection] abstract class AbstractEscapedBound[A,B,M <: TMap[A,B]](val unbind: M) extends Bound[A,B] {
+  private[collection] abstract class AbstractEscapedView[A,B,M <: TMap[A,B]](val unbind: M) extends View[A,B] {
     def mode = Escaped
 
     override def isEmpty: Boolean = !iterator.hasNext
@@ -92,7 +92,7 @@ object TMap {
     def -= (key: A) = { remove(key); this }
   }
 
-  private[collection] abstract class AbstractTxnBound[A,B,M <: TMap[A,B]](val txn: Txn, val unbind: M) extends Bound[A,B] {
+  private[collection] abstract class AbstractTxnView[A,B,M <: TMap[A,B]](val txn: Txn, val unbind: M) extends View[A,B] {
     def mode = txn
 
     override def isEmpty: Boolean = unbind.isEmpty(txn)
@@ -112,9 +112,9 @@ object TMap {
 /** An interface for transactional maps. */
 trait TMap[A,B] extends TMap.Source[A,B] with TMap.Sink[A,B] {
 
-  def escaped: TMap.Bound[A,B]
-  def single: TMap.Bound[A,B] = new TMap.SingleBound(this)
-  def bind(implicit txn: Txn): TMap.Bound[A,B]
+  def escaped: TMap.View[A,B]
+  def single: TMap.View[A,B] = new TMap.SingleView(this)
+  def bind(implicit txn: Txn): TMap.View[A,B]
 
   def put(key: A, value: B)(implicit txn: Txn): Option[B]
   def remove(key: A)(implicit txn: Txn): Option[B]

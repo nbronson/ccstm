@@ -29,8 +29,8 @@ CCSTM - References and Bound Views
   <<<Ref>>>'s operations use only the transactional access mode, requiring
   that the current transaction be passed via an implicit parameter of
   type <<<Txn>>>.  Operations using the other access modes are provided
-  by <<<Ref.Bound>>> instances, which are views bound to a <<<Ref>>>.
-  <<<Ref.Bound>>> provides methods that mirror those of <<<Ref>>>
+  by <<<Ref.View>>> instances, which are views bound to a <<<Ref>>>.
+  <<<Ref.View>>> provides methods that mirror those of <<<Ref>>>
   (plus a few extra), but that do not need the implicit <<<Txn>>>.
 
 ** Transactional mode
@@ -41,7 +41,7 @@ CCSTM - References and Bound Views
   the transaction, allowing it to be used without the need to pass the
   transaction during each method.  For example, the following two pieces
   of code give three ways of declaring an incrementing transaction using
-  <<<Ref.transform>>> and two ways using <<<Ref.Bound.transform>>>.
+  <<<Ref.transform>>> and two ways using <<<Ref.View.transform>>>.
   All five use the transactional mode, and all five are equivalent:
 
 ----
@@ -55,12 +55,12 @@ STM.atomic(incrViaRef(x)(_))
 STM.atomic { implicit t => incrViaRef(x) }
 STM.atomic { t => incrViaRef(x)(t) }
 
-def incrViaBound(x: Ref.Bound[BigInt]) {
+def incrViaView(x: Ref.View[BigInt]) {
   x.transform(_ + 1) // no implicit arg
 }
 
-STM.atomic { implicit t => incrViaBound(x.bind) }
-STM.atomic { t => incrViaBound(x.bind(t)) }
+STM.atomic { implicit t => incrViaView(x.bind) }
+STM.atomic { t => incrViaView(x.bind(t)) }
 ----
 
   The <<<mode>>> of a bound reference returned from <<<Ref.bind>>> will
@@ -72,7 +72,7 @@ STM.atomic { t => incrViaBound(x.bind(t)) }
 
   When a transaction would contain only a single operation on a
   single <<<Ref>>>, the <single> mode is both more concise and faster.
-  Each operation on a <<<Ref.Bound>>> returned from <<<Ref.single>>>
+  Each operation on a <<<Ref.View>>> returned from <<<Ref.single>>>
   will act as if it runs in its own atomic block, either nesting in
   an active transaction or creating a new one if necessary.  This can
   replace small transactions, especially when used with operations such

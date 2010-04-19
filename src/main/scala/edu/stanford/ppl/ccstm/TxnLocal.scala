@@ -6,7 +6,7 @@ package edu.stanford.ppl.ccstm
 
 
 object TxnLocal {
-  trait Bound[T] {
+  trait View[T] {
     def txn: Txn
     def get: T
     def set(v: T)
@@ -24,7 +24,7 @@ class TxnLocal[T] {
 
   def set(v: T)(implicit txn: Txn) = setImpl(txn, v)
 
-  def bind(implicit txn0: Txn) = new TxnLocal.Bound[T] {
+  def bind(implicit txn0: Txn) = new TxnLocal.View[T] {
     def txn = txn0
     def get: T = getImpl(txn0)
     def set(v: T) = setImpl(txn0, v)

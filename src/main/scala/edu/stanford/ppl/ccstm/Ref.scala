@@ -96,10 +96,10 @@ object Ref {
    *    current thread, then that transaction is the enclosing context.  Top
    *    level `Single` and `Escaped` bound views have no enclosing context.
    */
-  trait Bound[T] extends Source.Bound[T] with Sink.Bound[T] {
+  trait View[T] extends Source.View[T] with Sink.View[T] {
 
     /** Provides access to a <code>Ref</code> that refers to the same value as
-     *  the one that was bound to produce this <code>Ref.Bound</code> instance.
+     *  the one that was bound to produce this <code>Ref.View</code> instance.
      *  The returned <code>Ref</code> might be a new instance, but it is always
      *  true that <code>ref.bind.unbind == ref</code>.
      *  @return a <code>Ref</code> instance equal to (or the same as) the one
@@ -154,7 +154,7 @@ object Ref {
      *      <code>false</code> otherwise.
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
-     *  @see edu.stanford.ppl.ccstm.Ref.Bound#compareAndSet
+     *  @see edu.stanford.ppl.ccstm.Ref.View#compareAndSet
      */
     def compareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean
 
@@ -204,14 +204,14 @@ object Ref {
     def transformIfDefined(pf: PartialFunction[T,T]): Boolean
 
     override def equals(rhs: Any) = rhs match {
-      case b: Bound[_] => (mode == b.mode) && (unbind == b.unbind)
+      case b: View[_] => (mode == b.mode) && (unbind == b.unbind)
       case _ => false
     }
 
     override def hashCode: Int = (mode.hashCode * 137) ^ unbind.hashCode ^ 101
 
     override def toString: String = {
-      "Bound(" + unbind + ", " + mode + " => " + get + ")"
+      "View(" + unbind + ", " + mode + " => " + get + ")"
     }
   }
 }
@@ -340,7 +340,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *  @return a view of this instance that performs all accesses as if from
    *      <code>txn</code>.
    */
-  def bind(implicit txn: Txn): Ref.Bound[T] = new impl.TxnBound(this, handle, txn)
+  def bind(implicit txn: Txn): Ref.View[T] = new impl.TxnView(this, handle, txn)
 
   /** Returns a view that acts as if each operation is performed in an atomic
    *  block containing that single operation.  The new single-operation
@@ -350,7 +350,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *  @return a view into the value of this <code>Ref</code>, that will perform
    *      each operation as if in its own transaction.
    */
-  def single: Ref.Bound[T] = new impl.SingleBound(this, nonTxnHandle, handle)
+  def single: Ref.View[T] = new impl.SingleView(this, nonTxnHandle, handle)
 
   /** (Uncommon) Returns a view that can be used to perform individual reads 
    *  and writes to this reference outside any transactional context,
@@ -361,10 +361,10 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *  @return a view into the value of this <code>Ref</code>, that will bypass
    *      any active transaction.
    */
-  def escaped: Ref.Bound[T] = new impl.EscapedBound(this, nonTxnHandle)
+  def escaped: Ref.View[T] = new impl.EscapedView(this, nonTxnHandle)
 
   @deprecated("replace with Ref.single if possible, otherwise use Ref.escaped")
-  def nonTxn: Ref.Bound[T] = escaped
+  def nonTxn: Ref.View[T] = escaped
 
   override def hashCode: Int = {
     val h = handle

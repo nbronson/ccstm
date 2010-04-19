@@ -1,14 +1,14 @@
 /* CCSTM - (c) 2009-2010 Stanford University - PPL */
 
-// EscapedBound
+// EscapedView
 
 package edu.stanford.ppl.ccstm.impl
 
 
 import edu.stanford.ppl.ccstm._
 
-private[ccstm] class EscapedBound[T](val unbind: Ref[T],
-                                     protected val handle: Handle[T]) extends Ref.Bound[T] {
+private[ccstm] class EscapedView[T](val unbind: Ref[T],
+                                    protected val handle: Handle[T]) extends Ref.View[T] {
 
   def mode: BindingMode = Escaped
 

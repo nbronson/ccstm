@@ -1,14 +1,14 @@
 /* CCSTM - (c) 2009-2010 Stanford University - PPL */
 
-// SingleBound
+// SingleView
 
 package edu.stanford.ppl.ccstm.impl
 
 import edu.stanford.ppl.ccstm._
 
-private[ccstm] class SingleBound[T](val unbind: Ref[T],
-                                    val nonTxnHandle: Handle[T],
-                                    val txnHandle: Handle[T]) extends Ref.Bound[T] {
+private[ccstm] class SingleView[T](val unbind: Ref[T],
+                                   val nonTxnHandle: Handle[T],
+                                   val txnHandle: Handle[T]) extends Ref.View[T] {
 
   def mode: BindingMode = Single
   

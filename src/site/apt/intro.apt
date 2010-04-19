@@ -237,7 +237,7 @@ STM.atomic { implicit t => ref.operation }
 ref.single.operation
 ----
 
-  <<<Ref.single>>> returns a view of the <<<Ref>>> of type <<<Ref.Bound>>>.  The bound
+  <<<Ref.single>>> returns a view of the <<<Ref>>> of type <<<Ref.View>>>.  The bound
   view has methods that mirror those of <<<Ref>>>, but don't take an implicit
   <<<Txn>>> parameter.  The view's methods act as if they are performed in
   their own atomic block.  This means that if a transaction is already

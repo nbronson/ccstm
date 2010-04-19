@@ -7,13 +7,13 @@ package edu.stanford.ppl.ccstm
 
 object Sink {
   
-  /** `Sink.Bound` defines the contravariant write-only portion of
-   *  `Ref.Bound`.
+  /** `Sink.View` defines the contravariant write-only portion of
+   *  `Ref.View`.
    */
-  trait Bound[-T] {
+  trait View[-T] {
 
-    /** The restriction of `Ref.Bound.unbind` to `Sink`.
-     *  @see edu.stanford.ppl.ccstm.Ref.Bound#unbind
+    /** The restriction of `Ref.View.unbind` to `Sink`.
+     *  @see edu.stanford.ppl.ccstm.Ref.View#unbind
      */
     def unbind: Sink[T]
 
@@ -26,7 +26,7 @@ object Sink {
     def mode: BindingMode
 
     /** Writes to the bound `Ref`, equivalent to `set`.
-     *  @see edu.stanford.ppl.ccstm.Sink.Bound#set
+     *  @see edu.stanford.ppl.ccstm.Sink.View#set
      */
     def :=(v: T) { set(v) }
 
@@ -73,18 +73,18 @@ trait Sink[-T] {
   /** The restriction of `Ref.bind` to `Sink`.
    *  @see edu.stanford.ppl.ccstm.Ref#bind
    */
-  def bind(implicit txn: Txn): Sink.Bound[T]
+  def bind(implicit txn: Txn): Sink.View[T]
 
   /** The restriction of `Ref.single` to `Sink`.
    *  @see edu.stanford.ppl.ccstm.Ref#single
    */
-  def single: Sink.Bound[T]
+  def single: Sink.View[T]
 
   /** The restriction of `Ref.escaped` to `Sink`.
    *  @see edu.stanford.ppl.ccstm.Ref#escaped
    */
-  def escaped: Sink.Bound[T]
+  def escaped: Sink.View[T]
 
   @deprecated("replace with Sink.single if possible, otherwise use Sink.escaped")
-  def nonTxn: Sink.Bound[T]
+  def nonTxn: Sink.View[T]
 }

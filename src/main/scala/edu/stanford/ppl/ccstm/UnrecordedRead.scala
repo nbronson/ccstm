@@ -28,8 +28,8 @@ package edu.stanford.ppl.ccstm
  *  Some STM implementations may spuriously indicate that an unrecorded read
  *  has become invalid, despite no change actually occurring to the original
  *  value.
- *  @see edu.stanford.ppl.ccstm.Source.Bound#unrecordedRead
- *  @see edu.stanford.ppl.ccstm.Source.Bound#releasableRead
+ *  @see edu.stanford.ppl.ccstm.Source.View#unrecordedRead
+ *  @see edu.stanford.ppl.ccstm.Source.View#releasableRead
  *
  *  @author Nathan Bronson
  */

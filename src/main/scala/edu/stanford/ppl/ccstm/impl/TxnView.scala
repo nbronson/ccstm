@@ -1,15 +1,15 @@
 /* CCSTM - (c) 2009-2010 Stanford University - PPL */
 
-// TxnBound
+// TxnView
 
 package edu.stanford.ppl.ccstm.impl
 
 import edu.stanford.ppl.ccstm._
 
 
-private[ccstm] class TxnBound[T](val unbind: Ref[T],
-                                 protected val handle: impl.Handle[T],
-                                 txn: Txn) extends Ref.Bound[T] {
+private[ccstm] class TxnView[T](val unbind: Ref[T],
+                                protected val handle: impl.Handle[T],
+                                txn: Txn) extends Ref.View[T] {
 
   def mode: BindingMode = txn
 
@@ -27,7 +27,7 @@ private[ccstm] class TxnBound[T](val unbind: Ref[T],
   def compareAndSet(before: T, after: T): Boolean = txn.compareAndSet(handle, before, after)
   def compareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean = txn.compareAndSetIdentity(handle, before, after)
   def transform(f: T => T) {
-    // this isn't as silly as it seems, because some Bound implementations
+    // this isn't as silly as it seems, because some View implementations
     // override getAndTransform()
     txn.getAndTransform(handle, f)
   }

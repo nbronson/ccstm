@@ -397,8 +397,8 @@ private[ccstm] object NonTxn {
           if (tries > 10) {
             // fall back to a txn, which is guaranteed to eventually succeed
             return STM.atomic((t: Txn) => {
-              val refA = new TxnBound(null, handleA, t)
-              val refB = new TxnBound(null, handleB, t)
+              val refA = new TxnView(null, handleA, t)
+              val refB = new TxnView(null, handleB, t)
               val (a,b,z) = f(refA.readForWrite, refB.readForWrite)
               refA := a
               refB := b

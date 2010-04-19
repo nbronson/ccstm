@@ -7,11 +7,11 @@ package edu.stanford.ppl.ccstm
 
 object Source {
 
-  /** `Source.Bound` defines the covariant read-only view of `Ref.Bound`. */
-  trait Bound[+T] {
+  /** `Source.View` defines the covariant read-only view of `Ref.View`. */
+  trait View[+T] {
 
-    /** The restriction of `Ref.Bound.unbind` to `Source`.
-     *  @see edu.stanford.ppl.ccstm.Ref.Bound#unbind
+    /** The restriction of `Ref.View.unbind` to `Source`.
+     *  @see edu.stanford.ppl.ccstm.Ref.View#unbind
      */
     def unbind: Source[T]
 
@@ -24,7 +24,7 @@ object Source {
     def mode: BindingMode
 
     /** Performs a read in the bound context.  Equivalent to `get`.
-     *  @see edu.stanford.ppl.ccstm.Source.Bound#get
+     *  @see edu.stanford.ppl.ccstm.Source.View#get
      */
     def apply() : T = get
 
@@ -137,20 +137,20 @@ trait Source[+T] {
   /** The restriction of `Ref.bind` to `Source`.
    *  @see edu.stanford.ppl.ccstm.Ref#bind
    */
-  def bind(implicit txn: Txn): Source.Bound[T]
+  def bind(implicit txn: Txn): Source.View[T]
 
   /** The restriction of `Ref.single` to `Source`.
    *  @see edu.stanford.ppl.ccstm.Ref#single
    */
-  def single: Source.Bound[T]
+  def single: Source.View[T]
 
   /** The restriction of `Ref.escaped` to `Source`.
    *  @see edu.stanford.ppl.ccstm.Ref#escaped
    */
-  def escaped: Source.Bound[T]
+  def escaped: Source.View[T]
 
   @deprecated("replace with Source.single if possible, otherwise use Source.escaped")
-  def nonTxn: Source.Bound[T]
+  def nonTxn: Source.View[T]
 
-  // see Source.Bound for more operations
+  // see Source.View for more operations
 }

@@ -8,8 +8,8 @@ package edu.stanford.ppl.ccstm
 /** Holds the result of a releasable read, which may be discarded from a
  *  transaction's read set prior to the transaction's commit.
  *  <code>UnrecordedRead</code>s provide a related functionality.
- *  @see edu.stanford.ppl.ccstm.Source.Bound#releasableRead
- *  @see edu.stanford.ppl.ccstm.Source.Bound#unrecordedRead
+ *  @see edu.stanford.ppl.ccstm.Source.View#releasableRead
+ *  @see edu.stanford.ppl.ccstm.Source.View#unrecordedRead
  *
  *  @author Nathan Bronson
  */
