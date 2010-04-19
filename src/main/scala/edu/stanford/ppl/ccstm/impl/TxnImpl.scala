@@ -576,7 +576,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
     revalidateIfRequired(version(m))
   }
   
-  def getAndSet[T](handle: Handle[T], v: T): T = {
+  def swap[T](handle: Handle[T], v: T): T = {
     requireActive()
 
     val m0 = handle.meta

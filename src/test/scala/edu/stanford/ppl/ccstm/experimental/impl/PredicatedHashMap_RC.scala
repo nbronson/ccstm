@@ -79,7 +79,7 @@ class PredicatedHashMap_RC[A,B] extends TMap[A,B] {
     }
 
     private def putExisting(key: A, value: B, pred: Pred[B]): Option[B] = {
-      val prev = pred.nonTxn.getAndSet(NullValue.encode(value))
+      val prev = pred.nonTxn.swap(NullValue.encode(value))
       if (null != prev) {
         exit(key, pred, 1)
         Some(NullValue.decode(prev))
@@ -95,7 +95,7 @@ class PredicatedHashMap_RC[A,B] extends TMap[A,B] {
       if (null == p) {
         None
       } else {
-        val prev = p.nonTxn.getAndSet(null)
+        val prev = p.nonTxn.swap(null)
         if (null != prev) {
           exit(key, p, 1)
           Some(NullValue.decode(prev))
@@ -166,7 +166,7 @@ class PredicatedHashMap_RC[A,B] extends TMap[A,B] {
   def put(k: A, v: B)(implicit txn: Txn): Option[B] = {
     val p = enter(k)
     try {
-      val prev = p.getAndSet(NullValue.encode(v))
+      val prev = p.swap(NullValue.encode(v))
       if (null == prev) {
         // None -> Some.  On commit, we leave +1 on the reference count
         txn.afterRollback(t => exit(k, p, 1))
@@ -187,7 +187,7 @@ class PredicatedHashMap_RC[A,B] extends TMap[A,B] {
   def removeKey(k: A)(implicit txn: Txn): Option[B] = {
     val p = enter(k)
     try {
-      val prev = p.getAndSet(null)
+      val prev = p.swap(null)
       if (null != prev) {
         // Some -> None.  On commit, we erase the +1 that was left by the
         // None -> Some transition

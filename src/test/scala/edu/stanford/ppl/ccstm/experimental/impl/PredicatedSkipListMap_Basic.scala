@@ -61,13 +61,13 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
     }
 
     override def put(key: A, value: B): Option[B] = {
-      predicateForInsert(key).nonTxn.getAndSet(Some(value))
+      predicateForInsert(key).nonTxn.swap(Some(value))
     }
 
     override def removeKey(key: A): Option[B] = {
       // if no predicate exists, then we don't need to create one
       val p = existingPred(key)
-      if (null == p) None else p.nonTxn.getAndSet(None)
+      if (null == p) None else p.nonTxn.swap(None)
     }
 
     override def higher(key: A): Option[(A,B)] = {
@@ -189,11 +189,11 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
   }
 
   def put(key: A, value: B)(implicit txn: Txn): Option[B] = {
-    predicateForInsert(key).getAndSet(Some(value))
+    predicateForInsert(key).swap(Some(value))
   }
 
   def removeKey(key: A)(implicit txn: Txn): Option[B] = {
-    predicateForNonInsert(key).getAndSet(None)
+    predicateForNonInsert(key).swap(None)
   }
 
   def higher(key: A)(implicit txn: Txn): Option[(A,B)] = {

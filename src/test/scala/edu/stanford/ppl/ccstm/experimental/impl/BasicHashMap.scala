@@ -104,7 +104,7 @@ class BasicHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TMap[
     if (null == bucket) {
       None
     } else if (key == bucket.key) {
-      Some(bucket.valueRef.getAndSet(value))
+      Some(bucket.valueRef.swap(value))
     } else {
       putExisting(key, value, bucket.next)
     }

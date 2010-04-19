@@ -27,7 +27,7 @@ class PredicatedHashMap_Basic[A,B] extends TMap[A,B] {
       if (null == p) {
         putNew(key, value)
       } else {
-        NullValue.decodeOption(p.nonTxn.getAndSet(NullValue.encode(value)))
+        NullValue.decodeOption(p.nonTxn.swap(NullValue.encode(value)))
       }
     }
 
@@ -41,14 +41,14 @@ class PredicatedHashMap_Basic[A,B] extends TMap[A,B] {
         None
       } else {
         // normal read from the existing predicate
-        NullValue.decodeOption(race.nonTxn.getAndSet(NullValue.encode(value)))
+        NullValue.decodeOption(race.nonTxn.swap(NullValue.encode(value)))
       }
     }
 
     override def removeKey(key: A): Option[B] = {
       // if no predicate exists, then we don't need to create one
       val p = predicates.get(key)
-      if (null == p) None else NullValue.decodeOption(p.nonTxn.getAndSet(null))
+      if (null == p) None else NullValue.decodeOption(p.nonTxn.swap(null))
     }
 
     def iterator: Iterator[(A,B)] = new Iterator[(A,B)] {
@@ -92,11 +92,11 @@ class PredicatedHashMap_Basic[A,B] extends TMap[A,B] {
   }
 
   def put(key: A, value: B)(implicit txn: Txn): Option[B] = {
-    NullValue.decodeOption(pred(key).getAndSet(NullValue.encode(value)))
+    NullValue.decodeOption(pred(key).swap(NullValue.encode(value)))
   }
 
   def removeKey(key: A)(implicit txn: Txn): Option[B] = {
-    NullValue.decodeOption(pred(key).getAndSet(null))
+    NullValue.decodeOption(pred(key).swap(null))
   }
 
 

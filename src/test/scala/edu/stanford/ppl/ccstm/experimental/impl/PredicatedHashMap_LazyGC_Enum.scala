@@ -376,7 +376,7 @@ class PredicatedHashMap_LazyGC_Enum[A,B] extends TMap[A,B] {
       val ref = pred.tokenRef
       val token = if (null == ref) null else ref.get
       if (null != token) {
-        val prev = pred.getAndSet(IdentityPair(token, value))
+        val prev = pred.swap(IdentityPair(token, value))
         if (null == prev) sizeRef += 1
         return decodePair(prev)
       }
@@ -407,7 +407,7 @@ class PredicatedHashMap_LazyGC_Enum[A,B] extends TMap[A,B] {
     // txn may have already updated it.  We don't, however, have to do all of
     // the normal work, because there is no way that the predicate could have
     // become stale.
-    val prev = freshPred.getAndSet(IdentityPair(freshToken, value))
+    val prev = freshPred.swap(IdentityPair(freshToken, value))
     if (null == prev) sizeRef += 1
     return decodePair(prev)
   }
@@ -419,7 +419,7 @@ class PredicatedHashMap_LazyGC_Enum[A,B] extends TMap[A,B] {
         // We now have knowledge that if this txn commits, the predicate should
         // be cleaned up.  Also, we don't need to weaken it.
         pred.creationInfo.removeOnCommit = true
-        val prev = pred.getAndSet(null)
+        val prev = pred.swap(null)
         if (null != prev) sizeRef -= 1
         return decodePair(prev)
       }

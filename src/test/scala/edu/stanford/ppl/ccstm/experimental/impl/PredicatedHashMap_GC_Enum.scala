@@ -92,7 +92,7 @@ class PredicatedHashMap_GC_Enum[A,B] extends TMap[A,B] {
         return None
       }
 
-      // if the pred is stale, then getAndSet(None) is a no-op and doesn't harm
+      // if the pred is stale, then swap(None) is a no-op and doesn't harm
       // anything
       val prev = STM.transform2(p, sizeRef.aStripe, (vp: IdentityPair[Token[A,B],B], s: Int) => {
         (null, (if (null == vp) s else s - 1), vp)
@@ -200,14 +200,14 @@ class PredicatedHashMap_GC_Enum[A,B] extends TMap[A,B] {
   def put(key: A, value: B)(implicit txn: Txn): Option[B] = {
     val tok = activeToken(key)
     // write buffer will pin tok
-    val prev = tok.pred.getAndSet(IdentityPair(tok, value))
+    val prev = tok.pred.swap(IdentityPair(tok, value))
     if (null == prev) sizeRef += 1
     decodePair(prev)
   }
 
   def removeKey(key: A)(implicit txn: Txn): Option[B] = {
     val tok = activeToken(key)
-    val prev = tok.pred.getAndSet(null)
+    val prev = tok.pred.swap(null)
     if (null != prev) sizeRef -= 1
     decodePairAndPin(tok, prev)
   }

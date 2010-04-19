@@ -46,9 +46,9 @@ private[ccstm] class SingleBound[T](val unbind: Ref[T],
     case null => NonTxn.get(nonTxnHandle)
     case txn: Txn => txn.readForWrite(txnHandle)
   }
-  def getAndSet(v: T): T = Txn.dynCurrentOrNull match {
-    case null => NonTxn.getAndSet(nonTxnHandle, v)
-    case txn: Txn => txn.getAndSet(txnHandle, v)
+  def swap(v: T): T = Txn.dynCurrentOrNull match {
+    case null => NonTxn.swap(nonTxnHandle, v)
+    case txn: Txn => txn.swap(txnHandle, v)
   }
   def compareAndSet(before: T, after: T): Boolean = Txn.dynCurrentOrNull match {
     case null => NonTxn.compareAndSet(nonTxnHandle, before, after)

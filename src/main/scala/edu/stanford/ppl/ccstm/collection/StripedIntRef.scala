@@ -64,7 +64,7 @@ class StripedIntRef(initialValue: Int) extends IntRef {
 
     def readForWrite: Int = get
 
-    def getAndSet(v: Int): Int = STM.atomic(unbind.getAndSet(v)(_))
+    def swap(v: Int): Int = STM.atomic(unbind.swap(v)(_))
 
     def compareAndSet(before: Int, after: Int): Boolean = STM.atomic(unbind.bind(_).compareAndSet(before, after))
 
@@ -187,11 +187,11 @@ class StripedIntRef(initialValue: Int) extends IntRef {
       s
     }
 
-    def getAndSet(v: Int): Int = {
-      var s = stripes(0).getAndSet(v)
+    def swap(v: Int): Int = {
+      var s = stripes(0).swap(v)
       var i = 1
       while (i < NumStripes) {
-        s += stripes(i).getAndSet(0)
+        s += stripes(i).swap(0)
         i += 1
       }
       s
@@ -272,11 +272,11 @@ class StripedIntRef(initialValue: Int) extends IntRef {
     }
   }
 
-  override def getAndSet(v: Int)(implicit txn: Txn): Int = {
-    var s = stripes(0).getAndSet(v)
+  override def swap(v: Int)(implicit txn: Txn): Int = {
+    var s = stripes(0).swap(v)
     var i = 1
     while (i < NumStripes) {
-      s += stripes(i).getAndSet(0)
+      s += stripes(i).swap(0)
       i += 1
     }
     s

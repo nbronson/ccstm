@@ -27,7 +27,7 @@ private[ccstm] class SingleProxyBound[T](unbind0: Ref[T]) extends Ref.Bound[T] {
   def tryWrite(v: T): Boolean = dynBound.tryWrite(v)
 
   def readForWrite: T = dynBound.readForWrite
-  def getAndSet(v: T): T = dynBound.getAndSet(v)
+  def swap(v: T): T = dynBound.swap(v)
   def compareAndSet(before: T, after: T): Boolean = dynBound.compareAndSet(before, after)
   def compareAndSetIdentity[R <: AnyRef with T](before: R, after: T): Boolean =
     dynBound.compareAndSetIdentity(before, after)

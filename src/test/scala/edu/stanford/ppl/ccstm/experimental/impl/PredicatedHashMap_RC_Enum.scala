@@ -198,7 +198,7 @@ class PredicatedHashMap_RC_Enum[A,B] extends TMap[A,B] {
   def put(k: A, v: B)(implicit txn: Txn): Option[B] = {
     val p = enter(k)
     try {
-      val prev = p.getAndSet(NullValue.encode(v))
+      val prev = p.swap(NullValue.encode(v))
       if (null == prev) {
         // None -> Some.  On commit, we leave +1 on the reference count
         sizeRef += 1
@@ -219,7 +219,7 @@ class PredicatedHashMap_RC_Enum[A,B] extends TMap[A,B] {
   def removeKey(k: A)(implicit txn: Txn): Option[B] = {
     val p = enter(k)
     try {
-      val prev = p.getAndSet(null)
+      val prev = p.swap(null)
       if (null != prev) {
         // Some -> None.  On commit, we erase the +1 that was left by the
         // None -> Some transition

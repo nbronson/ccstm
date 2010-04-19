@@ -164,7 +164,7 @@ class PredicatedHashMap_Enum[A,B] extends TMap[A,B] {
   }
 
   def put(key: A, value: B)(implicit txn: Txn): Option[B] = {
-    val prev = pred(key).getAndSet(NullValue.encode(value))
+    val prev = pred(key).swap(NullValue.encode(value))
     if (null == prev) {
       sizeRef += 1
       None
@@ -174,7 +174,7 @@ class PredicatedHashMap_Enum[A,B] extends TMap[A,B] {
   }
 
   def removeKey(key: A)(implicit txn: Txn): Option[B] = {
-    val prev = pred(key).getAndSet(None)
+    val prev = pred(key).swap(None)
     if (null != prev) {
       sizeRef -= 1
       Some(NullValue.decode(prev))

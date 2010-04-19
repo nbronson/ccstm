@@ -112,7 +112,7 @@ object LazyConflictIntRef {
 
     def readForWrite: Int = get
 
-    def getAndSet(v: Int): Int = {
+    def swap(v: Int): Int = {
       val z = get
       set(v)
       z
@@ -295,7 +295,7 @@ class LazyConflictIntRef(initialValue: Int) extends IntRef {
   override def get(implicit txn: Txn): Int = bind.get
   override def map[Z](f: (Int) => Z)(implicit txn: Txn): Z = bind.map(f)
   override def set(v: Int)(implicit txn: Txn) { bind.set(v) }
-  override def getAndSet(v: Int)(implicit txn: Txn): Int = bind.getAndSet(v)
+  override def swap(v: Int)(implicit txn: Txn): Int = bind.swap(v)
   override def transform(f: (Int) => Int)(implicit txn: Txn) { bind.transform(f) }
   override def transformIfDefined(pf: PartialFunction[Int, Int])(implicit txn: Txn): Boolean = {
     bind.transformIfDefined(pf)

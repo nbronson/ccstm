@@ -92,14 +92,14 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
     }
 
     private def putImpl(value: B, token: Token, pred: Predicate[B]): Option[B] = {
-      decodePair(pred.nonTxn.getAndSet(IdentityPair(token, value)))
+      decodePair(pred.nonTxn.swap(IdentityPair(token, value)))
     }
 
     override def removeKey(key: A): Option[B] = {
-      // if the pred is stale, then getAndSet(None) is a no-op and doesn't harm
+      // if the pred is stale, then swap(None) is a no-op and doesn't harm
       // anything
       val p = predicates.get(key)
-      decodePair(if (null == p) null else p.nonTxn.getAndSet(null))
+      decodePair(if (null == p) null else p.nonTxn.swap(null))
     }
 
 //    override def transform(key: A, f: (Option[B]) => Option[B]) {
@@ -236,7 +236,7 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
   }
 
   private def putImpl(value: B, token: Token, pred: Predicate[B])(implicit txn: Txn): Option[B] = {
-    decodePair(pred.getAndSet(IdentityPair(token, value)))
+    decodePair(pred.swap(IdentityPair(token, value)))
   }
 
   
@@ -274,7 +274,7 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
   }
 
   private def removeImpl(token: Token, pred: Predicate[B])(implicit txn: Txn): Option[B] = {
-    decodePairAndPin(token, pred.getAndSet(null))
+    decodePairAndPin(token, pred.swap(null))
   }
   
 //  override def transform(key: A, f: (Option[B]) => Option[B])(implicit txn: Txn) {

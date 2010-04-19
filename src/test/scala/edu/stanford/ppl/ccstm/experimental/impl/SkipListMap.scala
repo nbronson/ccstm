@@ -166,7 +166,7 @@ private class SLNode[A,B](val key: A, value0: B, height0: Int
   def height = links.length
 
   def value(implicit txn: Txn): B = this.get
-  def swapValue(v: B)(implicit txn: Txn): B = this.getAndSet(v)
+  def swapValue(v: B)(implicit txn: Txn): B = this.swap(v)
 
   def findInTail(key: A, h: Int)(implicit txn: Txn): SLNode[A,B] = {
     var i = h

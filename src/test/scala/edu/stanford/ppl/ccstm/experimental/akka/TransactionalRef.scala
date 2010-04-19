@@ -47,7 +47,7 @@ class TransactionalRef[T] extends edu.stanford.ppl.ccstm.impl.Handle[T] {
 
   // public interface
 
-  def swap(elem: T): T = txn.getAndSet(this, elem)
+  def swap(elem: T): T = txn.swap(this, elem)
 
   def get: Option[T] = {
     val z = txn.get(this)

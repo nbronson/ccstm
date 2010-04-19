@@ -124,7 +124,7 @@ object Ref {
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
      */
-    def getAndSet(v: T): T
+    def swap(v: T): T
 
     /** Equivalent to atomically executing
      *  <code>(if (before == get) { set(after); true } else false)</code>, but
@@ -285,8 +285,8 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *      <code>txn</code>.
    *  @throws IllegalStateException if <code>txn</code> is not active.
    */
-  def getAndSet(v: T)(implicit txn: Txn): T = {
-    txn.getAndSet(handle, v)
+  def swap(v: T)(implicit txn: Txn): T = {
+    txn.swap(handle, v)
   }
 
   /** Transforms the value referenced by this <code>Ref</code> by applying the
