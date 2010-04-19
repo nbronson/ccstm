@@ -6,6 +6,7 @@ package edu.stanford.ppl.ccstm
 
 
 import impl.ThreadContext
+import annotation.tailrec
 
 /** The `STM` object manages atomic execution of code blocks using software
  *  transactional memory.  The transactions provide linearizability for all of
@@ -77,40 +78,37 @@ object STM {
    *  support for nested transactions using "flattening" or "subsumption".   
    */
   def atomic[Z](block: Txn => Z)(implicit mt: MaybeTxn): Z = {
-    // this basically performs the work of Txn.current, but retains the
-    // underlying ThreadContext if no txn is active
-    var ctx: ThreadContext = null
-    var txn = (if (mt.isInstanceOf[Txn]) {
-      // statically known to be nested
-      mt.asInstanceOf[Txn]
-    } else {
-      // statically unknown, but maybe still dynamically nested
-      ctx = ThreadContext.get
-      ctx.txn
-    })
-    if (txn != null) {
-      // subsumption
-      block(txn)
+    // TODO: without partial rollback we can't properly implement failure atomicity (see issue #4)
 
-      // TODO: without partial rollback we can't properly implement failure atomicity (see issue #4)
-    }
-    else {
-      // new transaction
-      var hist: List[Txn.RollbackCause] = Nil
-      txn = new Txn(hist, ctx)
-      var z = attemptImpl(txn, block)
-      while (txn.status ne Txn.Committed) {
-        val cause = txn.status.rollbackCause
-        cause match {
-          case x: Txn.ExplicitRetryCause => Txn.awaitRetryAndDestroy(x)
-          case _ => {}
+    mt match {
+      case txn: Txn => block(txn) // static resolution of enclosing block
+      case _ => {
+        // dynamic scoping for nesting
+        val ctx = ThreadContext.get
+        if (null != ctx.txn) {
+          block(ctx.txn)
+        } else {
+          atomic(block, ctx, Nil)
         }
-        // retry
-        hist = cause :: hist
-        txn = new Txn(hist, ctx)
-        z = attemptImpl(txn, block)
       }
+    }
+  }
+
+  @tailrec
+  private def atomic[Z](block: Txn => Z, ctx: ThreadContext, hist: List[Txn.RollbackCause]): Z = {
+    // new transaction
+    val txn = new Txn(hist, ctx)
+    val z = attemptImpl(txn, block)
+    if (txn.status eq Txn.Committed) {
       z
+    } else {
+      val cause = txn.status.rollbackCause
+      cause match {
+        case x: Txn.ExplicitRetryCause => Txn.awaitRetryAndDestroy(x)
+        case _ => {}
+      }
+      // retry
+      atomic(block, ctx, cause :: hist)
     }
   }
 
@@ -252,6 +250,9 @@ object STM {
   }
 
   object Debug {
+    /** Performs checks that are only guaranteed to succeed if no transactions
+     *  are active.
+     */
     def assertQuiescent() {
       impl.STMImpl.slotManager.assertAllReleased()
     }
