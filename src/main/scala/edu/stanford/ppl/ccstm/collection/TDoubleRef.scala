@@ -19,7 +19,7 @@ private object TDoubleRef {
  *
  *  @author Nathan Bronson
  */
-class TDoubleRef(initialValue: Double) extends impl.Handle[Double] with Ref[Double] {
+private[ccstm] class TDoubleRef(initialValue: Double) extends impl.Handle[Double] with Ref[Double] {
 
   private[ccstm] def handle: impl.Handle[Double] = this
 

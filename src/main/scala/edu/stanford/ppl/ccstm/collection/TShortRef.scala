@@ -19,7 +19,7 @@ private object TShortRef {
  *
  *  @author Nathan Bronson
  */
-class TShortRef(initialValue: Short) extends impl.Handle[Short] with Ref[Short] {
+private[ccstm] class TShortRef(initialValue: Short) extends impl.Handle[Short] with Ref[Short] {
 
   private[ccstm] def handle: impl.Handle[Short] = this
 

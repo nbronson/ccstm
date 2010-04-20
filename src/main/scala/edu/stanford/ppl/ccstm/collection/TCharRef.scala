@@ -19,7 +19,7 @@ private object TCharRef {
  *
  *  @author Nathan Bronson
  */
-class TCharRef(initialValue: Char) extends impl.Handle[Char] with Ref[Char] {
+private[ccstm] class TCharRef(initialValue: Char) extends impl.Handle[Char] with Ref[Char] {
 
   private[ccstm] def handle: impl.Handle[Char] = this
 

@@ -73,11 +73,15 @@ class IsolatedRefSuite extends STMFunSuite {
   }
 
   case object TAnyRefFactory extends IntRefFactory {
-    def apply(initialValue: Int): Ref[Int] = new TAnyRef[Int](initialValue)
+    def apply(initialValue: Int): Ref[Int] = {
+      val r = Ref.make[Any].asInstanceOf[Ref[Int]]
+      r.single := initialValue
+      r
+    }
   }
 
   case object TIntRefFactory extends IntRefFactory {
-    def apply(initialValue: Int): Ref[Int] = new TIntRef(initialValue)
+    def apply(initialValue: Int): Ref[Int] = Ref(initialValue)
   }
 
   case object LazyConflictIntRefFactory extends IntRefFactory {

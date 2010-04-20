@@ -19,7 +19,7 @@ private object TLongRef {
  *
  *  @author Nathan Bronson
  */
-class TLongRef(initialValue: Long) extends impl.Handle[Long] with Ref[Long] {
+private[ccstm] class TLongRef(initialValue: Long) extends impl.Handle[Long] with Ref[Long] {
 
   private[ccstm] def handle: impl.Handle[Long] = this
 

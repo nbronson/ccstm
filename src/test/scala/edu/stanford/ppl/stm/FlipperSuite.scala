@@ -7,7 +7,7 @@ package edu.stanford.ppl.stm
 import edu.stanford.ppl.ccstm.{Atomic, Txn, Ref}
 import java.util.concurrent.CyclicBarrier
 import edu.stanford.ppl.ExhaustiveTest
-import edu.stanford.ppl.ccstm.collection.{StripedIntRef, LazyConflictIntRef, TBooleanRef}
+import edu.stanford.ppl.ccstm.collection.{StripedIntRef, LazyConflictIntRef}
 
 
 class FlipperSuite extends STMFunSuite {
@@ -129,7 +129,7 @@ class FlipperSuite extends STMFunSuite {
       print("computing sequentially...")
       Console.flush
 
-      val P = Array.tabulate[Ref[Boolean]](len)({ _ => new TBooleanRef(false) })
+      val P = Array.tabulate[Ref[Boolean]](len)({ _ => Ref(false) })
       val expected = computeSequential(this, P)
 
       print("\ncomputing in parallel with transactions...")

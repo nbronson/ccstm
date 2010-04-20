@@ -19,7 +19,7 @@ private object TAnyRef {
  *
  *  @author Nathan Bronson
  */
-class TAnyRef[T](initialValue: T) extends impl.Handle[T] with Ref[T] {
+private[ccstm] class TAnyRef[T](initialValue: T) extends impl.Handle[T] with Ref[T] {
 
   private[ccstm] def handle: impl.Handle[T] = this
 

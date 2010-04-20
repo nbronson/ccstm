@@ -8,7 +8,7 @@ package edu.stanford.ppl.ccstm.collection
 /** <code>IdentityPair</code> works like <code>Tuple2</code>, except that it
  *  uses only identity equality to compare its elements, not value equality.
  */
-case class IdentityPair[+A, +B](_1: A, _2: B) {
+private[ccstm] case class IdentityPair[+A, +B](_1: A, _2: B) {
   // TODO: figure out what this class should extend
 
   override def hashCode = {

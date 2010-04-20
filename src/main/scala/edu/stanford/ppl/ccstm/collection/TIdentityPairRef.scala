@@ -24,7 +24,7 @@ private object TIdentityPairRef {
  *
  *  @author Nathan Bronson
  */
-class TIdentityPairRef[A,B](initialA: A, initialB: B
+private[ccstm] class TIdentityPairRef[A,B](initialA: A, initialB: B
         ) extends impl.Handle[IdentityPair[A,B]] with Ref[IdentityPair[A,B]] {
 
   def this(initialPair: IdentityPair[A,B]) = this(

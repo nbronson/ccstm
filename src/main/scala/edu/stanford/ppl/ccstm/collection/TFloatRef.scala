@@ -19,7 +19,7 @@ private object TFloatRef {
  *
  *  @author Nathan Bronson
  */
-class TFloatRef(initialValue: Float) extends impl.Handle[Float] with Ref[Float] {
+private[ccstm] class TFloatRef(initialValue: Float) extends impl.Handle[Float] with Ref[Float] {
 
   private[ccstm] def handle: impl.Handle[Float] = this
 
