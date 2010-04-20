@@ -18,7 +18,7 @@ private[ccstm] class SingleProxyView[T](unbind0: Ref[T]) extends Ref.View[T] {
   def mode: BindingMode = Single
 
   def get: T = dynView.get
-  def map[Z](f: (T) => Z): Z = dynView.map(f)
+  def getWith[Z](f: (T) => Z): Z = dynView.getWith(f)
   def await(pred: T => Boolean): Unit = dynView.await(pred)
   def unrecordedRead: UnrecordedRead[T] = dynView.unrecordedRead
   def releasableRead: ReleasableRead[T] = dynView.releasableRead

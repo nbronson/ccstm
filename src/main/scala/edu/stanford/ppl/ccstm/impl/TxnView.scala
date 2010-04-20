@@ -14,7 +14,7 @@ private[ccstm] class TxnView[T](val unbind: Ref[T],
   def mode: BindingMode = txn
 
   def get: T = txn.get(handle)
-  def map[Z](f: (T) => Z): Z = txn.map(handle, f)
+  def getWith[Z](f: (T) => Z): Z = txn.getWith(handle, f)
   def await(pred: (T) => Boolean) { if (!pred(txn.get(handle))) txn.retry }
   def unrecordedRead: UnrecordedRead[T] = txn.unrecordedRead(handle)
   def releasableRead: ReleasableRead[T] = txn.releasableRead(handle)

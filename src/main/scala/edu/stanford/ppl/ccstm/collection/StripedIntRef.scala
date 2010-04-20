@@ -42,7 +42,7 @@ class StripedIntRef(initialValue: Int) extends IntRef {
 
     def get: Int = STM.atomic(unbind.get(_))
 
-    def map[Z](f: (Int) => Z): Z = f(get)
+    def getWith[Z](f: (Int) => Z): Z = f(get)
 
     def await(pred: Int => Boolean) {
       new Atomic { def body {
@@ -97,8 +97,8 @@ class StripedIntRef(initialValue: Int) extends IntRef {
       unbind.get
     }
 
-    def map[Z](f: (Int) => Z): Z = {
-      unbind.map(f)
+    def getWith[Z](f: (Int) => Z): Z = {
+      unbind.getWith(f)
     }
 
     def await(pred: (Int) => Boolean) {
@@ -245,7 +245,7 @@ class StripedIntRef(initialValue: Int) extends IntRef {
       unbind += delta
     }
   }
-  
+
   //////////////// txn operations
   
   override def get(implicit txn: Txn): Int = {
@@ -258,7 +258,7 @@ class StripedIntRef(initialValue: Int) extends IntRef {
     s
   }
 
-  override def map[Z](f: (Int) => Z)(implicit txn: Txn): Z = {
+  override def getWith[Z](f: (Int) => Z)(implicit txn: Txn): Z = {
     // TODO: something better?
     f(get)
   }

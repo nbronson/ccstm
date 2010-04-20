@@ -157,22 +157,22 @@ class IsolatedRefSuite extends STMFunSuite {
       }
     }
   
-    test(fact + ": " + binder + ": map") {
+    test(fact + ": " + binder + ": getWith") {
       val x = fact(1)
-      assert(binder(x).map(_ * 10) === 10)
+      assert(binder(x).getWith(_ * 10) === 10)
       binder.reset()
     }
 
-    test(fact + ": " + binder + ": map + write") {
+    test(fact + ": " + binder + ": getWith + write") {
       val x = fact(1)
       binder(x) := 2
-      assert(binder(x).map(_ * 10) === 20)
+      assert(binder(x).getWith(_ * 10) === 20)
       binder.reset()
     }
   
-    test(fact + ": " + binder + ": write + map") {
+    test(fact + ": " + binder + ": write + getWith") {
       val x = fact(1)
-      assert(binder(x).map(_ * 10) === 10)
+      assert(binder(x).getWith(_ * 10) === 10)
       binder(x) := 2
       binder.reset()
     }

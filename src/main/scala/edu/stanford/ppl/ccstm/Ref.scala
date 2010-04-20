@@ -269,7 +269,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
 
   def apply()(implicit txn: Txn): T = get
   def get(implicit txn: Txn): T = txn.get(handle)
-  def map[Z](f: (T) => Z)(implicit txn: Txn): Z = txn.map(handle, f)
+  def getWith[Z](f: (T) => Z)(implicit txn: Txn): Z = txn.getWith(handle, f)
 
   //////////////// Sink stuff
 

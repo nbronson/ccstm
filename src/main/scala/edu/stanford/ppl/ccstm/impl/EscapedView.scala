@@ -13,7 +13,7 @@ private[ccstm] class EscapedView[T](val unbind: Ref[T],
   def mode: BindingMode = Escaped
 
   def get: T = NonTxn.get(handle)
-  def map[Z](f: (T) => Z): Z = f(NonTxn.get(handle))
+  def getWith[Z](f: (T) => Z): Z = f(NonTxn.get(handle))
   def await(pred: T => Boolean) { NonTxn.await(handle, pred) }
   def unrecordedRead: UnrecordedRead[T] = NonTxn.unrecordedRead(handle)
   def releasableRead: ReleasableRead[T] = NonTxn.releasableRead(handle)

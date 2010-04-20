@@ -16,9 +16,9 @@ private[ccstm] class SingleView[T](val unbind: Ref[T],
     case null => NonTxn.get(nonTxnHandle)
     case txn: Txn => txn.get(txnHandle)
   }
-  def map[Z](f: (T) => Z): Z = Txn.dynCurrentOrNull match {
+  def getWith[Z](f: (T) => Z): Z = Txn.dynCurrentOrNull match {
     case null => f(NonTxn.get(nonTxnHandle))
-    case txn: Txn => txn.map(txnHandle, f)
+    case txn: Txn => txn.getWith(txnHandle, f)
   }
   def await(pred: T => Boolean): Unit = Txn.dynCurrentOrNull match {
     case null => NonTxn.await(nonTxnHandle, pred)

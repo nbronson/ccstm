@@ -436,7 +436,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
     return value
   }
 
-  def map[T,Z](handle: Handle[T], f: T => Z): Z = {
+  def getWith[T,Z](handle: Handle[T], f: T => Z): Z = {
     if (barging) return f(readForWrite(handle))
 
     val u = unrecordedRead(handle)

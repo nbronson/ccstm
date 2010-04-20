@@ -31,7 +31,7 @@ object LazyConflictIntRef {
   private case class Op_==(rhs: Int)                extends Test { def isDefinedAt(v: Int) = (v == rhs) }
   private case class Op_!=(rhs: Int)                extends Test { def isDefinedAt(v: Int) = (v != rhs) }
 
-  private case class Map[Z](f: Int => Z, result: Z) extends Test { def isDefinedAt(v: Int) = (f(v) == result) }
+  private case class GetWith[Z](f: Int => Z, result: Z) extends Test { def isDefinedAt(v: Int) = (f(v) == result) }
 
   private case class CheckIsDefined(pf: PartialFunction[Int,Int], applicable: Boolean) extends Test {
     def isDefinedAt(v: Int) = (pf.isDefinedAt(v) == applicable)
@@ -65,14 +65,14 @@ object LazyConflictIntRef {
       _value
     }
 
-    def map[Z](f: Int => Z): Z = {
+    def getWith[Z](f: Int => Z): Z = {
       val z = f(_value)
-      record(new Map(f, z))
+      record(new GetWith(f, z))
       z
     }
 
     def await(pred: Int => Boolean) {
-      if (!map(pred)) {
+      if (!getWith(pred)) {
         // record underlying to read set, then retry
         _ubound.get
         txn.retry()
@@ -168,7 +168,7 @@ object LazyConflictIntRef {
       }
     }
 
-    override def compare(rhs: Int): Int = map((_ compare rhs))
+    override def compare(rhs: Int): Int = getWith((_ compare rhs))
 
     override def < (rhs: Int): Boolean = {
       if (_value < rhs) {
@@ -293,7 +293,7 @@ class LazyConflictIntRef(initialValue: Int) extends IntRef {
   override private[ccstm] def nonTxnHandle = underlying.nonTxnHandle
 
   override def get(implicit txn: Txn): Int = bind.get
-  override def map[Z](f: (Int) => Z)(implicit txn: Txn): Z = bind.map(f)
+  override def getWith[Z](f: (Int) => Z)(implicit txn: Txn): Z = bind.getWith(f)
   override def set(v: Int)(implicit txn: Txn) { bind.set(v) }
   override def swap(v: Int)(implicit txn: Txn): Int = bind.swap(v)
   override def transform(f: (Int) => Int)(implicit txn: Txn) { bind.transform(f) }

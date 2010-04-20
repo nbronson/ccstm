@@ -18,19 +18,19 @@ object IntRef {
     def += (delta: Int) { transform(_ + delta) }
     def -= (delta: Int) { this += (-delta) }
 
-    def compare(rhs: Int): Int = map(_ compare rhs)
+    def compare(rhs: Int): Int = getWith(_ compare rhs)
 
-    override def < (rhs: Int): Boolean = map(_ < rhs)
-    override def > (rhs: Int): Boolean = map(_ > rhs)
+    override def < (rhs: Int): Boolean = getWith(_ < rhs)
+    override def > (rhs: Int): Boolean = getWith(_ > rhs)
     override def <= (rhs: Int): Boolean = !(this > rhs)
     override def >= (rhs: Int): Boolean = !(this < rhs)
 
-    /** Equivalent to <code>map(_ == ths)</code>, but more concise and
+    /** Equivalent to <code>getWith(_ == ths)</code>, but more concise and
      *  possibly more efficient.
      */
-    def ==? (rhs: Int): Boolean = map(_ == rhs)
+    def ==? (rhs: Int): Boolean = getWith(_ == rhs)
 
-    /** Equivalent to <code>map(_ != ths)</code>, but more concise and
+    /** Equivalent to <code>getWith(_ != ths)</code>, but more concise and
      *  possibly more efficient.
      */
     def !=? (rhs: Int): Boolean = !(this ==? rhs)
@@ -75,19 +75,19 @@ trait IntRef extends Ref[Int] {
   def +=  (delta: Int)(implicit txn: Txn) { if (delta != 0) transform(_ + delta) }
   def -=  (delta: Int)(implicit txn: Txn) { this += (-delta) }
 
-  def compare(rhs: Int)(implicit txn: Txn): Int = { map(_ compare rhs) }
+  def compare(rhs: Int)(implicit txn: Txn): Int = { getWith(_ compare rhs) }
 
-  def <   (rhs: Int)(implicit txn: Txn): Boolean = { map(_ < rhs) }
-  def >   (rhs: Int)(implicit txn: Txn): Boolean = { map(_ > rhs) }
+  def <   (rhs: Int)(implicit txn: Txn): Boolean = { getWith(_ < rhs) }
+  def >   (rhs: Int)(implicit txn: Txn): Boolean = { getWith(_ > rhs) }
   def <=  (rhs: Int)(implicit txn: Txn): Boolean = { !(this > rhs) }
   def >=  (rhs: Int)(implicit txn: Txn): Boolean = { !(this < rhs) }
 
-  /** Equivalent to <code>map(_ == ths)</code>, but more concise and
+  /** Equivalent to <code>getWith(_ == ths)</code>, but more concise and
    *  possibly more efficient.
    */
-  def ==? (rhs: Int)(implicit txn: Txn): Boolean = { map(_ == rhs) }
+  def ==? (rhs: Int)(implicit txn: Txn): Boolean = { getWith(_ == rhs) }
 
-  /** Equivalent to <code>map(_ != ths)</code>, but more concise and
+  /** Equivalent to <code>getWith(_ != ths)</code>, but more concise and
    *  possibly more efficient.
    */
   def !=? (rhs: Int)(implicit txn: Txn): Boolean = { !(this ==? rhs) }

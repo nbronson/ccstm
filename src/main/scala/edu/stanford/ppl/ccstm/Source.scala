@@ -41,7 +41,7 @@ object Source {
      *  @param f an idempotent function.
      *  @return the result of applying `f` to the value read by this view.
      */
-    def map[Z](f: T => Z): Z
+    def getWith[Z](f: T => Z): Z
 
     /** Blocks until `pred(get)` is true, in a manner consistent with the bound
      *  context.  Requires that the predicate be safe to reevaluate, and that
@@ -119,7 +119,7 @@ trait Source[+T] {
   def apply()(implicit txn: Txn): T
 
   /** Performs a transactional read and checks that it is consistent with all
-   *  reads already made by `txn`.
+   *  reads already made by `txn`.  Equivalent to `apply()`.
    *  @param txn an active transaction.
    *  @return the value of the `Ref` as observed by `txn`.
    *  @throws IllegalStateException if `txn` is not active.
@@ -132,7 +132,7 @@ trait Source[+T] {
    *  @param f an idempotent function.
    *  @return the result of applying `f` to the value contained in this `Ref`.
    */
-  def map[Z](f: T => Z)(implicit txn: Txn): Z
+  def getWith[Z](f: T => Z)(implicit txn: Txn): Z
 
   /** The restriction of `Ref.bind` to `Source`.
    *  @see edu.stanford.ppl.ccstm.Ref#bind
