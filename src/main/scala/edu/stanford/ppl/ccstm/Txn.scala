@@ -479,18 +479,10 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
 
   /** An instance representing a single execution attempt for a single atomic
    *  block.  In almost all cases, `Txn` instances should be obtained by passing
-   *  a block to `STM.atomic`.  The failure history is used to avoid
-   *  performance pathologies such as starving elders.
-   *  @see edu.stanford.ppl.ccstm.STM#atomic
-   */
-  def this(failureHistory: List[Txn.RollbackCause]) = this(failureHistory, ThreadContext.get)
-
-  /** An instance representing a single execution attempt for a single atomic
-   *  block.  In almost all cases, `Txn` instances should be obtained by passing
    *  a block to `STM.atomic`.
    *  @see edu.stanford.ppl.ccstm.STM
    */
-  def this() = this(Nil)
+  private[ccstm] def this() = this(Nil, ThreadContext.get)
 
   // This inheritence hierarchy is a bit strange.  Method signatures and the
   // scaladoc are in AbstractTxn, but all of the code is in Txn.  The

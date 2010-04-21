@@ -7,7 +7,7 @@ package edu.stanford.ppl.ccstm.impl
 import edu.stanford.ppl.ccstm._
 
 
-abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadContext) extends AbstractTxn {
+private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadContext) extends AbstractTxn {
   import STMImpl._
   import Txn._
 

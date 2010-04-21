@@ -1,13 +1,9 @@
-/* CCSTM - (c) 2009-2010 Stanford University - PPL */
+package edu.stanford.ppl.ccstm
 
-// TxnSuite
-
-package edu.stanford.ppl.stm
-
-import edu.stanford.ppl.ExhaustiveTest
-import edu.stanford.ppl.ccstm._
 import edu.stanford.ppl.ccstm.collection._
 import java.util.IdentityHashMap
+import edu.stanford.ppl.ExhaustiveTest
+import edu.stanford.ppl.stm.STMFunSuite
 
 
 /** Performs single-threaded tests of <code>Ref</code>.  Since there is no
@@ -73,11 +69,7 @@ class IsolatedRefSuite extends STMFunSuite {
   }
 
   case object TAnyRefFactory extends IntRefFactory {
-    def apply(initialValue: Int): Ref[Int] = {
-      val r = Ref.make[Any].asInstanceOf[Ref[Int]]
-      r.single := initialValue
-      r
-    }
+    def apply(initialValue: Int): Ref[Int] = new TAnyRef[Int](initialValue)
   }
 
   case object TIntRefFactory extends IntRefFactory {

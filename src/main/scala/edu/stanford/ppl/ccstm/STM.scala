@@ -156,15 +156,16 @@ object STM {
 
   private def attemptUntilRetry[Z](block: Txn => Z,
                                    hist0: List[Txn.RollbackCause]): Either[Z, List[Txn.RollbackCause]] = {
+    val ctx = ThreadContext.get
     var hist = hist0
-    var txn = new Txn(hist)
+    var txn = new Txn(hist, ctx)
     var z = attemptImpl(txn, block)
     while (txn.status ne Txn.Committed) {
       val cause = txn.status.rollbackCause
       hist = cause :: hist
       if (cause.isInstanceOf[Txn.ExplicitRetryCause]) return Right(hist)
       // retry
-      txn = new Txn(hist)
+      txn = new Txn(hist, ctx)
       z = attemptImpl(txn, block)
     }
     Left(z)
