@@ -6,10 +6,10 @@ package edu.stanford.ppl.ccstm.experimental.impl
 
 
 import edu.stanford.ppl.ccstm._
-import collection.{TIntRef, TArray, TAnyRef}
+import collection.TArray
 import experimental.TMap
 import experimental.TMap.Bound
-import impl.{FastSimpleRandom, MetaHolder}
+import impl.{TAnyRef, FastSimpleRandom, MetaHolder}
 import reflect.Manifest
 
 

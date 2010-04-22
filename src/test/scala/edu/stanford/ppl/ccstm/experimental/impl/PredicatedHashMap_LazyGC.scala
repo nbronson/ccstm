@@ -9,7 +9,6 @@ import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import java.util.concurrent.ConcurrentHashMap
 import edu.stanford.ppl.ccstm.{STM, Txn}
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater
-import edu.stanford.ppl.ccstm.collection.{IdentityPair, TIdentityPairRef}
 
 private object PredicatedHashMap_LazyGC {
 

@@ -2,9 +2,9 @@
 
 // TDoubleRef
 
-package edu.stanford.ppl.ccstm.collection
+package edu.stanford.ppl.ccstm
+package impl
 
-import edu.stanford.ppl.ccstm._
 import java.util.concurrent.atomic.AtomicLongFieldUpdater
 
 
@@ -12,16 +12,13 @@ private object TDoubleRef {
   val metaUpdater = (new TDoubleRef(0 : Double)).newMetaUpdater
 }
 
-/** A concrete implementation of <code>Ref[Double]</code>.
- *  <p>
- *  This class is not sealed, so it may be opportunistically subclassed to
- *  reduce a level of indirection and the associated storage overheads.
+/** A concrete implementation of `Ref[Double]`.
  *
  *  @author Nathan Bronson
  */
-private[ccstm] class TDoubleRef(initialValue: Double) extends impl.Handle[Double] with Ref[Double] {
+private[ccstm] class TDoubleRef(initialValue: Double) extends Handle[Double] with RefOps[Double] {
 
-  private[ccstm] def handle: impl.Handle[Double] = this
+  private[ccstm] def handle: Handle[Double] = this
 
   @volatile private[ccstm] var meta: Long = 0L
   private[ccstm] def metaCAS(before: Long, after: Long) = {

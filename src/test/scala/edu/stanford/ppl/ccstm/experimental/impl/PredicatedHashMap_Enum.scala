@@ -8,7 +8,7 @@ import edu.stanford.ppl.ccstm.experimental.TMap
 import java.util.concurrent.ConcurrentHashMap
 import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm.{STM, Txn}
-import edu.stanford.ppl.ccstm.collection.{TAnyRef, StripedIntRef}
+import edu.stanford.ppl.ccstm.impl.{TAnyRef, StripedIntRef}
 
 class PredicatedHashMap_Enum[A,B] extends TMap[A,B] {
   private val sizeRef = new StripedIntRef(0)
@@ -152,7 +152,7 @@ class PredicatedHashMap_Enum[A,B] extends TMap[A,B] {
   }
 
   def isEmpty(implicit txn: Txn): Boolean = {
-    sizeRef > 0
+    sizeRef getWith { _ > 0 }
   }
 
   def size(implicit txn: Txn): Int = {

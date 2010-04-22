@@ -5,7 +5,7 @@
 package edu.stanford.ppl.ccstm.collection
 
 import edu.stanford.ppl.ccstm._
-import edu.stanford.ppl.ccstm.impl.Handle
+import impl.{RefOps, Handle}
 import java.util.concurrent.atomic.AtomicLongArray
 import scala.reflect.ClassManifest
 import scala.collection._
@@ -29,7 +29,7 @@ object TArray {
   
   trait View[T] extends mutable.IndexedSeq[T] {
     def unbind: TArray[T]
-    def mode: BindingMode
+    def mode: AccessMode
     def length: Int = unbind.length
     def apply(index: Int): T
     def update(index: Int, v: T)
@@ -79,7 +79,7 @@ class TArray[T](private val _data: AtomicArray[T], metaMapping: TArray.MetaMappi
 
   def bind(implicit txn: Txn): View[T] = new View[T] {
     def unbind = TArray.this
-    def mode: BindingMode = txn
+    def mode: AccessMode = txn
     def apply(index: Int): T = getRef(index).get
     def update(index: Int, v: T) = getRef(index).set(v)
     def refs: immutable.IndexedSeq[Ref.View[T]] = new immutable.IndexedSeq[Ref.View[T]] {
@@ -90,7 +90,7 @@ class TArray[T](private val _data: AtomicArray[T], metaMapping: TArray.MetaMappi
 
   def single: View[T] = new View[T] {
     def unbind = TArray.this
-    def mode: BindingMode = Single
+    def mode: AccessMode = Single
     def apply(index: Int): T = getRef(index).single.get
     def update(index: Int, v: T) = getRef(index).single.set(v)
     def refs: immutable.IndexedSeq[Ref.View[T]] = new immutable.IndexedSeq[Ref.View[T]] {
@@ -101,7 +101,7 @@ class TArray[T](private val _data: AtomicArray[T], metaMapping: TArray.MetaMappi
 
   def escaped: View[T] = new View[T] {
     def unbind = TArray.this
-    def mode: BindingMode = Escaped
+    def mode: AccessMode = Escaped
     def apply(index: Int): T = getRef(index).escaped.get
     def update(index: Int, v: T) = getRef(index).escaped.set(v)
     def refs: immutable.IndexedSeq[Ref.View[T]] = new immutable.IndexedSeq[Ref.View[T]] {
@@ -131,7 +131,7 @@ class TArray[T](private val _data: AtomicArray[T], metaMapping: TArray.MetaMappi
   private val _meta = new AtomicLongArray(Math.min(_metaIndexMask + 1, length))
   private def _metaIndex(i: Int) = (i >> _metaIndexShift) & _metaIndexMask
 
-  private def getRef(index: Int): Ref[T] = new Handle[T] with Ref[T] {
+  private def getRef(index: Int): Ref[T] = new Handle[T] with RefOps[T] {
 
     private[ccstm] def handle: Handle[T] = this
 

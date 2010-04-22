@@ -1,11 +1,7 @@
-/* CCSTM - (c) 2009-2010 Stanford University - PPL */
+package edu.stanford.ppl.ccstm.experimental.impl
 
-// TAnyRef
-
-package edu.stanford.ppl.ccstm.collection
-
-import edu.stanford.ppl.ccstm._
 import java.util.concurrent.atomic.AtomicLongFieldUpdater
+import edu.stanford.ppl.ccstm.impl.{Handle, RefOps}
 
 
 private object TIdentityPairRef {
@@ -25,7 +21,7 @@ private object TIdentityPairRef {
  *  @author Nathan Bronson
  */
 private[ccstm] class TIdentityPairRef[A,B](initialA: A, initialB: B
-        ) extends impl.Handle[IdentityPair[A,B]] with Ref[IdentityPair[A,B]] {
+        ) extends Handle[IdentityPair[A,B]] with RefOps[IdentityPair[A,B]] {
 
   def this(initialPair: IdentityPair[A,B]) = this(
       (if (null == initialPair) null.asInstanceOf[A] else initialPair._1),
@@ -33,7 +29,7 @@ private[ccstm] class TIdentityPairRef[A,B](initialA: A, initialB: B
 
   import TIdentityPairRef._
 
-  private[ccstm] def handle: impl.Handle[IdentityPair[A,B]] = this
+  private[ccstm] def handle: Handle[IdentityPair[A,B]] = this
 
   @volatile private[ccstm] var meta: Long = 0L
   private[ccstm] def metaCAS(before: Long, after: Long) = {

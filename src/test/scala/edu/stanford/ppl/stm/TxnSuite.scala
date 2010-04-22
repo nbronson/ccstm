@@ -5,7 +5,6 @@
 package edu.stanford.ppl.stm
 
 import edu.stanford.ppl.ccstm._
-import collection.LazyConflictIntRef
 
 
 class TxnSuite extends STMFunSuite {
@@ -114,7 +113,7 @@ class TxnSuite extends STMFunSuite {
 
   test("STM.transform2") {
     val x = Ref(10)
-    val y = new LazyConflictIntRef(20)
+    val y = Ref.lazyConflict(20)
     val z = STM.transform2(x, y, (a: Int, b: Int) => (a+2*b, b+2*a, a*b))
     assert(x.single.get === 50)
     assert(y.single.get === 40)

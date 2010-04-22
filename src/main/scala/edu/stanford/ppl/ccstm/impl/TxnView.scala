@@ -11,7 +11,7 @@ private[ccstm] class TxnView[T](val unbind: Ref[T],
                                 protected val handle: impl.Handle[T],
                                 txn: Txn) extends Ref.View[T] {
 
-  def mode: BindingMode = txn
+  def mode: AccessMode = txn
 
   def get: T = txn.get(handle)
   def getWith[Z](f: (T) => Z): Z = txn.getWith(handle, f)

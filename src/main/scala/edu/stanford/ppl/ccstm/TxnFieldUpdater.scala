@@ -4,7 +4,7 @@
 
 package edu.stanford.ppl.ccstm
 
-import impl.{MetaHolder, Handle}
+import impl.{RefOps, MetaHolder, Handle}
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.ConcurrentHashMap
 
@@ -35,7 +35,7 @@ object TxnFieldUpdater {
     private val offset = TxnFieldUpdater.getOffset(m.erasure, fieldName)
 
     private[ccstm] def applyImpl[X,Y,Z](instance: InstanceImpl[X,Y,Z]): Ref[ValueImpl[X,Y,Z]] =
-        new Handle[ValueImpl[X,Y,Z]] with Ref[ValueImpl[X,Y,Z]] {
+        new Handle[ValueImpl[X,Y,Z]] with RefOps[ValueImpl[X,Y,Z]] {
       private[ccstm] def handle: Handle[ValueImpl[X,Y,Z]] = this
 
       private[ccstm] def meta: Long = instance.meta

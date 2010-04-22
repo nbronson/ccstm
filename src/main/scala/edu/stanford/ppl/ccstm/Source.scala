@@ -15,13 +15,13 @@ object Source {
      */
     def unbind: Source[T]
 
-    /** Returns the `BindingMode` instance that describes how this bound view
+    /** Returns the `AccessMode` instance that describes how this bound view
      *  was created.
      *  @see edu.stanford.ppl.ccstm.Single
      *  @see edu.stanford.ppl.ccstm.Escaped
      *  @see edu.stanford.ppl.ccstm.Txn
      */
-    def mode: BindingMode
+    def mode: AccessMode
 
     /** Performs a read in the bound context.  Equivalent to `get`.
      *  @see edu.stanford.ppl.ccstm.Source.View#get
@@ -116,7 +116,7 @@ trait Source[+T] {
    *  @return the value of the `Ref` as observed by `txn`.
    *  @throws IllegalStateException if `txn` is not active.
    */
-  def apply()(implicit txn: Txn): T
+  def apply()(implicit txn: Txn): T = get
 
   /** Performs a transactional read and checks that it is consistent with all
    *  reads already made by `txn`.  Equivalent to `apply()`.

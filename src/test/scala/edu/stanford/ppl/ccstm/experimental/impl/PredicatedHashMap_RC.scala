@@ -9,7 +9,7 @@ import java.util.concurrent.ConcurrentHashMap
 import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm.{STM, Txn}
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater
-import edu.stanford.ppl.ccstm.collection.TAnyRef
+import edu.stanford.ppl.ccstm.impl.TAnyRef
 
 
 object PredicatedHashMap_RC {

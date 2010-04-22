@@ -8,12 +8,12 @@ import reflect.Manifest
 import edu.stanford.ppl.ccstm.experimental.TMap
 import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm._
-import collection.{LazyConflictIntRef, TArray}
-import impl.MetaHolder
+import collection.TArray
+import impl.{LazyConflictRef, MetaHolder}
 
 class BasicHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TMap[K,V] {
   private val bucketsRef = Ref(new TArray[BHMBucket[K,V]](16, TArray.MaximizeParallelism))
-  private val sizeRef = new LazyConflictIntRef(0)
+  private val sizeRef = new LazyConflictRef(0)
 
   private def hash(key: K) = {
     // this is the bit mixing code from java.util.HashMap
@@ -59,7 +59,7 @@ class BasicHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TMap[
     }
   }
 
-  def isEmpty(implicit txn: Txn): Boolean = sizeRef > 0
+  def isEmpty(implicit txn: Txn): Boolean = sizeRef getWith { _ > 0 }
 
   def size(implicit txn: Txn): Int = sizeRef.get
 
@@ -93,7 +93,7 @@ class BasicHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TMap[
       buckets(i) = new BHMBucket(key, value, head)
       sizeRef += 1
       val n = buckets.length
-      if (sizeRef > n - n/4) {
+      if (sizeRef getWith { _ > n - n/4 }) {
         grow()
       }
       None

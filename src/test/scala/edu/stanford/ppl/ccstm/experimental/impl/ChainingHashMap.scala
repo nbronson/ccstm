@@ -5,10 +5,11 @@
 package edu.stanford.ppl.ccstm.experimental.impl
 
 import reflect.Manifest
-import edu.stanford.ppl.ccstm.collection.{LazyConflictIntRef, TAnyRef, TArray}
 import edu.stanford.ppl.ccstm.experimental.TMap
 import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm._
+import collection.TArray
+import impl.LazyConflictRef
 
 object ChainingHashMap {
   private class Bucket[K,V](val hash: Int, val key: K, val value: V, val next: Bucket[K,V]) {
@@ -36,7 +37,7 @@ class ChainingHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TM
   import ChainingHashMap._
 
   private val bucketsRef = Ref(TArray[Bucket[K,V]](16))
-  private val sizeRef = new LazyConflictIntRef(0)
+  private val sizeRef = new LazyConflictRef(0)
 
   private def hash(key: K) = {
     // this is the bit mixing code from java.util.HashMap
@@ -155,7 +156,7 @@ class ChainingHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TM
     }
   }
 
-  def isEmpty(implicit txn: Txn): Boolean = sizeRef > 0
+  def isEmpty(implicit txn: Txn): Boolean = sizeRef getWith { _ > 0 }
 
   def size(implicit txn: Txn): Int = sizeRef.get
 
@@ -180,7 +181,7 @@ class ChainingHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TM
       // size change
       sizeRef += 1
       val n = buckets.length
-      if (sizeRef > n - n/4) {
+      if (sizeRef getWith { _ > n - n/4 }) {
         grow()
       }
       None
@@ -234,7 +235,7 @@ class ChainingHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TM
       // bigger
       sizeRef += 1
       val n = buckets.length
-      if (sizeRef > n - n/4) {
+      if (sizeRef getWith { _ > n - n/4 }) {
         grow()
       }
     }

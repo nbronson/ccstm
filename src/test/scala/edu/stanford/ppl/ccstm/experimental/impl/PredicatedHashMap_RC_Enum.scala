@@ -9,7 +9,7 @@ import java.util.concurrent.ConcurrentHashMap
 import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm.{STM, Txn}
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater
-import edu.stanford.ppl.ccstm.collection.{TAnyRef, StripedIntRef, TOptionRef, LazyConflictIntRef}
+import edu.stanford.ppl.ccstm.impl.{StripedIntRef, TAnyRef}
 
 object PredicatedHashMap_RC_Enum {
   private val refCountUpdater = (new Pred[Int]).newUpdater
@@ -182,7 +182,7 @@ class PredicatedHashMap_RC_Enum[A,B] extends TMap[A,B] {
   }
 
   def isEmpty(implicit txn: Txn): Boolean = {
-    sizeRef > 0
+    sizeRef getWith { _ > 0 }
   }
 
   def size(implicit txn: Txn): Int = {

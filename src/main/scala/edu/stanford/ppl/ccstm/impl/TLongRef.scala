@@ -2,9 +2,9 @@
 
 // TLongRef
 
-package edu.stanford.ppl.ccstm.collection
+package edu.stanford.ppl.ccstm
+package impl
 
-import edu.stanford.ppl.ccstm._
 import java.util.concurrent.atomic.AtomicLongFieldUpdater
 
 
@@ -12,16 +12,13 @@ private object TLongRef {
   val metaUpdater = (new TLongRef(0 : Long)).newMetaUpdater
 }
 
-/** A concrete implementation of <code>Ref[Long]</code>.
- *  <p>
- *  This class is not sealed, so it may be opportunistically subclassed to
- *  reduce a level of indirection and the associated storage overheads.
+/** A concrete implementation of `Ref[Long]`.
  *
  *  @author Nathan Bronson
  */
-private[ccstm] class TLongRef(initialValue: Long) extends impl.Handle[Long] with Ref[Long] {
+private[ccstm] class TLongRef(initialValue: Long) extends Handle[Long] with RefOps[Long] {
 
-  private[ccstm] def handle: impl.Handle[Long] = this
+  private[ccstm] def handle: Handle[Long] = this
 
   @volatile private[ccstm] var meta: Long = 0L
   private[ccstm] def metaCAS(before: Long, after: Long) = {

@@ -2,7 +2,7 @@
 
 // IdentityPair
 
-package edu.stanford.ppl.ccstm.collection
+package edu.stanford.ppl.ccstm.experimental.impl
 
 
 /** <code>IdentityPair</code> works like <code>Tuple2</code>, except that it

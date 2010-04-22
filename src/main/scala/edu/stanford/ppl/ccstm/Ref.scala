@@ -11,7 +11,7 @@ import reflect.AnyValManifest
  *  @author Nathan Bronson
  */
 object Ref {
-  import collection._
+  import impl._
 
   /** Returns a new <code>Ref</code> instance suitable for holding instances of
    *  <code>T</code>.
@@ -49,7 +49,7 @@ object Ref {
   def apply(initialValue: Byte   ): Ref[Byte]    = new TByteRef(   initialValue)
   def apply(initialValue: Short  ): Ref[Short]   = new TShortRef(  initialValue)
   def apply(initialValue: Char   ): Ref[Char]    = new TCharRef(   initialValue)
-  def apply(initialValue: Int    ): IntRef       = new TIntRef(    initialValue)
+  def apply(initialValue: Int    ): Ref[Int]     = new TIntRef(    initialValue)
   def apply(initialValue: Long   ): Ref[Long]    = new TLongRef(   initialValue)
   def apply(initialValue: Float  ): Ref[Float]   = new TFloatRef(  initialValue)
   def apply(initialValue: Double ): Ref[Double]  = new TDoubleRef( initialValue)
@@ -68,6 +68,22 @@ object Ref {
       case x: Array[Unit]    => apply(initialValue.asInstanceOf[Unit])
     }).asInstanceOf[Ref[T]]
   }
+
+
+  /** Returns a `Ref` instance that uses view serializability and Abstract
+   *  Nested Transactions to minimize the need to roll back transactions.  All
+   *  operations and their result values are recorded.  If another transaction
+   *  changes the value of the returned reference, a conflict will be avoided
+   *  if the history can be replayed starting with the new value without an
+   *  observable difference.  Writes to the underlying value will be delayed
+   *  until just prior to commit.
+   */
+  def lazyConflict[T](initialValue: T)(implicit m: ClassManifest[T]) = new LazyConflictRef(initialValue)
+
+  /** Returns a `Ref[Int]` instance optimized for concurrent increment and
+   *  decrement using `+=` and `-=`.
+   */
+  def striped(initialValue: Int) = new StripedIntRef(initialValue)
 
 
   /** A `Ref` view that supports reads and writes.  Reads and writes are
@@ -203,6 +219,12 @@ object Ref {
      */
     def transformIfDefined(pf: PartialFunction[T,T]): Boolean
 
+    def +=(rhs: T)(implicit num: Numeric[T]) { if (num.zero != rhs) transform { v => num.plus(v, rhs) } }
+    def -=(rhs: T)(implicit num: Numeric[T]) { if (num.zero != rhs) transform { v => num.minus(v, rhs) } }
+    def *=(rhs: T)(implicit num: Numeric[T]) { if (num.zero == rhs) set(num.zero) else transform { v => num.times(v, rhs) } }
+
+    // TODO: I don't know how to make /= work for both Integral and Fractional
+
     override def equals(rhs: Any) = rhs match {
       case b: View[_] => (mode == b.mode) && (unbind == b.unbind)
       case _ => false
@@ -256,28 +278,6 @@ object Ref {
  */
 trait Ref[T] extends Source[T] with Sink[T] {
 
-  /** Provides access to the data and metadata associated with this reference.
-   *  This is the only method for which the default <code>Ref</code>
-   *  implementation is not sufficient.
-   */
-  private[ccstm] def handle: impl.Handle[T]
-
-  /** Provides access to the handle for use by non-transactional direct access. */ 
-  private[ccstm] def nonTxnHandle = handle
-
-  //////////////// Source stuff
-
-  def apply()(implicit txn: Txn): T = get
-  def get(implicit txn: Txn): T = txn.get(handle)
-  def getWith[Z](f: (T) => Z)(implicit txn: Txn): Z = txn.getWith(handle, f)
-
-  //////////////// Sink stuff
-
-  def :=(v: T)(implicit txn: Txn) { set(v) }
-  def set(v: T)(implicit txn: Txn) { txn.set(handle, v) }
-
-  //////////////// Ref functions
-
   /** Works like <code>set(v)</code>, but returns the old value.  This is an
    *  atomic swap, equivalent to atomically performing a <code>get</code>
    *  followed by <code>set(v)</code>.
@@ -285,9 +285,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *      <code>txn</code>.
    *  @throws IllegalStateException if <code>txn</code> is not active.
    */
-  def swap(v: T)(implicit txn: Txn): T = {
-    txn.swap(handle, v)
-  }
+  def swap(v: T)(implicit txn: Txn): T
 
   /** Transforms the value referenced by this <code>Ref</code> by applying the
    *  function <code>f</code>.  Acts like <code>ref.set(f(ref.get))</code>, but
@@ -297,11 +295,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *      call later during the transaction.
    *  @throws IllegalStateException if <code>txn</code> is not active.
    */
-  def transform(f: T => T)(implicit txn: Txn) {
-    // only sub-types of Ref actually perform deferral, the base implementation
-    // evaluates f immediately
-    txn.getAndTransform(handle, f)
-  }
+  def transform(f: T => T)(implicit txn: Txn)
 
   /** Transforms the value referenced by this <code>Ref</code> by applying the
    *  <code>pf.apply</code>, but only if <code>pf.isDefinedAt</code> holds for
@@ -315,9 +309,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *      current value of this <code>Ref</code> on entry.
    *  @throws IllegalStateException if <code>txn</code> is not active.
    */
-  def transformIfDefined(pf: PartialFunction[T,T])(implicit txn: Txn): Boolean = {
-    txn.transformIfDefined(handle, pf)
-  }
+  def transformIfDefined(pf: PartialFunction[T,T])(implicit txn: Txn): Boolean
 
   /** Returns this instance, but with only the read-only portion accessible.
    *  Equivalent to <code>asInstanceOf[Source[T]]</code>, but may be more
@@ -325,8 +317,16 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *  @return this instance, but with only read-only methods accessible
    */
   def source: Source[T] = this
+  
+  // numeric stuff
 
-  //////////////// BindingMode
+  def +=(rhs: T)(implicit txn: Txn, num: Numeric[T]) { if (num.zero != rhs) transform { v => num.plus(v, rhs) } }
+  def -=(rhs: T)(implicit txn: Txn, num: Numeric[T]) { if (num.zero != rhs) transform { v => num.minus(v, rhs) } }
+  def *=(rhs: T)(implicit txn: Txn, num: Numeric[T]) { if (num.zero == rhs) set(num.zero) else transform { v => num.times(v, rhs) } }
+
+  // TODO: I don't know how to make /= work for both Integral and Fractional
+
+  //////////////// AccessMode
 
   /** Returns a reference view that does not require an implicit
    *  <code>Txn</code> parameter on each method call, but instead always
@@ -340,7 +340,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *  @return a view of this instance that performs all accesses as if from
    *      <code>txn</code>.
    */
-  def bind(implicit txn: Txn): Ref.View[T] = new impl.TxnView(this, handle, txn)
+  def bind(implicit txn: Txn): Ref.View[T]
 
   /** Returns a view that acts as if each operation is performed in an atomic
    *  block containing that single operation.  The new single-operation
@@ -350,7 +350,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *  @return a view into the value of this <code>Ref</code>, that will perform
    *      each operation as if in its own transaction.
    */
-  def single: Ref.View[T] = new impl.SingleView(this, nonTxnHandle, handle)
+  def single: Ref.View[T]
 
   /** (Uncommon) Returns a view that can be used to perform individual reads 
    *  and writes to this reference outside any transactional context,
@@ -361,28 +361,17 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *  @return a view into the value of this <code>Ref</code>, that will bypass
    *      any active transaction.
    */
-  def escaped: Ref.View[T] = new impl.EscapedView(this, nonTxnHandle)
+  def escaped: Ref.View[T]
 
   @deprecated("replace with Ref.single if possible, otherwise use Ref.escaped")
   def nonTxn: Ref.View[T] = escaped
 
-  override def hashCode: Int = {
-    val h = handle
-    impl.STMImpl.hash(h.ref, h.offset)
-  }
-
-  override def equals(rhs: Any): Boolean = {
-    (this eq rhs.asInstanceOf[AnyRef]) || (rhs match {
-      case r: Ref[_] => {
-        val h1 = handle
-        val h2 = r.handle
-        (h1.ref eq h2.ref) && (h1.offset == h2.offset)
-      }
-      case _ => false
-    })
-  }
+  private[ccstm] def embalm(identity: Int)
+  private[ccstm] def resurrect(identity: Int)
 
   override def toString: String = {
-    getClass.getSimpleName + "@" + (System.identityHashCode(this).toHexString)
+    // we use hashCode instead of System.identityHashCode, because we want
+    // Ref-s that point to the same location to have the same string  
+    getClass.getSimpleName + "->" + (hashCode.toHexString)
   }
 }

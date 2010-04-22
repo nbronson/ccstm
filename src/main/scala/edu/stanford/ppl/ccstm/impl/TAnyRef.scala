@@ -2,9 +2,9 @@
 
 // TAnyRef
 
-package edu.stanford.ppl.ccstm.collection
+package edu.stanford.ppl.ccstm
+package impl
 
-import edu.stanford.ppl.ccstm._
 import java.util.concurrent.atomic.AtomicLongFieldUpdater
 
 
@@ -12,16 +12,13 @@ private object TAnyRef {
   val metaUpdater = (new TAnyRef(null)).newMetaUpdater
 }
 
-/** A concrete implementation of <code>Ref[Int]</code>.
- *  <p>
- *  This class is not sealed, so it may be opportunistically subclassed to
- *  reduce a level of indirection and the associated storage overheads.
+/** A concrete implementation of `Ref[T]` for any type `T`.
  *
  *  @author Nathan Bronson
  */
-private[ccstm] class TAnyRef[T](initialValue: T) extends impl.Handle[T] with Ref[T] {
+private[ccstm] class TAnyRef[T](initialValue: T) extends Handle[T] with RefOps[T] {
 
-  private[ccstm] def handle: impl.Handle[T] = this
+  private[ccstm] def handle: Handle[T] = this
 
   @volatile private[ccstm] var meta: Long = 0L
   private[ccstm] def metaCAS(before: Long, after: Long) = {

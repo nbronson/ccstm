@@ -8,7 +8,7 @@ import edu.stanford.ppl.ccstm.experimental.TMap
 import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm.{STM, Txn}
 import java.util.concurrent.ConcurrentHashMap
-import edu.stanford.ppl.ccstm.collection.{IdentityPair, StripedIntRef, TIdentityPairRef}
+import edu.stanford.ppl.ccstm.impl.StripedIntRef
 
 private object PredicatedHashMap_GC_Enum {
   private class TokenRef[A,B](map: PredicatedHashMap_GC_Enum[A,B], key: A, token: Token[A,B]) extends CleanableRef[Token[A,B]](token) {
@@ -185,7 +185,7 @@ class PredicatedHashMap_GC_Enum[A,B] extends TMap[A,B] {
   }
 
   def isEmpty(implicit txn: Txn): Boolean = {
-    sizeRef > 0
+    sizeRef getWith { _ > 0 }
   }
 
   def size(implicit txn: Txn): Int = {

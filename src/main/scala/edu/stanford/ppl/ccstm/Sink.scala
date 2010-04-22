@@ -17,13 +17,13 @@ object Sink {
      */
     def unbind: Sink[T]
 
-    /** Returns the `BindingMode` instance that describes how this bound view
+    /** Returns the `AccessMode` instance that describes how this bound view
      *  was created.
      *  @see edu.stanford.ppl.ccstm.Single
      *  @see edu.stanford.ppl.ccstm.Escaped
      *  @see edu.stanford.ppl.ccstm.Txn
      */
-    def mode: BindingMode
+    def mode: AccessMode
 
     /** Writes to the bound `Ref`, equivalent to `set`.
      *  @see edu.stanford.ppl.ccstm.Sink.View#set
@@ -60,7 +60,7 @@ trait Sink[-T] {
   /** Performs a transactional write.  Equivalent to `set(v)`.
    *  @see edu.stanford.ppl.ccstm.Sink#set
    */
-  def :=(v: T)(implicit txn: Txn)
+  def :=(v: T)(implicit txn: Txn) { set(v) }
 
   /** Performs a transactional write.  The new value will not be visible by
    *  any other transactions or any non-transactional accesses until (and

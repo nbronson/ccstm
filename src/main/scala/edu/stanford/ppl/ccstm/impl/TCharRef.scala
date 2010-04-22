@@ -2,9 +2,9 @@
 
 // TCharRef
 
-package edu.stanford.ppl.ccstm.collection
+package edu.stanford.ppl.ccstm
+package impl
 
-import edu.stanford.ppl.ccstm._
 import java.util.concurrent.atomic.AtomicLongFieldUpdater
 
 
@@ -12,16 +12,13 @@ private object TCharRef {
   val metaUpdater = (new TCharRef(0 : Char)).newMetaUpdater
 }
 
-/** A concrete implementation of <code>Ref[Char]</code>.
- *  <p>
- *  This class is not sealed, so it may be opportunistically subclassed to
- *  reduce a level of indirection and the associated storage overheads.
+/** A concrete implementation of `Ref[Char]`.
  *
  *  @author Nathan Bronson
  */
-private[ccstm] class TCharRef(initialValue: Char) extends impl.Handle[Char] with Ref[Char] {
+private[ccstm] class TCharRef(initialValue: Char) extends Handle[Char] with RefOps[Char] {
 
-  private[ccstm] def handle: impl.Handle[Char] = this
+  private[ccstm] def handle: Handle[Char] = this
 
   @volatile private[ccstm] var meta: Long = 0L
   private[ccstm] def metaCAS(before: Long, after: Long) = {

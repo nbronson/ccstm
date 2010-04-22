@@ -86,6 +86,6 @@ class TxnSlotManagerSuite extends FunSuite {
       }
     }
     val best = bests(0) min bests(1)
-    println("best latency for " + count + " assign+release pairs was " + (best / count) + " nanos/pair")
+    println("best latency (" + count + " assign+release pairs) was " + (best / count) + " nanos/pair")
   }
 }

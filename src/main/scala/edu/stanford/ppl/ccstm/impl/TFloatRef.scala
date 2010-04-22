@@ -2,9 +2,9 @@
 
 // TFloatRef
 
-package edu.stanford.ppl.ccstm.collection
+package edu.stanford.ppl.ccstm
+package impl
 
-import edu.stanford.ppl.ccstm._
 import java.util.concurrent.atomic.AtomicLongFieldUpdater
 
 
@@ -12,16 +12,13 @@ private object TFloatRef {
   val metaUpdater = (new TFloatRef(0 : Float)).newMetaUpdater
 }
 
-/** A concrete implementation of <code>Ref[Float]</code>.
- *  <p>
- *  This class is not sealed, so it may be opportunistically subclassed to
- *  reduce a level of indirection and the associated storage overheads.
+/** A concrete implementation of `Ref[Float]`.
  *
  *  @author Nathan Bronson
  */
-private[ccstm] class TFloatRef(initialValue: Float) extends impl.Handle[Float] with Ref[Float] {
+private[ccstm] class TFloatRef(initialValue: Float) extends Handle[Float] with RefOps[Float] {
 
-  private[ccstm] def handle: impl.Handle[Float] = this
+  private[ccstm] def handle: Handle[Float] = this
 
   @volatile private[ccstm] var meta: Long = 0L
   private[ccstm] def metaCAS(before: Long, after: Long) = {

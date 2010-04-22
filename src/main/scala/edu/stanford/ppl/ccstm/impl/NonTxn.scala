@@ -116,8 +116,14 @@ private[ccstm] object NonTxn {
     if (pendingWakeups(m0) || !handle.metaCAS(m0, withCommit(m0, newVersion))) {
       handle.meta = withCommit(withPendingWakeups(m0), newVersion)
       val r = handle.ref
+
+      // we notify on offset for threads that are waiting for handle to change
       val o1 = handle.offset
+
+      // we notify on metaOffset for threads that are trying to acquire a lock
+      // on a handle that shares metaData with this handle
       val o2 = handle.metaOffset
+
       var wakeups = wakeupManager.prepareToTrigger(r, o1)
       if (o1 != o2) wakeups |= wakeupManager.prepareToTrigger(r, o2)
       wakeupManager.trigger(wakeups)

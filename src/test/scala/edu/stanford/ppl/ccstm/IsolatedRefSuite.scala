@@ -1,6 +1,6 @@
 package edu.stanford.ppl.ccstm
 
-import edu.stanford.ppl.ccstm.collection._
+import edu.stanford.ppl.ccstm.impl._
 import java.util.IdentityHashMap
 import edu.stanford.ppl.ExhaustiveTest
 import edu.stanford.ppl.stm.STMFunSuite
@@ -76,12 +76,12 @@ class IsolatedRefSuite extends STMFunSuite {
     def apply(initialValue: Int): Ref[Int] = Ref(initialValue)
   }
 
-  case object LazyConflictIntRefFactory extends IntRefFactory {
-    def apply(initialValue: Int): Ref[Int] = new LazyConflictIntRef(initialValue)
+  case object LazyConflictRefFactory extends IntRefFactory {
+    def apply(initialValue: Int): Ref[Int] = Ref.lazyConflict(initialValue)
   }
 
   case object StripedIntRefFactory extends IntRefFactory {
-    def apply(initialValue: Int): Ref[Int] = new StripedIntRef(initialValue)
+    def apply(initialValue: Int): Ref[Int] = Ref.striped(initialValue)
     override def incrLimitFactor = 3
   }
 
@@ -92,7 +92,7 @@ class IsolatedRefSuite extends STMFunSuite {
     FreshSingleTxn(1000), FreshTxn(1000), ReuseEscaped, ReuseSingleNonTxn,
     ReuseSingleTxn(1), ReuseTxn(1), ReuseSingleTxn(2), ReuseTxn(2),
     ReuseSingleTxn(8), ReuseTxn(8), ReuseSingleTxn(1000), ReuseTxn(1000))
-  val factories = List(TAnyRefFactory, TIntRefFactory, LazyConflictIntRefFactory, StripedIntRefFactory)
+  val factories = List(TAnyRefFactory, TIntRefFactory, LazyConflictRefFactory, StripedIntRefFactory)
   for (f <- factories; b <- binders) createTests(b, f)
 
   private def createTests(binder: Binder, fact: IntRefFactory) {
@@ -121,14 +121,12 @@ class IsolatedRefSuite extends STMFunSuite {
       }
     }
 
-    if (fact(1).isInstanceOf[IntRef]) {
-      runIncrTest(fact + ": " + binder + ": x+=1") { x =>
-        var i = 0
-        while (i < 10) {
-          i += 1
-          val b = binder(x)
-          b.asInstanceOf[IntRef.View] += 1
-        }
+    runIncrTest(fact + ": " + binder + ": x+=1") { x =>
+      var i = 0
+      while (i < 10) {
+        i += 1
+        val b = binder(x)
+        b += 1
       }
     }
 

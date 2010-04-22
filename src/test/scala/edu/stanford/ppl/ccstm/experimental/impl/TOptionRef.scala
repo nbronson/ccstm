@@ -1,10 +1,6 @@
-/* CCSTM - (c) 2009-2010 Stanford University - PPL */
+package edu.stanford.ppl.ccstm.experimental.impl
 
-// TAnyRef
-
-package edu.stanford.ppl.ccstm.collection
-
-import edu.stanford.ppl.ccstm._
+import edu.stanford.ppl.ccstm.impl.{Handle, RefOps}
 import java.util.concurrent.atomic.AtomicLongFieldUpdater
 
 
@@ -21,10 +17,10 @@ private object TOptionRef {
  *
  *  @author Nathan Bronson
  */
-private[ccstm] class TOptionRef[T](initialValue: Option[T]) extends impl.Handle[Option[T]] with Ref[Option[T]] {
+private[ccstm] class TOptionRef[T](initialValue: Option[T]) extends Handle[Option[T]] with RefOps[Option[T]] {
   import TOptionRef._
 
-  private[ccstm] def handle: impl.Handle[Option[T]] = this
+  private[ccstm] def handle: Handle[Option[T]] = this
 
   @volatile private[ccstm] var meta: Long = 0L
   private[ccstm] def metaCAS(before: Long, after: Long) = {

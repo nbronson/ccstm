@@ -2,9 +2,9 @@
 
 // TBooleanRef
 
-package edu.stanford.ppl.ccstm.collection
+package edu.stanford.ppl.ccstm
+package impl
 
-import edu.stanford.ppl.ccstm._
 import java.util.concurrent.atomic.AtomicLongFieldUpdater
 
 
@@ -12,16 +12,13 @@ private object TBooleanRef {
   val metaUpdater = (new TBooleanRef(false)).newMetaUpdater
 }
 
-/** A concrete implementation of <code>Ref[Boolean]</code>.
- *  <p>
- *  This class is not sealed, so it may be opportunistically subclassed to
- *  reduce a level of indirection and the associated storage overheads.
+/** A concrete implementation of `Ref[Boolean]`.
  *
  *  @author Nathan Bronson
  */
-private[ccstm] class TBooleanRef(initialValue: Boolean) extends impl.Handle[Boolean] with Ref[Boolean] {
+private[ccstm] class TBooleanRef(initialValue: Boolean) extends Handle[Boolean] with RefOps[Boolean] {
 
-  private[ccstm] def handle: impl.Handle[Boolean] = this
+  private[ccstm] def handle: Handle[Boolean] = this
 
   @volatile private[ccstm] var meta: Long = 0L
   private[ccstm] def metaCAS(before: Long, after: Long) = {

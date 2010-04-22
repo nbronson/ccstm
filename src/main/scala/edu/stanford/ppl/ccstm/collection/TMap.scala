@@ -40,14 +40,14 @@ object TMap {
 
   trait SourceView[A,+B] extends scala.collection.Map[A,B] {
     def unbind: TMap.Source[A,B]
-    def mode: BindingMode
+    def mode: AccessMode
 
     override def default(key: A): B = unbind.default(key)
   }
 
   trait SinkView[A,-B] {
     def unbind: TMap.Sink[A,B]
-    def mode: BindingMode
+    def mode: AccessMode
 
     def update(key: A, value: B)
     def -= (key: A): this.type

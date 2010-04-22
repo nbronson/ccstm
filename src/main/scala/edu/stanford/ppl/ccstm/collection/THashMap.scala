@@ -7,6 +7,7 @@ package edu.stanford.ppl.ccstm.collection
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater
 import edu.stanford.ppl.ccstm._
+import impl.{StripedIntRef, TAnyRef}
 
 object THashMap {
   private val refCountUpdater = (new Pred[Int]).newUpdater
@@ -163,7 +164,7 @@ class THashMap[A,B] extends TMap[A,B] {
   }
 
   def isEmpty(implicit txn: Txn): Boolean = {
-    sizeRef > 0
+    sizeRef getWith { _ > 0 }
   }
 
   def size(implicit txn: Txn): Int = {

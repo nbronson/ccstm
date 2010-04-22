@@ -6,72 +6,68 @@ package edu.stanford.ppl.ccstm.impl
 
 import edu.stanford.ppl.ccstm._
 
-private[ccstm] class SingleView[T](val unbind: Ref[T],
-                                   val nonTxnHandle: Handle[T],
-                                   val txnHandle: Handle[T]) extends Ref.View[T] {
+private[ccstm] class SingleView[T](val unbind: Ref[T], handle: Handle[T]) extends Ref.View[T] {
 
-  def mode: BindingMode = Single
+  def mode: AccessMode = Single
   
   def get: T = Txn.dynCurrentOrNull match {
-    case null => NonTxn.get(nonTxnHandle)
-    case txn: Txn => txn.get(txnHandle)
+    case null => NonTxn.get(handle)
+    case txn: Txn => txn.get(handle)
   }
   def getWith[Z](f: (T) => Z): Z = Txn.dynCurrentOrNull match {
-    case null => f(NonTxn.get(nonTxnHandle))
-    case txn: Txn => txn.getWith(txnHandle, f)
+    case null => f(NonTxn.get(handle))
+    case txn: Txn => txn.getWith(handle, f)
   }
   def await(pred: T => Boolean): Unit = Txn.dynCurrentOrNull match {
-    case null => NonTxn.await(nonTxnHandle, pred)
-    case txn: Txn => if (!pred(txn.get(txnHandle))) txn.retry
+    case null => NonTxn.await(handle, pred)
+    case txn: Txn => if (!pred(txn.get(handle))) txn.retry
   }
   def unrecordedRead: UnrecordedRead[T] = Txn.dynCurrentOrNull match {
-    case null => NonTxn.unrecordedRead(nonTxnHandle)
-    case txn: Txn => txn.unrecordedRead(txnHandle)
+    case null => NonTxn.unrecordedRead(handle)
+    case txn: Txn => txn.unrecordedRead(handle)
   }
   def releasableRead: ReleasableRead[T] = Txn.dynCurrentOrNull match {
-    case null => NonTxn.releasableRead(nonTxnHandle)
-    case txn: Txn => txn.releasableRead(txnHandle)
+    case null => NonTxn.releasableRead(handle)
+    case txn: Txn => txn.releasableRead(handle)
   }
-
   def set(v: T): Unit = Txn.dynCurrentOrNull match {
-    case null => NonTxn.set(nonTxnHandle, v)
-    case txn: Txn => txn.set(txnHandle, v)
+    case null => NonTxn.set(handle, v)
+    case txn: Txn => txn.set(handle, v)
   }
   def trySet(v: T): Boolean = Txn.dynCurrentOrNull match {
-    case null => NonTxn.trySet(nonTxnHandle, v)
-    case txn: Txn => txn.trySet(txnHandle, v)
+    case null => NonTxn.trySet(handle, v)
+    case txn: Txn => txn.trySet(handle, v)
   }
-
   def readForWrite: T = Txn.dynCurrentOrNull match {
-    case null => NonTxn.get(nonTxnHandle)
-    case txn: Txn => txn.readForWrite(txnHandle)
+    case null => NonTxn.get(handle)
+    case txn: Txn => txn.readForWrite(handle)
   }
   def swap(v: T): T = Txn.dynCurrentOrNull match {
-    case null => NonTxn.swap(nonTxnHandle, v)
-    case txn: Txn => txn.swap(txnHandle, v)
+    case null => NonTxn.swap(handle, v)
+    case txn: Txn => txn.swap(handle, v)
   }
   def compareAndSet(before: T, after: T): Boolean = Txn.dynCurrentOrNull match {
-    case null => NonTxn.compareAndSet(nonTxnHandle, before, after)
-    case txn: Txn => txn.compareAndSet(txnHandle, before, after)
+    case null => NonTxn.compareAndSet(handle, before, after)
+    case txn: Txn => txn.compareAndSet(handle, before, after)
   }
   def compareAndSetIdentity[R <: AnyRef with T](before: R, after: T): Boolean = Txn.dynCurrentOrNull match {
-    case null => NonTxn.compareAndSetIdentity(nonTxnHandle, before, after)
-    case txn: Txn => txn.compareAndSetIdentity(txnHandle, before, after)
+    case null => NonTxn.compareAndSetIdentity(handle, before, after)
+    case txn: Txn => txn.compareAndSetIdentity(handle, before, after)
   }
   def transform(f: T => T): Unit = Txn.dynCurrentOrNull match {
-    case null => NonTxn.getAndTransform(nonTxnHandle, f)
-    case txn: Txn => txn.getAndTransform(txnHandle, f)
+    case null => NonTxn.getAndTransform(handle, f)
+    case txn: Txn => txn.getAndTransform(handle, f)
   }
   def getAndTransform(f: T => T): T = Txn.dynCurrentOrNull match {
-    case null => NonTxn.getAndTransform(nonTxnHandle, f)
-    case txn: Txn => txn.getAndTransform(txnHandle, f)
+    case null => NonTxn.getAndTransform(handle, f)
+    case txn: Txn => txn.getAndTransform(handle, f)
   }
   def tryTransform(f: T => T): Boolean = Txn.dynCurrentOrNull match {
-    case null => NonTxn.tryTransform(nonTxnHandle, f)
-    case txn: Txn => txn.tryTransform(txnHandle, f)
+    case null => NonTxn.tryTransform(handle, f)
+    case txn: Txn => txn.tryTransform(handle, f)
   }
   def transformIfDefined(pf: PartialFunction[T,T]): Boolean = Txn.dynCurrentOrNull match {
-    case null => NonTxn.transformIfDefined(nonTxnHandle, pf)
-    case txn: Txn => txn.transformIfDefined(txnHandle, pf)
+    case null => NonTxn.transformIfDefined(handle, pf)
+    case txn: Txn => txn.transformIfDefined(handle, pf)
   }
 }

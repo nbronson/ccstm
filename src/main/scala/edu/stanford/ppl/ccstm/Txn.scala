@@ -9,16 +9,16 @@ import impl.ThreadContext
 /** One of `Single`, `Escaped`, or an instance of `Txn`
  *  @see edu.stanford.ppl.ccstm.Ref.View#mode
  */
-sealed trait BindingMode {
+sealed trait AccessMode {
   //def dynContext: Option[Txn]
 }
 
-object Single extends BindingMode {
+object Single extends AccessMode {
   //def dynContext: Option[Txn] = Txn.current
   override def toString = "Single"
 }
 
-object Escaped extends BindingMode {
+object Escaped extends AccessMode {
   //def dynContext: Option[Txn] = None
   override def toString = "Escaped"
 }
@@ -474,7 +474,7 @@ object Txn {
  *  @author Nathan Bronson
  */
 final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: ThreadContext
-        ) extends impl.TxnImpl(failureHistory, ctx) with MaybeTxn with BindingMode {
+        ) extends impl.TxnImpl(failureHistory, ctx) with MaybeTxn with AccessMode {
   import Txn._
 
   /** An instance representing a single execution attempt for a single atomic

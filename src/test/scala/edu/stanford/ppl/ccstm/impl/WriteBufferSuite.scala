@@ -203,11 +203,12 @@ class WriteBufferSuite extends FunSuite {
 
   test("read performance", ExhaustiveTest) {
     for (size <- (0 until 8) ++ (8 until 16 by 2) ++ (16 until 32 by 4) ++ (32 to 256 by 16)) {
-      printf("%d entries -> %3.1f nanos/read hit, %3.1f nanos/read miss, %3.1f nanos/write hit\n",
-        size,
-        if (size == 0) 0.0 else nanosPerOp(size, 1000, 10000, 0, 0),
-        nanosPerOp(size, 1000, 0, 10000, 0),
-        if (size == 0) 0.0 else nanosPerOp(size, 1000, 0, 0, 10000))
+      printf("readHit(%d): %3.1f nanos\n",
+          size, if (size == 0) 0.0 else nanosPerOp(size, 1000, 10000, 0, 0))
+      printf("readMiss(%d): %3.1f nanos\n",
+          size, nanosPerOp(size, 1000, 0, 10000, 0))
+      printf("writeHit(%d): %3.1f nanos\n",
+          size, if (size == 0) 0.0 else nanosPerOp(size, 1000, 0, 0, 10000))
     }
   }
 }

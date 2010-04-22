@@ -214,20 +214,32 @@ object STM {
   def retry()(implicit txn: Txn) { txn.retry() }
 
   /** Generalized atomic read/modify/write of two references.  Equivalent to
-   *  executing the following transaction, but probably much more efficient:
-   *  <pre>
-   *    new AtomicFunc[Z]{ def body = {
+   *  executing the following transaction, but may be more efficient:
+   *  {{{
+   *    atomic { implicit t =>
    *      val (a,b,z) = f(refA(), refB())
    *      refA := a
    *      refB := b
    *      z
-   *    }}.run()
-   *  </pre>
+   *    }
+   *  }}}
    *  Because this method is only presented as an optimization, it is assumed
    *  that the evaluation of <code>f</code> will be quick.
    */
   def transform2[A,B,Z](refA: Ref[A], refB: Ref[B], f: (A,B) => (A,B,Z)): Z = {
-    impl.NonTxn.transform2(refA.nonTxnHandle, refB.nonTxnHandle, f)
+    if (refA.isInstanceOf[impl.RefOps[_]] && refB.isInstanceOf[impl.RefOps[_]]) {
+      impl.NonTxn.transform2(
+          refA.asInstanceOf[impl.RefOps[A]].handle,
+          refB.asInstanceOf[impl.RefOps[B]].handle,
+          f)
+    } else {
+      atomic { implicit t =>
+        val (a,b,z) = f(refA(), refB())
+        refA := a
+        refB := b
+        z
+      }
+    }
   }
 
   // TODO: better names?
@@ -238,7 +250,7 @@ object STM {
    *  prevent its continued use.
    */
   def embalm(identity: Int, ref: Ref[_]) {
-    impl.STMImpl.embalm(identity, ref.nonTxnHandle)
+    ref.embalm(identity)
   }
 
   /** Establishes a happens-before relationship between subsequent accesses to
@@ -247,7 +259,7 @@ object STM {
    *  operations (except construction) have been performed on it.
    */
   def resurrect(identity: Int, ref: Ref[_]) {
-    impl.STMImpl.resurrect(identity, ref.nonTxnHandle)
+    ref.resurrect(identity)
   }
 
   object Debug {

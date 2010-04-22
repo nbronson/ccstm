@@ -7,10 +7,9 @@ package edu.stanford.ppl.ccstm.experimental.impl
 import edu.stanford.ppl.ccstm.experimental.TMap
 import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm.{STM, Txn}
-import edu.stanford.ppl.ccstm.collection.{TIntRef, TOptionRef}
 import edu.stanford.ppl.util.PeekableCSLMap
 import java.util.concurrent.atomic.AtomicInteger
-
+import edu.stanford.ppl.ccstm.impl.TIntRef
 // TODO: use Ordered or Ordering
 
 object PredicatedSkipListMap_Basic {

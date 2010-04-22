@@ -7,20 +7,17 @@ package edu.stanford.ppl.ccstm.impl
 
 import edu.stanford.ppl.ccstm._
 
-private[ccstm] class EscapedView[T](val unbind: Ref[T],
-                                    protected val handle: Handle[T]) extends Ref.View[T] {
+private[ccstm] class EscapedView[T](val unbind: Ref[T], handle: Handle[T]) extends Ref.View[T] {
 
-  def mode: BindingMode = Escaped
+  def mode: AccessMode = Escaped
 
   def get: T = NonTxn.get(handle)
   def getWith[Z](f: (T) => Z): Z = f(NonTxn.get(handle))
   def await(pred: T => Boolean) { NonTxn.await(handle, pred) }
   def unrecordedRead: UnrecordedRead[T] = NonTxn.unrecordedRead(handle)
   def releasableRead: ReleasableRead[T] = NonTxn.releasableRead(handle)
-
   def set(v: T) { NonTxn.set(handle, v) }
   def trySet(v: T): Boolean = NonTxn.trySet(handle, v)
-
   def readForWrite: T = NonTxn.get(handle)
   def swap(v: T): T = NonTxn.swap(handle, v)
   def compareAndSet(before: T, after: T): Boolean = NonTxn.compareAndSet(handle, before, after)

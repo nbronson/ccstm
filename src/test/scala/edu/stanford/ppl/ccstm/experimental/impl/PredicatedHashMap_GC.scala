@@ -8,7 +8,6 @@ import edu.stanford.ppl.ccstm.experimental.TMap
 import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm.{STM, Txn}
 import java.util.concurrent.ConcurrentHashMap
-import edu.stanford.ppl.ccstm.collection.{IdentityPair, TIdentityPairRef}
 
 private object PredicatedHashMap_GC {
   private class TokenRef[A,B](map: PredicatedHashMap_GC[A,B], key: A, token: Token) extends CleanableRef[Token](token) {

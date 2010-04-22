@@ -4,9 +4,10 @@
 
 package edu.stanford.ppl.ccstm
 
+import collection.TArray
 import scala.reflect.ClassManifest
 import edu.stanford.ppl.stm.STMFunSuite
-import edu.stanford.ppl.ccstm.collection._
+import edu.stanford.ppl.ccstm.impl._
 
 
 class SpecializationsSuite extends STMFunSuite {

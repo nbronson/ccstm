@@ -8,7 +8,7 @@ import edu.stanford.ppl.ccstm.experimental.TMap
 import java.util.concurrent.ConcurrentHashMap
 import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm.{STM, Txn}
-import edu.stanford.ppl.ccstm.collection.TAnyRef
+import edu.stanford.ppl.ccstm.impl.TAnyRef
 
 
 class PredicatedHashMap_Basic[A,B] extends TMap[A,B] {
