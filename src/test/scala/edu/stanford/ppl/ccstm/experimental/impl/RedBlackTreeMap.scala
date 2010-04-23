@@ -5,10 +5,10 @@
 package edu.stanford.ppl.ccstm.experimental.impl
 
 
-import edu.stanford.ppl.ccstm.impl.MetaHolder
 import edu.stanford.ppl.ccstm._
 import experimental.TMap
 import experimental.TMap.Bound
+import edu.stanford.ppl.ccstm.TxnFieldUpdater.Base
 
 
 class RedBlackTreeMap[A,B] extends TMap[A,B] {
@@ -521,7 +521,7 @@ class RedBlackTreeMap[A,B] extends TMap[A,B] {
 }
 
 
-private class RBNode[A,B](color0: Boolean, val key: A, value0: B, parent0: RBNode[A,B], left0: RBNode[A,B], right0: RBNode[A,B]) extends MetaHolder {
+private class RBNode[A,B](color0: Boolean, val key: A, value0: B, parent0: RBNode[A,B], left0: RBNode[A,B], right0: RBNode[A,B]) extends Base {
   import RBNode._
 
   def this(key0: A, value0: B, parent0: RBNode[A,B]) = this(true, key0, value0, parent0, null, null)

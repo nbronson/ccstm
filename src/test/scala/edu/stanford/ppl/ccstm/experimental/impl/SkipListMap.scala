@@ -9,7 +9,7 @@ import edu.stanford.ppl.ccstm._
 import collection.TArray
 import experimental.TMap
 import experimental.TMap.Bound
-import impl.{TAnyRef, FastSimpleRandom, MetaHolder}
+import impl.{TAnyRef, FastSimpleRandom}
 import reflect.Manifest
 
 

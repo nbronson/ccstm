@@ -9,7 +9,8 @@ import edu.stanford.ppl.ccstm.experimental.TMap
 import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm._
 import collection.TArray
-import impl.{LazyConflictRef, MetaHolder}
+import impl.{LazyConflictRef}
+import edu.stanford.ppl.ccstm.TxnFieldUpdater.Base
 
 class BasicHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TMap[K,V] {
   private val bucketsRef = Ref(new TArray[BHMBucket[K,V]](16, TArray.MaximizeParallelism))
@@ -161,7 +162,7 @@ class BasicHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TMap[
   }
 }
 
-private class BHMBucket[A,B](val key: A, value0: B, next0: BHMBucket[A,B]) extends MetaHolder {
+private class BHMBucket[A,B](val key: A, value0: B, next0: BHMBucket[A,B]) extends Base {
   import BHMBucket._
 
   @volatile private var _value: B = value0

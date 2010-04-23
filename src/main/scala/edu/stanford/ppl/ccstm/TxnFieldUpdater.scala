@@ -4,9 +4,10 @@
 
 package edu.stanford.ppl.ccstm
 
-import impl.{RefOps, MetaHolder, Handle}
-import java.util.concurrent.atomic.AtomicInteger
+import impl.{RefOps, Handle}
 import java.util.concurrent.ConcurrentHashMap
+import edu.stanford.ppl.ccstm.TxnFieldUpdater._
+import java.util.concurrent.atomic.{AtomicLongFieldUpdater, AtomicInteger}
 
 
 object TxnFieldUpdater {
@@ -25,7 +26,29 @@ object TxnFieldUpdater {
     }
   }
 
-  abstract class Impl[T <: MetaHolder](fieldName: String)(implicit m: ClassManifest[T]) {
+  private val metadataUpdater = (new Base {}).newMetaUpdater
+
+  // It would be convenient if this was a trait, but then the actual field would
+  // change on a per-class basis.  That would require a separate Updater per
+  // concrete class, with some sort of Class -> AtomicLongFieldUpdater mapping.
+
+  /** Classes that extend `Base` may use `TxnFieldUpdater` to provide
+   *  transactional access to their fields.
+   */
+  abstract class Base {
+
+    @volatile private[TxnFieldUpdater] var meta: Long = 0L
+
+    private[TxnFieldUpdater] def metaCAS(before: Long, after: Long) = {
+      metadataUpdater.compareAndSet(this, before, after)
+    }
+
+    private[TxnFieldUpdater] def newMetaUpdater = {
+      AtomicLongFieldUpdater.newUpdater(classOf[Base], "meta")
+    }
+  }  
+
+  abstract class Impl[T <: Base](fieldName: String)(implicit m: ClassManifest[T]) {
     private[ccstm] type InstanceImpl[X,Y,Z] <: T
     private[ccstm] type ValueImpl[X,Y,Z]
 
@@ -34,7 +57,7 @@ object TxnFieldUpdater {
 
     private val offset = TxnFieldUpdater.getOffset(m.erasure, fieldName)
 
-    private[ccstm] def applyImpl[X,Y,Z](instance: InstanceImpl[X,Y,Z]): Ref[ValueImpl[X,Y,Z]] =
+    private[TxnFieldUpdater] def applyImpl[X,Y,Z](instance: InstanceImpl[X,Y,Z]): Ref[ValueImpl[X,Y,Z]] =
         new Handle[ValueImpl[X,Y,Z]] with RefOps[ValueImpl[X,Y,Z]] {
       private[ccstm] def handle: Handle[ValueImpl[X,Y,Z]] = this
 
@@ -73,7 +96,7 @@ object TxnFieldUpdater {
    *  value types to be constructed using the abstract type constructors
    *  `Instance[X]` and `Value[X]`, each of which takes a single argument.
    */
-  abstract class Generic[T <: MetaHolder](fieldName: String)(implicit m: ClassManifest[T]) extends Impl[T](fieldName) {
+  abstract class Generic[T <: Base](fieldName: String)(implicit m: ClassManifest[T]) extends Impl[T](fieldName) {
     type Instance[X] <: T
     type Value[X]
 
@@ -109,7 +132,7 @@ object TxnFieldUpdater {
    *  value types to be constructed using the abstract type constructors
    *  `Instance[X,Y]` and `Value[X,Y]`, each of which takes two type arguments. 
    */
-  abstract class Generic2[T <: MetaHolder](fieldName: String)(implicit m: ClassManifest[T]) extends Impl[T](fieldName) {
+  abstract class Generic2[T <: Base](fieldName: String)(implicit m: ClassManifest[T]) extends Impl[T](fieldName) {
     type Instance[X,Y] <: T
     type Value[X,Y]
 
@@ -146,7 +169,7 @@ object TxnFieldUpdater {
    *  `Instance[X,Y,Z]` and `Value[X,Y,Z]`, each of which takes three type
    *  arguments.
    */
-  abstract class Generic3[T <: MetaHolder](fieldName: String)(implicit m: ClassManifest[T]) extends Impl[T](fieldName) {
+  abstract class Generic3[T <: Base](fieldName: String)(implicit m: ClassManifest[T]) extends Impl[T](fieldName) {
     type Instance[X,Y,Z] <: T
     type Value[X,Y,Z]
 
@@ -180,7 +203,7 @@ object TxnFieldUpdater {
 }
 
 /** Provides transactional access to ''volatile'' properties of any class that
- *  extends `MetaHolder`.  This class can be used to store multiple
+ *  extends `TxnFieldUpdater.Base`.  This class can be used to store multiple
  *  transactional fields in a single object, to remove the layer of storage
  *  indirection created by `Ref` instances.  Two `TxnFieldUpdater`s are 
  *  considered equal if they have the same `tClazz` and `fieldName`.
@@ -202,7 +225,7 @@ object TxnFieldUpdater {
  *  building block for a red-black tree, but the second will involve fewer
  *  non-transient objects:
  *
- *  <pre>
+ *  {{{
  *  class IndirectNode[K,V](key0: K, value0: V) {
  *    val color = Ref(false)
  *    val key = Ref(key0)
@@ -248,7 +271,7 @@ object TxnFieldUpdater {
  *    }
  *  }
  *
- *  class DirectNode[K,V](key0: K, value0: V) extends MetaHolder {
+ *  class DirectNode[K,V](key0: K, value0: V) extends TxnFieldUpdater.Base {
  *    &#64;volatile private var _color = false
  *    &#64;volatile private var _key = key0
  *    &#64;volatile private var _value0 = value0
@@ -266,9 +289,9 @@ object TxnFieldUpdater {
  *    //def value(implicit txn: Txn) = valueRef.get()
  *    //def value_=(v: V)(implicit txn: Txn) = valueRef.set(v)
  *  }
- *  </pre>
+ *  }}}
  */
-abstract class TxnFieldUpdater[T <: MetaHolder,V](fieldName: String)(implicit m: ClassManifest[T]
+abstract class TxnFieldUpdater[T <: Base,V](fieldName: String)(implicit m: ClassManifest[T]
         ) extends TxnFieldUpdater.Impl[T](fieldName) {
 
   private[ccstm] type InstanceImpl[X,Y,Z] = T

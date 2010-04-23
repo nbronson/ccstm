@@ -6,7 +6,6 @@ package edu.stanford.ppl.ccstm
 
 import edu.stanford.ppl.stm.STMFunSuite
 
-
 class TxnFieldUpdaterSuite extends STMFunSuite {
   import TFUSObj._
 
@@ -98,7 +97,7 @@ private object TFUSObj {
   }
 }
 
-private class TFUSObj extends impl.MetaHolder {
+private class TFUSObj extends TxnFieldUpdater.Base {
   @volatile private var _iField: Int = 0
   @volatile private var _sField: String = "abc"
 }
@@ -120,7 +119,7 @@ private object TFUSGeneric {
   }
 }
 
-private class TFUSGeneric[A,B](a0: A, b0: List[(A,B)]) extends impl.MetaHolder {
+private class TFUSGeneric[A,B](a0: A, b0: List[(A,B)]) extends TxnFieldUpdater.Base {
   @volatile private var _aField = a0
   @volatile private var _bField = b0
 }
