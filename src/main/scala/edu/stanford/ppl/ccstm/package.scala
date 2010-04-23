@@ -2,7 +2,7 @@
 
 // atomic
 
-package edu.stanford.ppl.ccstm
+package edu.stanford.ppl
 
 
 package object ccstm {
