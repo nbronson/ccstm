@@ -65,6 +65,8 @@ import annotation.tailrec
  */
 object STM {
 
+  private[ccstm] case class AlternativeResult(value: Any) extends Exception
+
   /** Repeatedly attempts to perform the work of <code>block</code> in a
    *  transaction, until an attempt is successfully committed or an exception is
    *  thrown by <code>block</code> or a callback registered during the block's
@@ -81,21 +83,37 @@ object STM {
     // TODO: without partial rollback we can't properly implement failure atomicity (see issue #4)
 
     mt match {
-      case txn: Txn => block(txn) // static resolution of enclosing block
+      case txn: Txn => nestedAtomic(block, txn) // static resolution of enclosing block
       case _ => {
         // dynamic scoping for nesting
         val ctx = ThreadContext.get
         if (null != ctx.txn) {
-          block(ctx.txn)
+          nestedAtomic(block, ctx.txn)
         } else {
-          atomic(block, ctx, Nil)
+          topLevelAtomic(block, ctx, Nil)
         }
       }
     }
   }
 
+  private def nestedAtomic[Z](block: Txn => Z, txn: Txn): Z = {
+    if (!txn.childAlternatives.isEmpty) {
+      throw new UnsupportedOperationException("nested retry/orElse not yet supported (issue #4)")
+    }
+    block(txn)
+  }
+
   @tailrec
-  private def atomic[Z](block: Txn => Z, ctx: ThreadContext, hist: List[Txn.RollbackCause]): Z = {
+  private def topLevelAtomic[Z](block: Txn => Z, ctx: ThreadContext, hist: List[Txn.RollbackCause]): Z = {
+    if (!ctx.alternatives.isEmpty) {
+      // There was one or more orElse clauses.  Be careful, because their
+      // return type might not be Z.
+      val b = ctx.alternatives
+      ctx.alternatives = Nil
+      val z = atomicOrElse((block :: b): _*)
+      throw AlternativeResult(z)
+    }
+
     // new transaction
     val txn = new Txn(hist, ctx)
     val z = attemptImpl(txn, block)
@@ -108,7 +126,7 @@ object STM {
         case _ => {}
       }
       // retry
-      atomic(block, ctx, cause :: hist)
+      topLevelAtomic(block, ctx, cause :: hist)
     }
   }
 
@@ -211,7 +229,7 @@ object STM {
    *  @throws IllegalStateException if the transaction is not active.
    *  @see edu.stanford.ppl.ccstm.Txn#retry
    */
-  def retry()(implicit txn: Txn) { txn.retry() }
+  def retry(implicit txn: Txn): Nothing = txn.retry()
 
   /** Generalized atomic read/modify/write of two references.  Equivalent to
    *  executing the following transaction, but may be more efficient:
@@ -233,7 +251,7 @@ object STM {
           refB.asInstanceOf[impl.RefOps[B]].handle,
           f)
     } else {
-      atomic { implicit t =>
+      atomic { t1 => implicit val t = t1 // TODO: revert after IntelliJ plugin accepts the better syntax
         val (a,b,z) = f(refA(), refB())
         refA := a
         refB := b

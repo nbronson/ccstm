@@ -26,10 +26,10 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
 
   {
     attach(ctx)
-    _callbacks = ctx.takeCallbacks
-    _readSet = ctx.takeReadSet
-    _writeBuffer = ctx.takeWriteBuffer
-    _strongRefSet = ctx.takeStrongRefSet
+    _callbacks = ctx.takeCallbacks()
+    _readSet = ctx.takeReadSet()
+    _writeBuffer = ctx.takeWriteBuffer()
+    _strongRefSet = ctx.takeStrongRefSet()
     _slot = slotManager.assign(this, ctx.preferredSlot)
   }
 
@@ -50,6 +50,11 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
   private[ccstm] val explicitRetrying: Boolean = {
     !failureHistory.isEmpty && failureHistory.head.isInstanceOf[ExplicitRetryCause]
   }
+
+  /** `orElse` right-hand sides are stashed here before the left-most
+   *  child `atomic` is executed.
+   */
+  private[ccstm] var childAlternatives: List[Txn => Any] = Nil
 
   private def shouldBarge(failureHistory: List[Txn.RollbackCause]) = {
     // barge if we have already had 2 failures since the last explicit retry

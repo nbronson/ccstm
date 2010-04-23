@@ -25,13 +25,15 @@ private[ccstm] final class ThreadContext {
 
   var preferredSlot: STMImpl.Slot = rand.nextInt
 
+  var alternatives: List[Txn => Any] = Nil
+
   def txn: Txn = _txn
   def txn_=(v: Txn): Unit = {
     if ((_txn eq null) == (v eq null)) throw new IllegalStateException("unmatched txn use")
     _txn = v
   }
 
-  def takeCallbacks: Callbacks = {
+  def takeCallbacks(): Callbacks = {
     if (null == _callbacks) {
       new Callbacks
     } else {
@@ -41,7 +43,7 @@ private[ccstm] final class ThreadContext {
     }
   }
 
-  def takeReadSet: ReadSet = {
+  def takeReadSet(): ReadSet = {
     if (null == _readSet) {
       new ReadSet
     } else {
@@ -51,7 +53,7 @@ private[ccstm] final class ThreadContext {
     }
   }
 
-  def takeWriteBuffer: WriteBuffer = {
+  def takeWriteBuffer(): WriteBuffer = {
     if (null == _writeBuffer) {
       new WriteBuffer
     } else {
@@ -61,7 +63,7 @@ private[ccstm] final class ThreadContext {
     }
   }
 
-  def takeStrongRefSet: StrongRefSet = {
+  def takeStrongRefSet(): StrongRefSet = {
     if (null == _strongRefSet) {
       new StrongRefSet
     } else {
