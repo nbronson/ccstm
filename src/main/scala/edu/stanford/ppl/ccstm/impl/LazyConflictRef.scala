@@ -7,7 +7,7 @@ package impl
 
 import math.Numeric
 
-object LazyConflictRef {
+private object LazyConflictRef {
   
   private abstract class HistoryNode[T] extends PartialFunction[T,T] {
     var next: HistoryNode[T] = null

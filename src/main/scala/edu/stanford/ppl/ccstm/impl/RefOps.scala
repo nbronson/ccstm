@@ -6,7 +6,7 @@ package edu.stanford.ppl.ccstm
 package impl
 
 /** The default implementation of `Ref`'s operations. */
-trait RefOps[T] extends Ref[T] {
+private[ccstm] trait RefOps[T] extends Ref[T] {
 
   /** Override this to provide the handle that this `RefOps` uses. */
   private[ccstm] def handle: Handle[T]
