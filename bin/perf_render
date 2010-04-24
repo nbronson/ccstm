@@ -1,0 +1,8 @@
+#!/bin/sh
+
+# take the output of this file, and render with the gnuplot commands:
+# gnuplot> set pm3d map ; splot "the file"
+
+sed -e 's/|.*//' -e 's/,/ /g' "$@" | \
+    awk '{for(i=1;i<=NF;++i){ print i " " NR " " $i }}' | \
+    awk -f /usr/share/gnuplot/pm3d/colorpts.awk - 1 1

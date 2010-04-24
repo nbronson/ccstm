@@ -5,7 +5,7 @@ import math
 import sys
 
 def load(filename):
-  print "loading %s" % (filename)
+  #print "loading %s" % (filename)
   num_re = re.compile('([0-9][0-9.]*) (msec|millis|nanos|ops|handoffs)')
   inv_ops = set(('ops', 'handoffs'))
   result = {}
@@ -51,7 +51,7 @@ def processKey(key, data):
       s = max(-5, min(5, change / dev))
       scores.append("%0.1f" % s)
     else:
-      scores.append("_")
+      scores.append("-6")
   print "%s | %s" % (",".join(scores), key)
 
 process(sys.argv[1:])
