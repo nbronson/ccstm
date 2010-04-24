@@ -1,8 +1,10 @@
 #!/bin/sh
 
 # take the output of this file, and render with the gnuplot commands:
-# gnuplot> set pm3d map ; splot "the file"
+#   gnuplot> set pm3d map ; splot "the file"
+# try
+#   gnuplot> set palette model YIQ
 
 sed -e 's/|.*//' -e 's/,/ /g' "$@" | \
-    awk '{for(i=1;i<=NF;++i){ print i " " NR " " $i }}' | \
+    awk '{for(i=1;i<=NF;++i){ if($i!="_") { print i " " NR " " $i }}}' | \
     awk -f /usr/share/gnuplot/pm3d/colorpts.awk - 1 1
