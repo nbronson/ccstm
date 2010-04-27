@@ -1,0 +1,656 @@
+tokenRing(3,10000,false)  total_elapsed=126 msec,  throughput=238095 handoffs/sec,  latency=4200 nanos/handoff
+tokenRing(3,1000,true)  total_elapsed=241 msec,  throughput=12448 handoffs/sec,  latency=80333 nanos/handoff
+tokenRing(2,1000000,false)  total_elapsed=2145 msec,  throughput=932400 handoffs/sec,  latency=1072 nanos/handoff
+tokenRing(3,1000000,false)  total_elapsed=2239 msec,  throughput=1339883 handoffs/sec,  latency=746 nanos/handoff
+tokenRing(32,10000,false)  total_elapsed=2697 msec,  throughput=118650 handoffs/sec,  latency=8428 nanos/handoff
+tokenRing(2,100000,true)  total_elapsed=1517 msec,  throughput=131839 handoffs/sec,  latency=7585 nanos/handoff
+tokenRing(3,100000,true)  total_elapsed=1713 msec,  throughput=175131 handoffs/sec,  latency=5710 nanos/handoff
+tokenRing(32,10000,true)  total_elapsed=5832 msec,  throughput=54869 handoffs/sec,  latency=18225 nanos/handoff
+ticket(1,2,100000) took 633 millis total
+ticket(1,3,100000) took 1186 millis total
+ticket(1,100,1000) took 1091 millis total
+ticket(50,2,1000) took 296 millis total
+ticket(2,5,10000) took 409 millis total
+best latency (1000 assign+release pairs) was 380 nanos/pair
+best latency (1000000 assign+release pairs) was 40 nanos/pair
+TAnyRefFactory: FreshEscaped: transform(_+1): best was 146.6 nanos/call
+TAnyRefFactory: FreshEscaped: x:=!x+1: best was 118.7 nanos/call
+TAnyRefFactory: FreshEscaped: x+=1: best was 125.7 nanos/call
+TAnyRefFactory: FreshSingleNonTxn: transform(_+1): best was 139.6 nanos/call
+TAnyRefFactory: FreshSingleNonTxn: x:=!x+1: best was 146.6 nanos/call
+TAnyRefFactory: FreshSingleNonTxn: x+=1: best was 146.6 nanos/call
+TAnyRefFactory: FreshSingleTxn(1): transform(_+1): best was 454.0 nanos/call
+TAnyRefFactory: FreshSingleTxn(1): x:=!x+1: best was 691.5 nanos/call
+TAnyRefFactory: FreshSingleTxn(1): x+=1: best was 488.8 nanos/call
+TAnyRefFactory: FreshTxn(1): transform(_+1): best was 467.9 nanos/call
+TAnyRefFactory: FreshTxn(1): x:=!x+1: best was 719.3 nanos/call
+TAnyRefFactory: FreshTxn(1): x+=1: best was 467.9 nanos/call
+TAnyRefFactory: FreshSingleTxn(2): transform(_+1): best was 286.3 nanos/call
+TAnyRefFactory: FreshSingleTxn(2): x:=!x+1: best was 502.8 nanos/call
+TAnyRefFactory: FreshSingleTxn(2): x+=1: best was 286.3 nanos/call
+TAnyRefFactory: FreshTxn(2): transform(_+1): best was 286.3 nanos/call
+TAnyRefFactory: FreshTxn(2): x:=!x+1: best was 488.9 nanos/call
+TAnyRefFactory: FreshTxn(2): x+=1: best was 272.4 nanos/call
+TAnyRefFactory: FreshSingleTxn(8): transform(_+1): best was 139.7 nanos/call
+TAnyRefFactory: FreshSingleTxn(8): x:=!x+1: best was 216.5 nanos/call
+TAnyRefFactory: FreshSingleTxn(8): x+=1: best was 153.6 nanos/call
+TAnyRefFactory: FreshTxn(8): transform(_+1): best was 146.6 nanos/call
+TAnyRefFactory: FreshTxn(8): x:=!x+1: best was 209.5 nanos/call
+TAnyRefFactory: FreshTxn(8): x+=1: best was 146.6 nanos/call
+TAnyRefFactory: FreshSingleTxn(1000): transform(_+1): best was 104.7 nanos/call
+TAnyRefFactory: FreshSingleTxn(1000): x:=!x+1: best was 146.6 nanos/call
+TAnyRefFactory: FreshSingleTxn(1000): x+=1: best was 118.7 nanos/call
+TAnyRefFactory: FreshTxn(1000): transform(_+1): best was 97.7 nanos/call
+TAnyRefFactory: FreshTxn(1000): x:=!x+1: best was 139.6 nanos/call
+TAnyRefFactory: FreshTxn(1000): x+=1: best was 118.7 nanos/call
+TAnyRefFactory: ReuseEscaped: transform(_+1): best was 279.4 nanos/call
+TAnyRefFactory: ReuseEscaped: x:=!x+1: best was 139.6 nanos/call
+TAnyRefFactory: ReuseEscaped: x+=1: best was 153.6 nanos/call
+TAnyRefFactory: ReuseSingleNonTxn: transform(_+1): best was 146.6 nanos/call
+TAnyRefFactory: ReuseSingleNonTxn: x:=!x+1: best was 153.6 nanos/call
+TAnyRefFactory: ReuseSingleNonTxn: x+=1: best was 160.6 nanos/call
+TAnyRefFactory: ReuseSingleTxn(1): transform(_+1): best was 551.7 nanos/call
+TAnyRefFactory: ReuseSingleTxn(1): x:=!x+1: best was 838.1 nanos/call
+TAnyRefFactory: ReuseSingleTxn(1): x+=1: best was 523.8 nanos/call
+TAnyRefFactory: ReuseTxn(1): transform(_+1): best was 551.7 nanos/call
+TAnyRefFactory: ReuseTxn(1): x:=!x+1: best was 831.1 nanos/call
+TAnyRefFactory: ReuseTxn(1): x+=1: best was 530.8 nanos/call
+TAnyRefFactory: ReuseSingleTxn(2): transform(_+1): best was 314.2 nanos/call
+TAnyRefFactory: ReuseSingleTxn(2): x:=!x+1: best was 579.7 nanos/call
+TAnyRefFactory: ReuseSingleTxn(2): x+=1: best was 321.2 nanos/call
+TAnyRefFactory: ReuseTxn(2): transform(_+1): best was 307.3 nanos/call
+TAnyRefFactory: ReuseTxn(2): x:=!x+1: best was 551.7 nanos/call
+TAnyRefFactory: ReuseTxn(2): x+=1: best was 314.2 nanos/call
+TAnyRefFactory: ReuseSingleTxn(8): transform(_+1): best was 153.6 nanos/call
+TAnyRefFactory: ReuseSingleTxn(8): x:=!x+1: best was 244.4 nanos/call
+TAnyRefFactory: ReuseSingleTxn(8): x+=1: best was 160.6 nanos/call
+TAnyRefFactory: ReuseTxn(8): transform(_+1): best was 139.7 nanos/call
+TAnyRefFactory: ReuseTxn(8): x:=!x+1: best was 223.4 nanos/call
+TAnyRefFactory: ReuseTxn(8): x+=1: best was 146.7 nanos/call
+TAnyRefFactory: ReuseSingleTxn(1000): transform(_+1): best was 111.7 nanos/call
+TAnyRefFactory: ReuseSingleTxn(1000): x:=!x+1: best was 146.6 nanos/call
+TAnyRefFactory: ReuseSingleTxn(1000): x+=1: best was 118.7 nanos/call
+TAnyRefFactory: ReuseTxn(1000): transform(_+1): best was 104.7 nanos/call
+TAnyRefFactory: ReuseTxn(1000): x:=!x+1: best was 132.7 nanos/call
+TAnyRefFactory: ReuseTxn(1000): x+=1: best was 104.7 nanos/call
+TIntRefFactory: FreshEscaped: transform(_+1): best was 146.7 nanos/call
+TIntRefFactory: FreshEscaped: x:=!x+1: best was 139.6 nanos/call
+TIntRefFactory: FreshEscaped: x+=1: best was 118.7 nanos/call
+TIntRefFactory: FreshSingleNonTxn: transform(_+1): best was 160.6 nanos/call
+TIntRefFactory: FreshSingleNonTxn: x:=!x+1: best was 160.6 nanos/call
+TIntRefFactory: FreshSingleNonTxn: x+=1: best was 132.7 nanos/call
+TIntRefFactory: FreshSingleTxn(1): transform(_+1): best was 516.9 nanos/call
+TIntRefFactory: FreshSingleTxn(1): x:=!x+1: best was 712.3 nanos/call
+TIntRefFactory: FreshSingleTxn(1): x+=1: best was 481.9 nanos/call
+TIntRefFactory: FreshTxn(1): transform(_+1): best was 488.9 nanos/call
+TIntRefFactory: FreshTxn(1): x:=!x+1: best was 712.4 nanos/call
+TIntRefFactory: FreshTxn(1): x+=1: best was 488.9 nanos/call
+TIntRefFactory: FreshSingleTxn(2): transform(_+1): best was 286.3 nanos/call
+TIntRefFactory: FreshSingleTxn(2): x:=!x+1: best was 530.7 nanos/call
+TIntRefFactory: FreshSingleTxn(2): x+=1: best was 293.3 nanos/call
+TIntRefFactory: FreshTxn(2): transform(_+1): best was 293.3 nanos/call
+TIntRefFactory: FreshTxn(2): x:=!x+1: best was 523.8 nanos/call
+TIntRefFactory: FreshTxn(2): x+=1: best was 300.3 nanos/call
+TIntRefFactory: FreshSingleTxn(8): transform(_+1): best was 146.6 nanos/call
+TIntRefFactory: FreshSingleTxn(8): x:=!x+1: best was 230.4 nanos/call
+TIntRefFactory: FreshSingleTxn(8): x+=1: best was 146.6 nanos/call
+TIntRefFactory: FreshTxn(8): transform(_+1): best was 146.6 nanos/call
+TIntRefFactory: FreshTxn(8): x:=!x+1: best was 223.5 nanos/call
+TIntRefFactory: FreshTxn(8): x+=1: best was 153.6 nanos/call
+TIntRefFactory: FreshSingleTxn(1000): transform(_+1): best was 104.7 nanos/call
+TIntRefFactory: FreshSingleTxn(1000): x:=!x+1: best was 153.6 nanos/call
+TIntRefFactory: FreshSingleTxn(1000): x+=1: best was 111.7 nanos/call
+TIntRefFactory: FreshTxn(1000): transform(_+1): best was 104.7 nanos/call
+TIntRefFactory: FreshTxn(1000): x:=!x+1: best was 146.6 nanos/call
+TIntRefFactory: FreshTxn(1000): x+=1: best was 118.7 nanos/call
+TIntRefFactory: ReuseEscaped: transform(_+1): best was 153.6 nanos/call
+TIntRefFactory: ReuseEscaped: x:=!x+1: best was 146.6 nanos/call
+TIntRefFactory: ReuseEscaped: x+=1: best was 118.7 nanos/call
+TIntRefFactory: ReuseSingleNonTxn: transform(_+1): best was 160.6 nanos/call
+TIntRefFactory: ReuseSingleNonTxn: x:=!x+1: best was 167.6 nanos/call
+TIntRefFactory: ReuseSingleNonTxn: x+=1: best was 132.7 nanos/call
+TIntRefFactory: ReuseSingleTxn(1): transform(_+1): best was 537.8 nanos/call
+TIntRefFactory: ReuseSingleTxn(1): x:=!x+1: best was 838.1 nanos/call
+TIntRefFactory: ReuseSingleTxn(1): x+=1: best was 530.8 nanos/call
+TIntRefFactory: ReuseTxn(1): transform(_+1): best was 551.7 nanos/call
+TIntRefFactory: ReuseTxn(1): x:=!x+1: best was 831.1 nanos/call
+TIntRefFactory: ReuseTxn(1): x+=1: best was 551.7 nanos/call
+TIntRefFactory: ReuseSingleTxn(2): transform(_+1): best was 321.2 nanos/call
+TIntRefFactory: ReuseSingleTxn(2): x:=!x+1: best was 600.6 nanos/call
+TIntRefFactory: ReuseSingleTxn(2): x+=1: best was 321.2 nanos/call
+TIntRefFactory: ReuseTxn(2): transform(_+1): best was 314.3 nanos/call
+TIntRefFactory: ReuseTxn(2): x:=!x+1: best was 579.7 nanos/call
+TIntRefFactory: ReuseTxn(2): x+=1: best was 335.2 nanos/call
+TIntRefFactory: ReuseSingleTxn(8): transform(_+1): best was 153.6 nanos/call
+TIntRefFactory: ReuseSingleTxn(8): x:=!x+1: best was 251.4 nanos/call
+TIntRefFactory: ReuseSingleTxn(8): x+=1: best was 153.6 nanos/call
+TIntRefFactory: ReuseTxn(8): transform(_+1): best was 146.6 nanos/call
+TIntRefFactory: ReuseTxn(8): x:=!x+1: best was 230.4 nanos/call
+TIntRefFactory: ReuseTxn(8): x+=1: best was 153.7 nanos/call
+TIntRefFactory: ReuseSingleTxn(1000): transform(_+1): best was 111.7 nanos/call
+TIntRefFactory: ReuseSingleTxn(1000): x:=!x+1: best was 160.6 nanos/call
+TIntRefFactory: ReuseSingleTxn(1000): x+=1: best was 111.7 nanos/call
+TIntRefFactory: ReuseTxn(1000): transform(_+1): best was 104.7 nanos/call
+TIntRefFactory: ReuseTxn(1000): x:=!x+1: best was 139.6 nanos/call
+TIntRefFactory: ReuseTxn(1000): x+=1: best was 111.7 nanos/call
+LazyConflictRefFactory: FreshEscaped: transform(_+1): best was 251.4 nanos/call
+LazyConflictRefFactory: FreshEscaped: x:=!x+1: best was 146.6 nanos/call
+LazyConflictRefFactory: FreshEscaped: x+=1: best was 167.6 nanos/call
+LazyConflictRefFactory: FreshSingleNonTxn: transform(_+1): best was 167.6 nanos/call
+LazyConflictRefFactory: FreshSingleNonTxn: x:=!x+1: best was 167.6 nanos/call
+LazyConflictRefFactory: FreshSingleNonTxn: x+=1: best was 174.6 nanos/call
+LazyConflictRefFactory: FreshSingleTxn(1): transform(_+1): best was 1103.5 nanos/call
+LazyConflictRefFactory: FreshSingleTxn(1): x:=!x+1: best was 1606.3 nanos/call
+LazyConflictRefFactory: FreshSingleTxn(1): x+=1: best was 1180.3 nanos/call
+LazyConflictRefFactory: FreshTxn(1): transform(_+1): best was 1033.7 nanos/call
+LazyConflictRefFactory: FreshTxn(1): x:=!x+1: best was 1459.7 nanos/call
+LazyConflictRefFactory: FreshTxn(1): x+=1: best was 1054.6 nanos/call
+LazyConflictRefFactory: FreshSingleTxn(2): transform(_+1): best was 600.7 nanos/call
+LazyConflictRefFactory: FreshSingleTxn(2): x:=!x+1: best was 1145.4 nanos/call
+LazyConflictRefFactory: FreshSingleTxn(2): x+=1: best was 649.5 nanos/call
+LazyConflictRefFactory: FreshTxn(2): transform(_+1): best was 558.7 nanos/call
+LazyConflictRefFactory: FreshTxn(2): x:=!x+1: best was 1089.5 nanos/call
+LazyConflictRefFactory: FreshTxn(2): x+=1: best was 544.7 nanos/call
+LazyConflictRefFactory: FreshSingleTxn(8): transform(_+1): best was 209.5 nanos/call
+LazyConflictRefFactory: FreshSingleTxn(8): x:=!x+1: best was 356.2 nanos/call
+LazyConflictRefFactory: FreshSingleTxn(8): x+=1: best was 230.4 nanos/call
+LazyConflictRefFactory: FreshTxn(8): transform(_+1): best was 181.6 nanos/call
+LazyConflictRefFactory: FreshTxn(8): x:=!x+1: best was 314.2 nanos/call
+LazyConflictRefFactory: FreshTxn(8): x+=1: best was 188.6 nanos/call
+LazyConflictRefFactory: FreshSingleTxn(1000): transform(_+1): best was 111.8 nanos/call
+LazyConflictRefFactory: FreshSingleTxn(1000): x:=!x+1: best was 160.6 nanos/call
+LazyConflictRefFactory: FreshSingleTxn(1000): x+=1: best was 125.7 nanos/call
+LazyConflictRefFactory: FreshTxn(1000): transform(_+1): best was 90.7 nanos/call
+LazyConflictRefFactory: FreshTxn(1000): x:=!x+1: best was 125.7 nanos/call
+LazyConflictRefFactory: FreshTxn(1000): x+=1: best was 97.7 nanos/call
+LazyConflictRefFactory: ReuseEscaped: transform(_+1): best was 153.6 nanos/call
+LazyConflictRefFactory: ReuseEscaped: x:=!x+1: best was 146.6 nanos/call
+LazyConflictRefFactory: ReuseEscaped: x+=1: best was 167.6 nanos/call
+LazyConflictRefFactory: ReuseSingleNonTxn: transform(_+1): best was 167.6 nanos/call
+LazyConflictRefFactory: ReuseSingleNonTxn: x:=!x+1: best was 174.6 nanos/call
+LazyConflictRefFactory: ReuseSingleNonTxn: x+=1: best was 181.5 nanos/call
+LazyConflictRefFactory: ReuseSingleTxn(1): transform(_+1): best was 1124.4 nanos/call
+LazyConflictRefFactory: ReuseSingleTxn(1): x:=!x+1: best was 1725.1 nanos/call
+LazyConflictRefFactory: ReuseSingleTxn(1): x+=1: best was 1222.2 nanos/call
+LazyConflictRefFactory: ReuseTxn(1): transform(_+1): best was 1075.5 nanos/call
+LazyConflictRefFactory: ReuseTxn(1): x:=!x+1: best was 1683.2 nanos/call
+LazyConflictRefFactory: ReuseTxn(1): x+=1: best was 1089.5 nanos/call
+LazyConflictRefFactory: ReuseSingleTxn(2): transform(_+1): best was 621.6 nanos/call
+LazyConflictRefFactory: ReuseSingleTxn(2): x:=!x+1: best was 1187.3 nanos/call
+LazyConflictRefFactory: ReuseSingleTxn(2): x+=1: best was 677.5 nanos/call
+LazyConflictRefFactory: ReuseTxn(2): transform(_+1): best was 572.7 nanos/call
+LazyConflictRefFactory: ReuseTxn(2): x:=!x+1: best was 1131.4 nanos/call
+LazyConflictRefFactory: ReuseTxn(2): x+=1: best was 586.6 nanos/call
+LazyConflictRefFactory: ReuseSingleTxn(8): transform(_+1): best was 209.5 nanos/call
+LazyConflictRefFactory: ReuseSingleTxn(8): x:=!x+1: best was 370.2 nanos/call
+LazyConflictRefFactory: ReuseSingleTxn(8): x+=1: best was 230.5 nanos/call
+LazyConflictRefFactory: ReuseTxn(8): transform(_+1): best was 174.6 nanos/call
+LazyConflictRefFactory: ReuseTxn(8): x:=!x+1: best was 300.3 nanos/call
+LazyConflictRefFactory: ReuseTxn(8): x+=1: best was 181.6 nanos/call
+LazyConflictRefFactory: ReuseSingleTxn(1000): transform(_+1): best was 111.7 nanos/call
+LazyConflictRefFactory: ReuseSingleTxn(1000): x:=!x+1: best was 153.6 nanos/call
+LazyConflictRefFactory: ReuseSingleTxn(1000): x+=1: best was 118.7 nanos/call
+LazyConflictRefFactory: ReuseTxn(1000): transform(_+1): best was 76.8 nanos/call
+LazyConflictRefFactory: ReuseTxn(1000): x:=!x+1: best was 104.7 nanos/call
+LazyConflictRefFactory: ReuseTxn(1000): x+=1: best was 83.8 nanos/call
+StripedIntRefFactory: FreshEscaped: transform(_+1): best was 1131.4 nanos/call
+StripedIntRefFactory: FreshEscaped: x:=!x+1: best was 3352.4 nanos/call
+StripedIntRefFactory: FreshEscaped: x+=1: best was 132.7 nanos/call
+StripedIntRefFactory: FreshSingleNonTxn: transform(_+1): best was 1278.1 nanos/call
+StripedIntRefFactory: FreshSingleNonTxn: x:=!x+1: best was 3499.1 nanos/call
+StripedIntRefFactory: FreshSingleNonTxn: x+=1: best was 146.7 nanos/call
+StripedIntRefFactory: FreshSingleTxn(1): transform(_+1): best was 1180.4 nanos/call
+StripedIntRefFactory: FreshSingleTxn(1): x:=!x+1: best was 3436.2 nanos/call
+StripedIntRefFactory: FreshSingleTxn(1): x+=1: best was 502.8 nanos/call
+StripedIntRefFactory: FreshTxn(1): transform(_+1): best was 1145.4 nanos/call
+StripedIntRefFactory: FreshTxn(1): x:=!x+1: best was 3338.4 nanos/call
+StripedIntRefFactory: FreshTxn(1): x+=1: best was 509.8 nanos/call
+StripedIntRefFactory: FreshSingleTxn(2): transform(_+1): best was 1019.7 nanos/call
+StripedIntRefFactory: FreshSingleTxn(2): x:=!x+1: best was 3233.7 nanos/call
+StripedIntRefFactory: FreshSingleTxn(2): x+=1: best was 307.3 nanos/call
+StripedIntRefFactory: FreshTxn(2): transform(_+1): best was 942.9 nanos/call
+StripedIntRefFactory: FreshTxn(2): x:=!x+1: best was 3254.6 nanos/call
+StripedIntRefFactory: FreshTxn(2): x+=1: best was 300.3 nanos/call
+StripedIntRefFactory: FreshSingleTxn(8): transform(_+1): best was 824.1 nanos/call
+StripedIntRefFactory: FreshSingleTxn(8): x:=!x+1: best was 1648.2 nanos/call
+StripedIntRefFactory: FreshSingleTxn(8): x+=1: best was 160.6 nanos/call
+StripedIntRefFactory: FreshTxn(8): transform(_+1): best was 796.2 nanos/call
+StripedIntRefFactory: FreshTxn(8): x:=!x+1: best was 1627.3 nanos/call
+StripedIntRefFactory: FreshTxn(8): x+=1: best was 153.7 nanos/call
+StripedIntRefFactory: FreshSingleTxn(1000): transform(_+1): best was 628.5 nanos/call
+StripedIntRefFactory: FreshSingleTxn(1000): x:=!x+1: best was 1215.2 nanos/call
+StripedIntRefFactory: FreshSingleTxn(1000): x+=1: best was 125.7 nanos/call
+StripedIntRefFactory: FreshTxn(1000): transform(_+1): best was 593.6 nanos/call
+StripedIntRefFactory: FreshTxn(1000): x:=!x+1: best was 1180.3 nanos/call
+StripedIntRefFactory: FreshTxn(1000): x+=1: best was 125.7 nanos/call
+StripedIntRefFactory: ReuseEscaped: transform(_+1): best was 1243.2 nanos/call
+StripedIntRefFactory: ReuseEscaped: x:=!x+1: best was 3457.2 nanos/call
+StripedIntRefFactory: ReuseEscaped: x+=1: best was 125.7 nanos/call
+StripedIntRefFactory: ReuseSingleNonTxn: transform(_+1): best was 1243.1 nanos/call
+StripedIntRefFactory: ReuseSingleNonTxn: x:=!x+1: best was 3464.2 nanos/call
+StripedIntRefFactory: ReuseSingleNonTxn: x+=1: best was 146.6 nanos/call
+StripedIntRefFactory: ReuseSingleTxn(1): transform(_+1): best was 1278.1 nanos/call
+StripedIntRefFactory: ReuseSingleTxn(1): x:=!x+1: best was 3471.2 nanos/call
+StripedIntRefFactory: ReuseSingleTxn(1): x+=1: best was 551.8 nanos/call
+StripedIntRefFactory: ReuseTxn(1): transform(_+1): best was 1208.2 nanos/call
+StripedIntRefFactory: ReuseTxn(1): x:=!x+1: best was 3534.0 nanos/call
+StripedIntRefFactory: ReuseTxn(1): x+=1: best was 558.8 nanos/call
+StripedIntRefFactory: ReuseSingleTxn(2): transform(_+1): best was 1019.7 nanos/call
+StripedIntRefFactory: ReuseSingleTxn(2): x:=!x+1: best was 3338.4 nanos/call
+StripedIntRefFactory: ReuseSingleTxn(2): x+=1: best was 335.2 nanos/call
+StripedIntRefFactory: ReuseTxn(2): transform(_+1): best was 998.8 nanos/call
+StripedIntRefFactory: ReuseTxn(2): x:=!x+1: best was 3352.4 nanos/call
+StripedIntRefFactory: ReuseTxn(2): x+=1: best was 328.2 nanos/call
+StripedIntRefFactory: ReuseSingleTxn(8): transform(_+1): best was 831.1 nanos/call
+StripedIntRefFactory: ReuseSingleTxn(8): x:=!x+1: best was 1613.3 nanos/call
+StripedIntRefFactory: ReuseSingleTxn(8): x+=1: best was 167.6 nanos/call
+StripedIntRefFactory: ReuseTxn(8): transform(_+1): best was 796.2 nanos/call
+StripedIntRefFactory: ReuseTxn(8): x:=!x+1: best was 1648.3 nanos/call
+StripedIntRefFactory: ReuseTxn(8): x+=1: best was 160.6 nanos/call
+StripedIntRefFactory: ReuseSingleTxn(1000): transform(_+1): best was 621.6 nanos/call
+StripedIntRefFactory: ReuseSingleTxn(1000): x:=!x+1: best was 1110.4 nanos/call
+StripedIntRefFactory: ReuseSingleTxn(1000): x+=1: best was 118.7 nanos/call
+StripedIntRefFactory: ReuseTxn(1000): transform(_+1): best was 572.7 nanos/call
+StripedIntRefFactory: ReuseTxn(1000): x:=!x+1: best was 1082.5 nanos/call
+StripedIntRefFactory: ReuseTxn(1000): x+=1: best was 118.7 nanos/call
+uncontended R+W txn: best was 474.9 nanos/txn
+FastSimpleRandom: best was 4.4908 nanos/call
+writeSkew(2000): 44 millis total
+writeSkew(2000000): 1658 millis total
+readHit(0): 0.0 nanos
+readMiss(0): 10.6 nanos
+writeHit(0): 0.0 nanos
+readHit(1): 20.6 nanos
+readMiss(1): 10.6 nanos
+writeHit(1): 49.3 nanos
+readHit(2): 21.1 nanos
+readMiss(2): 16.4 nanos
+writeHit(2): 49.6 nanos
+readHit(3): 21.4 nanos
+readMiss(3): 10.8 nanos
+writeHit(3): 48.7 nanos
+readHit(4): 21.3 nanos
+readMiss(4): 10.9 nanos
+writeHit(4): 46.8 nanos
+readHit(5): 22.5 nanos
+readMiss(5): 15.2 nanos
+writeHit(5): 46.8 nanos
+readHit(6): 22.2 nanos
+readMiss(6): 16.8 nanos
+writeHit(6): 56.3 nanos
+readHit(7): 22.0 nanos
+readMiss(7): 17.0 nanos
+writeHit(7): 47.7 nanos
+readHit(8): 22.0 nanos
+readMiss(8): 14.7 nanos
+writeHit(8): 52.4 nanos
+readHit(10): 26.2 nanos
+readMiss(10): 16.0 nanos
+writeHit(10): 51.0 nanos
+readHit(12): 27.7 nanos
+readMiss(12): 17.7 nanos
+writeHit(12): 53.2 nanos
+readHit(14): 21.7 nanos
+readMiss(14): 18.6 nanos
+writeHit(14): 51.7 nanos
+readHit(16): 24.1 nanos
+readMiss(16): 20.1 nanos
+writeHit(16): 49.3 nanos
+readHit(20): 28.5 nanos
+readMiss(20): 17.2 nanos
+writeHit(20): 53.0 nanos
+readHit(24): 26.8 nanos
+readMiss(24): 19.9 nanos
+writeHit(24): 55.9 nanos
+readHit(28): 25.8 nanos
+readMiss(28): 17.6 nanos
+writeHit(28): 55.5 nanos
+readHit(32): 28.6 nanos
+readMiss(32): 20.1 nanos
+writeHit(32): 57.0 nanos
+readHit(48): 26.7 nanos
+readMiss(48): 21.5 nanos
+writeHit(48): 54.8 nanos
+readHit(64): 24.5 nanos
+readMiss(64): 20.9 nanos
+writeHit(64): 51.9 nanos
+readHit(80): 25.8 nanos
+readMiss(80): 24.7 nanos
+writeHit(80): 54.2 nanos
+readHit(96): 30.2 nanos
+readMiss(96): 24.4 nanos
+writeHit(96): 56.4 nanos
+readHit(112): 26.7 nanos
+readMiss(112): 20.2 nanos
+writeHit(112): 52.3 nanos
+readHit(128): 28.2 nanos
+readMiss(128): 20.8 nanos
+writeHit(128): 54.4 nanos
+readHit(144): 26.9 nanos
+readMiss(144): 21.9 nanos
+writeHit(144): 54.7 nanos
+readHit(160): 27.5 nanos
+readMiss(160): 23.5 nanos
+writeHit(160): 56.0 nanos
+readHit(176): 28.1 nanos
+readMiss(176): 24.9 nanos
+writeHit(176): 57.0 nanos
+readHit(192): 30.2 nanos
+readMiss(192): 24.2 nanos
+writeHit(192): 56.0 nanos
+readHit(208): 26.0 nanos
+readMiss(208): 20.6 nanos
+writeHit(208): 53.3 nanos
+readHit(224): 26.6 nanos
+readMiss(224): 21.9 nanos
+writeHit(224): 52.4 nanos
+readHit(240): 27.6 nanos
+readMiss(240): 21.9 nanos
+writeHit(240): 59.1 nanos
+readHit(256): 28.0 nanos
+readMiss(256): 22.3 nanos
+writeHit(256): 55.0 nanos
+hist(1,1,10000,false,100,1)  total_elapsed=16910804 nanos,  throughput=591337 ops/sec,  per_thread_latency=1691 nanos/op,  avg_arrival=1691 nanos/op
+hist(1,1,10000,false,0,1)  total_elapsed=53882276 nanos,  throughput=185589 ops/sec,  per_thread_latency=5388 nanos/op,  avg_arrival=5388 nanos/op
+hist(1,1,10000,false,50,1)  total_elapsed=17379163 nanos,  throughput=575401 ops/sec,  per_thread_latency=1737 nanos/op,  avg_arrival=1737 nanos/op
+hist(1,1,10000,false,0,3)  total_elapsed=2414852 nanos,  throughput=4141040 ops/sec,  per_thread_latency=241 nanos/op,  avg_arrival=241 nanos/op
+hist(1,1,10000,false,50,3)  total_elapsed=2965414 nanos,  throughput=3372210 ops/sec,  per_thread_latency=296 nanos/op,  avg_arrival=296 nanos/op
+hist(1,1,10000,false,0,100)  total_elapsed=816032 nanos,  throughput=12254421 ops/sec,  per_thread_latency=81 nanos/op,  avg_arrival=81 nanos/op
+hist(1,1,10000,false,50,100)  total_elapsed=843270 nanos,  throughput=11858598 ops/sec,  per_thread_latency=84 nanos/op,  avg_arrival=84 nanos/op
+hist(1,1,10000,true,100,1)  total_elapsed=101422846 nanos,  throughput=98597 ops/sec,  per_thread_latency=10142 nanos/op,  avg_arrival=10142 nanos/op
+hist(1,1,10000,true,0,1)  total_elapsed=71360828 nanos,  throughput=140132 ops/sec,  per_thread_latency=7136 nanos/op,  avg_arrival=7136 nanos/op
+hist(1,1,10000,true,50,1)  total_elapsed=11967958 nanos,  throughput=835564 ops/sec,  per_thread_latency=1196 nanos/op,  avg_arrival=1196 nanos/op
+hist(1,1,10000,true,0,3)  total_elapsed=3159505 nanos,  throughput=3165052 ops/sec,  per_thread_latency=315 nanos/op,  avg_arrival=315 nanos/op
+hist(1,1,10000,true,50,3)  total_elapsed=3487273 nanos,  throughput=2867570 ops/sec,  per_thread_latency=348 nanos/op,  avg_arrival=348 nanos/op
+hist(1,1,10000,true,0,100)  total_elapsed=1696040 nanos,  throughput=5896087 ops/sec,  per_thread_latency=169 nanos/op,  avg_arrival=169 nanos/op
+hist(1,1,10000,true,50,100)  total_elapsed=1625359 nanos,  throughput=6152486 ops/sec,  per_thread_latency=162 nanos/op,  avg_arrival=162 nanos/op
+hist(1,2,5000,false,100,1)  total_elapsed=2928119 nanos,  throughput=3415161 ops/sec,  per_thread_latency=585 nanos/op,  avg_arrival=292 nanos/op
+hist(1,2,5000,false,0,1)  total_elapsed=6768023 nanos,  throughput=1477536 ops/sec,  per_thread_latency=1353 nanos/op,  avg_arrival=676 nanos/op
+hist(1,2,5000,false,50,1)  total_elapsed=5245401 nanos,  throughput=1906431 ops/sec,  per_thread_latency=1049 nanos/op,  avg_arrival=524 nanos/op
+hist(1,2,5000,false,0,3)  total_elapsed=5423010 nanos,  throughput=1843994 ops/sec,  per_thread_latency=1084 nanos/op,  avg_arrival=542 nanos/op
+hist(1,2,5000,false,50,3)  total_elapsed=3792062 nanos,  throughput=2637087 ops/sec,  per_thread_latency=758 nanos/op,  avg_arrival=379 nanos/op
+hist(1,2,5000,false,0,100)  total_elapsed=982256 nanos,  throughput=10180645 ops/sec,  per_thread_latency=196 nanos/op,  avg_arrival=98 nanos/op
+hist(1,2,5000,false,50,100)  total_elapsed=1051678 nanos,  throughput=9508613 ops/sec,  per_thread_latency=210 nanos/op,  avg_arrival=105 nanos/op
+hist(1,2,5000,true,100,1)  total_elapsed=3177106 nanos,  throughput=3147518 ops/sec,  per_thread_latency=635 nanos/op,  avg_arrival=317 nanos/op
+hist(1,2,5000,true,0,1)  total_elapsed=7080007 nanos,  throughput=1412427 ops/sec,  per_thread_latency=1416 nanos/op,  avg_arrival=708 nanos/op
+hist(1,2,5000,true,50,1)  total_elapsed=4413934 nanos,  throughput=2265552 ops/sec,  per_thread_latency=882 nanos/op,  avg_arrival=441 nanos/op
+hist(1,2,5000,true,0,3)  total_elapsed=5710408 nanos,  throughput=1751188 ops/sec,  per_thread_latency=1142 nanos/op,  avg_arrival=571 nanos/op
+hist(1,2,5000,true,50,3)  total_elapsed=3010252 nanos,  throughput=3321981 ops/sec,  per_thread_latency=602 nanos/op,  avg_arrival=301 nanos/op
+hist(1,2,5000,true,0,100)  total_elapsed=1537289 nanos,  throughput=6504957 ops/sec,  per_thread_latency=307 nanos/op,  avg_arrival=153 nanos/op
+hist(1,2,5000,true,50,100)  total_elapsed=2193662 nanos,  throughput=4558587 ops/sec,  per_thread_latency=438 nanos/op,  avg_arrival=219 nanos/op
+hist(1,4,2500,false,100,1)  total_elapsed=1692477 nanos,  throughput=5908499 ops/sec,  per_thread_latency=676 nanos/op,  avg_arrival=169 nanos/op
+hist(1,4,2500,false,0,1)  total_elapsed=9035997 nanos,  throughput=1106684 ops/sec,  per_thread_latency=3614 nanos/op,  avg_arrival=903 nanos/op
+hist(1,4,2500,false,50,1)  total_elapsed=3755326 nanos,  throughput=2662884 ops/sec,  per_thread_latency=1502 nanos/op,  avg_arrival=375 nanos/op
+hist(1,4,2500,false,0,3)  total_elapsed=2764200 nanos,  throughput=3617683 ops/sec,  per_thread_latency=1105 nanos/op,  avg_arrival=276 nanos/op
+hist(1,4,2500,false,50,3)  total_elapsed=2397670 nanos,  throughput=4170715 ops/sec,  per_thread_latency=959 nanos/op,  avg_arrival=239 nanos/op
+hist(1,4,2500,false,0,100)  total_elapsed=956065 nanos,  throughput=10459539 ops/sec,  per_thread_latency=382 nanos/op,  avg_arrival=95 nanos/op
+hist(1,4,2500,false,50,100)  total_elapsed=1447681 nanos,  throughput=6907599 ops/sec,  per_thread_latency=579 nanos/op,  avg_arrival=144 nanos/op
+hist(1,4,2500,true,100,1)  total_elapsed=1864008 nanos,  throughput=5364783 ops/sec,  per_thread_latency=745 nanos/op,  avg_arrival=186 nanos/op
+hist(1,4,2500,true,0,1)  total_elapsed=9329612 nanos,  throughput=1071855 ops/sec,  per_thread_latency=3731 nanos/op,  avg_arrival=932 nanos/op
+hist(1,4,2500,true,50,1)  total_elapsed=4566818 nanos,  throughput=2189708 ops/sec,  per_thread_latency=1826 nanos/op,  avg_arrival=456 nanos/op
+hist(1,4,2500,true,0,3)  total_elapsed=3789759 nanos,  throughput=2638690 ops/sec,  per_thread_latency=1515 nanos/op,  avg_arrival=378 nanos/op
+hist(1,4,2500,true,50,3)  total_elapsed=4775016 nanos,  throughput=2094233 ops/sec,  per_thread_latency=1910 nanos/op,  avg_arrival=477 nanos/op
+hist(1,4,2500,true,0,100)  total_elapsed=2341517 nanos,  throughput=4270735 ops/sec,  per_thread_latency=936 nanos/op,  avg_arrival=234 nanos/op
+hist(1,4,2500,true,50,100)  total_elapsed=2100843 nanos,  throughput=4759993 ops/sec,  per_thread_latency=840 nanos/op,  avg_arrival=210 nanos/op
+hist(30,1,10000,false,100,1)  total_elapsed=1554679 nanos,  throughput=6432195 ops/sec,  per_thread_latency=155 nanos/op,  avg_arrival=155 nanos/op
+hist(30,1,10000,false,0,1)  total_elapsed=6146710 nanos,  throughput=1626886 ops/sec,  per_thread_latency=614 nanos/op,  avg_arrival=614 nanos/op
+hist(30,1,10000,false,50,1)  total_elapsed=3840464 nanos,  throughput=2603852 ops/sec,  per_thread_latency=384 nanos/op,  avg_arrival=384 nanos/op
+hist(30,1,10000,false,0,3)  total_elapsed=3263919 nanos,  throughput=3063801 ops/sec,  per_thread_latency=326 nanos/op,  avg_arrival=326 nanos/op
+hist(30,1,10000,false,50,3)  total_elapsed=2813369 nanos,  throughput=3554457 ops/sec,  per_thread_latency=281 nanos/op,  avg_arrival=281 nanos/op
+hist(30,1,10000,false,0,100)  total_elapsed=1414995 nanos,  throughput=7067162 ops/sec,  per_thread_latency=141 nanos/op,  avg_arrival=141 nanos/op
+hist(30,1,10000,false,50,100)  total_elapsed=1409827 nanos,  throughput=7093068 ops/sec,  per_thread_latency=140 nanos/op,  avg_arrival=140 nanos/op
+hist(30,1,10000,true,100,1)  total_elapsed=1644985 nanos,  throughput=6079082 ops/sec,  per_thread_latency=164 nanos/op,  avg_arrival=164 nanos/op
+hist(30,1,10000,true,0,1)  total_elapsed=5944448 nanos,  throughput=1682241 ops/sec,  per_thread_latency=594 nanos/op,  avg_arrival=594 nanos/op
+hist(30,1,10000,true,50,1)  total_elapsed=4353033 nanos,  throughput=2297248 ops/sec,  per_thread_latency=435 nanos/op,  avg_arrival=435 nanos/op
+hist(30,1,10000,true,0,3)  total_elapsed=3690861 nanos,  throughput=2709394 ops/sec,  per_thread_latency=369 nanos/op,  avg_arrival=369 nanos/op
+hist(30,1,10000,true,50,3)  total_elapsed=3595318 nanos,  throughput=2781395 ops/sec,  per_thread_latency=359 nanos/op,  avg_arrival=359 nanos/op
+hist(30,1,10000,true,0,100)  total_elapsed=2003692 nanos,  throughput=4990787 ops/sec,  per_thread_latency=200 nanos/op,  avg_arrival=200 nanos/op
+hist(30,1,10000,true,50,100)  total_elapsed=2052581 nanos,  throughput=4871914 ops/sec,  per_thread_latency=205 nanos/op,  avg_arrival=205 nanos/op
+hist(30,2,5000,false,100,1)  total_elapsed=1491403 nanos,  throughput=6705095 ops/sec,  per_thread_latency=298 nanos/op,  avg_arrival=149 nanos/op
+hist(30,2,5000,false,0,1)  total_elapsed=12972981 nanos,  throughput=770832 ops/sec,  per_thread_latency=2594 nanos/op,  avg_arrival=1297 nanos/op
+hist(30,2,5000,false,50,1)  total_elapsed=2142957 nanos,  throughput=4666449 ops/sec,  per_thread_latency=428 nanos/op,  avg_arrival=214 nanos/op
+hist(30,2,5000,false,0,3)  total_elapsed=2627520 nanos,  throughput=3805870 ops/sec,  per_thread_latency=525 nanos/op,  avg_arrival=262 nanos/op
+hist(30,2,5000,false,50,3)  total_elapsed=2220482 nanos,  throughput=4503526 ops/sec,  per_thread_latency=444 nanos/op,  avg_arrival=222 nanos/op
+hist(30,2,5000,false,0,100)  total_elapsed=1402074 nanos,  throughput=7132291 ops/sec,  per_thread_latency=280 nanos/op,  avg_arrival=140 nanos/op
+hist(30,2,5000,false,50,100)  total_elapsed=1440348 nanos,  throughput=6942766 ops/sec,  per_thread_latency=288 nanos/op,  avg_arrival=144 nanos/op
+hist(30,2,5000,true,100,1)  total_elapsed=1691011 nanos,  throughput=5913622 ops/sec,  per_thread_latency=338 nanos/op,  avg_arrival=169 nanos/op
+hist(30,2,5000,true,0,1)  total_elapsed=6081898 nanos,  throughput=1644223 ops/sec,  per_thread_latency=1216 nanos/op,  avg_arrival=608 nanos/op
+hist(30,2,5000,true,50,1)  total_elapsed=4121087 nanos,  throughput=2426544 ops/sec,  per_thread_latency=824 nanos/op,  avg_arrival=412 nanos/op
+hist(30,2,5000,true,0,3)  total_elapsed=3184019 nanos,  throughput=3140684 ops/sec,  per_thread_latency=636 nanos/op,  avg_arrival=318 nanos/op
+hist(30,2,5000,true,50,3)  total_elapsed=3435100 nanos,  throughput=2911123 ops/sec,  per_thread_latency=687 nanos/op,  avg_arrival=343 nanos/op
+hist(30,2,5000,true,0,100)  total_elapsed=32630873 nanos,  throughput=306458 ops/sec,  per_thread_latency=6526 nanos/op,  avg_arrival=3263 nanos/op
+hist(30,2,5000,true,50,100)  total_elapsed=2412547 nanos,  throughput=4144996 ops/sec,  per_thread_latency=482 nanos/op,  avg_arrival=241 nanos/op
+hist(30,4,2500,false,100,1)  total_elapsed=1226353 nanos,  throughput=8154259 ops/sec,  per_thread_latency=490 nanos/op,  avg_arrival=122 nanos/op
+hist(30,4,2500,false,0,1)  total_elapsed=4798483 nanos,  throughput=2083991 ops/sec,  per_thread_latency=1919 nanos/op,  avg_arrival=479 nanos/op
+hist(30,4,2500,false,50,1)  total_elapsed=3730043 nanos,  throughput=2680934 ops/sec,  per_thread_latency=1492 nanos/op,  avg_arrival=373 nanos/op
+hist(30,4,2500,false,0,3)  total_elapsed=4418195 nanos,  throughput=2263367 ops/sec,  per_thread_latency=1767 nanos/op,  avg_arrival=441 nanos/op
+hist(30,4,2500,false,50,3)  total_elapsed=2597139 nanos,  throughput=3850390 ops/sec,  per_thread_latency=1038 nanos/op,  avg_arrival=259 nanos/op
+hist(30,4,2500,false,0,100)  total_elapsed=2485950 nanos,  throughput=4022607 ops/sec,  per_thread_latency=994 nanos/op,  avg_arrival=248 nanos/op
+hist(30,4,2500,false,50,100)  total_elapsed=13988482 nanos,  throughput=714873 ops/sec,  per_thread_latency=5595 nanos/op,  avg_arrival=1398 nanos/op
+hist(30,4,2500,true,100,1)  total_elapsed=1868549 nanos,  throughput=5351746 ops/sec,  per_thread_latency=747 nanos/op,  avg_arrival=186 nanos/op
+hist(30,4,2500,true,0,1)  total_elapsed=6595304 nanos,  throughput=1516230 ops/sec,  per_thread_latency=2638 nanos/op,  avg_arrival=659 nanos/op
+hist(30,4,2500,true,50,1)  total_elapsed=4366930 nanos,  throughput=2289938 ops/sec,  per_thread_latency=1746 nanos/op,  avg_arrival=436 nanos/op
+hist(30,4,2500,true,0,3)  total_elapsed=20465263 nanos,  throughput=488632 ops/sec,  per_thread_latency=8186 nanos/op,  avg_arrival=2046 nanos/op
+hist(30,4,2500,true,50,3)  total_elapsed=13530739 nanos,  throughput=739057 ops/sec,  per_thread_latency=5412 nanos/op,  avg_arrival=1353 nanos/op
+hist(30,4,2500,true,0,100)  total_elapsed=2365473 nanos,  throughput=4227484 ops/sec,  per_thread_latency=946 nanos/op,  avg_arrival=236 nanos/op
+hist(30,4,2500,true,50,100)  total_elapsed=2514864 nanos,  throughput=3976358 ops/sec,  per_thread_latency=1005 nanos/op,  avg_arrival=251 nanos/op
+hist(10000,1,10000,false,100,1)  total_elapsed=1718738 nanos,  throughput=5818222 ops/sec,  per_thread_latency=171 nanos/op,  avg_arrival=171 nanos/op
+hist(10000,1,10000,false,0,1)  total_elapsed=18771391 nanos,  throughput=532725 ops/sec,  per_thread_latency=1877 nanos/op,  avg_arrival=1877 nanos/op
+hist(10000,1,10000,false,50,1)  total_elapsed=10648227 nanos,  throughput=939123 ops/sec,  per_thread_latency=1064 nanos/op,  avg_arrival=1064 nanos/op
+hist(10000,1,10000,false,0,3)  total_elapsed=8280169 nanos,  throughput=1207704 ops/sec,  per_thread_latency=828 nanos/op,  avg_arrival=828 nanos/op
+hist(10000,1,10000,false,50,3)  total_elapsed=7152991 nanos,  throughput=1398016 ops/sec,  per_thread_latency=715 nanos/op,  avg_arrival=715 nanos/op
+hist(10000,1,10000,false,0,100)  total_elapsed=3261683 nanos,  throughput=3065901 ops/sec,  per_thread_latency=326 nanos/op,  avg_arrival=326 nanos/op
+hist(10000,1,10000,false,50,100)  total_elapsed=3293461 nanos,  throughput=3036319 ops/sec,  per_thread_latency=329 nanos/op,  avg_arrival=329 nanos/op
+hist(10000,1,10000,true,100,1)  total_elapsed=1925679 nanos,  throughput=5192973 ops/sec,  per_thread_latency=192 nanos/op,  avg_arrival=192 nanos/op
+hist(10000,1,10000,true,0,1)  total_elapsed=6866500 nanos,  throughput=1456346 ops/sec,  per_thread_latency=686 nanos/op,  avg_arrival=686 nanos/op
+hist(10000,1,10000,true,50,1)  total_elapsed=4467364 nanos,  throughput=2238456 ops/sec,  per_thread_latency=446 nanos/op,  avg_arrival=446 nanos/op
+hist(10000,1,10000,true,0,3)  total_elapsed=4147697 nanos,  throughput=2410976 ops/sec,  per_thread_latency=414 nanos/op,  avg_arrival=414 nanos/op
+hist(10000,1,10000,true,50,3)  total_elapsed=3706506 nanos,  throughput=2697958 ops/sec,  per_thread_latency=370 nanos/op,  avg_arrival=370 nanos/op
+hist(10000,1,10000,true,0,100)  total_elapsed=3394245 nanos,  throughput=2946163 ops/sec,  per_thread_latency=339 nanos/op,  avg_arrival=339 nanos/op
+hist(10000,1,10000,true,50,100)  total_elapsed=3326706 nanos,  throughput=3005976 ops/sec,  per_thread_latency=332 nanos/op,  avg_arrival=332 nanos/op
+hist(10000,2,5000,false,100,1)  total_elapsed=1668591 nanos,  throughput=5993080 ops/sec,  per_thread_latency=333 nanos/op,  avg_arrival=166 nanos/op
+hist(10000,2,5000,false,0,1)  total_elapsed=6987815 nanos,  throughput=1431062 ops/sec,  per_thread_latency=1397 nanos/op,  avg_arrival=698 nanos/op
+hist(10000,2,5000,false,50,1)  total_elapsed=4597967 nanos,  throughput=2174874 ops/sec,  per_thread_latency=919 nanos/op,  avg_arrival=459 nanos/op
+hist(10000,2,5000,false,0,3)  total_elapsed=4270759 nanos,  throughput=2341504 ops/sec,  per_thread_latency=854 nanos/op,  avg_arrival=427 nanos/op
+hist(10000,2,5000,false,50,3)  total_elapsed=3519609 nanos,  throughput=2841224 ops/sec,  per_thread_latency=703 nanos/op,  avg_arrival=351 nanos/op
+hist(10000,2,5000,false,0,100)  total_elapsed=3106985 nanos,  throughput=3218554 ops/sec,  per_thread_latency=621 nanos/op,  avg_arrival=310 nanos/op
+hist(10000,2,5000,false,50,100)  total_elapsed=2359746 nanos,  throughput=4237744 ops/sec,  per_thread_latency=471 nanos/op,  avg_arrival=235 nanos/op
+hist(10000,2,5000,true,100,1)  total_elapsed=1070676 nanos,  throughput=9339893 ops/sec,  per_thread_latency=214 nanos/op,  avg_arrival=107 nanos/op
+hist(10000,2,5000,true,0,1)  total_elapsed=3759865 nanos,  throughput=2659669 ops/sec,  per_thread_latency=751 nanos/op,  avg_arrival=375 nanos/op
+hist(10000,2,5000,true,50,1)  total_elapsed=4225083 nanos,  throughput=2366817 ops/sec,  per_thread_latency=845 nanos/op,  avg_arrival=422 nanos/op
+hist(10000,2,5000,true,0,3)  total_elapsed=4029595 nanos,  throughput=2481638 ops/sec,  per_thread_latency=805 nanos/op,  avg_arrival=402 nanos/op
+hist(10000,2,5000,true,50,3)  total_elapsed=4264543 nanos,  throughput=2344917 ops/sec,  per_thread_latency=852 nanos/op,  avg_arrival=426 nanos/op
+hist(10000,2,5000,true,0,100)  total_elapsed=3959683 nanos,  throughput=2525454 ops/sec,  per_thread_latency=791 nanos/op,  avg_arrival=395 nanos/op
+hist(10000,2,5000,true,50,100)  total_elapsed=5499765 nanos,  throughput=1818259 ops/sec,  per_thread_latency=1099 nanos/op,  avg_arrival=549 nanos/op
+hist(10000,4,2500,false,100,1)  total_elapsed=1573536 nanos,  throughput=6355113 ops/sec,  per_thread_latency=629 nanos/op,  avg_arrival=157 nanos/op
+hist(10000,4,2500,false,0,1)  total_elapsed=7322287 nanos,  throughput=1365693 ops/sec,  per_thread_latency=2928 nanos/op,  avg_arrival=732 nanos/op
+hist(10000,4,2500,false,50,1)  total_elapsed=3271322 nanos,  throughput=3056868 ops/sec,  per_thread_latency=1308 nanos/op,  avg_arrival=327 nanos/op
+hist(10000,4,2500,false,0,3)  total_elapsed=4001448 nanos,  throughput=2499095 ops/sec,  per_thread_latency=1600 nanos/op,  avg_arrival=400 nanos/op
+hist(10000,4,2500,false,50,3)  total_elapsed=28902367 nanos,  throughput=345992 ops/sec,  per_thread_latency=11560 nanos/op,  avg_arrival=2890 nanos/op
+hist(10000,4,2500,false,0,100)  total_elapsed=2786130 nanos,  throughput=3589207 ops/sec,  per_thread_latency=1114 nanos/op,  avg_arrival=278 nanos/op
+hist(10000,4,2500,false,50,100)  total_elapsed=3073321 nanos,  throughput=3253809 ops/sec,  per_thread_latency=1229 nanos/op,  avg_arrival=307 nanos/op
+hist(10000,4,2500,true,100,1)  total_elapsed=1425612 nanos,  throughput=7014531 ops/sec,  per_thread_latency=570 nanos/op,  avg_arrival=142 nanos/op
+hist(10000,4,2500,true,0,1)  total_elapsed=4956467 nanos,  throughput=2017566 ops/sec,  per_thread_latency=1982 nanos/op,  avg_arrival=495 nanos/op
+hist(10000,4,2500,true,50,1)  total_elapsed=3573597 nanos,  throughput=2798300 ops/sec,  per_thread_latency=1429 nanos/op,  avg_arrival=357 nanos/op
+hist(10000,4,2500,true,0,3)  total_elapsed=3407443 nanos,  throughput=2934751 ops/sec,  per_thread_latency=1362 nanos/op,  avg_arrival=340 nanos/op
+hist(10000,4,2500,true,50,3)  total_elapsed=3093225 nanos,  throughput=3232871 ops/sec,  per_thread_latency=1237 nanos/op,  avg_arrival=309 nanos/op
+hist(10000,4,2500,true,0,100)  total_elapsed=4535111 nanos,  throughput=2205017 ops/sec,  per_thread_latency=1814 nanos/op,  avg_arrival=453 nanos/op
+hist(10000,4,2500,true,50,100)  total_elapsed=19418963 nanos,  throughput=514960 ops/sec,  per_thread_latency=7767 nanos/op,  avg_arrival=1941 nanos/op
+hist(1,1,1000000,false,100,1)  total_elapsed=159428305 nanos,  throughput=6272411 ops/sec,  per_thread_latency=159 nanos/op,  avg_arrival=159 nanos/op
+hist(1,1,1000000,false,0,1)  total_elapsed=668154084 nanos,  throughput=1496660 ops/sec,  per_thread_latency=668 nanos/op,  avg_arrival=668 nanos/op
+hist(1,1,1000000,false,50,1)  total_elapsed=401616399 nanos,  throughput=2489938 ops/sec,  per_thread_latency=401 nanos/op,  avg_arrival=401 nanos/op
+hist(1,1,1000000,false,0,3)  total_elapsed=238425298 nanos,  throughput=4194185 ops/sec,  per_thread_latency=238 nanos/op,  avg_arrival=238 nanos/op
+hist(1,1,1000000,false,50,3)  total_elapsed=260071579 nanos,  throughput=3845095 ops/sec,  per_thread_latency=260 nanos/op,  avg_arrival=260 nanos/op
+hist(1,1,1000000,false,0,100)  total_elapsed=85824585 nanos,  throughput=11651673 ops/sec,  per_thread_latency=85 nanos/op,  avg_arrival=85 nanos/op
+hist(1,1,1000000,false,50,100)  total_elapsed=86522304 nanos,  throughput=11557713 ops/sec,  per_thread_latency=86 nanos/op,  avg_arrival=86 nanos/op
+hist(1,1,1000000,true,100,1)  total_elapsed=198743742 nanos,  throughput=5031604 ops/sec,  per_thread_latency=198 nanos/op,  avg_arrival=198 nanos/op
+hist(1,1,1000000,true,0,1)  total_elapsed=636055331 nanos,  throughput=1572190 ops/sec,  per_thread_latency=636 nanos/op,  avg_arrival=636 nanos/op
+hist(1,1,1000000,true,50,1)  total_elapsed=462144129 nanos,  throughput=2163827 ops/sec,  per_thread_latency=462 nanos/op,  avg_arrival=462 nanos/op
+hist(1,1,1000000,true,0,3)  total_elapsed=305682987 nanos,  throughput=3271362 ops/sec,  per_thread_latency=305 nanos/op,  avg_arrival=305 nanos/op
+hist(1,1,1000000,true,50,3)  total_elapsed=331819682 nanos,  throughput=3013685 ops/sec,  per_thread_latency=331 nanos/op,  avg_arrival=331 nanos/op
+hist(1,1,1000000,true,0,100)  total_elapsed=151415006 nanos,  throughput=6604365 ops/sec,  per_thread_latency=151 nanos/op,  avg_arrival=151 nanos/op
+hist(1,1,1000000,true,50,100)  total_elapsed=154108103 nanos,  throughput=6488951 ops/sec,  per_thread_latency=154 nanos/op,  avg_arrival=154 nanos/op
+hist(1,2,500000,false,100,1)  total_elapsed=211703812 nanos,  throughput=4723580 ops/sec,  per_thread_latency=423 nanos/op,  avg_arrival=211 nanos/op
+hist(1,2,500000,false,0,1)  total_elapsed=739488504 nanos,  throughput=1352286 ops/sec,  per_thread_latency=1478 nanos/op,  avg_arrival=739 nanos/op
+hist(1,2,500000,false,50,1)  total_elapsed=406392328 nanos,  throughput=2460676 ops/sec,  per_thread_latency=812 nanos/op,  avg_arrival=406 nanos/op
+hist(1,2,500000,false,0,3)  total_elapsed=310423566 nanos,  throughput=3221404 ops/sec,  per_thread_latency=620 nanos/op,  avg_arrival=310 nanos/op
+hist(1,2,500000,false,50,3)  total_elapsed=445124998 nanos,  throughput=2246559 ops/sec,  per_thread_latency=890 nanos/op,  avg_arrival=445 nanos/op
+hist(1,2,500000,false,0,100)  total_elapsed=86825489 nanos,  throughput=11517355 ops/sec,  per_thread_latency=173 nanos/op,  avg_arrival=86 nanos/op
+hist(1,2,500000,false,50,100)  total_elapsed=274081083 nanos,  throughput=3648555 ops/sec,  per_thread_latency=548 nanos/op,  avg_arrival=274 nanos/op
+hist(1,2,500000,true,100,1)  total_elapsed=213338460 nanos,  throughput=4687387 ops/sec,  per_thread_latency=426 nanos/op,  avg_arrival=213 nanos/op
+hist(1,2,500000,true,0,1)  total_elapsed=719689112 nanos,  throughput=1389488 ops/sec,  per_thread_latency=1439 nanos/op,  avg_arrival=719 nanos/op
+hist(1,2,500000,true,50,1)  total_elapsed=604226799 nanos,  throughput=1655007 ops/sec,  per_thread_latency=1208 nanos/op,  avg_arrival=604 nanos/op
+hist(1,2,500000,true,0,3)  total_elapsed=407377795 nanos,  throughput=2454723 ops/sec,  per_thread_latency=814 nanos/op,  avg_arrival=407 nanos/op
+hist(1,2,500000,true,50,3)  total_elapsed=365159734 nanos,  throughput=2738527 ops/sec,  per_thread_latency=730 nanos/op,  avg_arrival=365 nanos/op
+hist(1,2,500000,true,0,100)  total_elapsed=202951850 nanos,  throughput=4927277 ops/sec,  per_thread_latency=405 nanos/op,  avg_arrival=202 nanos/op
+hist(1,2,500000,true,50,100)  total_elapsed=151867305 nanos,  throughput=6584695 ops/sec,  per_thread_latency=303 nanos/op,  avg_arrival=151 nanos/op
+hist(1,4,250000,false,100,1)  total_elapsed=214336495 nanos,  throughput=4665561 ops/sec,  per_thread_latency=857 nanos/op,  avg_arrival=214 nanos/op
+hist(1,4,250000,false,0,1)  total_elapsed=611361421 nanos,  throughput=1635693 ops/sec,  per_thread_latency=2445 nanos/op,  avg_arrival=611 nanos/op
+hist(1,4,250000,false,50,1)  total_elapsed=554252801 nanos,  throughput=1804230 ops/sec,  per_thread_latency=2217 nanos/op,  avg_arrival=554 nanos/op
+hist(1,4,250000,false,0,3)  total_elapsed=303365774 nanos,  throughput=3296350 ops/sec,  per_thread_latency=1213 nanos/op,  avg_arrival=303 nanos/op
+hist(1,4,250000,false,50,3)  total_elapsed=366229359 nanos,  throughput=2730529 ops/sec,  per_thread_latency=1464 nanos/op,  avg_arrival=366 nanos/op
+hist(1,4,250000,false,0,100)  total_elapsed=120710648 nanos,  throughput=8284273 ops/sec,  per_thread_latency=482 nanos/op,  avg_arrival=120 nanos/op
+hist(1,4,250000,false,50,100)  total_elapsed=121559782 nanos,  throughput=8226405 ops/sec,  per_thread_latency=486 nanos/op,  avg_arrival=121 nanos/op
+hist(1,4,250000,true,100,1)  total_elapsed=226033398 nanos,  throughput=4424124 ops/sec,  per_thread_latency=904 nanos/op,  avg_arrival=226 nanos/op
+hist(1,4,250000,true,0,1)  total_elapsed=773175877 nanos,  throughput=1293366 ops/sec,  per_thread_latency=3092 nanos/op,  avg_arrival=773 nanos/op
+hist(1,4,250000,true,50,1)  total_elapsed=681560432 nanos,  throughput=1467221 ops/sec,  per_thread_latency=2726 nanos/op,  avg_arrival=681 nanos/op
+hist(1,4,250000,true,0,3)  total_elapsed=390985703 nanos,  throughput=2557638 ops/sec,  per_thread_latency=1563 nanos/op,  avg_arrival=390 nanos/op
+hist(1,4,250000,true,50,3)  total_elapsed=412485469 nanos,  throughput=2424327 ops/sec,  per_thread_latency=1649 nanos/op,  avg_arrival=412 nanos/op
+hist(1,4,250000,true,0,100)  total_elapsed=187714814 nanos,  throughput=5327230 ops/sec,  per_thread_latency=750 nanos/op,  avg_arrival=187 nanos/op
+hist(1,4,250000,true,50,100)  total_elapsed=208000794 nanos,  throughput=4807673 ops/sec,  per_thread_latency=832 nanos/op,  avg_arrival=208 nanos/op
+hist(30,1,1000000,false,100,1)  total_elapsed=147167290 nanos,  throughput=6794988 ops/sec,  per_thread_latency=147 nanos/op,  avg_arrival=147 nanos/op
+hist(30,1,1000000,false,0,1)  total_elapsed=654508176 nanos,  throughput=1527864 ops/sec,  per_thread_latency=654 nanos/op,  avg_arrival=654 nanos/op
+hist(30,1,1000000,false,50,1)  total_elapsed=390057854 nanos,  throughput=2563722 ops/sec,  per_thread_latency=390 nanos/op,  avg_arrival=390 nanos/op
+hist(30,1,1000000,false,0,3)  total_elapsed=328850010 nanos,  throughput=3040900 ops/sec,  per_thread_latency=328 nanos/op,  avg_arrival=328 nanos/op
+hist(30,1,1000000,false,50,3)  total_elapsed=279103065 nanos,  throughput=3582905 ops/sec,  per_thread_latency=279 nanos/op,  avg_arrival=279 nanos/op
+hist(30,1,1000000,false,0,100)  total_elapsed=159961414 nanos,  throughput=6251507 ops/sec,  per_thread_latency=159 nanos/op,  avg_arrival=159 nanos/op
+hist(30,1,1000000,false,50,100)  total_elapsed=137006632 nanos,  throughput=7298916 ops/sec,  per_thread_latency=137 nanos/op,  avg_arrival=137 nanos/op
+hist(30,1,1000000,true,100,1)  total_elapsed=171793457 nanos,  throughput=5820943 ops/sec,  per_thread_latency=171 nanos/op,  avg_arrival=171 nanos/op
+hist(30,1,1000000,true,0,1)  total_elapsed=642826571 nanos,  throughput=1555629 ops/sec,  per_thread_latency=642 nanos/op,  avg_arrival=642 nanos/op
+hist(30,1,1000000,true,50,1)  total_elapsed=440786217 nanos,  throughput=2268673 ops/sec,  per_thread_latency=440 nanos/op,  avg_arrival=440 nanos/op
+hist(30,1,1000000,true,0,3)  total_elapsed=401435646 nanos,  throughput=2491059 ops/sec,  per_thread_latency=401 nanos/op,  avg_arrival=401 nanos/op
+hist(30,1,1000000,true,50,3)  total_elapsed=348264432 nanos,  throughput=2871381 ops/sec,  per_thread_latency=348 nanos/op,  avg_arrival=348 nanos/op
+hist(30,1,1000000,true,0,100)  total_elapsed=230902143 nanos,  throughput=4330838 ops/sec,  per_thread_latency=230 nanos/op,  avg_arrival=230 nanos/op
+hist(30,1,1000000,true,50,100)  total_elapsed=204243787 nanos,  throughput=4896109 ops/sec,  per_thread_latency=204 nanos/op,  avg_arrival=204 nanos/op
+hist(30,2,500000,false,100,1)  total_elapsed=92475828 nanos,  throughput=10813636 ops/sec,  per_thread_latency=184 nanos/op,  avg_arrival=92 nanos/op
+hist(30,2,500000,false,0,1)  total_elapsed=469856068 nanos,  throughput=2128311 ops/sec,  per_thread_latency=939 nanos/op,  avg_arrival=469 nanos/op
+hist(30,2,500000,false,50,1)  total_elapsed=244799203 nanos,  throughput=4084980 ops/sec,  per_thread_latency=489 nanos/op,  avg_arrival=244 nanos/op
+hist(30,2,500000,false,0,3)  total_elapsed=299698507 nanos,  throughput=3336686 ops/sec,  per_thread_latency=599 nanos/op,  avg_arrival=299 nanos/op
+hist(30,2,500000,false,50,3)  total_elapsed=318868777 nanos,  throughput=3136086 ops/sec,  per_thread_latency=637 nanos/op,  avg_arrival=318 nanos/op
+hist(30,2,500000,false,0,100)  total_elapsed=152390342 nanos,  throughput=6562095 ops/sec,  per_thread_latency=304 nanos/op,  avg_arrival=152 nanos/op
+hist(30,2,500000,false,50,100)  total_elapsed=172090218 nanos,  throughput=5810905 ops/sec,  per_thread_latency=344 nanos/op,  avg_arrival=172 nanos/op
+hist(30,2,500000,true,100,1)  total_elapsed=135153385 nanos,  throughput=7399000 ops/sec,  per_thread_latency=270 nanos/op,  avg_arrival=135 nanos/op
+hist(30,2,500000,true,0,1)  total_elapsed=643797854 nanos,  throughput=1553282 ops/sec,  per_thread_latency=1287 nanos/op,  avg_arrival=643 nanos/op
+hist(30,2,500000,true,50,1)  total_elapsed=288463898 nanos,  throughput=3466638 ops/sec,  per_thread_latency=576 nanos/op,  avg_arrival=288 nanos/op
+hist(30,2,500000,true,0,3)  total_elapsed=383923925 nanos,  throughput=2604682 ops/sec,  per_thread_latency=767 nanos/op,  avg_arrival=383 nanos/op
+hist(30,2,500000,true,50,3)  total_elapsed=352046925 nanos,  throughput=2840530 ops/sec,  per_thread_latency=704 nanos/op,  avg_arrival=352 nanos/op
+hist(30,2,500000,true,0,100)  total_elapsed=203805325 nanos,  throughput=4906643 ops/sec,  per_thread_latency=407 nanos/op,  avg_arrival=203 nanos/op
+hist(30,2,500000,true,50,100)  total_elapsed=295995848 nanos,  throughput=3378425 ops/sec,  per_thread_latency=591 nanos/op,  avg_arrival=295 nanos/op
+hist(30,4,250000,false,100,1)  total_elapsed=110278304 nanos,  throughput=9067966 ops/sec,  per_thread_latency=441 nanos/op,  avg_arrival=110 nanos/op
+hist(30,4,250000,false,0,1)  total_elapsed=417929218 nanos,  throughput=2392749 ops/sec,  per_thread_latency=1671 nanos/op,  avg_arrival=417 nanos/op
+hist(30,4,250000,false,50,1)  total_elapsed=363149407 nanos,  throughput=2753687 ops/sec,  per_thread_latency=1452 nanos/op,  avg_arrival=363 nanos/op
+hist(30,4,250000,false,0,3)  total_elapsed=274139123 nanos,  throughput=3647782 ops/sec,  per_thread_latency=1096 nanos/op,  avg_arrival=274 nanos/op
+hist(30,4,250000,false,50,3)  total_elapsed=320638702 nanos,  throughput=3118775 ops/sec,  per_thread_latency=1282 nanos/op,  avg_arrival=320 nanos/op
+hist(30,4,250000,false,0,100)  total_elapsed=180700737 nanos,  throughput=5534011 ops/sec,  per_thread_latency=722 nanos/op,  avg_arrival=180 nanos/op
+hist(30,4,250000,false,50,100)  total_elapsed=196994001 nanos,  throughput=5076296 ops/sec,  per_thread_latency=787 nanos/op,  avg_arrival=196 nanos/op
+hist(30,4,250000,true,100,1)  total_elapsed=196364788 nanos,  throughput=5092562 ops/sec,  per_thread_latency=785 nanos/op,  avg_arrival=196 nanos/op
+hist(30,4,250000,true,0,1)  total_elapsed=650711575 nanos,  throughput=1536779 ops/sec,  per_thread_latency=2602 nanos/op,  avg_arrival=650 nanos/op
+hist(30,4,250000,true,50,1)  total_elapsed=269697741 nanos,  throughput=3707854 ops/sec,  per_thread_latency=1078 nanos/op,  avg_arrival=269 nanos/op
+hist(30,4,250000,true,0,3)  total_elapsed=379172521 nanos,  throughput=2637321 ops/sec,  per_thread_latency=1516 nanos/op,  avg_arrival=379 nanos/op
+hist(30,4,250000,true,50,3)  total_elapsed=293500745 nanos,  throughput=3407146 ops/sec,  per_thread_latency=1174 nanos/op,  avg_arrival=293 nanos/op
+hist(30,4,250000,true,0,100)  total_elapsed=203416308 nanos,  throughput=4916026 ops/sec,  per_thread_latency=813 nanos/op,  avg_arrival=203 nanos/op
+hist(30,4,250000,true,50,100)  total_elapsed=296630570 nanos,  throughput=3371196 ops/sec,  per_thread_latency=1186 nanos/op,  avg_arrival=296 nanos/op
+hist(10000,1,1000000,false,100,1)  total_elapsed=172834104 nanos,  throughput=5785895 ops/sec,  per_thread_latency=172 nanos/op,  avg_arrival=172 nanos/op
+hist(10000,1,1000000,false,0,1)  total_elapsed=602301886 nanos,  throughput=1660296 ops/sec,  per_thread_latency=602 nanos/op,  avg_arrival=602 nanos/op
+hist(10000,1,1000000,false,50,1)  total_elapsed=381454812 nanos,  throughput=2621542 ops/sec,  per_thread_latency=381 nanos/op,  avg_arrival=381 nanos/op
+hist(10000,1,1000000,false,0,3)  total_elapsed=342249230 nanos,  throughput=2921847 ops/sec,  per_thread_latency=342 nanos/op,  avg_arrival=342 nanos/op
+hist(10000,1,1000000,false,50,3)  total_elapsed=289235926 nanos,  throughput=3457385 ops/sec,  per_thread_latency=289 nanos/op,  avg_arrival=289 nanos/op
+hist(10000,1,1000000,false,0,100)  total_elapsed=238713393 nanos,  throughput=4189123 ops/sec,  per_thread_latency=238 nanos/op,  avg_arrival=238 nanos/op
+hist(10000,1,1000000,false,50,100)  total_elapsed=237976767 nanos,  throughput=4202090 ops/sec,  per_thread_latency=237 nanos/op,  avg_arrival=237 nanos/op
+hist(10000,1,1000000,true,100,1)  total_elapsed=189639232 nanos,  throughput=5273170 ops/sec,  per_thread_latency=189 nanos/op,  avg_arrival=189 nanos/op
+hist(10000,1,1000000,true,0,1)  total_elapsed=642784665 nanos,  throughput=1555730 ops/sec,  per_thread_latency=642 nanos/op,  avg_arrival=642 nanos/op
+hist(10000,1,1000000,true,50,1)  total_elapsed=425473884 nanos,  throughput=2350320 ops/sec,  per_thread_latency=425 nanos/op,  avg_arrival=425 nanos/op
+hist(10000,1,1000000,true,0,3)  total_elapsed=408225670 nanos,  throughput=2449625 ops/sec,  per_thread_latency=408 nanos/op,  avg_arrival=408 nanos/op
+hist(10000,1,1000000,true,50,3)  total_elapsed=349512298 nanos,  throughput=2861129 ops/sec,  per_thread_latency=349 nanos/op,  avg_arrival=349 nanos/op
+hist(10000,1,1000000,true,0,100)  total_elapsed=277343263 nanos,  throughput=3605640 ops/sec,  per_thread_latency=277 nanos/op,  avg_arrival=277 nanos/op
+hist(10000,1,1000000,true,50,100)  total_elapsed=276701897 nanos,  throughput=3613997 ops/sec,  per_thread_latency=276 nanos/op,  avg_arrival=276 nanos/op
+hist(10000,2,500000,false,100,1)  total_elapsed=80631633 nanos,  throughput=12402080 ops/sec,  per_thread_latency=161 nanos/op,  avg_arrival=80 nanos/op
+hist(10000,2,500000,false,0,1)  total_elapsed=625573960 nanos,  throughput=1598532 ops/sec,  per_thread_latency=1251 nanos/op,  avg_arrival=625 nanos/op
+hist(10000,2,500000,false,50,1)  total_elapsed=384278721 nanos,  throughput=2602277 ops/sec,  per_thread_latency=768 nanos/op,  avg_arrival=384 nanos/op
+hist(10000,2,500000,false,0,3)  total_elapsed=190576586 nanos,  throughput=5247234 ops/sec,  per_thread_latency=381 nanos/op,  avg_arrival=190 nanos/op
+hist(10000,2,500000,false,50,3)  total_elapsed=163056030 nanos,  throughput=6132861 ops/sec,  per_thread_latency=326 nanos/op,  avg_arrival=163 nanos/op
+hist(10000,2,500000,false,0,100)  total_elapsed=242930445 nanos,  throughput=4116404 ops/sec,  per_thread_latency=485 nanos/op,  avg_arrival=242 nanos/op
+hist(10000,2,500000,false,50,100)  total_elapsed=203004724 nanos,  throughput=4925993 ops/sec,  per_thread_latency=406 nanos/op,  avg_arrival=203 nanos/op
+hist(10000,2,500000,true,100,1)  total_elapsed=223066864 nanos,  throughput=4482960 ops/sec,  per_thread_latency=446 nanos/op,  avg_arrival=223 nanos/op
+hist(10000,2,500000,true,0,1)  total_elapsed=417784436 nanos,  throughput=2393578 ops/sec,  per_thread_latency=835 nanos/op,  avg_arrival=417 nanos/op
+hist(10000,2,500000,true,50,1)  total_elapsed=280710618 nanos,  throughput=3562387 ops/sec,  per_thread_latency=561 nanos/op,  avg_arrival=280 nanos/op
+hist(10000,2,500000,true,0,3)  total_elapsed=373458405 nanos,  throughput=2677674 ops/sec,  per_thread_latency=746 nanos/op,  avg_arrival=373 nanos/op
+hist(10000,2,500000,true,50,3)  total_elapsed=378206880 nanos,  throughput=2644055 ops/sec,  per_thread_latency=756 nanos/op,  avg_arrival=378 nanos/op
+hist(10000,2,500000,true,0,100)  total_elapsed=538077923 nanos,  throughput=1858466 ops/sec,  per_thread_latency=1076 nanos/op,  avg_arrival=538 nanos/op
+hist(10000,2,500000,true,50,100)  total_elapsed=341589020 nanos,  throughput=2927494 ops/sec,  per_thread_latency=683 nanos/op,  avg_arrival=341 nanos/op
+hist(10000,4,250000,false,100,1)  total_elapsed=117489963 nanos,  throughput=8511365 ops/sec,  per_thread_latency=469 nanos/op,  avg_arrival=117 nanos/op
+hist(10000,4,250000,false,0,1)  total_elapsed=436180494 nanos,  throughput=2292628 ops/sec,  per_thread_latency=1744 nanos/op,  avg_arrival=436 nanos/op
+hist(10000,4,250000,false,50,1)  total_elapsed=322441815 nanos,  throughput=3101334 ops/sec,  per_thread_latency=1289 nanos/op,  avg_arrival=322 nanos/op
+hist(10000,4,250000,false,0,3)  total_elapsed=239804036 nanos,  throughput=4170071 ops/sec,  per_thread_latency=959 nanos/op,  avg_arrival=239 nanos/op
+hist(10000,4,250000,false,50,3)  total_elapsed=281336261 nanos,  throughput=3554465 ops/sec,  per_thread_latency=1125 nanos/op,  avg_arrival=281 nanos/op
+hist(10000,4,250000,false,0,100)  total_elapsed=260875323 nanos,  throughput=3833248 ops/sec,  per_thread_latency=1043 nanos/op,  avg_arrival=260 nanos/op
+hist(10000,4,250000,false,50,100)  total_elapsed=240086900 nanos,  throughput=4165158 ops/sec,  per_thread_latency=960 nanos/op,  avg_arrival=240 nanos/op
+hist(10000,4,250000,true,100,1)  total_elapsed=202530988 nanos,  throughput=4937516 ops/sec,  per_thread_latency=810 nanos/op,  avg_arrival=202 nanos/op
+hist(10000,4,250000,true,0,1)  total_elapsed=445526031 nanos,  throughput=2244537 ops/sec,  per_thread_latency=1782 nanos/op,  avg_arrival=445 nanos/op
+hist(10000,4,250000,true,50,1)  total_elapsed=370353382 nanos,  throughput=2700123 ops/sec,  per_thread_latency=1481 nanos/op,  avg_arrival=370 nanos/op
+hist(10000,4,250000,true,0,3)  total_elapsed=332753052 nanos,  throughput=3005231 ops/sec,  per_thread_latency=1331 nanos/op,  avg_arrival=332 nanos/op
+hist(10000,4,250000,true,50,3)  total_elapsed=262457166 nanos,  throughput=3810145 ops/sec,  per_thread_latency=1049 nanos/op,  avg_arrival=262 nanos/op
+hist(10000,4,250000,true,0,100)  total_elapsed=394690467 nanos,  throughput=2533630 ops/sec,  per_thread_latency=1578 nanos/op,  avg_arrival=394 nanos/op
+hist(10000,4,250000,true,50,100)  total_elapsed=384601116 nanos,  throughput=2600096 ops/sec,  per_thread_latency=1538 nanos/op,  avg_arrival=384 nanos/op
+Config(3,50,50,4,2048,0.5,0,<function0>)
+computing sequentially...
+computing in parallel with transactions...
+Config(3,50,50,2,2048,0.5,0,<function0>)
+computing sequentially...
+computing in parallel with transactions...
+Config(3,50,50,2,2048,0.5,0,<function0>)
+computing sequentially...
+computing in parallel with transactions...
+Config(3,100,100,4,4096,0.5,0,<function0>)
+computing sequentially...
+computing in parallel with transactions...
+Config(3,100,100,4,4096,0.5,0,<function0>)
+computing sequentially...
+computing in parallel with transactions...
+Config(3,100,100,4,4096,0.5,0,<function0>)
+computing sequentially...
+computing in parallel with transactions...
+Config(3,100,100,4,4096,0.5,250606730945822,<function0>)
+computing sequentially...
+computing in parallel with transactions...
+[info] == test-finish ==
+[info] Passed: : Total 2179, Failed 0, Errors 0, Passed 2179, Skipped 0
+[info]  
+[info] All tests PASSED.
+[info] == test-finish ==
+[info] 
+[info] == test-cleanup ==
+[info] 
+[info] == test ==
+[success] Successful.
+[info] 
+[info] Total time: 136 s, completed Apr 26, 2010 8:59:01 PM
+[info] 
+[info] == compile ==
+[info]   Source analysis: 0 new/modified, 0 indirectly invalidated, 0 removed.
+[info] Compiling main sources...
+[info] Nothing to compile.
+[info]   Post-analysis: 314 classes.
+[info] == compile ==
+[info] 
+[info] == copy-resources ==
+[info] 
+[info] == test-compile ==
+[info]   Source analysis: 0 new/modified, 0 indirectly invalidated, 0 removed.
+[info] Compiling test sources...
+[info] Nothing to compile.
+[info]   Post-analysis: 704 classes.
+[info] == test-compile ==
+[info] 
+[info] == copy-test-resources ==
+[info] 
