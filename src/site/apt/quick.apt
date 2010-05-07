@@ -17,8 +17,9 @@ class Node(val elem: Int, next0: Node) {
 }
 ----
 
-  3. Read the <<<Ref>>>'s contents with <<<apply()>>>, update it with
-     <<<:= v>>>.
+  3. Read a <<<Ref x>>>'s contents with <<<x()>>>, update it with
+     <<<x() = v>>>.  (These functions are <<<apply()>>> and
+     <<<update(v)>>> respectively.)
 
   4. Wrap your code in an atomic block at whatever granularity makes sense for
      your application.  CCSTM will run atomic blocks in parallel using
@@ -30,7 +31,7 @@ val top = Ref(null : Node) // or Ref[Node](null)
 
 def push(elem: Int) {
   STM.atomic { implicit t =>
-    top := new Node(elem, top())
+    top() = new Node(elem, top())
   }
 }
 ----
@@ -51,6 +52,6 @@ def pushAll(elems: A*) {
 def isEmpty = top.single() == null
 //def isEmpty = STM.atomic { implicit t => top() == null }
 
-def clear() { top.single := null }
-// def clear() { STM.atomic { implicit t => top := null } }
+def clear() { top.single() = null }
+// def clear() { STM.atomic { implicit t => top() = null } }
 ----

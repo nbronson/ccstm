@@ -39,7 +39,7 @@ import annotation.tailrec
  *
  *    def tryWithdrawal(m: BigDecimal) = STM.atomic { implicit t =>
  *      if (bal() >= m) {
- *        bal := bal() - m
+ *        bal() = bal() - m
  *        true
  *      } else {
  *        false
@@ -47,7 +47,7 @@ import annotation.tailrec
  *    }
  *
  *    def deposit(m: BigDecimal)(implicit txn: Txn) {
- *      bal := bal() + m
+ *      bal() = bal() + m
  *    }
  *  }
  *
@@ -236,8 +236,8 @@ object STM {
    *  {{{
    *    atomic { implicit t =>
    *      val (a,b,z) = f(refA(), refB())
-   *      refA := a
-   *      refB := b
+   *      refA() = a
+   *      refB() = b
    *      z
    *    }
    *  }}}
@@ -253,8 +253,8 @@ object STM {
     } else {
       atomic { t1 => implicit val t = t1 // TODO: revert after IntelliJ plugin accepts the better syntax
         val (a,b,z) = f(refA(), refB())
-        refA := a
-        refB := b
+        refA() = a
+        refB() = b
         z
       }
     }

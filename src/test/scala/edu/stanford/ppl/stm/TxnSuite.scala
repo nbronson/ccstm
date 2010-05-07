@@ -29,10 +29,10 @@ class TxnSuite extends STMFunSuite {
       assert(b1.get === 1)
       val b2 = x.bind
       assert(b2.get === 1)
-      b1 := 2
+      b1() = 2
       assert(b1.get === 2)
       assert(b2.get === 2)
-      b2 := 3
+      b2() = 3
       assert(b1.get === 3)
       assert(b2.get === 3)
     }}.run
@@ -45,7 +45,7 @@ class TxnSuite extends STMFunSuite {
     val x = Ref(1)
     intercept[UserException] {
       new Atomic { def body {
-        x := 2
+        x() = 2
         throw new UserException
       }}.run
     }
@@ -62,7 +62,7 @@ class TxnSuite extends STMFunSuite {
   def nonLocalReturnHelper(x: Ref[Int]): Int = {
     STM.atomic((t: Txn) => {
       implicit val txn = t
-      x := x() + 1
+      x() = x() + 1
       return x()
     })
     return -1
@@ -73,7 +73,7 @@ class TxnSuite extends STMFunSuite {
     val y = Ref(false)
     val z = Ref(false)
     for ((ref,name) <- List((x,"x"), (y,"y"), (z,"z"))) {
-      new Thread("wakeup") { override def run { Thread.sleep(200) ; ref.single := true }}.start()
+      new Thread("wakeup") { override def run { Thread.sleep(200) ; ref.single() = true }}.start()
 
       val result = Ref("")
       var sleeps = 0
@@ -83,7 +83,7 @@ class TxnSuite extends STMFunSuite {
           (txn: Txn) => { if (z.get(txn)) result.set("z")(txn) else txn.retry },
           (txn: Txn) => { sleeps += 1; txn.retry }
         )
-      ref.single := false
+      ref.single() = false
       assert(result.single.get === name)
       assert(sleeps <= 1)
     }
@@ -107,7 +107,7 @@ class TxnSuite extends STMFunSuite {
       false
     }}
     assert(a.run() === false)
-    x.single := 2
+    x.single() = 2
     assert(a.run() === true)
   }
 
@@ -149,7 +149,7 @@ class TxnSuite extends STMFunSuite {
       assert(x() === 13)
       assert(xs() === 13)
       assert(x.single() === 13)
-      x.single := 14
+      x.single() = 14
       assert(x() === 14)
       assert(xs.mode == Single)
     }
@@ -177,11 +177,11 @@ class TxnSuite extends STMFunSuite {
         i += 1
         STM.atomic { implicit t =>
           assert(x() == "abc")
-          x := "def"
+          x() = "def"
         }
         STM.atomic { implicit t =>
           assert(x() == "def")
-          x := "abc"
+          x() = "abc"
         }
       }
       val elapsed = System.nanoTime - begin

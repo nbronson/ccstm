@@ -52,13 +52,13 @@ class TokenRingSuite extends STMFunSuite {
           for (h <- 0 until handoffsPerThread) {
             if (!useTxns) {
               ready(index).nonTxn.await(f => f)
-              ready(index).nonTxn := false
-              ready(next).nonTxn := true
+              ready(index).nonTxn() = false
+              ready(next).nonTxn() = true
             } else {
               new Atomic { def body {
                 if (ready(index).get == false) retry
-                ready(index) := false
-                ready(next) := true
+                ready(index)() = false
+                ready(next)() = true
               }}.run
             }
           }

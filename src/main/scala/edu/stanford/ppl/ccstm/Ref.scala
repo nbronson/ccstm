@@ -254,7 +254,7 @@ object Ref {
  *  participate in an atomic block for which the `Txn` is not conveniently
  *  available, just create a new atomic block using `STM.atomic`.  In the
  *  static scope of an atomic block reads and writes of a `x: Ref` are
- *  performed with either `x.get` and `x.set(v)`, or with `x()` and `x := v`.
+ *  performed with either `x.get` and `x.set(v)`, or with `x()` and `x() = v`.
  *  `single` provides a means to dynamically resolve the current scope during
  *  each method call.
  *

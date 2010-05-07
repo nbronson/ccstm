@@ -205,7 +205,7 @@ private object LazyConflictRef {
       _updaterRegistered = true
       txn.beforeCommit(t => {
         if (_value != _read.value) {
-          _uview := _value
+          _uview() = _value
         }
         // clearing the flag here means that if a later beforeCommit callback
         // does another store on this ref, we will register a new handler and

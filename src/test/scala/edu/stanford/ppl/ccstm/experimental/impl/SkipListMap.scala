@@ -84,7 +84,7 @@ class SkipListMap[A,B](implicit aMan: Manifest[A], bMan: Manifest[B]) extends TM
   private def newHead = new SLNode(null.asInstanceOf[A], null.asInstanceOf[B], 1)
 
   def clear()(implicit txn: Txn) {
-    head := newHead
+    head() = newHead
   }
 
   def containsKey(key: A)(implicit txn: Txn) = null != getNode(key)

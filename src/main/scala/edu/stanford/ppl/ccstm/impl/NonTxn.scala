@@ -406,8 +406,8 @@ private[ccstm] object NonTxn {
               val refA = new TxnView(null, handleA, t)
               val refB = new TxnView(null, handleB, t)
               val (a,b,z) = f(refA.readForWrite, refB.readForWrite)
-              refA := a
-              refB := b
+              refA() = a
+              refB() = b
               z
             })
           }
