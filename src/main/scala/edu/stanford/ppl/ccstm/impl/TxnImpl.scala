@@ -51,7 +51,7 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
     !failureHistory.isEmpty && failureHistory.head.isInstanceOf[ExplicitRetryCause]
   }
 
-  /** `orElse` right-hand sides are stashed here before the left-most
+  /** `orAtomic` right-hand sides are stashed here before the left-most
    *  child `atomic` is executed.
    */
   private[ccstm] var childAlternatives: List[Txn => Any] = Nil

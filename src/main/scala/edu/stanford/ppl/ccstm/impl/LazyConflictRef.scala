@@ -161,7 +161,10 @@ private object LazyConflictRef {
       if (num.zero != rhs) {
         _value = num.plus(_value, rhs)
         _tail match {
-          case incr: Incr[T] => incr.delta = num.plus(incr.delta, rhs)
+          case i: Incr[_] => {
+            val incr = i.asInstanceOf[Incr[T]]
+            incr.delta = num.plus(incr.delta, rhs)
+          }
           case _ => record(new Incr(rhs))
         }
       }
