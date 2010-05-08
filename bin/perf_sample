@@ -8,7 +8,9 @@ cd $BASE
 WHEN=`date '+%Y%m%d-%H%M%S'`
 DIR="perf/`hostname`/perf-$WHEN"
 
-VERSIONS="`awk -F= '$1==\"build.scala.versions\" {print $2}' project/build.properties | sed 's/,/ /g'`"
+if [ "x$VERSIONS" = "x" ]; then
+  VERSIONS="`awk -F= '$1==\"build.scala.versions\" {print $2}' project/build.properties | sed 's/,/ /g'`"
+fi
 
 mkdir -p "$DIR"
 git show --quiet HEAD > "$DIR"/git.hash
