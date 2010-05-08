@@ -12,7 +12,7 @@ package edu.stanford.ppl.ccstm
  *
  *    val x = Ref(10)
  *    atomic {
- *      x := x() + 1
+ *      x() = x() + 1
  *    }
  *  }}}
  *

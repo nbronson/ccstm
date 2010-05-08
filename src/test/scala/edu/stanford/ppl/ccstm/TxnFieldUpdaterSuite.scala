@@ -27,7 +27,7 @@ class TxnFieldUpdaterSuite extends STMFunSuite {
     IField(r2).single.set(1)
     assert(IField(r2).single.get === 1)
 
-    SField(r2).single := "def"
+    SField(r2).single() = "def"
     assert(SField(r2).single.get === "def")
   }
 
@@ -49,7 +49,7 @@ class TxnFieldUpdaterSuite extends STMFunSuite {
     IField(r2).escaped.set(1)
     assert(IField(r2).escaped.get === 1)
 
-    SField(r2).escaped := "def"
+    SField(r2).escaped() = "def"
     assert(SField(r2).escaped.get === "def")
   }
 
@@ -64,7 +64,7 @@ class TxnFieldUpdaterSuite extends STMFunSuite {
       IField(r).set(1)
       assert(IField(r).get === 1)
 
-      SField(r) := "def"
+      SField(r)() = "def"
       assert(SField(r).get === "def")
     }}.run()
 
@@ -76,7 +76,7 @@ class TxnFieldUpdaterSuite extends STMFunSuite {
     assert(newIField == newIField)
     assert(newIField != newSField)
     val r = new TFUSObj
-    newIField(r).single := 2
+    newIField(r).single() = 2
     assert(newIField(r).single.get === 2)
   }
 }

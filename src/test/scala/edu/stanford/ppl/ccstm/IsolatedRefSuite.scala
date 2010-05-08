@@ -99,7 +99,7 @@ class IsolatedRefSuite extends STMFunSuite {
     test(fact + ": " + binder + ": counter") {
       val x = fact(1)
       val r = binder(x).get + 1
-      binder(x) := r
+      binder(x)() = r
       assert(binder(x).get === 2)
       binder.reset()
     }
@@ -117,7 +117,7 @@ class IsolatedRefSuite extends STMFunSuite {
       while (i < 10) {
         i += 1
         val v = binder(x)()
-        binder(x) := v + 1
+        binder(x)() = v + 1
       }
     }
 
@@ -159,7 +159,7 @@ class IsolatedRefSuite extends STMFunSuite {
 
     test(fact + ": " + binder + ": getWith + write") {
       val x = fact(1)
-      binder(x) := 2
+      binder(x)() = 2
       assert(binder(x).getWith(_ * 10) === 20)
       binder.reset()
     }
@@ -167,7 +167,7 @@ class IsolatedRefSuite extends STMFunSuite {
     test(fact + ": " + binder + ": write + getWith") {
       val x = fact(1)
       assert(binder(x).getWith(_ * 10) === 10)
-      binder(x) := 2
+      binder(x)() = 2
       binder.reset()
     }
 
@@ -292,7 +292,7 @@ class IsolatedRefSuite extends STMFunSuite {
         binder(x).transformIfDefined(pfThrowLate)
       }
       assert(binder(x).get === 1)
-      binder(x) := 2
+      binder(x)() = 2
       assert(binder(x).get === 2)
       binder.reset()
     }
@@ -308,8 +308,8 @@ class IsolatedRefSuite extends STMFunSuite {
     test(fact + ": " + binder + ": unrecordedRead ABA") {
       val x = fact(1)
       val u = binder(x).unrecordedRead
-      for (i <- 0 until 1001) binder(x) := 2
-      for (i <- 0 until 1001) binder(x) := 1
+      for (i <- 0 until 1001) binder(x)() = 2
+      for (i <- 0 until 1001) binder(x)() = 1
       assert(u.value === 1)
       assert(binder(x).get === 1)
       assert(!u.stillValid)
@@ -321,9 +321,9 @@ class IsolatedRefSuite extends STMFunSuite {
       val b = binder(x)
       if (b.mode.isInstanceOf[Txn]) {
         val u1 = b.unrecordedRead
-        b := 2
+        b() = 2
         val u2 = b.unrecordedRead
-        b := 3
+        b() = 3
         val u3 = b.unrecordedRead
         assert(u1.stillValid)
         assert(u1.value === 1)
@@ -336,7 +336,7 @@ class IsolatedRefSuite extends STMFunSuite {
     test(fact + ": " + binder + ": simple releasableRead") {
       val x = fact(1)
       val r1 = binder(x).releasableRead
-      binder(x) := 2
+      binder(x)() = 2
       val r2 = binder(x).releasableRead
       r1.release()
       r2.release()

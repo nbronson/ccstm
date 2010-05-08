@@ -263,6 +263,6 @@ class ChainingHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TM
     // now create the transactional array, giving ourself up to 512 metadata
     // locations, with neighboring array elements getting different metadata
     // mappings
-    bucketsRef := TArray(after, TArray.Striped(512))
+    bucketsRef() = TArray(after, TArray.Striped(512))
   }
 }

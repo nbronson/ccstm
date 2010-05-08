@@ -167,15 +167,15 @@ object TSPAnts {
         val edge = Edge(p._1, p._2)
         new Atomic { def body {
           pheromones(edge).transform(_ + Q / len)
-          probs(edge) := prob(edge)
+          probs(edge)() = prob(edge)
         }}.run
       }
       // are we the new best?
       if (len < bestLength.nonTxn.get) {
         new Atomic { def body {
           if (len < bestLength()) {
-            bestLength := len
-            bestTour := t
+            bestLength() = len
+            bestTour() = t
           }
         }}.run
         brag(len, t)
@@ -187,7 +187,7 @@ object TSPAnts {
   }
 
   def run(nants: Int) = {
-    ants.nonTxn := Array.tabulate(nants)({ _ => new Thread {
+    ants.nonTxn() = Array.tabulate(nants)({ _ => new Thread {
       override def run { tourLoop }
     }})
     for (ant <- ants.nonTxn.get) ant.start

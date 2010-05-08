@@ -129,15 +129,15 @@ class Node(val e: Int, next0: Node) {
 * Syntax for an atomic block
 
   To execute a block of code atomically using CCSTM, pass it to
-  <<<STM.atomic[A](block: Txn => A)>>>.  This method will create or join a
-  transaction, then pass the transaction to the block.  The two most
+  <<<STM.atomic[A](block: Txn => A)>>>.  This method will create or join
+  a transaction, then pass the transaction to the block.  The two most
   important methods of <<<Ref[A]>>> are <<<apply()(implicit t: Txn): A>>>,
-  which performs a transactional read, and <<<:=(v: A)(implicit t: Txn)>>>,
-  which performs a transactional write.  (These are also available as
-  <<<get(implicit t: Txn)>>> and <<<set(v)(implicit t: Txn)>>>.)  The <<<Txn>>>
-  parameter can be omitted from the code if an implicit <<<Txn>>> is available
-  in the current scope, which leads to the idiomatic way of writing a
-  CCSTM transaction:
+  which performs a transactional read, and <<<update(v: A)(implicit
+  t: Txn)>>>, which performs a transactional write.  (These are also
+  available as <<<get(implicit t: Txn)>>> and <<<set(v)(implicit t:
+  Txn)>>>.)  The <<<Txn>>> parameter can be omitted from the code if an
+  implicit <<<Txn>>> is available in the current scope, which leads to
+  the idiomatic way of writing a CCSTM transaction:
 
 ----
 STM.atomic { implicit t =>
@@ -175,7 +175,7 @@ class IntSet {
       def loop(prev: Node) {
         val cur = prev.next()
         if (cur == null || cur.e > e)
-          prev.next := new Node(e, cur)
+          prev.next() = new Node(e, cur)
         else if (cur.e != e)
           loop(cur)
       }
@@ -246,7 +246,7 @@ ref.single.operation
   corresponding atomic block.
 
   The bound views support basic reads (<<<ref.single()>>>) and writes
-  (<<<ref.single := v>>>), as well as operations that perform both a read
+  (<<<ref.single() = v>>>), as well as operations that perform both a read
   and a write.  Perhaps the most useful is <<<getAndTransform(f: A =>
   A)>>>, which atomically replaces the value <<<v>>> stored in the <<<Ref>>> with
   <<<f(v)>>>, and then returns the old value.

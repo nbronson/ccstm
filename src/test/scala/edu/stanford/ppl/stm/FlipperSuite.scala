@@ -193,7 +193,7 @@ class FlipperSuite extends STMFunSuite {
       for (thread <- 0 until config.threadCount) {
         (new FlipperTask(config, A, P, true, thread, sync) {
           def read[T](ref: Ref[T]): T = ref.escaped.get
-          def write[T](ref: Ref[T], v: T) { ref.escaped := v }
+          def write[T](ref: Ref[T], v: T) { ref.escaped() = v }
           def doWork(task: => Unit) { task }
         })()
       }
@@ -209,7 +209,7 @@ class FlipperSuite extends STMFunSuite {
           implicit var txn: Txn = null
 
           def read[T](ref: Ref[T]): T = ref()
-          def write[T](ref: Ref[T], v: T) { ref := v }
+          def write[T](ref: Ref[T], v: T) { ref() = v }
           def doWork(task: => Unit) {
             new Atomic { def body {
               txn = currentTxn

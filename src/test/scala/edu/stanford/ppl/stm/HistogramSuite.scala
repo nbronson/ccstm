@@ -91,8 +91,8 @@ class HistogramSuite extends STMFunSuite {
                 while (j < samplesPerTxn && i + j < samplesPerWorker) {
                   val tv = buckets(Math.abs(hash(worker, i + j) % bucketCount))
                   //tv.getAndTransform(_ + 1)
-                  tv := tv() + 1
-                  //tv := tv.bind.readForWrite + 1
+                  tv() = tv() + 1
+                  //tv() = tv.bind.readForWrite + 1
                   j += 1
                 }
               }}.run

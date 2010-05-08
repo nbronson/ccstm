@@ -13,7 +13,7 @@ object atomic {
   def oneOf[Z](blocks: (Txn => Z)*) = STM.atomicOrElse(blocks: _*)
 
   class Delayed[A](lhs: => A) {
-    def orElse[B >: A](rhs: Txn => B)(implicit mt: MaybeTxn): B = {
+    def orAtomic[B >: A](rhs: Txn => B)(implicit mt: MaybeTxn): B = {
       var ctx: ThreadContext = null
       val txn = mt match {
         case t: Txn => t

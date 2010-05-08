@@ -28,7 +28,7 @@ object Sink {
     /** Writes to the bound `Ref`, equivalent to `set`.
      *  @see edu.stanford.ppl.ccstm.Sink.View#set
      */
-    def :=(v: T) { set(v) }
+    def update(v: T) { set(v) }
 
     /** Updates the value referred to by the bound `Ref`.
      *  @param v a value to store in `unbind` using the current binding mode.
@@ -60,7 +60,7 @@ trait Sink[-T] {
   /** Performs a transactional write.  Equivalent to `set(v)`.
    *  @see edu.stanford.ppl.ccstm.Sink#set
    */
-  def :=(v: T)(implicit txn: Txn) { set(v) }
+  def update(v: T)(implicit txn: Txn) { set(v) }
 
   /** Performs a transactional write.  The new value will not be visible by
    *  any other transactions or any non-transactional accesses until (and

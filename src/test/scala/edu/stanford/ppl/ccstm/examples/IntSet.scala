@@ -56,7 +56,7 @@ object IntSet {
         def loop(prev: Node) {
           val cur = prev.next()
           if (cur == null || cur.e > e)
-            prev.next := new Node(e, cur)
+            prev.next() = new Node(e, cur)
           else if (cur.e != e)
             loop(cur)
         }
@@ -92,7 +92,7 @@ object IntSet {
 //    def loop(incoming: Ref[Node]): Boolean = {
 //      val n = incoming()
 //      if (n == null || n.element > e) {
-//        incoming := new Node(e, n)
+//        incoming() = new Node(e, n)
 //        true
 //      } else {
 //        n.element != e && loop(n.next)
@@ -109,7 +109,7 @@ object IntSet {
 //    def loop(incoming: Ref[Node]): Boolean = {
 //      val n = incoming()
 //      if (n != null && n.element == e) {
-//        incoming := n.next()
+//        incoming() = n.next()
 //        true
 //      } else {
 //        n != null && n.element < e && loop(n.next)

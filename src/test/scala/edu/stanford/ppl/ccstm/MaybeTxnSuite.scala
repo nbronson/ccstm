@@ -25,13 +25,13 @@ class MaybeTxnSuite extends STMFunSuite {
     val x = Ref(10)
     STM.atomic { implicit t =>
       assert(x() === 10)
-      x := 11
+      x() = 11
       STM.atomic { implicit t =>
         assert(x() === 11)
-        x := 12
+        x() = 12
         STM.atomic { implicit t =>
           assert(x() === 12)
-          x := 13
+          x() = 13
         }
         assert(x() === 13)
       }
@@ -47,7 +47,7 @@ class MaybeTxnSuite extends STMFunSuite {
       STM.atomic { implicit t =>
         assert(x() === expected)
         assert(xs() === expected)
-        x := expected + 1
+        x() = expected + 1
         if (expected < 100) loop(expected + 1)
         assert(x() === 101)
       }

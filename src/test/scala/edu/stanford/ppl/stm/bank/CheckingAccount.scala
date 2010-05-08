@@ -15,7 +15,7 @@ class CheckingAccount(val name: String, initialBalance: Float) extends Account {
 
   def deposit(amount: Float)(implicit txn: Txn) {
     assert(amount >= 0)
-    _balance := _balance() + amount
+    _balance() = _balance() + amount
   }
 
   def withdraw(amount: Float)(implicit txn: Txn) {
@@ -23,7 +23,7 @@ class CheckingAccount(val name: String, initialBalance: Float) extends Account {
     if (_balance.get < amount) {
       throw new OverdraftException("Cannot withdraw $" + amount + " from $" + _balance.get)
     }
-    _balance := _balance() - amount
+    _balance() = _balance() - amount
   }
 
 }
@@ -36,7 +36,7 @@ class CheckingAccountReadForWrite(val name: String, initialBalance: Float) exten
 
   def deposit(amount: Float)(implicit txn: Txn) {
     assert(amount >= 0)
-    _balance := _balance.bind.readForWrite + amount
+    _balance() = _balance.bind.readForWrite + amount
   }
 
   def withdraw(amount: Float)(implicit txn: Txn) {
@@ -44,7 +44,7 @@ class CheckingAccountReadForWrite(val name: String, initialBalance: Float) exten
     if (_balance.get < amount) {
       throw new OverdraftException("Cannot withdraw $" + amount + " from $" + _balance.get)
     }
-    _balance := _balance.bind.readForWrite - amount
+    _balance() = _balance.bind.readForWrite - amount
   }
 
 }

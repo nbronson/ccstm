@@ -161,7 +161,10 @@ private object LazyConflictRef {
       if (num.zero != rhs) {
         _value = num.plus(_value, rhs)
         _tail match {
-          case incr: Incr[T] => incr.delta = num.plus(incr.delta, rhs)
+          case i: Incr[_] => {
+            val incr = i.asInstanceOf[Incr[T]]
+            incr.delta = num.plus(incr.delta, rhs)
+          }
           case _ => record(new Incr(rhs))
         }
       }
@@ -205,7 +208,7 @@ private object LazyConflictRef {
       _updaterRegistered = true
       txn.beforeCommit(t => {
         if (_value != _read.value) {
-          _uview := _value
+          _uview() = _value
         }
         // clearing the flag here means that if a later beforeCommit callback
         // does another store on this ref, we will register a new handler and

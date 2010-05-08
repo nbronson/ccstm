@@ -39,7 +39,7 @@ class WriteSkewSuite extends STMFunSuite {
                   }
                   retry
                 }
-                self := self() + 1
+                self() = self() + 1
               }}.run
             }
           } catch {
