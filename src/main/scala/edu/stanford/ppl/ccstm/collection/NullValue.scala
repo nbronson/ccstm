@@ -6,23 +6,23 @@ package edu.stanford.ppl.ccstm.collection
 
 
 private[collection] object NullValue {
-  def encode[B](value: B): AnyRef = {
+  def encode[@specialized(Int) B](value: B): AnyRef = {
     val v = value.asInstanceOf[AnyRef]
     if (null eq v) this else v
   }
 
-  def encodeOption[B](vOpt: Option[B]): AnyRef = {
+  def encodeOption[@specialized(Int) B](vOpt: Option[B]): AnyRef = {
     vOpt match {
       case Some(v) => encode(v)
       case None => null
     }
   }
 
-  def decode[B](packed: AnyRef): B = {
+  def decode[@specialized(Int) B](packed: AnyRef): B = {
     (if (packed eq this) null else packed).asInstanceOf[B]
   }
 
-  def decodeOption[B](packed: AnyRef): Option[B] = {
+  def decodeOption[@specialized(Int) B](packed: AnyRef): Option[B] = {
     if (null eq packed) None else Some(decode(packed))
   }
 }

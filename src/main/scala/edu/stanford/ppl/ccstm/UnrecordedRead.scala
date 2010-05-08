@@ -33,7 +33,7 @@ package edu.stanford.ppl.ccstm
  *
  *  @author Nathan Bronson
  */
-trait UnrecordedRead[+T] {
+trait UnrecordedRead[@specialized(Int) +T] {
 
   /** Returns <code>Some(txn)</code> if this unrecorded read was made from a
    *  transactional context, or <code>None</code> if this unrecorded read was

@@ -8,12 +8,12 @@ import impl.{STMImpl, ThreadContext}
 
 object atomic {
 
-  def apply[Z](block: Txn => Z) = STM.atomic(block)
+  def apply[@specialized(Int,Boolean) Z](block: Txn => Z) = STM.atomic(block)
 
-  def oneOf[Z](blocks: (Txn => Z)*) = STM.atomicOrElse(blocks: _*)
+  def oneOf[@specialized(Int,Boolean) Z](blocks: (Txn => Z)*) = STM.atomicOrElse(blocks: _*)
 
-  class Delayed[A](lhs: => A) {
-    def orAtomic[B >: A](rhs: Txn => B)(implicit mt: MaybeTxn): B = {
+  class Delayed[@specialized(Int) A](lhs: => A) {
+    def orAtomic[@specialized(Int) B >: A](rhs: Txn => B)(implicit mt: MaybeTxn): B = {
       var ctx: ThreadContext = null
       val txn = mt match {
         case t: Txn => t

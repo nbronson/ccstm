@@ -6,7 +6,7 @@ package edu.stanford.ppl.ccstm.impl
 
 import edu.stanford.ppl.ccstm._
 
-private[ccstm] class SingleView[T](val unbind: Ref[T], handle: Handle[T]) extends Ref.View[T] {
+private[ccstm] class SingleView[@specialized(Int) T](val unbind: Ref[T], handle: Handle[T]) extends Ref.View[T] {
 
   def mode: AccessMode = Single
   
@@ -14,7 +14,7 @@ private[ccstm] class SingleView[T](val unbind: Ref[T], handle: Handle[T]) extend
     case null => NonTxn.get(handle)
     case txn: Txn => txn.get(handle)
   }
-  def getWith[Z](f: (T) => Z): Z = Txn.dynCurrentOrNull match {
+  def getWith[@specialized(Int,Boolean) Z](f: (T) => Z): Z = Txn.dynCurrentOrNull match {
     case null => f(NonTxn.get(handle))
     case txn: Txn => txn.getWith(handle, f)
   }

@@ -7,10 +7,10 @@ package edu.stanford.ppl.ccstm.collection
 import collection.mutable.Builder
 import java.util.concurrent.atomic.{AtomicReferenceArray, AtomicLongArray, AtomicIntegerArray}
 
-trait AtomicArrayBuilder[A] extends Builder[A, AtomicArray[A]]
+trait AtomicArrayBuilder[@specialized(Int) A] extends Builder[A, AtomicArray[A]]
 
 object AtomicArrayBuilder {
-  def of[T](m: ClassManifest[T]): Builder[T, AtomicArray[T]] = {
+  def of[@specialized(Int) T](m: ClassManifest[T]): Builder[T, AtomicArray[T]] = {
     (m.newArray(0).asInstanceOf[AnyRef] match {
       case x: Array[Boolean] => new ofBoolean
       case x: Array[Byte] => new ofByte
@@ -29,7 +29,7 @@ object AtomicArrayBuilder {
   private val EmptyLongArray = new Array[Long](0)
   private val EmptyRefArray = new Array[AnyRef](0)
 
-  abstract class IntBacked[T] extends AtomicArrayBuilder[T] {
+  abstract class IntBacked[@specialized(Int) T] extends AtomicArrayBuilder[T] {
     protected var elems = EmptyIntArray
     protected var size: Int = 0
 
@@ -55,7 +55,7 @@ object AtomicArrayBuilder {
     }
   }
 
-  abstract class LongBacked[T] extends AtomicArrayBuilder[T] {
+  abstract class LongBacked[@specialized(Int) T] extends AtomicArrayBuilder[T] {
     protected var elems = EmptyLongArray
     protected var size: Int = 0
 

@@ -12,7 +12,7 @@ package edu.stanford.ppl.ccstm.impl
  *  using <code>eq</code> or <code>ne</code> (no methods of <code>ref</code>
  *  will ever be invoked).  Metadata may be shared between multiple locations.
  */
-private[ccstm] abstract class Handle[T] {
+private[ccstm] trait Handle[@specialized(Int) T] {
   private[ccstm] def meta: Long
   private[ccstm] def meta_=(v: Long)
   private[ccstm] def metaCAS(before: Long, after: Long): Boolean

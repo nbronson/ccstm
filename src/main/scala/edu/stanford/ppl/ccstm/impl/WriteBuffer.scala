@@ -50,7 +50,7 @@ private[impl] class WriteBuffer {
   def isEmpty = _size == 0
   def size = _size
 
-  def get[T](handle: Handle[T]): T = {
+  def get[@specialized(Int) T](handle: Handle[T]): T = {
     val i = find(handle)
     if (i != 0) {
       // hit
@@ -77,7 +77,7 @@ private[impl] class WriteBuffer {
   }
 
 
-  def put[T](handle: Handle[T], value: T): Unit = {
+  def put[@specialized(Int) T](handle: Handle[T], value: T): Unit = {
     val ref = handle.ref
     val offset = handle.offset
     val slot = STMImpl.hash(ref, offset) & (_cap - 1)
@@ -91,11 +91,11 @@ private[impl] class WriteBuffer {
     }
   }
 
-  def allocatingGet[T](handle: Handle[T]): T = {
+  def allocatingGet[@specialized(Int) T](handle: Handle[T]): T = {
     return _bucketAnys(specValueI(findOrAllocate(handle))).asInstanceOf[T]
   }
 
-  def getAndTransform[T](handle: Handle[T], func: T => T): T = {
+  def getAndTransform[@specialized(Int) T](handle: Handle[T], func: T => T): T = {
     val i = findOrAllocate(handle)
     val before = _bucketAnys(specValueI(i)).asInstanceOf[T]
     _bucketAnys(specValueI(i)) = func(before).asInstanceOf[AnyRef]

@@ -79,7 +79,7 @@ object STM {
    *  be run as part of the existing transaction.  In STM terminology this is
    *  support for nested transactions using "flattening" or "subsumption".   
    */
-  def atomic[Z](block: Txn => Z)(implicit mt: MaybeTxn): Z = {
+  def atomic[@specialized(Int,Boolean) Z](block: Txn => Z)(implicit mt: MaybeTxn): Z = {
     // TODO: without partial rollback we can't properly implement failure atomicity (see issue #4)
 
     mt match {
@@ -96,7 +96,7 @@ object STM {
     }
   }
 
-  private def nestedAtomic[Z](block: Txn => Z, txn: Txn): Z = {
+  private def nestedAtomic[@specialized(Int,Boolean) Z](block: Txn => Z, txn: Txn): Z = {
     if (!txn.childAlternatives.isEmpty) {
       throw new UnsupportedOperationException("nested retry/orElse not yet supported (issue #4)")
     }
@@ -104,7 +104,7 @@ object STM {
   }
 
   @tailrec
-  private def topLevelAtomic[Z](block: Txn => Z, ctx: ThreadContext, hist: List[Txn.RollbackCause]): Z = {
+  private def topLevelAtomic[@specialized(Int,Boolean) Z](block: Txn => Z, ctx: ThreadContext, hist: List[Txn.RollbackCause]): Z = {
     if (!ctx.alternatives.isEmpty) {
       // There was one or more orElse clauses.  Be careful, because their
       // return type might not be Z.
@@ -150,7 +150,7 @@ object STM {
    *  @see edu.stanford.ppl.ccstm.Atomic#orElse
    *  @see edu.stanford.ppl.ccstm.AtomicFunc#orElse
    */
-  def atomicOrElse[Z](blocks: (Txn => Z)*)(implicit mt: MaybeTxn): Z = {
+  def atomicOrElse[@specialized(Int,Boolean) Z](blocks: (Txn => Z)*)(implicit mt: MaybeTxn): Z = {
     if (null != Txn.currentOrNull) throw new UnsupportedOperationException("nested orElse is not currently supported")
 
     val hists = new Array[List[Txn.RollbackCause]](blocks.length)
@@ -172,7 +172,7 @@ object STM {
     throw new Error("unreachable")
   }
 
-  private def attemptUntilRetry[Z](block: Txn => Z,
+  private def attemptUntilRetry[@specialized(Int,Boolean) Z](block: Txn => Z,
                                    hist0: List[Txn.RollbackCause]): Either[Z, List[Txn.RollbackCause]] = {
     val ctx = ThreadContext.get
     var hist = hist0
@@ -198,7 +198,7 @@ object STM {
     }
   }
 
-  private def attemptImpl[Z](txn: Txn, block: Txn => Z): Z = {
+  private def attemptImpl[@specialized(Int,Boolean) Z](txn: Txn, block: Txn => Z): Z = {
     var nonLocalReturn: Throwable = null
     var result: Z = null.asInstanceOf[Z]
     try {
@@ -244,7 +244,8 @@ object STM {
    *  Because this method is only presented as an optimization, it is assumed
    *  that the evaluation of <code>f</code> will be quick.
    */
-  def transform2[A,B,Z](refA: Ref[A], refB: Ref[B], f: (A,B) => (A,B,Z)): Z = {
+  def transform2[@specialized(Int) A, @specialized(Int) B, @specialized(Int,Boolean) Z](
+      refA: Ref[A], refB: Ref[B], f: (A,B) => (A,B,Z)): Z = {
     if (refA.isInstanceOf[impl.RefOps[_]] && refB.isInstanceOf[impl.RefOps[_]]) {
       impl.NonTxn.transform2(
           refA.asInstanceOf[impl.RefOps[A]].handle,

@@ -7,7 +7,7 @@ package edu.stanford.ppl.ccstm.impl
 import edu.stanford.ppl.ccstm._
 
 
-private[ccstm] class TxnView[T](val unbind: Ref[T],
+private[ccstm] class TxnView[@specialized(Int) T](val unbind: Ref[T],
                                 protected val handle: impl.Handle[T],
                                 txn: Txn) extends Ref.View[T] {
 

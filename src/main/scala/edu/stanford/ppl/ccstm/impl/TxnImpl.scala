@@ -410,7 +410,7 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
 
   //////////////// barrier implementations
   
-  def get[T](handle: Handle[T]): T = {
+  def get[@specialized(Int) T](handle: Handle[T]): T = {
     if (barging) return readForWrite(handle)
 
     requireActive()
@@ -441,7 +441,7 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
     return value
   }
 
-  def getWith[T,Z](handle: Handle[T], f: T => Z): Z = {
+  def getWith[@specialized(Int) T, Z](handle: Handle[T], f: T => Z): Z = {
     if (barging) return f(readForWrite(handle))
 
     val u = unrecordedRead(handle)
@@ -481,7 +481,7 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
     return result
   }
 
-  def unrecordedRead[T](handle: Handle[T]): UnrecordedRead[T] = {
+  def unrecordedRead[@specialized(Int) T](handle: Handle[T]): UnrecordedRead[T] = {
     requireActiveOrValidating()
 
     var m1 = handle.meta
@@ -527,7 +527,7 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
     }
   }
 
-  def releasableRead[T](handle: Handle[T]): ReleasableRead[T] = {
+  def releasableRead[@specialized(Int) T](handle: Handle[T]): ReleasableRead[T] = {
     requireActive
     // this code relies on the implementation details of get() and ReadSet
     val before = _readSet.indexEnd
@@ -556,7 +556,7 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
     }
   }
 
-  def set[T](handle: Handle[T], v: T) {
+  def set[@specialized(Int) T](handle: Handle[T], v: T) {
     requireActive()
 
     val m0 = handle.meta
@@ -581,7 +581,7 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
     revalidateIfRequired(version(m))
   }
   
-  def swap[T](handle: Handle[T], v: T): T = {
+  def swap[@specialized(Int) T](handle: Handle[T], v: T): T = {
     requireActive()
 
     val m0 = handle.meta
@@ -600,7 +600,7 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
     handle.data
   }
 
-  def trySet[T](handle: Handle[T], v: T): Boolean = {
+  def trySet[@specialized(Int) T](handle: Handle[T], v: T): Boolean = {
     requireActive()
 
     val m0 = handle.meta
@@ -618,7 +618,7 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
     return true
   }
 
-  def readForWrite[T](handle: Handle[T]): T = {
+  def readForWrite[@specialized(Int) T](handle: Handle[T]): T = {
     requireActive()
 
     val m0 = handle.meta
@@ -635,7 +635,7 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
     return v
   }
 
-  def compareAndSet[T](handle: Handle[T], before: T, after: T): Boolean = {
+  def compareAndSet[@specialized(Int) T](handle: Handle[T], before: T, after: T): Boolean = {
     transformIfDefined(handle, new PartialFunction[T,T] {
       def isDefinedAt(v: T): Boolean = before == v
       def apply(v: T): T = after
@@ -649,7 +649,7 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
     })
   }
 
-  def getAndTransform[T](handle: Handle[T], f: T => T): T = {
+  def getAndTransform[@specialized(Int) T](handle: Handle[T], f: T => T): T = {
     requireActive()
 
     val m0 = handle.meta
@@ -666,7 +666,7 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
     return v0
   }
 
-  def tryTransform[T](handle: Handle[T], f: T => T): Boolean = {
+  def tryTransform[@specialized(Int) T](handle: Handle[T], f: T => T): Boolean = {
     requireActive()
 
     val m0 = handle.meta
@@ -685,7 +685,7 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
     return true
   }
 
-  def transformIfDefined[T](handle: Handle[T], pf: PartialFunction[T,T]): Boolean = {
+  def transformIfDefined[@specialized(Int) T](handle: Handle[T], pf: PartialFunction[T,T]): Boolean = {
     val u = unrecordedRead(handle)
     if (!pf.isDefinedAt(u.value)) {
       // make sure it stays undefined

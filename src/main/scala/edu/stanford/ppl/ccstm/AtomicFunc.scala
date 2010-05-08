@@ -15,7 +15,7 @@ package edu.stanford.ppl.ccstm
  *  @author Nathan Bronson
  */
 
-abstract class AtomicFunc[Z] extends (Txn => Z) {
+abstract class AtomicFunc[@specialized(Int,Boolean) Z] extends (Txn => Z) {
   private var _currentTxn: Txn = null
 
   /** Calls <code>body</code> while providing implicit access to

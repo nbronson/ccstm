@@ -132,7 +132,7 @@ private[ccstm] object NonTxn {
 
   //////////////// public interface
 
-  def get[T](handle: Handle[T]): T = {
+  def get[@specialized(Int) T](handle: Handle[T]): T = {
     var tries = 0
     var m0 = 0L
     while (tries < 100) {
@@ -151,14 +151,14 @@ private[ccstm] object NonTxn {
     return lockedGet(handle)
   }
 
-  private def lockedGet[T](handle: Handle[T]): T = {
+  private def lockedGet[@specialized(Int) T](handle: Handle[T]): T = {
     val m0 = acquireLock(handle, false)
     val z = handle.data
     discardLock(handle, m0)
     z
   }
 
-  def await[T](handle: Handle[T], pred: T => Boolean) {
+  def await[@specialized(Int) T](handle: Handle[T], pred: T => Boolean) {
     while (true) {
       val m0 = handle.meta
       if (changing(m0)) {
@@ -181,7 +181,7 @@ private[ccstm] object NonTxn {
   }
 
   @tailrec
-  def unrecordedRead[T](handle: Handle[T]): UnrecordedRead[T] = {
+  def unrecordedRead[@specialized(Int) T](handle: Handle[T]): UnrecordedRead[T] = {
     val m0 = handle.meta
     if (changing(m0)) {
       weakAwaitUnowned(handle, m0)
@@ -201,19 +201,19 @@ private[ccstm] object NonTxn {
     return unrecordedRead(handle)
   }
 
-  def releasableRead[T](handle: Handle[T]): ReleasableRead[T] = new ReleasableRead[T] {
+  def releasableRead[@specialized(Int) T](handle: Handle[T]): ReleasableRead[T] = new ReleasableRead[T] {
     def context: Option[Txn] = None
     val value: T = get(handle)
     def release() {}
   }
 
-  def set[T](handle: Handle[T], v: T) {
+  def set[@specialized(Int) T](handle: Handle[T], v: T) {
     val m0 = acquireLock(handle, true)
     handle.data = v
     commitLock(handle, m0)
   }
 
-  def swap[T](handle: Handle[T], v: T): T = {
+  def swap[@specialized(Int) T](handle: Handle[T], v: T): T = {
     val m0 = acquireLock(handle, true)
     val z = handle.data
     handle.data = v
@@ -221,7 +221,7 @@ private[ccstm] object NonTxn {
     z
   }
 
-  def trySet[T](handle: Handle[T], v: T): Boolean = {
+  def trySet[@specialized(Int) T](handle: Handle[T], v: T): Boolean = {
     val m0 = tryAcquireLock(handle, true)
     if (m0 == 0L) {
       false
@@ -232,7 +232,7 @@ private[ccstm] object NonTxn {
     }
   }
 
-  def compareAndSet[T](handle: Handle[T], before: T, after: T): Boolean = {
+  def compareAndSet[@specialized(Int) T](handle: Handle[T], before: T, after: T): Boolean = {
     // Try to acquire ownership.  If we can get it easily then we hold the lock
     // while evaluating before == handle.data, otherwise we try to perform an
     // invisible read to determine if the CAS will succeed, only waiting for
@@ -257,7 +257,7 @@ private[ccstm] object NonTxn {
     }
   }
 
-  private def invisibleCAS[T](handle: Handle[T], before: T, after: T): Boolean = {
+  private def invisibleCAS[@specialized(Int) T](handle: Handle[T], before: T, after: T): Boolean = {
     // this is the code from get, inlined so that we have access to the version
     // number as well with no boxing
     var m0 = 0L
@@ -330,11 +330,11 @@ private[ccstm] object NonTxn {
     }
   }
 
-  def getAndTransform[T](handle: Handle[T], f: T => T): T = {
+  def getAndTransform[@specialized(Int) T](handle: Handle[T], f: T => T): T = {
     getAndTransformImpl(handle, f, acquireLock(handle, false))
   }
 
-  def tryTransform[T](handle: Handle[T], f: T => T): Boolean = {
+  def tryTransform[@specialized(Int) T](handle: Handle[T], f: T => T): Boolean = {
     val m0 = tryAcquireLock(handle, false)
     if (m0 == 0L) {
       false
@@ -344,7 +344,7 @@ private[ccstm] object NonTxn {
     }
   }
 
-  private def getAndTransformImpl[T](handle: Handle[T], f: T => T, m0: Meta): T = {
+  private def getAndTransformImpl[@specialized(Int) T](handle: Handle[T], f: T => T, m0: Meta): T = {
     val v0 = handle.data
     val repl = try { f(v0) } catch { case x => discardLock(handle, m0) ; throw x }
     val m1 = upgradeLock(handle, m0)
@@ -353,7 +353,7 @@ private[ccstm] object NonTxn {
     v0
   }
 
-  def transformIfDefined[T](handle: Handle[T], pf: PartialFunction[T,T]): Boolean = {
+  def transformIfDefined[@specialized(Int) T](handle: Handle[T], pf: PartialFunction[T,T]): Boolean = {
     if (pf.isDefinedAt(get(handle))) {
       val m0 = acquireLock(handle, false)
       val v = handle.data
@@ -375,7 +375,8 @@ private[ccstm] object NonTxn {
 
   //////////////// multi-handle ops
 
-  def transform2[A,B,Z](handleA: Handle[A], handleB: Handle[B], f: (A,B) => (A,B,Z)): Z = {
+  def transform2[@specialized(Int) A, @specialized(Int) B, @specialized(Int,Boolean) Z](
+      handleA: Handle[A], handleB: Handle[B], f: (A,B) => (A,B,Z)): Z = {
     var mA0: Long = 0L
     var mB0: Long = 0L
     var tries = 0

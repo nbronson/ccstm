@@ -7,7 +7,7 @@ package edu.stanford.ppl.ccstm.impl
 
 import edu.stanford.ppl.ccstm._
 
-private[ccstm] class EscapedView[T](val unbind: Ref[T], handle: Handle[T]) extends Ref.View[T] {
+private[ccstm] class EscapedView[@specialized(Int) T](val unbind: Ref[T], handle: Handle[T]) extends Ref.View[T] {
 
   def mode: AccessMode = Escaped
 

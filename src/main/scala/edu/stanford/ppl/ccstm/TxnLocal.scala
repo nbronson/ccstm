@@ -6,14 +6,14 @@ package edu.stanford.ppl.ccstm
 
 
 object TxnLocal {
-  trait View[T] {
+  trait View[@specialized(Int) T] {
     def txn: Txn
     def get: T
     def set(v: T)
   }
 }
 
-class TxnLocal[T] {
+class TxnLocal[@specialized(Int) T] {
 
   /** Invoked if <code>get(txn)</code> precedes all calls (if any) to
    *  <code>set(v)(txn)</code>.

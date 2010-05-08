@@ -8,7 +8,7 @@ package edu.stanford.ppl.ccstm
 object Source {
 
   /** `Source.View` defines the covariant read-only view of `Ref.View`. */
-  trait View[+T] {
+  trait View[@specialized(Int) +T] {
 
     /** The restriction of `Ref.View.unbind` to `Source`.
      *  @see edu.stanford.ppl.ccstm.Ref.View#unbind
@@ -108,7 +108,7 @@ object Source {
  *
  *  @author Nathan Bronson
  */
-trait Source[+T] {
+trait Source[@specialized(Int) +T] {
 
   /** Performs a transactional read and checks that it is consistent with all
    *  reads already made by `txn`.  Equivalent to `get`.

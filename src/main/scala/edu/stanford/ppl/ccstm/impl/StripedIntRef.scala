@@ -20,7 +20,7 @@ private[ccstm] class StripedIntRef(initialValue: Int) extends Ref[Int] {
   }
 
   private abstract class ViewImpl extends Ref.View[Int] {
-    protected def run[Z](block: Txn => Z): Z
+    protected def run[@specialized(Int,Boolean) Z](block: Txn => Z): Z
 
     def unbind = StripedIntRef.this
 
@@ -60,7 +60,7 @@ private[ccstm] class StripedIntRef(initialValue: Int) extends Ref[Int] {
   }
 
   def single: Ref.View[Int] = new ViewImpl {
-    protected def run[Z](block: (Txn) => Z): Z = STM.atomic(block)
+    protected def run[@specialized(Int,Boolean) Z](block: (Txn) => Z): Z = STM.atomic(block)
 
     def mode: AccessMode = Single
 
@@ -68,7 +68,7 @@ private[ccstm] class StripedIntRef(initialValue: Int) extends Ref[Int] {
   }
 
   def escaped: Ref.View[Int] = new ViewImpl {
-    protected def run[Z](block: (Txn) => Z): Z = {
+    protected def run[@specialized(Int,Boolean) Z](block: (Txn) => Z): Z = {
       // This is deep magic, and a bit brittle.  It is safe because the
       // contention manager as it currently exists won't block a transaction
       // that has already performed a write.

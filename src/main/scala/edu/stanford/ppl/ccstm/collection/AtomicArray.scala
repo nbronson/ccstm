@@ -23,7 +23,7 @@ import annotation.tailrec
  *
  * @author Nathan Bronson
  */
-abstract class AtomicArray[T] extends IndexedSeq[T] with ArrayLike[T, AtomicArray[T]] {
+abstract class AtomicArray[@specialized(Int) T] extends IndexedSeq[T] with ArrayLike[T, AtomicArray[T]] {
 
   // We choose to store Boolean-s (and other small primitives) each in their
   // own Int.  This wastes space.  Another option would be to pack values into
@@ -54,10 +54,11 @@ abstract class AtomicArray[T] extends IndexedSeq[T] with ArrayLike[T, AtomicArra
   def compareAndSet(index: Int, expected: T, elem: T): Boolean
 
   /** Retries compareAndSet until success, using f, then returns the old value */
-  @tailrec
-  final def getAndTransform(index: Int)(f: T => T): T = {
-    val before = apply(index)
-    if (compareAndSet(index, before, f(before))) before else getAndTransform(index)(f)
+  def getAndTransform(index: Int)(f: T => T): T = {
+    (while (true) {
+      val before = apply(index)
+      if (compareAndSet(index, before, f(before))) return before
+    }).asInstanceOf[Nothing]
   }
 
   override def stringPrefix = "AtomicArray"
@@ -75,7 +76,7 @@ abstract class AtomicArray[T] extends IndexedSeq[T] with ArrayLike[T, AtomicArra
 
 object AtomicArray {
 
-  def apply[T](size: Int)(implicit m: ClassManifest[T]): AtomicArray[T] = {
+  def apply[@specialized(Int) T](size: Int)(implicit m: ClassManifest[T]): AtomicArray[T] = {
     (m.newArray(0).asInstanceOf[AnyRef] match {
       case x: Array[Boolean] => new ofBoolean(size)
       case x: Array[Byte]    => new ofByte(size)
@@ -102,7 +103,7 @@ object AtomicArray {
   def apply[T <: AnyRef](elems: Array[T]) =
     new ofRef((new AtomicReferenceArray(elems.asInstanceOf[Array[AnyRef]])).asInstanceOf[AtomicReferenceArray[T]])
 
-  def apply[T](elems: Traversable[T])(implicit m: ClassManifest[T]): AtomicArray[T] = {
+  def apply[@specialized(Int) T](elems: Traversable[T])(implicit m: ClassManifest[T]): AtomicArray[T] = {
     val array: AnyRef = (elems match {
       case w: WrappedArray[_] => w.array // we're going to copy out regardless, no need to duplicate right now
       case _ => elems.toArray
@@ -123,7 +124,7 @@ object AtomicArray {
   }
 
   
-  implicit def canBuildFrom[T](implicit m: ClassManifest[T]): CanBuildFrom[AtomicArray[_], T, AtomicArray[T]] = {
+  implicit def canBuildFrom[@specialized(Int) T](implicit m: ClassManifest[T]): CanBuildFrom[AtomicArray[_], T, AtomicArray[T]] = {
     new CanBuildFrom[AtomicArray[_], T, AtomicArray[T]] {
       def apply(from: AtomicArray[_]): Builder[T, AtomicArray[T]] = {
         val b = AtomicArrayBuilder of m

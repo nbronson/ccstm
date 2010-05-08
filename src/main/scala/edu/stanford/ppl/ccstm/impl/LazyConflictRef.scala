@@ -28,7 +28,9 @@ private object LazyConflictRef {
 
   private case class Op_==[T](rhs: T) extends Test[T] { def isDefinedAt(v: T) = (v == rhs) }
 
-  private case class GetWith[T,Z](f: T => Z, result: Z) extends Test[T] { def isDefinedAt(v: T) = (f(v) == result) }
+  private case class GetWith[T, @specialized(Int,Boolean) Z](f: T => Z, result: Z) extends Test[T] {
+    def isDefinedAt(v: T) = (f(v) == result)
+  }
 
   private case class CheckIsDefined[T](pf: PartialFunction[T,T], applicable: Boolean) extends Test[T] {
     def isDefinedAt(v: T) = (pf.isDefinedAt(v) == applicable)

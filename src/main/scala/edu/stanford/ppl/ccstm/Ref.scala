@@ -18,7 +18,7 @@ object Ref {
    *
    *  If you have an initial value `v0` available, prefer `apply(v0)`.
    */
-  def make[T]()(implicit m: ClassManifest[T]): Ref[T] = {
+  def make[@specialized(Int) T]()(implicit m: ClassManifest[T]): Ref[T] = {
     (m.newArray(0).asInstanceOf[AnyRef] match {
       case x: Array[Boolean] => new TBooleanRef(false)
       case x: Array[Byte]    => new TByteRef(   0 : Byte)
@@ -36,7 +36,7 @@ object Ref {
   /** Returns a new `Ref` instance with the specified initial value.  The
    *  returned instance is not part of any transaction's read or write set.
    */
-  def apply[T](initialValue: T)(implicit m: ClassManifest[T]): Ref[T] = {
+  def apply[@specialized(Int) T](initialValue: T)(implicit m: ClassManifest[T]): Ref[T] = {
     // TODO: this is likely to be a hot spot, perhaps RFE a method in Manifest for this test?
     if (m.isInstanceOf[AnyValManifest[_]]) {
       newPrimitiveRef(initialValue)
@@ -55,7 +55,7 @@ object Ref {
   def apply(initialValue: Double ): Ref[Double]  = new TDoubleRef( initialValue)
   def apply(initialValue: Unit   ): Ref[Unit]    = new TAnyRef(    initialValue)
 
-  private def newPrimitiveRef[T](initialValue: T)(implicit m: ClassManifest[T]): Ref[T] = {
+  private def newPrimitiveRef[@specialized(Int) T](initialValue: T)(implicit m: ClassManifest[T]): Ref[T] = {
     (m.newArray(0).asInstanceOf[AnyRef] match {
       case x: Array[Boolean] => apply(initialValue.asInstanceOf[Boolean])
       case x: Array[Byte]    => apply(initialValue.asInstanceOf[Byte])
@@ -78,7 +78,7 @@ object Ref {
    *  observable difference.  Writes to the underlying value will be delayed
    *  until just prior to commit.
    */
-  def lazyConflict[T](initialValue: T)(implicit m: ClassManifest[T]) = new LazyConflictRef(initialValue)
+  def lazyConflict[@specialized(Int) T](initialValue: T)(implicit m: ClassManifest[T]) = new LazyConflictRef(initialValue)
 
   /** Returns a `Ref[Int]` instance optimized for concurrent increment and
    *  decrement using `+=` and `-=`.
@@ -112,7 +112,7 @@ object Ref {
    *    current thread, then that transaction is the enclosing context.  Top
    *    level `Single` and `Escaped` bound views have no enclosing context.
    */
-  trait View[T] extends Source.View[T] with Sink.View[T] {
+  trait View[@specialized(Int) T] extends Source.View[T] with Sink.View[T] {
 
     /** Provides access to a <code>Ref</code> that refers to the same value as
      *  the one that was bound to produce this <code>Ref.View</code> instance.
@@ -276,7 +276,7 @@ object Ref {
  *
  *  @author Nathan Bronson
  */
-trait Ref[T] extends Source[T] with Sink[T] {
+trait Ref[@specialized(Int) T] extends Source[T] with Sink[T] {
 
   /** Works like <code>set(v)</code>, but returns the old value.  This is an
    *  atomic swap, equivalent to atomically performing a <code>get</code>

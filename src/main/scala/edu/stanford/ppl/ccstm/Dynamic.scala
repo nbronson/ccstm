@@ -29,7 +29,7 @@ object Dynamic {
   /** Executes `block` in a transaction, retrying until it succeeds.  See
    * `STM.atomic`.
    */
-  def atomic[Z](block: => Z): Z = STM.atomic({ _ => block })(TxnUnknown)
+  def atomic[@specialized(Int,Boolean) Z](block: => Z): Z = STM.atomic({ _ => block })(TxnUnknown)
 
   /** Forwards to `STM.retry`. */
   def retry { STM.retry }

@@ -13,7 +13,7 @@ package edu.stanford.ppl.ccstm
  *
  *  @author Nathan Bronson
  */
-trait ReleasableRead[+T] {
+trait ReleasableRead[@specialized(Int) +T] {
 
   /** Returns `Some(txn)` if this releasable read was made from a transactional
    *  context, or `None` if this releasable read was made as part of a

@@ -7,7 +7,7 @@ package edu.stanford.ppl.ccstm.impl
 import edu.stanford.ppl.ccstm._
 import math.{Fractional, Integral, Numeric}
 
-private[ccstm] class SingleProxyView[T](val unbind: Ref[T]) extends Ref.View[T] {
+private[ccstm] class SingleProxyView[@specialized(Int) T](val unbind: Ref[T]) extends Ref.View[T] {
 
   private def dynView = Txn.dynCurrentOrNull match {
     case null => unbind.escaped

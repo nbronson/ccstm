@@ -10,7 +10,7 @@ object Sink {
   /** `Sink.View` defines the contravariant write-only portion of
    *  `Ref.View`.
    */
-  trait View[-T] {
+  trait View[@specialized(Int) -T] {
 
     /** The restriction of `Ref.View.unbind` to `Sink`.
      *  @see edu.stanford.ppl.ccstm.Ref.View#unbind
@@ -55,7 +55,7 @@ object Sink {
  *
  *  @author Nathan Bronson
  */
-trait Sink[-T] {
+trait Sink[@specialized(Int) -T] {
 
   /** Performs a transactional write.  Equivalent to `set(v)`.
    *  @see edu.stanford.ppl.ccstm.Sink#set

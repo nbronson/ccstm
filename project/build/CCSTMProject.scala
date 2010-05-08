@@ -14,8 +14,8 @@ class CCSTMProject(info: ProjectInfo) extends DefaultProject(info) {
   //override def mainResources = super.mainResources + "LICENSE.txt"
 
   // 2.8.0.RC1 has specialization bugs
-  override def compileOptions =
-    super.compileOptions.toList ++ (if (buildScalaVersion == "2.8.0.RC1") Some(CompileOption("-no-specialization")) else None)
+  override def compileOptions = (super.compileOptions.toList ++
+      (if (buildScalaVersion == "2.8.0.RC1") Some(CompileOption("-no-specialization")) else None))
 
   // this stuff doesn't work right yet
 //  val pplRepo = Resolver.sftp("ppl-sftp-repo", "ppl.stanford.edu", "/var/www/html/ppl/")

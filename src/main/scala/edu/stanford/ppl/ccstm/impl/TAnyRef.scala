@@ -16,7 +16,7 @@ private object TAnyRef {
  *
  *  @author Nathan Bronson
  */
-private[ccstm] class TAnyRef[T](initialValue: T) extends Handle[T] with RefOps[T] {
+private[ccstm] class TAnyRef[@specialized(Int) T](initialValue: T) extends Handle[T] with RefOps[T] {
 
   private[ccstm] def handle: Handle[T] = this
 
