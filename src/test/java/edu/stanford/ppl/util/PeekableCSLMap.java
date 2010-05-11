@@ -65,6 +65,7 @@ import java.util.AbstractMap.SimpleImmutableEntry;
  * @param <V> the type of mapped values
  * @since 1.6
  */
+@SuppressWarnings("unchecked")
 public class PeekableCSLMap<K,V> extends AbstractMap<K,V>
     implements ConcurrentNavigableMap<K,V>,
                Cloneable,
@@ -2377,15 +2378,18 @@ public class PeekableCSLMap<K,V> extends AbstractMap<K,V>
                                       boolean fromInclusive,
                                       E toElement,
                                       boolean toInclusive) {
-            return new PeekableCSLSet<E>
-                (m.subMap(fromElement, fromInclusive,
-                          toElement,   toInclusive));
+            throw new UnsupportedOperationException();
+            //return new PeekableCSLSet<E>
+            //    (m.subMap(fromElement, fromInclusive,
+            //              toElement,   toInclusive));
         }
         public NavigableSet<E> headSet(E toElement, boolean inclusive) {
-            return new PeekableCSLSet<E>(m.headMap(toElement, inclusive));
+            throw new UnsupportedOperationException();
+            //return new PeekableCSLSet<E>(m.headMap(toElement, inclusive));
         }
         public NavigableSet<E> tailSet(E fromElement, boolean inclusive) {
-            return new PeekableCSLSet<E>(m.tailMap(fromElement, inclusive));
+            throw new UnsupportedOperationException();
+            //return new PeekableCSLSet<E>(m.tailMap(fromElement, inclusive));
         }
         public NavigableSet<E> subSet(E fromElement, E toElement) {
             return subSet(fromElement, true, toElement, false);
@@ -2397,7 +2401,8 @@ public class PeekableCSLMap<K,V> extends AbstractMap<K,V>
             return tailSet(fromElement, true);
         }
         public NavigableSet<E> descendingSet() {
-            return new PeekableCSLSet(m.descendingMap());
+            throw new UnsupportedOperationException();
+            //return new PeekableCSLSet(m.descendingMap());
         }
     }
 

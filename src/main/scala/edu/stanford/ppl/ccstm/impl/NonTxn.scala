@@ -429,7 +429,7 @@ private[ccstm] object NonTxn {
     handleA.data = a
     handleB.data = b
 
-    val wv = STMImpl.nonTxnWriteVersion(Math.max(version(mA0), version(mB0)))
+    val wv = STMImpl.nonTxnWriteVersion(math.max(version(mA0), version(mB0)))
     releaseLock(handleA, mA0, wv)
     releaseLock(handleB, mB0, wv)
     return z

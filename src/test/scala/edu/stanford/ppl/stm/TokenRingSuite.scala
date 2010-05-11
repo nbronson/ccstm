@@ -51,9 +51,9 @@ class TokenRingSuite extends STMFunSuite {
           barrier.await
           for (h <- 0 until handoffsPerThread) {
             if (!useTxns) {
-              ready(index).nonTxn.await(f => f)
-              ready(index).nonTxn() = false
-              ready(next).nonTxn() = true
+              ready(index).single await { _ == true }
+              ready(index).single() = false
+              ready(next).single() = true
             } else {
               new Atomic { def body {
                 if (ready(index).get == false) retry

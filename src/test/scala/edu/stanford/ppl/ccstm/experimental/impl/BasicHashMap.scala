@@ -25,9 +25,9 @@ class BasicHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TMap[
   }
 
 
-  def nonTxn: Bound[K,V] = new TMap.AbstractNonTxnBound[K,V,BasicHashMap[K,V]](BasicHashMap.this) {
+  def escaped: Bound[K,V] = new TMap.AbstractNonTxnBound[K,V,BasicHashMap[K,V]](BasicHashMap.this) {
 
-    override def size: Int = sizeRef.nonTxn.get
+    override def size: Int = sizeRef.escaped.get
 
     def get(key: K): Option[V] = {
       STM.atomic(unbind.get(key)(_))

@@ -9,7 +9,7 @@ import edu.stanford.ppl.ccstm._
 
 object TMap {
   trait Source[A,+B] {
-    def nonTxn: TMap.BoundSource[A,B]
+    def escaped: TMap.BoundSource[A,B]
 
     def bind(implicit txn: Txn): TMap.BoundSource[A,B]
 
@@ -35,7 +35,7 @@ object TMap {
   }
 
   trait Sink[A,-B] {
-    def nonTxn: TMap.BoundSink[A,B]
+    def escaped: TMap.BoundSink[A,B]
 
     def bind(implicit txn: Txn): TMap.BoundSink[A,B]
 
@@ -112,7 +112,7 @@ object TMap {
 /** An interface for transactional maps. */
 trait TMap[A,B] extends TMap.Source[A,B] with TMap.Sink[A,B] {
 
-  def nonTxn: TMap.Bound[A,B]
+  def escaped: TMap.Bound[A,B]
 
   def bind(implicit txn: Txn): TMap.Bound[A,B]
 

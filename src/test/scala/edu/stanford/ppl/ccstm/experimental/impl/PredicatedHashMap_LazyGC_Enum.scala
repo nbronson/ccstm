@@ -101,15 +101,15 @@ class PredicatedHashMap_LazyGC_Enum[A,B] extends TMap[A,B] {
   }
 
 
-  def nonTxn: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_LazyGC_Enum[A,B]](this) {
+  def escaped: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_LazyGC_Enum[A,B]](this) {
 
     override def size(): Int = {
-      sizeRef.nonTxn.get
+      sizeRef.escaped.get
     }
 
     def get(key: A): Option[B] = {
       val p = predicates.get(key)
-      if (p == null) None else decodePair(p.nonTxn.get)
+      if (p == null) None else decodePair(p.escaped.get)
     }
 
     override def put(key: A, value: B): Option[B] = {
@@ -134,8 +134,8 @@ class PredicatedHashMap_LazyGC_Enum[A,B] extends TMap[A,B] {
             } else {
               // the predicate is strong, but we can still perform a Some -> Some
               // transition
-              val prevPair = p.nonTxn.get
-              if (null != prevPair && p.nonTxn.compareAndSet(prevPair, IdentityPair(token, value))) {
+              val prevPair = p.escaped.get
+              if (null != prevPair && p.escaped.compareAndSet(prevPair, IdentityPair(token, value))) {
                 // success
                 return Some(prevPair._2)
               } else if (null != ensureWeak(key, p)) {

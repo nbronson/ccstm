@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater
  *  write access (preventing concurrent reads of the same key).
  *  <p>
  *  The current implementation uses ReentrantLock-s internally, so it does not
- *  protect against concurrent access by multiple Txn (or nonTxn) that happen
+ *  protect against concurrent access by multiple Txn (or escaped) that happen
  *  to share a thread.  Most STMs have an implicit association between the
  *  current transaction context and the current thread, but this is not present
  *  in CCSTM.
@@ -430,7 +430,7 @@ object BoostedHashMap {
               // takes on the order of a microsecond (300 nanos on my dual-core
               // laptop), so we use it instead.  The starting point is an
               // expected backoff of 500 nanoseconds.
-              val maxNanos = 1000 << Math.min(r, 14)
+              val maxNanos = 1000 << math.min(r, 14)
               val delay = FastSimpleRandom.nextInt(maxNanos)
               val t0 = System.nanoTime
               while (System.nanoTime < t0 + delay) Thread.`yield`
@@ -466,7 +466,7 @@ class BoostedHashMap[A,B](lockHolder: BoostedHashMap.LockHolder[A], enumLock: Re
                                           if (null == enumLock) null else enumLock.writeLock,
                                           if (null == enumLock) null else enumLock.readLock)
 
-  val nonTxn: TMap.Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,BoostedHashMap[A,B]](BoostedHashMap.this) {
+  val escaped: TMap.Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,BoostedHashMap[A,B]](BoostedHashMap.this) {
 
     def get(key: A): Option[B] = {
       // lockHolder implementations that garbage collect locks cannot perform

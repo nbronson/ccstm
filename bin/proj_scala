@@ -63,14 +63,20 @@ if [ "x$SCALA_HOME" = "x" ]; then
   exit 1
 fi
 
+SCALA_VERSION=`awk -F= '$1=="scala.version" {print $2}' $PROPS`
+if [ "x$SCALA_VERSION" = "x" ]; then
+  echo "Unable to load scala.version from properties file $PROPS" 1>&2
+  exit 1
+fi
+
 # CLASSPATH should include whatever was passed in on the command
 # line, target/classes, target/test-classes, all of the JARs in
 # lib_managed/compile, and then the core Scala libs.
 if [ "x$CLASSPATH" != "x" ]; then
   CLASSPATH="${CLASSPATH}:"
 fi
-CLASSPATH="${CLASSPATH}$CCSTM_BASE/target/classes:$CCSTM_BASE/target/test-classes"
-for j in "$CCSTM_BASE"/lib_managed/scala_2.8.0.Beta1/compile/*.jar $SCALA_HOME/lib/*.jar; do
+CLASSPATH="${CLASSPATH}$CCSTM_BASE/target/scala_$SCALA_VERSION/classes:$CCSTM_BASE/target/scala_$SCALA_VERSION/test-classes"
+for j in "$CCSTM_BASE"/lib_managed/scala_$SCALA_VERSION/compile/*.jar $SCALA_HOME/lib/*.jar; do
   CLASSPATH="${CLASSPATH}:$j"
 done
 

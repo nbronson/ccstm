@@ -7,4 +7,4 @@
 
 sed -e 's/|.*//' -e 's/,/ /g' "$@" | \
     awk '{for(i=1;i<=NF;++i){ if($i!="_") { print i " " NR " " $i }}}' | \
-    awk -f /usr/share/gnuplot/pm3d/colorpts.awk - 1 1
+    awk -f /usr/share/gnuplot/pm3d/colorpts.awk - 0.5 0.5

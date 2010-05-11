@@ -55,9 +55,9 @@ class RedBlackTreeMap[A,B] extends TMap[A,B] {
     override def higher(key: A): Option[(A,B)] = unbind.higher(key)(txn)
   }
 
-  def nonTxn: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,RedBlackTreeMap[A,B]](this) {
+  def escaped: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,RedBlackTreeMap[A,B]](this) {
 
-    override def isEmpty = null != rootRef.nonTxn.get
+    override def isEmpty = null != rootRef.escaped.get
     override def size = STM.atomic(unbind.size(_))
 
     def get(key: A): Option[B] = STM.atomic(unbind.get(key)(_))
