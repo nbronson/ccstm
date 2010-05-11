@@ -122,13 +122,13 @@ class TArray[T](private val _data: AtomicArray[T], metaMapping: TArray.MetaMappi
 
   private val _metaIndexShift = { var i = 0 ; while ((1L << i) < metaMapping.neighboringDataPerMeta) i += 1 ; i }
   private val _metaIndexMask = {
-    val n = Math.min(length / metaMapping.dataPerMeta, metaMapping.maxMeta)
+    val n = math.min(length / metaMapping.dataPerMeta, metaMapping.maxMeta)
     var m = 1 ; while (m < n) m = (m << 1) + 1
     assert ((m & (m + 1)) == 0)
     m
   }
 
-  private val _meta = new AtomicLongArray(Math.min(_metaIndexMask + 1, length))
+  private val _meta = new AtomicLongArray(math.min(_metaIndexMask + 1, length))
   private def _metaIndex(i: Int) = (i >> _metaIndexShift) & _metaIndexMask
 
   private def getRef(index: Int): Ref[T] = new Handle[T] with RefOps[T] {

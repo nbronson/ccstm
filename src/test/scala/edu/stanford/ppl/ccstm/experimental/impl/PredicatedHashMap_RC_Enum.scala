@@ -48,21 +48,21 @@ class PredicatedHashMap_RC_Enum[A,B] extends TMap[A,B] {
   }
 
 
-  def nonTxn: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_RC_Enum[A,B]](this) {
+  def escaped: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_RC_Enum[A,B]](this) {
 
     override def size(): Int = {
-      sizeRef.nonTxn.get
+      sizeRef.escaped.get
     }
 
     def get(key: A): Option[B] = {
       // if no predicate exists, or the one we get is stale, we can still read None
       val p = predicates.get(key)
-      if (null == p) None else NullValue.decodeOption(p.nonTxn.get)
+      if (null == p) None else NullValue.decodeOption(p.escaped.get)
     }
 
     override def put(key: A, value: B): Option[B] = {
       val p = enter(key)
-      val pn = p.nonTxn
+      val pn = p.escaped
       val before = pn.get
       if (null != before) {
         // try to update (no size change)
@@ -84,7 +84,7 @@ class PredicatedHashMap_RC_Enum[A,B] extends TMap[A,B] {
 
     override def removeKey(key: A): Option[B] = {
       val p = predicates.get(key)
-      if (null == p || null == p.nonTxn.get) {
+      if (null == p || null == p.escaped.get) {
         // no need to create a predicate
         return None
       }

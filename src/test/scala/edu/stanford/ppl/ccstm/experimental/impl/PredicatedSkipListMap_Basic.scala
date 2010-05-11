@@ -51,22 +51,22 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
   //private val lastInsCount = new TIntRef(0)
   private val bargingCount = new AtomicInteger(0)
 
-  def nonTxn = new TMap.AbstractNonTxnBound[A,B,PredicatedSkipListMap_Basic[A,B]](this) {
+  def escaped = new TMap.AbstractNonTxnBound[A,B,PredicatedSkipListMap_Basic[A,B]](this) {
 
     def get(key: A): Option[B] = {
       // if no predicate exists, then we don't need to create one
       val p = existingPred(key)
-      if (null == p) None else p.nonTxn.get
+      if (null == p) None else p.escaped.get
     }
 
     override def put(key: A, value: B): Option[B] = {
-      predicateForInsert(key).nonTxn.swap(Some(value))
+      predicateForInsert(key).escaped.swap(Some(value))
     }
 
     override def removeKey(key: A): Option[B] = {
       // if no predicate exists, then we don't need to create one
       val p = existingPred(key)
-      if (null == p) None else p.nonTxn.swap(None)
+      if (null == p) None else p.escaped.swap(None)
     }
 
     override def higher(key: A): Option[(A,B)] = {
@@ -76,11 +76,11 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
     }
 
 //    override def transform(key: A, f: (Option[B]) => Option[B]) {
-//      predicateForInsert(key).nonTxn.transform(f)
+//      predicateForInsert(key).escaped.transform(f)
 //    }
 //
 //    override def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]]): Boolean = {
-//      predicateForInsert(key).nonTxn.transformIfDefined(pf)
+//      predicateForInsert(key).escaped.transformIfDefined(pf)
 //    }
 //
 //    protected def transformIfDefined(key: A,
@@ -98,7 +98,7 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
         while (iter.hasNext) {
           val p = iter.peekValue()
           val k = iter.next()
-          val vOpt = p.nonTxn.get
+          val vOpt = p.escaped.get
           if (!vOpt.isEmpty) {
             avail = (k, vOpt.get)
             return
@@ -331,16 +331,16 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
     if (p.leftNotified) return
 
     if (null == before) {
-      firstInsCount.nonTxn += 1
+      firstInsCount.escaped += 1
     } else {
       leftNotify(before.getKey, before.getValue)
       if (p.leftNotified) return
 
       if (bargingCount.get > 0) {
-        firstInsCount.nonTxn.get
+        firstInsCount.escaped.get
       }
 
-      before.getValue.succInsCount.nonTxn += 1
+      before.getValue.succInsCount.escaped += 1
     }
     p.leftNotified = true
   }
@@ -352,12 +352,12 @@ class PredicatedSkipListMap_Basic[A,B] extends TMap[A,B] {
 //    if (p.rightNotified) return
 //
 //    if (null == after) {
-//      lastInsCount.nonTxn += 1
+//      lastInsCount.escaped += 1
 //    } else {
 //      rightNotify(after.getKey, after.getValue)
 //      if (p.rightNotified) return
 //
-//      after.getValue.predInsCount.nonTxn += 1
+//      after.getValue.predInsCount.escaped += 1
 //    }
 //    p.rightNotified = true
 //  }
