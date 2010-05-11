@@ -4,7 +4,13 @@
 # used in the java.cmd or jdk.home, but not in the other properties.
 
 # Set either jdk.home or java.cmd, but not both
-jdk.home=/home/nbronson/java/default
-#java.cmd=/home/nbronson/java/jdk1.6.0_16_`uname -m`/bin/java
+#jdk.home=/home/nbronson/java/default
+java.cmd=/home/nbronson/java/jdk1.6.0_16_`uname -m`/bin/java
+#jdk.home=/home/nbronson/java/jdk1.7.0_b72_debug_x86_64/jdk1.7.0/fastdebug
 
-scala.home=/home/nbronson/scala/default
+#scala.home=/home/nbronson/ccstm/project/boot/scala-2.7.7
+scala.home=/home/nbronson/scala/scala-2.8.0.RC1
+
+scala.version=2.8.0.RC2
+
+scalatest.jar=/home/nbronson/.m2/repository/org/scalatest/scalatest/1.0.1-for-scala-2.8.0.RC1-SNAPSHOT/scalatest-1.0.1-for-scala-2.8.0.RC1-SNAPSHOT.jar
