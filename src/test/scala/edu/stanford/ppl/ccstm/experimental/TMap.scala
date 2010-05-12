@@ -47,7 +47,8 @@ object TMap {
     def unbind: TMap.Source[A,B]
     def context: Option[Txn]
 
-    // TODO: this should be in a TSortedMap
+    // TODO: these should be in a TSortedMap
+    def subRange(begin: A, end: A): Iterator[(A,B)] = throw new UnsupportedOperationException
     def higher(key: A): Option[(A,B)] = throw new UnsupportedOperationException
 
     override def default(key: A): B = unbind.default(key)

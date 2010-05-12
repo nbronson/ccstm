@@ -41,6 +41,21 @@ class RedBlackTreeMap[A,B] extends TMap[A,B] {
 
 
   def bind(implicit txn0: Txn): Bound[A, B] = new TMap.AbstractTxnBound[A,B,RedBlackTreeMap[A,B]](txn0, this) {
+    override def subRange(begin: A, end: A): Iterator[(A,B)] = new Iterator[(A,B)] {
+      val endCmp = end.asInstanceOf[Comparable[A]]
+      
+      var avail = ceilingNode(begin.asInstanceOf[Comparable[A]], root)
+      if (avail != null && endCmp.compareTo(avail.key) <= 0) avail = null
+
+      def hasNext = null != avail
+      def next() = {
+        val z = (avail.key, avail.value)
+        avail = successor(avail)
+        if (avail != null && endCmp.compareTo(avail.key) <= 0) avail = null
+        z
+      }
+    }
+
     def iterator: Iterator[(A,B)] = new Iterator[(A,B)] {
       var avail = firstNode
 
@@ -69,6 +84,10 @@ class RedBlackTreeMap[A,B] extends TMap[A,B] {
                                      pfOrNull: PartialFunction[Option[B],Option[B]],
                                      f: Option[B] => Option[B]): Boolean = {
       STM.atomic(unbind.transformIfDefined(key, pfOrNull, f)(_))
+    }
+
+    override def subRange(begin: A, end: A): Iterator[Tuple2[A,B]] = {
+      STM.atomic(unbind.bind(_).subRange(begin, end).toArray).iterator
     }
 
     def iterator: Iterator[Tuple2[A,B]] = {
@@ -253,7 +272,22 @@ class RedBlackTreeMap[A,B] extends TMap[A,B] {
     }
   }
 
-  
+  private def ceilingNode(k: Comparable[A], p: RBNode[A,B])(implicit txn: Txn): RBNode[A,B] = {
+    if (null == p) {
+      null
+    } else {
+      val cmp = k.compareTo(p.key)
+      if (cmp > 0) {
+        // ceiling is on the right, if it exists
+        ceilingNode(k, p.right)
+      } else {
+        // ceiling can be on left or the current value
+        val z = ceilingNode(k, p.left)
+        if (null == z) p else z
+      }
+    }
+  }
+
 
   private def colorOf(p: RBNode[A,B])(implicit txn: Txn) = {
     if (null == p) BLACK else p.color
