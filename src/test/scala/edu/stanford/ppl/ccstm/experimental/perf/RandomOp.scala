@@ -2,7 +2,7 @@ package edu.stanford.ppl.ccstm.experimental.perf
 
 /* RandomOp
  *
- * Copyright 2009 Nathan Bronson and Stanford University.
+ * Copyright 2009-2010 Nathan Bronson and Stanford University.
  */
 
 import edu.stanford.ppl.ccstm.experimental.TMap

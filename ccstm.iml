@@ -2,7 +2,19 @@
 <module relativePaths="false" type="JAVA_MODULE" version="4">
   <component name="FacetManager">
     <facet type="Scala" name="Scala">
-      <configuration />
+      <configuration>
+        <option name="takeFromSettings" value="true" />
+        <option name="myScalaCompilerJarPaths">
+          <array>
+            <option value="$MODULE_DIR$/../scala/scala-2.7.7.final/lib/scala-compiler.jar" />
+          </array>
+        </option>
+        <option name="myScalaSdkJarPaths">
+          <array>
+            <option value="$MODULE_DIR$/../scala/scala-2.7.7.final/lib/scala-library.jar" />
+          </array>
+        </option>
+      </configuration>
     </facet>
   </component>
   <component name="NewModuleRootManager" inherit-compiler-output="false">
@@ -18,10 +30,8 @@
     </content>
     <orderEntry type="jdk" jdkName="1.6" jdkType="JavaSDK" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="library" name="DeuceSTM" level="project" />
-    <orderEntry type="library" name="Multiverse" level="project" />
     <orderEntry type="library" name="ScalaTest" level="project" />
-    <orderEntry type="library" name="SBT-managed scala" level="project" />
+    <orderEntry type="library" name="scala-2.7.7.final" level="application" />
   </component>
 </module>
 
