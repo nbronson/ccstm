@@ -6,8 +6,8 @@ package edu.stanford.ppl.ccstm.experimental.impl
 
 
 import edu.stanford.ppl.ccstm._
-import experimental.TMap
-import experimental.TMap.Bound
+import edu.stanford.ppl.ccstm.experimental.TMap
+import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm.TxnFieldUpdater.Base
 
 
@@ -87,11 +87,11 @@ class RedBlackTreeMap[A,B] extends TMap[A,B] {
     }
 
     override def subRange(begin: A, end: A): Iterator[Tuple2[A,B]] = {
-      STM.atomic(unbind.bind(_).subRange(begin, end).toArray).iterator
+      STM.atomic(unbind.bind(_).subRange(begin, end).toSeq).iterator
     }
 
     def iterator: Iterator[Tuple2[A,B]] = {
-      STM.atomic(unbind.bind(_).toArray).iterator
+      STM.atomic(unbind.bind(_).toSeq).iterator
     }
   }
 
