@@ -51,10 +51,10 @@ class PredicatedHashMap_GC_Enum[A,B] extends TMap[A,B] {
   }
 
 
-  def nonTxn: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_GC_Enum[A,B]](this) {
+  def escaped: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_GC_Enum[A,B]](this) {
 
     override def size(): Int = {
-      sizeRef.nonTxn.get
+      sizeRef.escaped.get
     }
 
     def get(key: A): Option[B] = {
@@ -63,13 +63,13 @@ class PredicatedHashMap_GC_Enum[A,B] extends TMap[A,B] {
       // the last two cases, since they will both have a null txn Token ref and
       // both correspond to None
       val p = existingPred(key)
-      if (null == p) None else decodePair(p.nonTxn.get)
+      if (null == p) None else decodePair(p.escaped.get)
     }
 
     override def put(key: A, value: B): Option[B] = {
       val tok = activeToken(key)
       val p = tok.pred
-      val pn = p.nonTxn
+      val pn = p.escaped
       val before = pn.get
       if (null != before) {
         // try to update (no size change)
@@ -87,7 +87,7 @@ class PredicatedHashMap_GC_Enum[A,B] extends TMap[A,B] {
 
     override def removeKey(key: A): Option[B] = {
       val p = existingPred(key)
-      if (null == p || null == p.nonTxn.get) {
+      if (null == p || null == p.escaped.get) {
         // no need to create a predicate, let's linearize here
         return None
       }
@@ -102,12 +102,12 @@ class PredicatedHashMap_GC_Enum[A,B] extends TMap[A,B] {
 
 //    override def transform(key: A, f: (Option[B]) => Option[B]) {
 //      val tok = activeToken(key)
-//      tok.pred.nonTxn.transform(liftF(tok, f))
+//      tok.pred.escaped.transform(liftF(tok, f))
 //    }
 //
 //    override def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]]): Boolean = {
 //      val tok = activeToken(key)
-//      tok.pred.nonTxn.transformIfDefined(liftPF(tok, pf))
+//      tok.pred.escaped.transformIfDefined(liftPF(tok, pf))
 //    }
 //
 //    protected def transformIfDefined(key: A,

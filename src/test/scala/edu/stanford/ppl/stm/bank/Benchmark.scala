@@ -81,7 +81,7 @@ object Benchmark {
 
     //// check
 
-    val finalBalances = accounts.map(_.balance.nonTxn.get)
+    val finalBalances = accounts.map(_.balance.single.get)
     val sum = finalBalances.reduceLeft(_+_)
     println("\nTOTAL=" + sum + finalBalances.mkString(" [ ", " ", " ]"))
 

@@ -47,12 +47,12 @@ class PredicatedHashMap_RC[A,B] extends TMap[A,B] {
   }
 
 
-  def nonTxn: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_RC[A,B]](this) {
+  def escaped: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_RC[A,B]](this) {
 
     def get(key: A): Option[B] = {
       // if no predicate exists, or the one we get is stale, we can still read None
       val p = existingPred(key)
-      if (null == p) None else NullValue.decodeOption(p.nonTxn.get)
+      if (null == p) None else NullValue.decodeOption(p.escaped.get)
     }
 
     override def put(key: A, value: B): Option[B] = {
@@ -79,7 +79,7 @@ class PredicatedHashMap_RC[A,B] extends TMap[A,B] {
     }
 
     private def putExisting(key: A, value: B, pred: Pred[B]): Option[B] = {
-      val prev = pred.nonTxn.swap(NullValue.encode(value))
+      val prev = pred.escaped.swap(NullValue.encode(value))
       if (null != prev) {
         exit(key, pred, 1)
         Some(NullValue.decode(prev))
@@ -95,7 +95,7 @@ class PredicatedHashMap_RC[A,B] extends TMap[A,B] {
       if (null == p) {
         None
       } else {
-        val prev = p.nonTxn.swap(null)
+        val prev = p.escaped.swap(null)
         if (null != prev) {
           exit(key, p, 1)
           Some(NullValue.decode(prev))

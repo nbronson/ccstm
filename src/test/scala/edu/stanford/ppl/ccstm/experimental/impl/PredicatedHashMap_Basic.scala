@@ -14,12 +14,12 @@ import edu.stanford.ppl.ccstm.impl.TAnyRef
 class PredicatedHashMap_Basic[A,B] extends TMap[A,B] {
   private val predicates = new ConcurrentHashMap[A,TAnyRef[AnyRef]]
 
-  def nonTxn: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_Basic[A,B]](this) {
+  def escaped: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_Basic[A,B]](this) {
 
     def get(key: A): Option[B] = {
       // if no predicate exists, then we don't need to create one
       val p = predicates.get(key)
-      if (null == p) None else NullValue.decodeOption(p.nonTxn.get)
+      if (null == p) None else NullValue.decodeOption(p.escaped.get)
     }
 
     override def put(key: A, value: B): Option[B] = {
@@ -27,7 +27,7 @@ class PredicatedHashMap_Basic[A,B] extends TMap[A,B] {
       if (null == p) {
         putNew(key, value)
       } else {
-        NullValue.decodeOption(p.nonTxn.swap(NullValue.encode(value)))
+        NullValue.decodeOption(p.escaped.swap(NullValue.encode(value)))
       }
     }
 
@@ -41,14 +41,14 @@ class PredicatedHashMap_Basic[A,B] extends TMap[A,B] {
         None
       } else {
         // normal read from the existing predicate
-        NullValue.decodeOption(race.nonTxn.swap(NullValue.encode(value)))
+        NullValue.decodeOption(race.escaped.swap(NullValue.encode(value)))
       }
     }
 
     override def removeKey(key: A): Option[B] = {
       // if no predicate exists, then we don't need to create one
       val p = predicates.get(key)
-      if (null == p) None else NullValue.decodeOption(p.nonTxn.swap(null))
+      if (null == p) None else NullValue.decodeOption(p.escaped.swap(null))
     }
 
     def iterator: Iterator[(A,B)] = new Iterator[(A,B)] {

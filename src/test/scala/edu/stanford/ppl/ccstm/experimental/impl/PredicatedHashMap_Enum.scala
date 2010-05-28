@@ -14,19 +14,19 @@ class PredicatedHashMap_Enum[A,B] extends TMap[A,B] {
   private val sizeRef = new StripedIntRef(0)
   private val predicates = new ConcurrentHashMap[A,TAnyRef[AnyRef]]
 
-  def nonTxn: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_Enum[A,B]](this) {
+  def escaped: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_Enum[A,B]](this) {
 
     override def size(): Int = {
-      sizeRef.nonTxn.get
+      sizeRef.escaped.get
     }
 
     def get(key: A): Option[B] = {
-      NullValue.decodeOption(pred(key).nonTxn.get)
+      NullValue.decodeOption(pred(key).escaped.get)
     }
 
     override def put(key: A, value: B): Option[B] = {
       val p = pred(key)
-      val pn = p.nonTxn
+      val pn = p.escaped
       val before = pn.get
       if (null != before) {
         // try to update (no size change)
@@ -43,7 +43,7 @@ class PredicatedHashMap_Enum[A,B] extends TMap[A,B] {
 
     override def removeKey(key: A): Option[B] = {
       val p = predicates.get(key)
-      if (null == p || null == p.nonTxn.get) {
+      if (null == p || null == p.escaped.get) {
         // no need to create a predicate, let's linearize right here
         return None
       }
@@ -56,7 +56,7 @@ class PredicatedHashMap_Enum[A,B] extends TMap[A,B] {
 //                                     pfOrNull: PartialFunction[Option[B],Option[B]],
 //                                     f: Option[B] => Option[B]): Boolean = {
 //      val p = pred(key)
-//      val pn = p.nonTxn
+//      val pn = p.escaped
 //      val before = pn.get
 //      if (null != pfOrNull && !pfOrNull.isDefinedAt(before)) {
 //        // no change

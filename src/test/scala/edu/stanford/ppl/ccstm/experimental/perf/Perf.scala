@@ -322,28 +322,28 @@ object Perf {
     def doPut(key: Int, value: String) {
       counts += PutOp
       currentOp = PutOp
-      master.target.nonTxn(key) = value
+      master.target.escaped(key) = value
       currentOp = NoOp
     }
 
     def doRemove(key: Int) {
       counts += RemoveOp
       currentOp = RemoveOp
-      master.target.nonTxn -= key
+      master.target.escaped -= key
       currentOp = NoOp
     }
 
     def doClear {
       counts += ClearOp
       currentOp = ClearOp
-      master.target.nonTxn.clear
+      master.target.escaped.clear
       currentOp = NoOp
     }
 
     def doGet(key: Int): Option[String] = {
       counts += GetOp
       currentOp = GetOp
-      val z = master.target.nonTxn.get(key)
+      val z = master.target.escaped.get(key)
       currentOp = NoOp
       z
     }
@@ -351,7 +351,7 @@ object Perf {
     def doHigher(key: Int): Option[(Int,String)] = {
       counts += HigherOp
       currentOp = HigherOp
-      val z = master.target.nonTxn.higher(key)
+      val z = master.target.escaped.higher(key)
       currentOp = NoOp
       z
     }

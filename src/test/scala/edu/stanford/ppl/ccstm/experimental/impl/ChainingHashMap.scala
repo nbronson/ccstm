@@ -48,17 +48,17 @@ class ChainingHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TM
   }
 
 
-  def nonTxn: Bound[K,V] = new TMap.AbstractNonTxnBound[K,V,ChainingHashMap[K,V]](ChainingHashMap.this) {
+  def escaped: Bound[K,V] = new TMap.AbstractNonTxnBound[K,V,ChainingHashMap[K,V]](ChainingHashMap.this) {
 
-    override def size: Int = sizeRef.nonTxn.get
+    override def size: Int = sizeRef.escaped.get
 
     // This uses unrecordedRead, a CCSTM special op.
 //    def get(key: K): Option[V] = {
 //      // attempt an ad-hoc txn first
 //      val h = hash(key)
-//      val unrecorded = bucketsRef.nonTxn.unrecordedRead
+//      val unrecorded = bucketsRef.escaped.unrecordedRead
 //      val buckets = unrecorded.value
-//      val head = buckets.nonTxn(h & (buckets.length - 1))
+//      val head = buckets.escaped(h & (buckets.length - 1))
 //      if (unrecorded.stillValid) {
 //        // coherent read of bucketsRef and buckets(i)
 //        val bucket = if (null == head) null else head.find(h, key)
@@ -73,9 +73,9 @@ class ChainingHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TM
     def get(key: K): Option[V] = {
       // attempt an ad-hoc txn first
       val h = hash(key)
-      val buckets = bucketsRef.nonTxn.get
-      val head = buckets.nonTxn(h & (buckets.length - 1))
-      if (bucketsRef.nonTxn.get eq buckets) {
+      val buckets = bucketsRef.escaped.get
+      val head = buckets.escaped(h & (buckets.length - 1))
+      if (bucketsRef.escaped.get eq buckets) {
         // coherent read of bucketsRef and buckets(i)
         val bucket = if (null == head) null else head.find(h, key)
         if (null == bucket) None else Some(bucket.value)

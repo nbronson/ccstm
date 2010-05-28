@@ -21,25 +21,34 @@ private[ccstm] final class CallbackList[T <: AnyRef] {
   def isEmpty = size == 0
 
   def add(elem: T, priority: Int) {
+    add(elem, priority, true, true)
+  }
+
+  def add(elem: T, priority: Int, callOnCommit: Boolean, callOnRollback: Boolean) {
     if (null == elem) {
       throw new NullPointerException
     }
+    val m = (if (callOnCommit) 1 else 0) + (if (callOnRollback) 2 else 0)
     if (priority == 0) {
-      _zeroSlot.add(elem)
+      _zeroSlot.add(elem, m)
     } else {
       var slot = _slotsByPrio.get(priority)
       if (null == slot) {
         slot = new CallbackPrioSlot
         _slotsByPrio.put(priority, slot)
       }
-      slot.add(elem)
+      slot.add(elem, m)
       _size += 1
     }
   }
 
-  def foreach(block: T => Unit) {
+  def foreach(block: T => Unit) { foreach(3, block) }
+
+  def foreach(committing: Boolean)(block: T => Unit) { foreach((if (committing) 1 else 2), block) }
+
+  private def foreach(mask: Int, block: T => Unit) {
     try {
-      while (!attemptForeach(block)) {}
+      while (!attemptForeach(mask, block)) {}
     } finally {
       reset
     }
@@ -51,63 +60,78 @@ private[ccstm] final class CallbackList[T <: AnyRef] {
     _size = 0
   }
 
-  private def attemptForeach(block: T => Unit): Boolean = {
+  private def attemptForeach(mask: Int, block: T => Unit): Boolean = {
     val expectedSize = size
     if (_size == 0) {
-      if (!attemptSlot(block, expectedSize, _zeroSlot)) return false
+      if (!attemptSlot(mask, block, expectedSize, _zeroSlot)) return false
     } else {
       _slotsByPrio.put(0, _zeroSlot)
       val iter = _slotsByPrio.values().iterator
       while (iter.hasNext) {
-        if (!attemptSlot(block, expectedSize, iter.next)) return false
+        if (!attemptSlot(mask, block, expectedSize, iter.next)) return false
       }
     }
     return true
   }
 
-  private def attemptSlot(block: T => Unit, expectedSize: Int, slot: CallbackPrioSlot): Boolean = {
-    while (slot._visited < slot._count) {
-      block(slot._elems(slot._visited).asInstanceOf[T])
-      slot._visited += 1
+  private def attemptSlot(mask: Int, block: T => Unit, expectedSize: Int, slot: CallbackPrioSlot): Boolean = {
+    while (slot.visitOne(mask, block)) {
       if (expectedSize != size) return false
     }
     return true
   }
 
-  private def reset {
-    _zeroSlot._visited = 0
+  private def reset() {
+    _zeroSlot.reset()
     if (_size > 0) {
       val iter = _slotsByPrio.values().iterator
-      while (iter.hasNext) iter.next._visited = 0
+      while (iter.hasNext) iter.next.reset()
     }
   }
 }
 
 private final class CallbackPrioSlot {
-  def InitialCap = 8
-  def MaxInitialCap = 512
+  private def InitialCap = 8
+  private def MaxInitialCap = 512
 
-  var _count = 0
-  var _elems = new Array[AnyRef](InitialCap)
-  var _visited = 0
+  private var _count = 0
+  private var _elems = new Array[AnyRef](InitialCap * 2)
+  private var _visited = 0
 
   def size = _count
 
-  def add(elem: AnyRef) {
-    if (_count >= _elems.length) {
-      _elems = java.util.Arrays.copyOf(_elems, _count * 2)
+  def reset() { _visited = 0 }
+
+  def add(elem: AnyRef, mask: Int) {
+    if (_count * 2 + 2 > _elems.length) {
+      _elems = java.util.Arrays.copyOf(_elems, _count * 4)
     }
-    _elems(_count) = elem
+    _elems(_count * 2) = elem
+    _elems(_count * 2 + 1) = mask.asInstanceOf[AnyRef]
     _count += 1
   }
 
   def clear() {
-    if (_elems.length > MaxInitialCap) {
+    if (_elems.length > MaxInitialCap * 2) {
       // complete reset
-      _elems = new Array[AnyRef](MaxInitialCap)
+      _elems = new Array[AnyRef](MaxInitialCap * 2)
     } else {
-      java.util.Arrays.fill(_elems, 0, _count, null)
+      java.util.Arrays.fill(_elems, 0, _count * 2, null)
     }
     _count = 0
+  }
+
+  def visitOne[T](mask: Int, block: T => Unit): Boolean = {
+    val v = _visited
+    if (v < _count) {
+      val m = _elems(v * 2 + 1).asInstanceOf[Int]
+      if ((m & mask) != 0) {
+        block(_elems(v * 2).asInstanceOf[T])
+      }
+      _visited = v + 1
+      true
+    } else {
+      false
+    }
   }
 }

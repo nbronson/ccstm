@@ -76,11 +76,11 @@ class HistogramSuite extends STMFunSuite {
           barrier.await
           var i = 0
           while (i < samplesPerWorker) {
-            if (Math.abs(hash(i, worker) % 100) < singlePct) {
+            if (math.abs(hash(i, worker) % 100) < singlePct) {
               if ((i % 2) == 0) {
-                buckets(Math.abs(hash(worker, i) % bucketCount)).single.transform(_ + 1)
+                buckets(math.abs(hash(worker, i) % bucketCount)).single.transform(_ + 1)
               } else {
-                val nt = buckets(Math.abs(hash(worker, i) % bucketCount)).single
+                val nt = buckets(math.abs(hash(worker, i) % bucketCount)).single
                 var x = nt()
                 while (!nt.compareAndSet(x, x + 1)) x = nt()
               }
@@ -89,7 +89,7 @@ class HistogramSuite extends STMFunSuite {
               new Atomic { def body {
                 var j = 0
                 while (j < samplesPerTxn && i + j < samplesPerWorker) {
-                  val tv = buckets(Math.abs(hash(worker, i + j) % bucketCount))
+                  val tv = buckets(math.abs(hash(worker, i + j) % bucketCount))
                   //tv.getAndTransform(_ + 1)
                   tv() = tv() + 1
                   //tv() = tv.bind.readForWrite + 1

@@ -92,7 +92,7 @@ class TransactionalRef[T] extends edu.stanford.ppl.ccstm.impl.Handle[T] {
 
   def elements: Iterator[T] = {
     val z = txn.get(this)
-    if (null == z) Iterator.empty else Iterator.fromValues(z)
+    if (null == z) Iterator.empty else Iterator.single(z)
   }
 
   def toList: List[T] = {

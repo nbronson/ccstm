@@ -643,14 +643,14 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
 
   def afterCommit(callback: Txn => Unit, prio: Int) {
     requireNotCompleted()
-    _callbacks.afterCommit.add(callback, prio)
+    _callbacks.afterCompletion.add(callback, prio, true, false)
   }
 
   def afterCommit(callback: Txn => Unit) { afterCommit(callback, 0) }
 
   def afterRollback(callback: Txn => Unit, prio: Int) {
     requireNotCompleted()
-    _callbacks.afterRollback.add(callback, prio)
+    _callbacks.afterCompletion.add(callback, prio, false, true)
   }
 
   def afterRollback(callback: Txn => Unit) { afterRollback(callback, 0) }
@@ -658,27 +658,24 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
   def afterCompletion(callback: Txn => Unit) { afterCompletion(callback, 0) }
 
   def afterCompletion(callback: Txn => Unit, prio: Int) {
-    afterCommit(callback, prio)
-    afterRollback(callback, prio)
+    requireNotCompleted()
+    _callbacks.afterCompletion.add(callback, prio, true, true)
   }
 
   private[ccstm] def callAfter() {
     val s = status
-    val callbacks = (if (s eq Committed) {
-      if (EnableCounters) {
+    val committing = s eq Committed
+    if (EnableCounters) {
+      if (committing) {
         commitCounter += 1
         if (barging) bargingCommitCounter += 1
-      }
-      _callbacks.afterCommit
-    } else {
-      if (EnableCounters) {
+      } else {
         s.rollbackCause.counter += 1
         if (barging) bargingRollbackCounter += 1
       }
-      _callbacks.afterRollback
-    })
-    if (!callbacks.isEmpty) {
-      for (cb <- callbacks) {
+    }
+    if (!_callbacks.afterCompletion.isEmpty) {
+      _callbacks.afterCompletion.foreach(committing) { cb =>
         try {
           cb(this)
         }

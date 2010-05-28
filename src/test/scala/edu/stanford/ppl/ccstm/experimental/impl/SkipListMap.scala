@@ -55,9 +55,9 @@ class SkipListMap[A,B](implicit aMan: Manifest[A], bMan: Manifest[B]) extends TM
     }
   }
 
-  def nonTxn: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,SkipListMap[A,B]](this) {
+  def escaped: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,SkipListMap[A,B]](this) {
 
-    override def isEmpty = null != unbind.head.nonTxn.get.links.nonTxn(0)
+    override def isEmpty = null != unbind.head.escaped.get.links.escaped(0)
     override def size = STM.atomic(unbind.size(_))
 
     def get(key: A): Option[B] = STM.atomic(unbind.get(key)(_))
@@ -116,7 +116,7 @@ class SkipListMap[A,B](implicit aMan: Manifest[A], bMan: Manifest[B]) extends TM
       val newNode = new SLNode[A,B](key, value, newH)
 
       // Link new node after predecessor at each level
-      var i = Math.min(newH, preds.length) - 1
+      var i = math.min(newH, preds.length) - 1
       while (i >= 0) {
         newNode.links(i) = preds(i).links(i)
         preds(i).links(i) = newNode
