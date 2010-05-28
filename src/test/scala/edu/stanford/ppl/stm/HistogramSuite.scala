@@ -20,7 +20,7 @@ class HistogramSuite extends STMFunSuite {
         for (useTArray <- List(false, true)) {
           val str = ("" + buckets + " buckets, " + threads + " threads, " +
                   (if (useTArray) "TArray[Int]" else "Array[Ref[Int]]"))
-          addTest("non-txn, " + str + ", " + name, groups:_*) {
+          addTest("single-op-txn, " + str + ", " + name, groups:_*) {
             histogram(buckets, threads, opsPerTest / threads, useTArray, 100, 1)
           }
 
@@ -43,7 +43,7 @@ class HistogramSuite extends STMFunSuite {
                 workerCount: Int,
                 samplesPerWorker: Int,
                 useTArray: Boolean,
-                nonTxnPct: Int,
+                singlePct: Int,
                 samplesPerTxn: Int) {
 
     val buckets: IndexedSeq[Ref[Int]] = (if (useTArray) {
@@ -61,7 +61,7 @@ class HistogramSuite extends STMFunSuite {
         } else {
           val elapsed = now - start
           println("hist(" + bucketCount + "," + workerCount + "," + samplesPerWorker + "," +
-            useTArray + "," + nonTxnPct +
+            useTArray + "," + singlePct +
             "," + samplesPerTxn + ")  total_elapsed=" + elapsed + " nanos,  throughput=" +
             (samplesPerWorker * workerCount * 1000000000L) / elapsed + " ops/sec,  per_thread_latency=" +
             elapsed / samplesPerWorker + " nanos/op,  avg_arrival=" +
@@ -76,11 +76,11 @@ class HistogramSuite extends STMFunSuite {
           barrier.await
           var i = 0
           while (i < samplesPerWorker) {
-            if (Math.abs(hash(i, worker) % 100) < nonTxnPct) {
+            if (math.abs(hash(i, worker) % 100) < singlePct) {
               if ((i % 2) == 0) {
-                buckets(Math.abs(hash(worker, i) % bucketCount)).nonTxn.transform(_ + 1)
+                buckets(math.abs(hash(worker, i) % bucketCount)).single.transform(_ + 1)
               } else {
-                val nt = buckets(Math.abs(hash(worker, i) % bucketCount)).nonTxn
+                val nt = buckets(math.abs(hash(worker, i) % bucketCount)).single
                 var x = nt()
                 while (!nt.compareAndSet(x, x + 1)) x = nt()
               }
@@ -89,10 +89,10 @@ class HistogramSuite extends STMFunSuite {
               new Atomic { def body {
                 var j = 0
                 while (j < samplesPerTxn && i + j < samplesPerWorker) {
-                  val tv = buckets(Math.abs(hash(worker, i + j) % bucketCount))
+                  val tv = buckets(math.abs(hash(worker, i + j) % bucketCount))
                   //tv.getAndTransform(_ + 1)
-                  tv := tv() + 1
-                  //tv := tv.bind.readForWrite + 1
+                  tv() = tv() + 1
+                  //tv() = tv.bind.readForWrite + 1
                   j += 1
                 }
               }}.run
@@ -112,7 +112,7 @@ class HistogramSuite extends STMFunSuite {
 
     for (worker <- 0 until workerCount - 1) threads(worker).join
 
-    val sum = buckets.map(_.nonTxn.get).reduceLeft(_+_)
+    val sum = buckets.map(_.single.get).reduceLeft(_+_)
     assert(samplesPerWorker * workerCount === sum)
   }
 

@@ -8,7 +8,6 @@ import edu.stanford.ppl.ccstm.experimental.TMap
 import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm.{STM, Txn}
 import java.util.concurrent.ConcurrentHashMap
-import edu.stanford.ppl.ccstm.collection.{IdentityPair, TIdentityPairRef}
 
 private object PredicatedHashMap_GC {
   private class TokenRef[A,B](map: PredicatedHashMap_GC[A,B], key: A, token: Token) extends CleanableRef[Token](token) {
@@ -47,7 +46,7 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
     }
   }
 
-  def nonTxn: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_GC[A,B]](this) {
+  def escaped: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_GC[A,B]](this) {
 
     def get(key: A): Option[B] = {
       // p may be missing (null), no longer active (weakRef.get == null), or
@@ -55,7 +54,7 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
       // the last two cases, since they will both have a null txn Token ref and
       // both correspond to None
       val p = predicates.get(key)
-      decodePair(if (null == p) null else p.nonTxn.get)
+      decodePair(if (null == p) null else p.escaped.get)
     }
 
     override def put(key: A, value: B): Option[B] = putImpl(key, value, predicates.get(key))
@@ -92,24 +91,24 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
     }
 
     private def putImpl(value: B, token: Token, pred: Predicate[B]): Option[B] = {
-      decodePair(pred.nonTxn.getAndSet(IdentityPair(token, value)))
+      decodePair(pred.escaped.swap(IdentityPair(token, value)))
     }
 
     override def removeKey(key: A): Option[B] = {
-      // if the pred is stale, then getAndSet(None) is a no-op and doesn't harm
+      // if the pred is stale, then swap(None) is a no-op and doesn't harm
       // anything
       val p = predicates.get(key)
-      decodePair(if (null == p) null else p.nonTxn.getAndSet(null))
+      decodePair(if (null == p) null else p.escaped.swap(null))
     }
 
 //    override def transform(key: A, f: (Option[B]) => Option[B]) {
 //      val tok = activeToken(key)
-//      tok.pred.nonTxn.transform(liftF(tok, f))
+//      tok.pred.escaped.transform(liftF(tok, f))
 //    }
 //
 //    override def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]]): Boolean = {
 //      val tok = activeToken(key)
-//      tok.pred.nonTxn.transformIfDefined(liftPF(tok, pf))
+//      tok.pred.escaped.transformIfDefined(liftPF(tok, pf))
 //    }
 //
 //    protected def transformIfDefined(key: A,
@@ -236,7 +235,7 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
   }
 
   private def putImpl(value: B, token: Token, pred: Predicate[B])(implicit txn: Txn): Option[B] = {
-    decodePair(pred.getAndSet(IdentityPair(token, value)))
+    decodePair(pred.swap(IdentityPair(token, value)))
   }
 
   
@@ -274,7 +273,7 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
   }
 
   private def removeImpl(token: Token, pred: Predicate[B])(implicit txn: Txn): Option[B] = {
-    decodePairAndPin(token, pred.getAndSet(null))
+    decodePairAndPin(token, pred.swap(null))
   }
   
 //  override def transform(key: A, f: (Option[B]) => Option[B])(implicit txn: Txn) {

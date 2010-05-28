@@ -13,14 +13,12 @@ private[ccstm] final class Callbacks {
   /** Includes WriteResource-s and beforeCommit callbacks. */
   val writeLikeResources: CallbackList[Txn.WriteResource] = new CallbackList[Txn.WriteResource]
   var writeResourcesPresent = false
-  val afterCommit: CallbackList[Txn => Unit] = new CallbackList[Txn => Unit]
-  val afterRollback: CallbackList[Txn => Unit] = new CallbackList[Txn => Unit]
+  val afterCompletion: CallbackList[Txn => Unit] = new CallbackList[Txn => Unit]
 
   def clear() {
     readResources.clear()
     writeLikeResources.clear()
     writeResourcesPresent = false
-    afterCommit.clear()
-    afterRollback.clear()
+    afterCompletion.clear()
   }
 }

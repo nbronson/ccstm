@@ -9,7 +9,7 @@ import java.util.concurrent.ConcurrentHashMap
 import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm.{STM, Txn}
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater
-import edu.stanford.ppl.ccstm.collection.TAnyRef
+import edu.stanford.ppl.ccstm.impl.TAnyRef
 
 
 object PredicatedHashMap_RC {
@@ -47,12 +47,12 @@ class PredicatedHashMap_RC[A,B] extends TMap[A,B] {
   }
 
 
-  def nonTxn: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_RC[A,B]](this) {
+  def escaped: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_RC[A,B]](this) {
 
     def get(key: A): Option[B] = {
       // if no predicate exists, or the one we get is stale, we can still read None
       val p = existingPred(key)
-      if (null == p) None else NullValue.decodeOption(p.nonTxn.get)
+      if (null == p) None else NullValue.decodeOption(p.escaped.get)
     }
 
     override def put(key: A, value: B): Option[B] = {
@@ -79,7 +79,7 @@ class PredicatedHashMap_RC[A,B] extends TMap[A,B] {
     }
 
     private def putExisting(key: A, value: B, pred: Pred[B]): Option[B] = {
-      val prev = pred.nonTxn.getAndSet(NullValue.encode(value))
+      val prev = pred.escaped.swap(NullValue.encode(value))
       if (null != prev) {
         exit(key, pred, 1)
         Some(NullValue.decode(prev))
@@ -95,7 +95,7 @@ class PredicatedHashMap_RC[A,B] extends TMap[A,B] {
       if (null == p) {
         None
       } else {
-        val prev = p.nonTxn.getAndSet(null)
+        val prev = p.escaped.swap(null)
         if (null != prev) {
           exit(key, p, 1)
           Some(NullValue.decode(prev))
@@ -166,7 +166,7 @@ class PredicatedHashMap_RC[A,B] extends TMap[A,B] {
   def put(k: A, v: B)(implicit txn: Txn): Option[B] = {
     val p = enter(k)
     try {
-      val prev = p.getAndSet(NullValue.encode(v))
+      val prev = p.swap(NullValue.encode(v))
       if (null == prev) {
         // None -> Some.  On commit, we leave +1 on the reference count
         txn.afterRollback(t => exit(k, p, 1))
@@ -187,7 +187,7 @@ class PredicatedHashMap_RC[A,B] extends TMap[A,B] {
   def removeKey(k: A)(implicit txn: Txn): Option[B] = {
     val p = enter(k)
     try {
-      val prev = p.getAndSet(null)
+      val prev = p.swap(null)
       if (null != prev) {
         // Some -> None.  On commit, we erase the +1 that was left by the
         // None -> Some transition

@@ -5,7 +5,7 @@
 package edu.stanford.ppl.ccstm.collection
 
 import edu.stanford.ppl.ccstm._
-import edu.stanford.ppl.ccstm.impl.Handle
+import impl.{RefOps, Handle}
 import java.util.concurrent.atomic.AtomicLongArray
 import scala.reflect.ClassManifest
 import scala.collection._
@@ -27,13 +27,13 @@ object TArray {
   def apply[T](data: Traversable[T], metaMapping: TArray.MetaMapping)(implicit m: ClassManifest[T]) = new TArray[T](data, metaMapping)
 
   
-  trait Bound[T] extends mutable.IndexedSeq[T] {
+  trait View[T] extends mutable.IndexedSeq[T] {
     def unbind: TArray[T]
-    def context: Option[Txn]
+    def mode: AccessMode
     def length: Int = unbind.length
     def apply(index: Int): T
     def update(index: Int, v: T)
-    def refs: immutable.IndexedSeq[Ref.Bound[T]]
+    def refs: immutable.IndexedSeq[Ref.View[T]]
   }
 
   /** <code>MetaMapping</code> defines the mapping from elements of the array
@@ -77,27 +77,41 @@ class TArray[T](private val _data: AtomicArray[T], metaMapping: TArray.MetaMappi
   def apply(index: Int)(implicit txn: Txn) = getRef(index).get
   def update(index: Int, v: T)(implicit txn: Txn) = getRef(index).set(v)
 
-  def bind(implicit txn: Txn): Bound[T] = new Bound[T] {
+  def bind(implicit txn: Txn): View[T] = new View[T] {
     def unbind = TArray.this
-    def context = Some(txn)
+    def mode: AccessMode = txn
     def apply(index: Int): T = getRef(index).get
     def update(index: Int, v: T) = getRef(index).set(v)
-    def refs: immutable.IndexedSeq[Ref.Bound[T]] = new immutable.IndexedSeq[Ref.Bound[T]] {
+    def refs: immutable.IndexedSeq[Ref.View[T]] = new immutable.IndexedSeq[Ref.View[T]] {
       def length = unbind.length
       def apply(index: Int) = getRef(index).bind
     }
   }
 
-  def nonTxn: Bound[T] = new Bound[T] {
+  def single: View[T] = new View[T] {
     def unbind = TArray.this
-    def context = None
-    def apply(index: Int): T = getRef(index).nonTxn.get
-    def update(index: Int, v: T) = getRef(index).nonTxn.set(v)
-    def refs: immutable.IndexedSeq[Ref.Bound[T]] = new immutable.IndexedSeq[Ref.Bound[T]] {
+    def mode: AccessMode = Single
+    def apply(index: Int): T = getRef(index).single.get
+    def update(index: Int, v: T) = getRef(index).single.set(v)
+    def refs: immutable.IndexedSeq[Ref.View[T]] = new immutable.IndexedSeq[Ref.View[T]] {
       def length = unbind.length
-      def apply(index: Int) = getRef(index).nonTxn
+      def apply(index: Int) = getRef(index).single
     }
   }
+
+  def escaped: View[T] = new View[T] {
+    def unbind = TArray.this
+    def mode: AccessMode = Escaped
+    def apply(index: Int): T = getRef(index).escaped.get
+    def update(index: Int, v: T) = getRef(index).escaped.set(v)
+    def refs: immutable.IndexedSeq[Ref.View[T]] = new immutable.IndexedSeq[Ref.View[T]] {
+      def length = unbind.length
+      def apply(index: Int) = getRef(index).escaped
+    }
+  }
+
+  @deprecated("consider replacing with TArray.single")
+  def nonTxn = escaped
 
   def refs: immutable.IndexedSeq[Ref[T]] = new immutable.IndexedSeq[Ref[T]] {
     def length: Int = TArray.this.length
@@ -108,18 +122,18 @@ class TArray[T](private val _data: AtomicArray[T], metaMapping: TArray.MetaMappi
 
   private val _metaIndexShift = { var i = 0 ; while ((1L << i) < metaMapping.neighboringDataPerMeta) i += 1 ; i }
   private val _metaIndexMask = {
-    val n = Math.min(length / metaMapping.dataPerMeta, metaMapping.maxMeta)
+    val n = math.min(length / metaMapping.dataPerMeta, metaMapping.maxMeta)
     var m = 1 ; while (m < n) m = (m << 1) + 1
     assert ((m & (m + 1)) == 0)
     m
   }
 
-  private val _meta = new AtomicLongArray(Math.min(_metaIndexMask + 1, length))
+  private val _meta = new AtomicLongArray(math.min(_metaIndexMask + 1, length))
   private def _metaIndex(i: Int) = (i >> _metaIndexShift) & _metaIndexMask
 
-  private def getRef(index: Int): Ref[T] = new Handle[T] with Ref[T] {
+  private def getRef(index: Int): Ref[T] = new Handle[T] with RefOps[T] {
 
-    protected def handle: Handle[T] = this
+    private[ccstm] def handle: Handle[T] = this
 
     private[ccstm] def metaOffset = _metaIndex(index)
 

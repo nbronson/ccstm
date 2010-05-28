@@ -53,7 +53,7 @@ private[impl] trait GV6 {
    */
   private[impl] def nonTxnWriteVersion(prevVersion: Long): Long = {
     val g = globalVersion.get
-    val result = Math.max(g, prevVersion) + 1
+    val result = math.max(g, prevVersion) + 1
     if (result > g + nonTxnSilentRunAhead) {
       globalVersion.compareAndSet(g, prevVersion + 1)
     }
@@ -82,7 +82,7 @@ private[impl] trait GV6 {
    *  <code>readVersion</code>, possibly increasing <code>globalVersion</code>.
    */
   private[impl] def freshCommitVersion(readVersion: Long, gvSnap: Long): Long = {
-    val result = Math.max(readVersion, gvSnap) + 1
+    val result = math.max(readVersion, gvSnap) + 1
     if (silentCommitRatio <= 1 || silentCommitRand.nextInt <= silentCommitCutoff) {
       globalVersion.compareAndSet(gvSnap, result)
       // ignore failure

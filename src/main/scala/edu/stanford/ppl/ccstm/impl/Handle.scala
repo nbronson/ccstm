@@ -11,9 +11,6 @@ package edu.stanford.ppl.ccstm.impl
  *  <code>offset</code>, with <code>ref</code> be used only in comparisons
  *  using <code>eq</code> or <code>ne</code> (no methods of <code>ref</code>
  *  will ever be invoked).  Metadata may be shared between multiple locations.
- *  <p>
- *  See <code>MetaHolder</code> for a pre-built implementation of the
- *  <code>meta*</code> methods.
  */
 private[ccstm] abstract class Handle[T] {
   private[ccstm] def meta: Long

@@ -9,7 +9,7 @@ import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import java.util.concurrent.ConcurrentHashMap
 import edu.stanford.ppl.ccstm.{STM, Txn}
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater
-import edu.stanford.ppl.ccstm.collection.{StripedIntRef, IdentityPair, TIdentityPairRef}
+import edu.stanford.ppl.ccstm.impl.StripedIntRef
 
 private object PredicatedHashMap_LazyGC_Enum {
 
@@ -101,15 +101,15 @@ class PredicatedHashMap_LazyGC_Enum[A,B] extends TMap[A,B] {
   }
 
 
-  def nonTxn: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_LazyGC_Enum[A,B]](this) {
+  def escaped: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_LazyGC_Enum[A,B]](this) {
 
     override def size(): Int = {
-      sizeRef.nonTxn.get
+      sizeRef.escaped.get
     }
 
     def get(key: A): Option[B] = {
       val p = predicates.get(key)
-      if (p == null) None else decodePair(p.nonTxn.get)
+      if (p == null) None else decodePair(p.escaped.get)
     }
 
     override def put(key: A, value: B): Option[B] = {
@@ -134,8 +134,8 @@ class PredicatedHashMap_LazyGC_Enum[A,B] extends TMap[A,B] {
             } else {
               // the predicate is strong, but we can still perform a Some -> Some
               // transition
-              val prevPair = p.nonTxn.get
-              if (null != prevPair && p.nonTxn.compareAndSet(prevPair, IdentityPair(token, value))) {
+              val prevPair = p.escaped.get
+              if (null != prevPair && p.escaped.compareAndSet(prevPair, IdentityPair(token, value))) {
                 // success
                 return Some(prevPair._2)
               } else if (null != ensureWeak(key, p)) {
@@ -300,7 +300,7 @@ class PredicatedHashMap_LazyGC_Enum[A,B] extends TMap[A,B] {
   }
 
   def isEmpty(implicit txn: Txn): Boolean = {
-    sizeRef > 0
+    sizeRef getWith { _ > 0 }
   }
 
   def size(implicit txn: Txn): Int = {
@@ -376,7 +376,7 @@ class PredicatedHashMap_LazyGC_Enum[A,B] extends TMap[A,B] {
       val ref = pred.tokenRef
       val token = if (null == ref) null else ref.get
       if (null != token) {
-        val prev = pred.getAndSet(IdentityPair(token, value))
+        val prev = pred.swap(IdentityPair(token, value))
         if (null == prev) sizeRef += 1
         return decodePair(prev)
       }
@@ -407,7 +407,7 @@ class PredicatedHashMap_LazyGC_Enum[A,B] extends TMap[A,B] {
     // txn may have already updated it.  We don't, however, have to do all of
     // the normal work, because there is no way that the predicate could have
     // become stale.
-    val prev = freshPred.getAndSet(IdentityPair(freshToken, value))
+    val prev = freshPred.swap(IdentityPair(freshToken, value))
     if (null == prev) sizeRef += 1
     return decodePair(prev)
   }
@@ -419,7 +419,7 @@ class PredicatedHashMap_LazyGC_Enum[A,B] extends TMap[A,B] {
         // We now have knowledge that if this txn commits, the predicate should
         // be cleaned up.  Also, we don't need to weaken it.
         pred.creationInfo.removeOnCommit = true
-        val prev = pred.getAndSet(null)
+        val prev = pred.swap(null)
         if (null != prev) sizeRef -= 1
         return decodePair(prev)
       }

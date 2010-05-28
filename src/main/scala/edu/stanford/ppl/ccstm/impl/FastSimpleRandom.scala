@@ -14,7 +14,7 @@ package edu.stanford.ppl.ccstm.impl
  *  The constants in this 64-bit linear congruential random number generator
  *  are from http://nuclear.llnl.gov/CNP/rng/rngman/node4.html.
  */
-object FastSimpleRandom {
+private[ccstm] object FastSimpleRandom {
   // 64 byte cache lines are typical, so there are 8 slots per cache line.
   // This means that the probability that any two threads have false sharing is
   // p = 8 / #slots.  If there are n processors, each of which is running 1
@@ -78,7 +78,7 @@ object FastSimpleRandom {
 /** A single-threaded random number generator that uses the same algorithm as
  *  the concurrent <code>object FastSimpleRandom</code>.
  */
-final class FastSimpleRandom private (private var _state: Long, dummy: Boolean) {
+private[ccstm] final class FastSimpleRandom private (private var _state: Long, dummy: Boolean) {
   import FastSimpleRandom._
 
   def this(seed: Int) = this(FastSimpleRandom.step(FastSimpleRandom.step(seed)), false)

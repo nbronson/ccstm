@@ -7,7 +7,7 @@ package edu.stanford.ppl.ccstm.impl
 import edu.stanford.ppl.ccstm._
 
 
-abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadContext) extends AbstractTxn {
+private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadContext) extends AbstractTxn {
   import STMImpl._
   import Txn._
 
@@ -26,10 +26,10 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
 
   {
     attach(ctx)
-    _callbacks = ctx.takeCallbacks
-    _readSet = ctx.takeReadSet
-    _writeBuffer = ctx.takeWriteBuffer
-    _strongRefSet = ctx.takeStrongRefSet
+    _callbacks = ctx.takeCallbacks()
+    _readSet = ctx.takeReadSet()
+    _writeBuffer = ctx.takeWriteBuffer()
+    _strongRefSet = ctx.takeStrongRefSet()
     _slot = slotManager.assign(this, ctx.preferredSlot)
   }
 
@@ -50,6 +50,11 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
   private[ccstm] val explicitRetrying: Boolean = {
     !failureHistory.isEmpty && failureHistory.head.isInstanceOf[ExplicitRetryCause]
   }
+
+  /** `orAtomic` right-hand sides are stashed here before the left-most
+   *  child `atomic` is executed.
+   */
+  private[ccstm] var childAlternatives: List[Txn => Any] = Nil
 
   private def shouldBarge(failureHistory: List[Txn.RollbackCause]) = {
     // barge if we have already had 2 failures since the last explicit retry
@@ -436,7 +441,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
     return value
   }
 
-  def map[T,Z](handle: Handle[T], f: T => Z): Z = {
+  def getWith[T,Z](handle: Handle[T], f: T => Z): Z = {
     if (barging) return f(readForWrite(handle))
 
     val u = unrecordedRead(handle)
@@ -576,7 +581,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
     revalidateIfRequired(version(m))
   }
   
-  def getAndSet[T](handle: Handle[T], v: T): T = {
+  def swap[T](handle: Handle[T], v: T): T = {
     requireActive()
 
     val m0 = handle.meta
@@ -595,7 +600,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
     handle.data
   }
 
-  def tryWrite[T](handle: Handle[T], v: T): Boolean = {
+  def trySet[T](handle: Handle[T], v: T): Boolean = {
     requireActive()
 
     val m0 = handle.meta
@@ -642,14 +647,6 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
       def isDefinedAt(v: T): Boolean = (before eq v.asInstanceOf[AnyRef])
       def apply(v: T): T = after
     })
-  }
-
-  def weakCompareAndSet[T](handle: Handle[T], before: T, after: T): Boolean = {
-    compareAndSet(handle, before, after)
-  }
-
-  def weakCompareAndSetIdentity[T, R <: T with AnyRef](handle: Handle[T], before: R, after: T): Boolean = {
-    compareAndSetIdentity(handle, before, after)
   }
 
   def getAndTransform[T](handle: Handle[T], f: T => T): T = {

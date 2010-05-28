@@ -4,9 +4,10 @@
 
 package edu.stanford.ppl.ccstm
 
+import collection.TArray
 import scala.reflect.ClassManifest
 import edu.stanford.ppl.stm.STMFunSuite
-import edu.stanford.ppl.ccstm.collection._
+import edu.stanford.ppl.ccstm.impl._
 
 
 class SpecializationsSuite extends STMFunSuite {
@@ -19,21 +20,21 @@ class SpecializationsSuite extends STMFunSuite {
       val exp = explicitRef
       val dv = defaultValue
 
-      assert(dv === ref1.asInstanceOf[Source[Any]].nonTxn.get)
-      assert(dv === ref2.asInstanceOf[Source[Any]].nonTxn.get)
-      assert(dv == arr1.refs(0).asInstanceOf[Source[Any]].nonTxn.get)
-      assert(dv == arr2.refs(0).asInstanceOf[Source[Any]].nonTxn.get)
-      assert(dv == explicitRef.asInstanceOf[Source[Any]].nonTxn.get)
+      assert(dv === ref1.asInstanceOf[Source[Any]].single.get)
+      assert(dv === ref2.asInstanceOf[Source[Any]].single.get)
+      assert(dv == arr1.refs(0).asInstanceOf[Source[Any]].single.get)
+      assert(dv == arr2.refs(0).asInstanceOf[Source[Any]].single.get)
+      assert(dv == explicitRef.asInstanceOf[Source[Any]].single.get)
       assert(ref1.getClass === expectedImpl)
       assert(ref2.getClass === expectedImpl)
       assert(explicitRef.getClass === expectedImpl)
 
       new Atomic { def body {
-        ref1 := dv
-        ref2 := dv
+        ref1() = dv
+        ref2() = dv
         arr1(0) = dv
         arr2(0) = dv
-        exp := dv
+        exp() = dv
       }}.run()
     }
   }

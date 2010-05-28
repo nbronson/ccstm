@@ -6,6 +6,22 @@ package edu.stanford.ppl.ccstm
 
 import impl.ThreadContext
 
+/** One of `Single`, `Escaped`, or an instance of `Txn`
+ *  @see edu.stanford.ppl.ccstm.Ref.View#mode
+ */
+sealed trait AccessMode {
+  //def dynContext: Option[Txn]
+}
+
+object Single extends AccessMode {
+  //def dynContext: Option[Txn] = Txn.current
+  override def toString = "Single"
+}
+
+object Escaped extends AccessMode {
+  //def dynContext: Option[Txn] = None
+  override def toString = "Escaped"
+}
 
 object Txn {
 
@@ -13,16 +29,30 @@ object Txn {
 
   //////////////// Status
 
-  /** Returns `Some(t)` if `t` is the transaction attached to the current
-   *  thread, or `None` if no transaction is attached.
+  /** Returns `Some(t)` if `t` is statically or dynamically attached to the
+   *  current thread, or `None` if no transaction is attached.  If an implicit
+   *  `Txn` is available, that is used, otherwise a dynamic lookup is
+   *  performed.
    */
-  def current: Option[Txn] = {
+  def current(implicit mt: MaybeTxn): Option[Txn] = {
     val t = currentOrNull
     if (null != t) Some(t) else None
   }
 
-  /** Returns the `Txn` associated with the current thread, or null if none. */
-  def currentOrNull: Txn = impl.ThreadContext.get.txn.asInstanceOf[Txn]
+  /** Equivalent to `current getOrElse null`. */
+  def currentOrNull(implicit mt: MaybeTxn): Txn = {
+    mt match {
+      case t: Txn => t
+      case TxnUnknown => dynCurrentOrNull 
+    }
+  }
+
+  /** Performs a dynamic lookup of the currently active transaction, returning
+   *  an active `Txn` or null.
+   */
+  private[ccstm] def dynCurrentOrNull: Txn = {
+    ThreadContext.get.txn.asInstanceOf[Txn]
+  }
 
   /** Represents the current status of a <code>Txn</code>. */
   sealed abstract class Status {
@@ -258,11 +288,14 @@ object Txn {
     }
   }
 
-  /** Returns the number of transactions that have committed. */
+  /** Returns the number of transactions that have committed.  Only maintained
+   *  if `EnableCounters` is true.
+   */
   def commitCount = commitCounter.get
 
   /** Returns the number of transaction that rolled back for any reason,
-   *  including for an explicit retry.
+   *  including for an explicit retry.  Only maintained if `EnableCounters` is
+   *  true.
    */
   def rollbackCount = (explicitRetryCount
           + userExceptionCount
@@ -274,7 +307,8 @@ object Txn {
 
   /** Returns the number of transactions that rolled back due to a concurrency
    *  control failure, which includes invalid reads, invalid read resources,
-   *  write conflicts, and vetoing write resources.
+   *  write conflicts, and vetoing write resources.  Only maintained if
+   *  `EnableCounters` is true.
    */
   def optimisticFailureCount = (invalidReadCount
           + invalidReadResourceCount
@@ -282,42 +316,50 @@ object Txn {
           + vetoingWriteResourceCount)
 
   /** Returns the number of transactions that rolled back with a
-   *  <code>ExplicitRetryCause</code> rollback cause.
+   *  `ExplicitRetryCause` rollback cause.  Only maintained if `EnableCounters`
+   *  is true.
    */
   def explicitRetryCount = explicitRetryCounter.get
 
   /** Returns the number of transactions that rolled back with a
-   *  <code>UserExceptionCause</code> rollback cause.
+   *  `UserExceptionCause` rollback cause.  Only maintained if `EnableCounters`
+   *  is true.
    */
   def userExceptionCount = userExceptionCounter.get
 
   /** Returns the number of transactions that rolled back with a
-   *  <code>CallbackExceptionCause</code> rollback cause.
+   *  `CallbackExceptionCause` rollback cause.  Only maintained if
+   *  `EnableCounters` is true.
    */
   def callbackExceptionCount = callbackExceptionCounter.get
 
   /** Returns the number of transactions that rolled back with a
-   *  <code>InvalidReadCause</code> rollback cause.
+   *  `InvalidReadCause` rollback cause.  Only maintained if `EnableCounters`
+   *  is true.
    */
   def invalidReadCount = invalidReadCounter.get
 
   /** Returns the number of transactions that rolled back with a
-   *  <code>InvalidReadResourceCause</code> rollback cause.
+   *  `InvalidReadResourceCause` rollback cause.  Only maintained if
+   *  `EnableCounters` is true.
    */
   def invalidReadResourceCount = invalidReadResourceCounter.get
 
   /** Returns the number of transactions that rolled back with a
-   *  <code>WriteConflictCause</code> rollback cause.
+   *  `WriteConflictCause` rollback cause.  Only maintained if `EnableCounters`
+   *  is true.
    */
   def writeConflictCount = writeConflictCounter.get
 
   /** Returns the number of transactions that rolled back with a
-   *  <code>VetoingWriteResourceCause</code> rollback cause.
+   *  `VetoingWriteResourceCause` rollback cause.  Only maintained if
+   *  `EnableCounters` is true.
    */
   def vetoingWriteResourceCount = vetoingWriteResourceCounter.get
 
   /** Returns the number of transactions that were attempted using the
-   *  pessimistic barging mode, and that committed.
+   *  pessimistic barging mode, and that committed.  Only maintained if
+   *  `EnableCounters` is true.
    */
   def bargingCommitCount = bargingCommitCounter.get
 
@@ -425,29 +467,22 @@ object Txn {
 }
 
 /** An instance representing a single execution attempt for a single atomic
- *  block.  For almost all cases, transaction should not be created directly.
- *  The `STM.atomic` method should be used instead.
- *  @see edu.stanford.ppl.ccstm.STM
+ *  block.  In almost all cases, `Txn` instances should be obtained by passing
+ *  a block to `STM.atomic`.
+ *  @see edu.stanford.ppl.ccstm.STM#atomic
  *
  *  @author Nathan Bronson
  */
-final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: ThreadContext) extends impl.TxnImpl(failureHistory, ctx) {
+final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: ThreadContext
+        ) extends impl.TxnImpl(failureHistory, ctx) with MaybeTxn with AccessMode {
   import Txn._
 
   /** An instance representing a single execution attempt for a single atomic
-   *  block.  For almost all cases, transaction should not be created directly.
-   *  The `STM.atomic` method should be used instead.  The failure history is
-   *  used to avoid livelock.
+   *  block.  In almost all cases, `Txn` instances should be obtained by passing
+   *  a block to `STM.atomic`.
    *  @see edu.stanford.ppl.ccstm.STM
    */
-  def this(failureHistory: List[Txn.RollbackCause]) = this(failureHistory, ThreadContext.get)
-
-  /** An instance representing a single execution attempt for a single atomic
-   *  block.  For almost all cases, transaction should not be created directly.
-   *  The `STM.atomic` method should be used instead.
-   *  @see edu.stanford.ppl.ccstm.STM
-   */
-  def this() = this(Nil)
+  private[ccstm] def this() = this(Nil, ThreadContext.get)
 
   // This inheritence hierarchy is a bit strange.  Method signatures and the
   // scaladoc are in AbstractTxn, but all of the code is in Txn.  The
@@ -460,10 +495,16 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
   // indirection is that the methods actually implemented in an STM-specific
   // manner are xxxImpl-s, forwarded to from the real methods so that none of
   // the useful Txn functionality is not directly visible in the Txn class.
+  // We set this up this way so that we could experiment with different
+  // concrete implementations.  There are no longer separate implementations
+  // (at least on the same git branch), so at some point in the future we might
+  // rearrange everything to something more normal.
   
   /** Values of <code>TxnLocal</code>s for this transaction, created lazily. */
   private[ccstm] var locals: java.util.IdentityHashMap[TxnLocal[_],Any] = null
 
+
+  //def dynContext: Option[Txn] = Some(this)
   
   def status: Status = _status
 
@@ -602,14 +643,14 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
 
   def afterCommit(callback: Txn => Unit, prio: Int) {
     requireNotCompleted()
-    _callbacks.afterCommit.add(callback, prio)
+    _callbacks.afterCompletion.add(callback, prio, true, false)
   }
 
   def afterCommit(callback: Txn => Unit) { afterCommit(callback, 0) }
 
   def afterRollback(callback: Txn => Unit, prio: Int) {
     requireNotCompleted()
-    _callbacks.afterRollback.add(callback, prio)
+    _callbacks.afterCompletion.add(callback, prio, false, true)
   }
 
   def afterRollback(callback: Txn => Unit) { afterRollback(callback, 0) }
@@ -617,27 +658,24 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
   def afterCompletion(callback: Txn => Unit) { afterCompletion(callback, 0) }
 
   def afterCompletion(callback: Txn => Unit, prio: Int) {
-    afterCommit(callback, prio)
-    afterRollback(callback, prio)
+    requireNotCompleted()
+    _callbacks.afterCompletion.add(callback, prio, true, true)
   }
 
   private[ccstm] def callAfter() {
     val s = status
-    val callbacks = (if (s eq Committed) {
-      if (EnableCounters) {
+    val committing = s eq Committed
+    if (EnableCounters) {
+      if (committing) {
         commitCounter += 1
         if (barging) bargingCommitCounter += 1
-      }
-      _callbacks.afterCommit
-    } else {
-      if (EnableCounters) {
+      } else {
         s.rollbackCause.counter += 1
         if (barging) bargingRollbackCounter += 1
       }
-      _callbacks.afterRollback
-    })
-    if (!callbacks.isEmpty) {
-      for (cb <- callbacks) {
+    }
+    if (!_callbacks.afterCompletion.isEmpty) {
+      _callbacks.afterCompletion.foreach(committing) { cb =>
         try {
           cb(this)
         }

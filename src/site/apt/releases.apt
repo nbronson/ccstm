@@ -1,0 +1,51 @@
+    ----
+    Releases
+    ----
+
+CCSTM - Releases
+
+  The latest stable release of CCSTM is 0.1.  It is compiled for Scala
+  2.8.0.Beta1.
+
+* Direct download
+
+  * From PPL's site: {{{http://ppl.stanford.edu/ccstm/repo-releases/edu/stanford/ppl/ccstm/0.1/ccstm-0.1.jar}ccstm-0.1.jar}}
+
+  * From GitHub: {{{http://github.com/downloads/nbronson/ccstm/ccstm-0.1.jar}ccstm-0.1.jar}}
+
+* Maven repository
+
+  Merge the following fragments into your <<<pom.xml>>>
+
+----
+<repositories>
+  <repository>
+    <id>ccstm.release</id>
+    <name>CCSTM Release Repository at PPL</name>
+    <url>http://ppl.stanford.edu/ccstm/repo-releases</url>
+  </repository>
+</repositories>
+
+<dependencies>
+  <dependency>
+    <groupId>edu.stanford.ppl</groupId>
+    <artifactId>ccstm</artifactId>
+    <version>0.1</version>
+  </dependency>
+</dependencies>
+----
+
+  If you would like to use CCSTM snapshot releases you can also add the
+  snapshot repository, and then use a dependency version like
+  `0.2.Beta-SNAPSHOT`.
+
+----
+<repositories>
+  <repository>
+    <id>ccstm.snapshot</id>
+    <name>CCSTM Snapshot Repository at PPL</name>
+    <url>http://ppl.stanford.edu/ccstm/repo-snapshots</url>
+    <snapshots/>
+  </repository>
+</repositories>
+----

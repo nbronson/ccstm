@@ -11,7 +11,7 @@ import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 
 class LockedNonTxnMap[A,B](underlying: java.util.Map[A,AnyRef]) extends TMap[A,B] {
 
-  def nonTxn = new TMap.Bound[A,B] {
+  def escaped = new TMap.Bound[A,B] {
     def unbind: TMap[A,B] = throw new UnsupportedOperationException
     def context: Option[Txn] = None
 

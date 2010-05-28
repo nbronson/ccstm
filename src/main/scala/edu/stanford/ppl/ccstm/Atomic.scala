@@ -5,21 +5,27 @@
 package edu.stanford.ppl.ccstm
 
 
-/** An abstract class that allows a relatively compact syntax for transactions
+/** '''Deprecated:''' Prefer `STM.atomic` with a closure taking a parameter
+ *  marked `implicit`.
+ *  
+ *  An abstract class that allows a relatively compact syntax for transactions
  *  under current Scala rules.  The trait performs its magic by declaring an
  *  implicit function that returns a <code>Txn</code>, which means that
  *  anonymous subclasses that implement <code>body</code> have an implicit
  *  transaction in scope.  If/when Scala allows anonymous function parameters
  *  to be marked implicit, this class will probably become obsolete.
+ *  (As of Scala 2.8.0.Beta1 this obsolescense has occurred.)
  *  <p>
  *  Typical usage:<pre>
  *    val tx: Ref[Int] = ..
  *    val ty: Ref[Int] = ..
  *
  *    new Atomic { def body {
- *      if (tx() &gt; 10) ty := 20
+ *      if (tx() &gt; 10) ty() = 20
  *    }}.run
  *  </pre>
+ *
+ *  @deprecated Prefer `STM.atomic` with a closure taking a parameter marked `implicit`
  *
  *  @author Nathan Bronson
  */
@@ -64,7 +70,7 @@ abstract class Atomic extends (Txn => Unit) {
       def body { throw new IllegalStateException }
       override def retry(): Nothing = { throw new IllegalStateException }
       override private[Atomic] def bodies = b
-      override def run() { STM.atomicOrElse(b:_*) }
+      override def run()(implicit mt: MaybeTxn) { STM.atomicOrElse(b:_*)(mt) }
     }
   }
 
@@ -77,5 +83,8 @@ abstract class Atomic extends (Txn => Unit) {
    *  throws an exception, the transaction will be rolled back and the
    *  exception will be rethrown from this method without further retries.
    */
-  def run() { STM.atomic(this) }
+  def run()(implicit mt: MaybeTxn) {
+    // we have to pass mt explicitly because of our implicit currentTxn
+    STM.atomic(this)(mt)
+  }
 }

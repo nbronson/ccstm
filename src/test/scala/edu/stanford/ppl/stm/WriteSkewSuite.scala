@@ -39,7 +39,7 @@ class WriteSkewSuite extends STMFunSuite {
                   }
                   retry
                 }
-                self := self() + 1
+                self() = self() + 1
               }}.run
             }
           } catch {
@@ -55,6 +55,6 @@ class WriteSkewSuite extends STMFunSuite {
 
     if (null != failure) throw failure
     val elapsed = System.currentTimeMillis - begin
-    println("write skew test took " + elapsed + " millis for " + (2 * incrCount) + " increments")
+    println("writeSkew(" + (2 * incrCount) + "): " + elapsed + " millis total")
   }
 }

@@ -138,7 +138,7 @@ class BoostedMergedHashMap_Basic[A,B] extends TMap[A,B] {
   private val lockHolder = new BasicMergedLockHolder[A]
   private val booster = new MergedMapBooster[A](lockHolder, null, null)
 
-  val nonTxn: TMap.Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,BoostedMergedHashMap_Basic[A,B]](this) {
+  val escaped: TMap.Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,BoostedMergedHashMap_Basic[A,B]](this) {
 
     def get(key: A): Option[B] = {
       val lock = lockHolder.existingReadLock(key)

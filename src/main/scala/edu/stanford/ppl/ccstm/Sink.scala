@@ -7,88 +7,84 @@ package edu.stanford.ppl.ccstm
 
 object Sink {
   
-  /** <code>Sink.Bound</code> defines the contravariant write-only view of a
-   *  <code>Ref</code> bound to a particular context. The context may be
-   *  either a <code>Txn</code>, which guarantees that all writes will appear
-   *  to other contexts as if they were executed atomically at the
-   *  transaction's commit (linearization) point, or the non-transactional
-   *  context, which guarantees that each write will be linearized (and a
-   *  happens-before relationship established) with all other reads and writes
-   *  to an equal reference.
+  /** `Sink.View` defines the contravariant write-only portion of
+   *  `Ref.View`.
    */
-  trait Bound[-T] {
+  trait View[-T] {
 
-    /** The restriction of <code>Ref.Bound.unbind</code> to <code>Sink</code>.
-     *  @see edu.stanford.ppl.ccstm.Ref.Bound#unbind
+    /** The restriction of `Ref.View.unbind` to `Sink`.
+     *  @see edu.stanford.ppl.ccstm.Ref.View#unbind
      */
     def unbind: Sink[T]
 
-    /** Returns <code>Some(txn)</code> if this view is bound to a transaction
-     *  <code>txn</code>, <code>None</code> if it is bound to the
-     *  non-transactional context.
+    /** Returns the `AccessMode` instance that describes how this bound view
+     *  was created.
+     *  @see edu.stanford.ppl.ccstm.Single
+     *  @see edu.stanford.ppl.ccstm.Escaped
+     *  @see edu.stanford.ppl.ccstm.Txn
      */
-    def context: Option[Txn]
+    def mode: AccessMode
 
-    /** Writes to the bound <code>Ref</code>, equivalent to <code>set</code>.
-     *  @see edu.stanford.ppl.ccstm.Sink.Bound#set
+    /** Writes to the bound `Ref`, equivalent to `set`.
+     *  @see edu.stanford.ppl.ccstm.Sink.View#set
      */
-    def :=(v: T) { set(v) }
+    def update(v: T) { set(v) }
 
-    /** Updates the value refered to by the bound <code>Ref</code>.  If this
-     *  view was created by <code>bind(txn)</code> then the new value will not
-     *  be visible to other contexts until (and unless) <code>txn</code>
-     *  successfully commits.  If this view was created by <code>nonTxn</code>,
-     *  the value will be made available immediately, and a happens-before
-     *  relationship will be established between this thread and any thread
-     *  that reads the <code>v</code> stored by this method.
-     *  @param v a value to store in the <code>Ref</code>.
+    /** Updates the value referred to by the bound `Ref`.
+     *  @param v a value to store in `unbind` using the current binding mode.
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
      */
     def set(v: T)
 
-    /** Updates the element held by the bound <code>Ref</code> without
-     *  blocking and returns true, or does nothing and returns false.  This
-     *  method may be used to reduce blocking or rollback in the case of write
-     *  contention.  The efficient use of this method may require knowledge of
-     *  the conflict detection and versioning strategy used by the specific STM
-     *  implementation in use.
-     *  @param v a value to store in the <code>Ref</code>.
+    /** Updates the element held by the bound `Ref` without blocking and
+     *  returns true, or does nothing and returns false.  This method may be
+     *  used to reduce blocking or rollback in the case of write contention.
+     *  The efficient use of this method may require knowledge of the conflict
+     *  detection and versioning strategies used by CCSTM.
+     *  @param v a value to store in the `Ref`.
      *  @return true if the value was stored, false if nothing was done.
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
      */
-    def tryWrite(v: T): Boolean
+    def trySet(v: T): Boolean
   }
 }
 
-/** <code>Sink</code> defines the contravariant write-only interface of a
- *  <code>Ref</code> instance.
+/** `Sink` defines the contravariant write-only interface of `Ref`.
  *
  *  @author Nathan Bronson
  */
 trait Sink[-T] {
 
-  /** Performs a transactional write.  Equivalent to <code>set(v)</code>.
+  /** Performs a transactional write.  Equivalent to `set(v)`.
    *  @see edu.stanford.ppl.ccstm.Sink#set
    */
-  def :=(v: T)(implicit txn: Txn)
+  def update(v: T)(implicit txn: Txn) { set(v) }
 
   /** Performs a transactional write.  The new value will not be visible by
    *  any other transactions or any non-transactional accesses until (and
-   *  unless) <code>txn</code> successfully commits.
-   *  @param v a value to store in the <code>Ref</code>.
-   *  @throws IllegalStateException if <code>txn</code> is not active.
+   *  unless) `txn` successfully commits.
+   *  @param v a value to store in the `Ref`.
+   *  @throws IllegalStateException if `txn` is not active.
    */
   def set(v: T)(implicit txn: Txn)
 
-  /** The restriction of <code>Ref.bind</code> to <code>Sink</code>.
+  /** The restriction of `Ref.bind` to `Sink`.
    *  @see edu.stanford.ppl.ccstm.Ref#bind
    */
-  def bind(implicit txn: Txn): Sink.Bound[T]
+  def bind(implicit txn: Txn): Sink.View[T]
 
-  /** The restriction of <code>Ref.nonTxn</code> to <code>Sink</code>.
-   *  @see edu.stanford.ppl.ccstm.Ref#nonTxn
+  /** The restriction of `Ref.single` to `Sink`.
+   *  @see edu.stanford.ppl.ccstm.Ref#single
    */
-  def nonTxn: Sink.Bound[T]
+  def single: Sink.View[T]
+
+  /** The restriction of `Ref.escaped` to `Sink`.
+   *  @see edu.stanford.ppl.ccstm.Ref#escaped
+   */
+  def escaped: Sink.View[T]
+
+  @deprecated("replace with Sink.single if possible, otherwise use Sink.escaped")
+  def nonTxn: Sink.View[T]
 }

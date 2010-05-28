@@ -6,50 +6,66 @@ package edu.stanford.ppl.ccstm
 
 
 import impl.ThreadContext
-import runtime.NonLocalReturnException
+import annotation.tailrec
 
-/** <code>STM</code> controls execution of atomic blocks with software
- *  transactional memory transactions.  A convenient style of programming is
- *  obtained by importing <code>edu.stanford.ppl.ccstm.STM._</code>; this makes
- *  <code>atomic</code> and <code>retry</code> accessible directly.
- *  <p>
- *  <code>STM.atomic</code> works best when the work of atomic blocks is
- *  performed by named functions, due to an inability to mark the block's
- *  transaction argument as <code>implicit</code>.  If you prefer to code
- *  atomic blocks inline, you may prefer the style provided by subclassing the
- *  <code>Atomic</code> class.
- *  <p>
- *  For example:<pre>
- *     import edu.stanford.ppl.ccstm._
- *     import edu.stanford.ppl.ccstm.STM._
+/** The `STM` object manages atomic execution of code blocks using software
+ *  transactional memory.  The transactions provide linearizability for all of
+ *  the reads and writes to data stored in `Ref` instances.  Atomic blocks are
+ *  functions from `Txn` to any type.  `Ref`'s methods require that the `Txn`
+ *  be available as an implicit parameter.  Scala allows the implicit modifier
+ *  to be included on the argument to an anonymous method, leading to the
+ *  idiomatic CCSTM atomic block
  *
- *     val a = Ref(10)
- *     val b = Ref(0)
- *     atomic(performTransfer(a, b, 5)(_))
- *
- *     def performTransfer(from: Ref[Int], to: Ref[Int], amount: Int)(implicit txn: Txn) {
- *       from := from() - amount
- *       to := to() + amount
- *     }
- *  </pre>
- *  or
  *  <pre>
- *     import edu.stanford.ppl.ccstm._
- *
- *     val a = Ref(10)
- *     val b = Ref(0)
- *     new Atomic { def body {
- *       val amount = 5
- *       a := a() - amount
- *       b := b() + amount
- *     }}.run
+ *  STM.atomic { implicit t =>
+ *    // body
+ *  }
  *  </pre>
  *
- *  @see edu.stanford.ppl.ccstm.Atomic
+ *  If there are no name collisions, you can import `STM.atomic` (or `STM._`)
+ *  to make atomic blocks slightly shorter.
+ *
+ *  Atomic blocks nest, so when modularizing your code you can chose to either
+ *  pass the `Txn` instance or create a new atomic block.
+ *
+ *  Some examples
+ *
+ *  <pre>
+ *  import edu.stanford.ppl.ccstm._
+ *  import edu.stanford.ppl.ccstm.STM._
+ *
+ *  class Account(bal0: BigDecimal) {
+ *    private val bal = Ref(bal0)
+ *
+ *    def tryWithdrawal(m: BigDecimal) = STM.atomic { implicit t =>
+ *      if (bal() >= m) {
+ *        bal() = bal() - m
+ *        true
+ *      } else {
+ *        false
+ *      }
+ *    }
+ *
+ *    def deposit(m: BigDecimal)(implicit txn: Txn) {
+ *      bal() = bal() + m
+ *    }
+ *  }
+ *
+ *  object Account {
+ *    def tryTransfer(from: Account, to: Account, m: BigDecimal) = 
+ *          STM.atomic { impliict t =>
+ *      from.tryWithdrawal(m) && { to.deposit(m) ; true }
+ *    }
+ *  }
+ *  </pre>
+ *
+ *  @see edu.stanford.ppl.ccstm.Ref
  *
  *  @author Nathan Bronson
  */
 object STM {
+
+  private[ccstm] case class AlternativeResult(value: Any) extends Exception
 
   /** Repeatedly attempts to perform the work of <code>block</code> in a
    *  transaction, until an attempt is successfully committed or an exception is
@@ -63,32 +79,54 @@ object STM {
    *  be run as part of the existing transaction.  In STM terminology this is
    *  support for nested transactions using "flattening" or "subsumption".   
    */
-  def atomic[Z](block: Txn => Z): Z = {
-    val ctx = ThreadContext.get
-    var txn = ctx.txn
-    if (txn != null) {
-      // subsumption
-      block(txn)
+  def atomic[Z](block: Txn => Z)(implicit mt: MaybeTxn): Z = {
+    // TODO: without partial rollback we can't properly implement failure atomicity (see issue #4)
 
-      // TODO: without partial rollback we can't properly implement failure atomicity (see issue #4)
-    }
-    else {
-      // new transaction
-      var hist: List[Txn.RollbackCause] = Nil
-      txn = new Txn(hist, ctx)
-      var z = attemptImpl(txn, block)
-      while (txn.status ne Txn.Committed) {
-        val cause = txn.status.rollbackCause
-        cause match {
-          case x: Txn.ExplicitRetryCause => Txn.awaitRetryAndDestroy(x)
-          case _ => {}
+    mt match {
+      case txn: Txn => nestedAtomic(block, txn) // static resolution of enclosing block
+      case _ => {
+        // dynamic scoping for nesting
+        val ctx = ThreadContext.get
+        if (null != ctx.txn) {
+          nestedAtomic(block, ctx.txn)
+        } else {
+          topLevelAtomic(block, ctx, Nil)
         }
-        // retry
-        hist = cause :: hist
-        txn = new Txn(hist, ctx)
-        z = attemptImpl(txn, block)
       }
+    }
+  }
+
+  private def nestedAtomic[Z](block: Txn => Z, txn: Txn): Z = {
+    if (!txn.childAlternatives.isEmpty) {
+      throw new UnsupportedOperationException("nested retry/orElse not yet supported (issue #4)")
+    }
+    block(txn)
+  }
+
+  @tailrec
+  private def topLevelAtomic[Z](block: Txn => Z, ctx: ThreadContext, hist: List[Txn.RollbackCause]): Z = {
+    if (!ctx.alternatives.isEmpty) {
+      // There was one or more orElse clauses.  Be careful, because their
+      // return type might not be Z.
+      val b = ctx.alternatives
+      ctx.alternatives = Nil
+      val z = atomicOrElse((block :: b): _*)
+      throw AlternativeResult(z)
+    }
+
+    // new transaction
+    val txn = new Txn(hist, ctx)
+    val z = attemptImpl(txn, block)
+    if (txn.status eq Txn.Committed) {
       z
+    } else {
+      val cause = txn.status.rollbackCause
+      cause match {
+        case x: Txn.ExplicitRetryCause => Txn.awaitRetryAndDestroy(x)
+        case _ => {}
+      }
+      // retry
+      topLevelAtomic(block, ctx, cause :: hist)
     }
   }
 
@@ -112,7 +150,7 @@ object STM {
    *  @see edu.stanford.ppl.ccstm.Atomic#orElse
    *  @see edu.stanford.ppl.ccstm.AtomicFunc#orElse
    */
-  def atomicOrElse[Z](blocks: (Txn => Z)*): Z = {
+  def atomicOrElse[Z](blocks: (Txn => Z)*)(implicit mt: MaybeTxn): Z = {
     if (null != Txn.currentOrNull) throw new UnsupportedOperationException("nested orElse is not currently supported")
 
     val hists = new Array[List[Txn.RollbackCause]](blocks.length)
@@ -136,34 +174,50 @@ object STM {
 
   private def attemptUntilRetry[Z](block: Txn => Z,
                                    hist0: List[Txn.RollbackCause]): Either[Z, List[Txn.RollbackCause]] = {
+    val ctx = ThreadContext.get
     var hist = hist0
-    var txn = new Txn(hist)
+    var txn = new Txn(hist, ctx)
     var z = attemptImpl(txn, block)
     while (txn.status ne Txn.Committed) {
       val cause = txn.status.rollbackCause
       hist = cause :: hist
       if (cause.isInstanceOf[Txn.ExplicitRetryCause]) return Right(hist)
       // retry
-      txn = new Txn(hist)
+      txn = new Txn(hist, ctx)
       z = attemptImpl(txn, block)
     }
     Left(z)
   }
 
+  private val controlThrowableClass: Class[_] = {
+    try {
+      Class.forName("scala.util.control.ControlThrowable")
+    } catch {
+      case x: ClassNotFoundException =>
+          Class.forName("scala.util.control.ControlException")
+    }
+  }
+
   private def attemptImpl[Z](txn: Txn, block: Txn => Z): Z = {
-    var nonLocalReturn: NonLocalReturnException[_] = null
+    var nonLocalReturn: Throwable = null
     var result: Z = null.asInstanceOf[Z]
     try {
       result = block(txn)
     }
     catch {
       case RollbackError => {}
-      case x: NonLocalReturnException[_] => {
-        // This has the opposite behavior from other exception types.  We don't
-        // trigger rollback, and we rethrow only if the transaction _commits_.
-        nonLocalReturn = x
+      case x => {
+        // TODO: remove the dynamic check after we no longer compile for 2.8.0.Beta1
+        // 2.8.0.Beta1 should catch scala.runtime.NonLocalReturnException
+        // 2.8.0.RC1 should catch subclasses of scala.util.control.ControlThrowable
+        if (controlThrowableClass.isAssignableFrom(x.getClass)) {
+          // This has the opposite behavior from other exception types.  We don't
+          // trigger rollback, and we rethrow only if the transaction _commits_.
+          nonLocalReturn = x
+        } else {
+          txn.forceRollback(Txn.UserExceptionCause(x))
+        }
       }
-      case x => txn.forceRollback(Txn.UserExceptionCause(x))
     }
     txn.commitAndRethrow()
     if (null != nonLocalReturn && txn.status == Txn.Committed) throw nonLocalReturn
@@ -175,23 +229,35 @@ object STM {
    *  @throws IllegalStateException if the transaction is not active.
    *  @see edu.stanford.ppl.ccstm.Txn#retry
    */
-  def retry()(implicit txn: Txn) { txn.retry() }
+  def retry(implicit txn: Txn): Nothing = txn.retry()
 
   /** Generalized atomic read/modify/write of two references.  Equivalent to
-   *  executing the following transaction, but probably much more efficient:
-   *  <pre>
-   *    new AtomicFunc[Z]{ def body = {
+   *  executing the following transaction, but may be more efficient:
+   *  {{{
+   *    atomic { implicit t =>
    *      val (a,b,z) = f(refA(), refB())
-   *      refA := a
-   *      refB := b
+   *      refA() = a
+   *      refB() = b
    *      z
-   *    }}.run()
-   *  </pre>
+   *    }
+   *  }}}
    *  Because this method is only presented as an optimization, it is assumed
    *  that the evaluation of <code>f</code> will be quick.
    */
   def transform2[A,B,Z](refA: Ref[A], refB: Ref[B], f: (A,B) => (A,B,Z)): Z = {
-    impl.NonTxn.transform2(refA.nonTxnHandle, refB.nonTxnHandle, f)
+    if (refA.isInstanceOf[impl.RefOps[_]] && refB.isInstanceOf[impl.RefOps[_]]) {
+      impl.NonTxn.transform2(
+          refA.asInstanceOf[impl.RefOps[A]].handle,
+          refB.asInstanceOf[impl.RefOps[B]].handle,
+          f)
+    } else {
+      atomic { t1 => implicit val t = t1 // TODO: revert after IntelliJ plugin accepts the better syntax
+        val (a,b,z) = f(refA(), refB())
+        refA() = a
+        refB() = b
+        z
+      }
+    }
   }
 
   // TODO: better names?
@@ -202,7 +268,7 @@ object STM {
    *  prevent its continued use.
    */
   def embalm(identity: Int, ref: Ref[_]) {
-    impl.STMImpl.embalm(identity, ref.nonTxnHandle)
+    ref.embalm(identity)
   }
 
   /** Establishes a happens-before relationship between subsequent accesses to
@@ -211,10 +277,13 @@ object STM {
    *  operations (except construction) have been performed on it.
    */
   def resurrect(identity: Int, ref: Ref[_]) {
-    impl.STMImpl.resurrect(identity, ref.nonTxnHandle)
+    ref.resurrect(identity)
   }
 
   object Debug {
+    /** Performs checks that are only guaranteed to succeed if no transactions
+     *  are active.
+     */
     def assertQuiescent() {
       impl.STMImpl.slotManager.assertAllReleased()
     }

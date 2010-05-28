@@ -5,10 +5,10 @@
 package edu.stanford.ppl.ccstm.experimental.impl
 
 
-import edu.stanford.ppl.ccstm.impl.MetaHolder
 import edu.stanford.ppl.ccstm._
-import experimental.TMap
-import experimental.TMap.Bound
+import edu.stanford.ppl.ccstm.experimental.TMap
+import edu.stanford.ppl.ccstm.experimental.TMap.Bound
+import edu.stanford.ppl.ccstm.TxnFieldUpdater.Base
 
 
 class RedBlackTreeMap[A,B] extends TMap[A,B] {
@@ -41,6 +41,21 @@ class RedBlackTreeMap[A,B] extends TMap[A,B] {
 
 
   def bind(implicit txn0: Txn): Bound[A, B] = new TMap.AbstractTxnBound[A,B,RedBlackTreeMap[A,B]](txn0, this) {
+    override def subRange(begin: A, end: A): Iterator[(A,B)] = new Iterator[(A,B)] {
+      val endCmp = end.asInstanceOf[Comparable[A]]
+      
+      var avail = ceilingNode(begin.asInstanceOf[Comparable[A]], root)
+      if (avail != null && endCmp.compareTo(avail.key) <= 0) avail = null
+
+      def hasNext = null != avail
+      def next() = {
+        val z = (avail.key, avail.value)
+        avail = successor(avail)
+        if (avail != null && endCmp.compareTo(avail.key) <= 0) avail = null
+        z
+      }
+    }
+
     def iterator: Iterator[(A,B)] = new Iterator[(A,B)] {
       var avail = firstNode
 
@@ -55,9 +70,9 @@ class RedBlackTreeMap[A,B] extends TMap[A,B] {
     override def higher(key: A): Option[(A,B)] = unbind.higher(key)(txn)
   }
 
-  def nonTxn: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,RedBlackTreeMap[A,B]](this) {
+  def escaped: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,RedBlackTreeMap[A,B]](this) {
 
-    override def isEmpty = null != rootRef.nonTxn.get
+    override def isEmpty = null != rootRef.escaped.get
     override def size = STM.atomic(unbind.size(_))
 
     def get(key: A): Option[B] = STM.atomic(unbind.get(key)(_))
@@ -71,8 +86,12 @@ class RedBlackTreeMap[A,B] extends TMap[A,B] {
       STM.atomic(unbind.transformIfDefined(key, pfOrNull, f)(_))
     }
 
+    override def subRange(begin: A, end: A): Iterator[Tuple2[A,B]] = {
+      STM.atomic(unbind.bind(_).subRange(begin, end).toSeq).iterator
+    }
+
     def iterator: Iterator[Tuple2[A,B]] = {
-      STM.atomic(unbind.bind(_).toArray).iterator
+      STM.atomic(unbind.bind(_).toSeq).iterator
     }
   }
 
@@ -253,7 +272,22 @@ class RedBlackTreeMap[A,B] extends TMap[A,B] {
     }
   }
 
-  
+  private def ceilingNode(k: Comparable[A], p: RBNode[A,B])(implicit txn: Txn): RBNode[A,B] = {
+    if (null == p) {
+      null
+    } else {
+      val cmp = k.compareTo(p.key)
+      if (cmp > 0) {
+        // ceiling is on the right, if it exists
+        ceilingNode(k, p.right)
+      } else {
+        // ceiling can be on left or the current value
+        val z = ceilingNode(k, p.left)
+        if (null == z) p else z
+      }
+    }
+  }
+
 
   private def colorOf(p: RBNode[A,B])(implicit txn: Txn) = {
     if (null == p) BLACK else p.color
@@ -521,7 +555,7 @@ class RedBlackTreeMap[A,B] extends TMap[A,B] {
 }
 
 
-private class RBNode[A,B](color0: Boolean, val key: A, value0: B, parent0: RBNode[A,B], left0: RBNode[A,B], right0: RBNode[A,B]) extends MetaHolder {
+private class RBNode[A,B](color0: Boolean, val key: A, value0: B, parent0: RBNode[A,B], left0: RBNode[A,B], right0: RBNode[A,B]) extends Base {
   import RBNode._
 
   def this(key0: A, value0: B, parent0: RBNode[A,B]) = this(true, key0, value0, parent0, null, null)

@@ -7,7 +7,6 @@ package edu.stanford.ppl.stm
 import edu.stanford.ppl.ccstm.{Atomic, Txn, Ref}
 import java.util.concurrent.CyclicBarrier
 import edu.stanford.ppl.ExhaustiveTest
-import edu.stanford.ppl.ccstm.collection.{StripedIntRef, LazyConflictIntRef, TBooleanRef}
 
 
 class FlipperSuite extends STMFunSuite {
@@ -40,7 +39,7 @@ class FlipperSuite extends STMFunSuite {
       DEFAULT_WORD_COUNT / 2,
       DEFAULT_FLIP_PROB,
       0,
-      () => new LazyConflictIntRef(0)).runTest
+      () => Ref.lazyConflict(0)).runTest
   }
 
   test("small striped flipper test") {
@@ -52,7 +51,7 @@ class FlipperSuite extends STMFunSuite {
       DEFAULT_WORD_COUNT / 2,
       DEFAULT_FLIP_PROB,
       0,
-      () => new StripedIntRef(0)).runTest
+      () => Ref.striped(0)).runTest
   }
 
   test("default flipper test", ExhaustiveTest) {
@@ -76,7 +75,7 @@ class FlipperSuite extends STMFunSuite {
       DEFAULT_WORD_COUNT,
       DEFAULT_FLIP_PROB,
       0,
-      () => new LazyConflictIntRef(0)).runTest
+      () => Ref.lazyConflict(0)).runTest
   }
 
   test("striped flipper test", ExhaustiveTest) {
@@ -88,7 +87,7 @@ class FlipperSuite extends STMFunSuite {
       DEFAULT_WORD_COUNT,
       DEFAULT_FLIP_PROB,
       0,
-      () => new StripedIntRef(0)).runTest
+      () => Ref.striped(0)).runTest
   }
 
   test("random flipper test", ExhaustiveTest) {
@@ -129,7 +128,7 @@ class FlipperSuite extends STMFunSuite {
       print("computing sequentially...")
       Console.flush
 
-      val P = Array.tabulate[Ref[Boolean]](len)({ _ => new TBooleanRef(false) })
+      val P = Array.tabulate[Ref[Boolean]](len)({ _ => Ref(false) })
       val expected = computeSequential(this, P)
 
       print("\ncomputing in parallel with transactions...")
@@ -139,7 +138,7 @@ class FlipperSuite extends STMFunSuite {
 
       println()      
       for (i <- 0 until expected.length) {
-        assert(expected(i).nonTxn.get === actual(i).nonTxn.get)
+        assert(expected(i).single.get === actual(i).single.get)
       }
     }
   }
@@ -193,8 +192,8 @@ class FlipperSuite extends STMFunSuite {
     for (sync <- 0 until config.syncCount) {
       for (thread <- 0 until config.threadCount) {
         (new FlipperTask(config, A, P, true, thread, sync) {
-          def read[T](ref: Ref[T]): T = ref.nonTxn.get
-          def write[T](ref: Ref[T], v: T) { ref.nonTxn := v }
+          def read[T](ref: Ref[T]): T = ref.escaped.get
+          def write[T](ref: Ref[T], v: T) { ref.escaped() = v }
           def doWork(task: => Unit) { task }
         })()
       }
@@ -210,7 +209,7 @@ class FlipperSuite extends STMFunSuite {
           implicit var txn: Txn = null
 
           def read[T](ref: Ref[T]): T = ref()
-          def write[T](ref: Ref[T], v: T) { ref := v }
+          def write[T](ref: Ref[T], v: T) { ref() = v }
           def doWork(task: => Unit) {
             new Atomic { def body {
               txn = currentTxn

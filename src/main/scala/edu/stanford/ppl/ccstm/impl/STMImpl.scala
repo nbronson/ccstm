@@ -6,6 +6,7 @@ package edu.stanford.ppl.ccstm.impl
 
 import edu.stanford.ppl.ccstm._
 import java.util.concurrent.atomic.AtomicLong
+import edu.stanford.ppl.ccstm.Txn.WriteConflictCause
 
 
 /** An STM implementation that uses a TL2-style timestamp system, but that
@@ -311,6 +312,11 @@ private[ccstm] object STMImpl extends GV6 {
         if (!owningTxn.completedOrDoomed) {
           if (null != currentTxn) {
             currentTxn.resolveWriteWriteConflict(owningTxn, handle)
+          } else if (owningTxn == Txn.dynCurrentOrNull) {
+            // We are in an escaped context and are waiting for the txn that
+            // is attached to this thread.  Deadlock if we don't do something.
+            Txn.dynCurrentOrNull.forceRollback(
+                WriteConflictCause(handle, "non-txn write defeated escaped txn"))
           }
           owningTxn.awaitCompletedOrDoomed()
         }

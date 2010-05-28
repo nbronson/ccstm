@@ -1,0 +1,104 @@
+    ----
+    References and Bound Views
+    ----
+
+CCSTM - References and Bound Views
+
+  Accesses to STM-managed data in CCSTM are via instances of
+  <<<Ref[A]>>>.  <<<Ref>>> implements basic reads and writes, as
+  well as more sophisticated operations such as <<<getAndTransform(f:
+  A => A): A>>>.  References may be mutable cells that are actually
+  responsible for storing a value, as in the instances returned by
+  <<<Ref(initialValue)>>>, or transient instances that mediate access
+  to data stored elsewhere, such as those returned by <<<TArray.refs>>>
+  or a <<<TxnFieldUpdater>>>.
+
+* Access Modes
+
+  CCSTM provides three different access modes for STM-managed data
+
+    * <<transactional>>: Access occurs in the context of an existing
+    <<<Txn>>>
+
+    * <<single>>: Access occurs (as if) in a new single-operation
+    transaction
+
+    * <<escaped>>: Access occurs (as if) in a new top-level transaction,
+    ignoring any transaction active on the current thread
+
+  <<<Ref>>>'s operations use only the transactional access mode, requiring
+  that the current transaction be passed via an implicit parameter of
+  type <<<Txn>>>.  Operations using the other access modes are provided
+  by <<<Ref.View>>> instances, which are views bound to a <<<Ref>>>.
+  <<<Ref.View>>> provides methods that mirror those of <<<Ref>>>
+  (plus a few extra), but that do not need the implicit <<<Txn>>>.
+
+** Transactional mode
+
+  The most common way to access <<<Ref>>>s is inside an atomic block
+  that introduces an implicit <<<Txn>>> into the current lexical scope.
+  <<<Ref.bind(implicit t: Txn)>>> returns a bound view that includes
+  the transaction, allowing it to be used without the need to pass the
+  transaction during each method.  For example, the following two pieces
+  of code give three ways of declaring an incrementing transaction using
+  <<<Ref.transform>>> and two ways using <<<Ref.View.transform>>>.
+  All five use the transactional mode, and all five are equivalent:
+
+----
+val x: Ref[BigInt]
+
+def incrViaRef(r: Ref[BigInt])(implicit t: Txn) {
+  r.transform(_ + 1) // implicit Txn arg
+}
+
+STM.atomic(incrViaRef(x)(_))
+STM.atomic { implicit t => incrViaRef(x) }
+STM.atomic { t => incrViaRef(x)(t) }
+
+def incrViaView(x: Ref.View[BigInt]) {
+  x.transform(_ + 1) // no implicit arg
+}
+
+STM.atomic { implicit t => incrViaView(x.bind) }
+STM.atomic { t => incrViaView(x.bind(t)) }
+----
+
+  The <<<mode>>> of a bound reference returned from <<<Ref.bind>>> will
+  return the <<<Txn>>> instance to which it is bound.  Each bound view
+  is valid only until the transaction is completed (either committed or
+  rolled back).
+
+** Single mode
+
+  When a transaction would contain only a single operation on a
+  single <<<Ref>>>, the <single> mode is both more concise and faster.
+  Each operation on a <<<Ref.View>>> returned from <<<Ref.single>>>
+  will act as if it runs in its own atomic block, either nesting in
+  an active transaction or creating a new one if necessary.  This can
+  replace small transactions, especially when used with operations such
+  as <<<transform>>> that can atomically perform both a read and a write.
+  The increment in the previous example can also be expressed as
+
+----
+x.single.transform(_ + 1)
+----
+
+  The <<<mode>>> method of the bound reference returned from
+  <<<Ref.single>>> will always return the object <<<Single>>>, regardless
+  of the current transaction context.  The lookup to determine the
+  context in which the single-operation transaction will be nested will
+  be performed during <<each>> invocation of the method.  This means
+  that all of the instances returned from <<<x.single>>> are equivalent,
+  and they can be used for the lifetime of the program if desired.
+
+** Escaped mode
+
+  Bound views returned from <<<Ref.escaped>>> will always act as if they
+  were performed in a new top-level transaction, even if a transaction
+  is already active on the current thread.  This corresponds to an
+  escape action in the transactional memory literature, and can be
+  used to implement advanced data structures.  It can also be used as
+  an optimization (not to be done prematurely!) when initializing newly
+  constructed data that has not yet been made public.  Be aware that if
+  escaped writes conflict with the outer transaction they may cause it
+  to roll back.

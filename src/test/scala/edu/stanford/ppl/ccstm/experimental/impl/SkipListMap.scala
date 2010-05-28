@@ -6,10 +6,10 @@ package edu.stanford.ppl.ccstm.experimental.impl
 
 
 import edu.stanford.ppl.ccstm._
-import collection.{TIntRef, TArray, TAnyRef}
+import collection.TArray
 import experimental.TMap
 import experimental.TMap.Bound
-import impl.{FastSimpleRandom, MetaHolder}
+import impl.{TAnyRef, FastSimpleRandom}
 import reflect.Manifest
 
 
@@ -55,9 +55,9 @@ class SkipListMap[A,B](implicit aMan: Manifest[A], bMan: Manifest[B]) extends TM
     }
   }
 
-  def nonTxn: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,SkipListMap[A,B]](this) {
+  def escaped: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,SkipListMap[A,B]](this) {
 
-    override def isEmpty = null != unbind.head.nonTxn.get.links.nonTxn(0)
+    override def isEmpty = null != unbind.head.escaped.get.links.escaped(0)
     override def size = STM.atomic(unbind.size(_))
 
     def get(key: A): Option[B] = STM.atomic(unbind.get(key)(_))
@@ -84,7 +84,7 @@ class SkipListMap[A,B](implicit aMan: Manifest[A], bMan: Manifest[B]) extends TM
   private def newHead = new SLNode(null.asInstanceOf[A], null.asInstanceOf[B], 1)
 
   def clear()(implicit txn: Txn) {
-    head := newHead
+    head() = newHead
   }
 
   def containsKey(key: A)(implicit txn: Txn) = null != getNode(key)
@@ -116,7 +116,7 @@ class SkipListMap[A,B](implicit aMan: Manifest[A], bMan: Manifest[B]) extends TM
       val newNode = new SLNode[A,B](key, value, newH)
 
       // Link new node after predecessor at each level
-      var i = Math.min(newH, preds.length) - 1
+      var i = math.min(newH, preds.length) - 1
       while (i >= 0) {
         newNode.links(i) = preds(i).links(i)
         preds(i).links(i) = newNode
@@ -166,7 +166,7 @@ private class SLNode[A,B](val key: A, value0: B, height0: Int
   def height = links.length
 
   def value(implicit txn: Txn): B = this.get
-  def swapValue(v: B)(implicit txn: Txn): B = this.getAndSet(v)
+  def swapValue(v: B)(implicit txn: Txn): B = this.swap(v)
 
   def findInTail(key: A, h: Int)(implicit txn: Txn): SLNode[A,B] = {
     var i = h
