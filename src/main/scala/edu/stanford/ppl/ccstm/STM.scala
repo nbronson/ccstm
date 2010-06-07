@@ -7,6 +7,7 @@ package edu.stanford.ppl.ccstm
 
 import impl.ThreadContext
 import annotation.tailrec
+import util.control.ControlThrowable
 
 /** The `STM` object manages atomic execution of code blocks using software
  *  transactional memory.  The transactions provide linearizability for all of
@@ -199,25 +200,15 @@ object STM {
   }
 
   private def attemptImpl[Z](txn: Txn, block: Txn => Z): Z = {
-    var nonLocalReturn: Throwable = null
+    var nonLocalReturn: ControlThrowable = null
     var result: Z = null.asInstanceOf[Z]
     try {
       result = block(txn)
     }
     catch {
       case RollbackError => {}
-      case x => {
-        // TODO: remove the dynamic check after we no longer compile for 2.8.0.Beta1
-        // 2.8.0.Beta1 should catch scala.runtime.NonLocalReturnException
-        // 2.8.0.RC1 should catch subclasses of scala.util.control.ControlThrowable
-        if (controlThrowableClass.isAssignableFrom(x.getClass)) {
-          // This has the opposite behavior from other exception types.  We don't
-          // trigger rollback, and we rethrow only if the transaction _commits_.
-          nonLocalReturn = x
-        } else {
-          txn.forceRollback(Txn.UserExceptionCause(x))
-        }
-      }
+      case x: ControlThrowable => nonLocalReturn = x
+      case x => txn.forceRollback(Txn.UserExceptionCause(x))
     }
     txn.commitAndRethrow()
     if (null != nonLocalReturn && txn.status == Txn.Committed) throw nonLocalReturn
@@ -251,7 +242,7 @@ object STM {
           refB.asInstanceOf[impl.RefOps[B]].handle,
           f)
     } else {
-      atomic { t1 => implicit val t = t1 // TODO: revert after IntelliJ plugin accepts the better syntax
+      atomic { implicit t =>
         val (a,b,z) = f(refA(), refB())
         refA() = a
         refB() = b
@@ -259,8 +250,6 @@ object STM {
       }
     }
   }
-
-  // TODO: better names?
 
   /** Establishes a happens-before relationship between transactions that
    *  previously wrote to <code>ref</code> and a subsequent call to
