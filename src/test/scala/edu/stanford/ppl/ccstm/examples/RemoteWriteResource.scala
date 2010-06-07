@@ -64,7 +64,7 @@ object RemoteWriteResource {
                 }
                 def performCommit(txn: Txn) {}
                 def performRollback(txn: Txn) {}
-              })
+              }, Int.MaxValue) // higher priorities go last
             }
           }
         }
