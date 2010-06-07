@@ -5,7 +5,7 @@
 package edu.stanford.ppl.ccstm
 
 
-/** '''Deprecated:''' Prefer `STM.atomic` with a closure taking a parameter
+/** '''Deprecated:''' Prefer `atomic` with a closure taking a parameter
  *  marked `implicit`.
  *  
  *  An abstract class that allows a relatively compact syntax for transactions
@@ -25,7 +25,7 @@ package edu.stanford.ppl.ccstm
  *    }}.run
  *  </pre>
  *
- *  @deprecated Prefer `STM.atomic` with a closure taking a parameter marked `implicit`
+ *  @deprecated Prefer `atomic` with a closure taking a parameter marked `implicit`
  *
  *  @author Nathan Bronson
  */

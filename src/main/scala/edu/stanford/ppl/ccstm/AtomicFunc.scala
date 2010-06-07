@@ -5,12 +5,12 @@
 package edu.stanford.ppl.ccstm
 
 
-/** '''Deprecated:''' Prefer `STM.atomic` with a closure taking a parameter
+/** '''Deprecated:''' Prefer `atomic` with a closure taking a parameter
  *  marked `implicit`.
  *
  *  Works like <code>Atomic</code>, but allows atomic blocks to return a value.
  *
- *  @deprecated Prefer `STM.atomic` with a closure taking a parameter marked `implicit`
+ *  @deprecated Prefer `atomic` with a closure taking a parameter marked `implicit`
  *
  *  @author Nathan Bronson
  */
