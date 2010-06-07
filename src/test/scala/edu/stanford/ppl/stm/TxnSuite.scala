@@ -10,21 +10,21 @@ import edu.stanford.ppl.ccstm._
 class TxnSuite extends STMFunSuite {
 
   test("empty transaction") {
-    new Atomic { def body {
-      // do nothing
-    }}.run
+    atomic { implicit t =>
+      () // do nothing
+    }
   }
 
   test("atomic function") {
-    val answer = new AtomicFunc[Int] { def body = {
+    val answer = atomic { implicit t =>
       42
-    }}.run
+    }
     assert(Integer.parseInt(answer.toString, 13) === 6*9)
   }
 
   test("duplicate binding with old access") {
     val x = Ref(1)
-    new Atomic { def body {
+    atomic { implicit t =>
       val b1 = x.bind
       assert(b1.get === 1)
       val b2 = x.bind
@@ -35,7 +35,7 @@ class TxnSuite extends STMFunSuite {
       b2() = 3
       assert(b1.get === 3)
       assert(b2.get === 3)
-    }}.run
+    }
     assert(x.single.get === 3)
   }
 
@@ -44,10 +44,10 @@ class TxnSuite extends STMFunSuite {
   test("failure atomicity") {
     val x = Ref(1)
     intercept[UserException] {
-      new Atomic { def body {
+      atomic { implicit t =>
         x() = 2
         throw new UserException
-      }}.run
+      }
     }
     assert(x.single.get === 1)
   }
@@ -60,11 +60,10 @@ class TxnSuite extends STMFunSuite {
   }
 
   def nonLocalReturnHelper(x: Ref[Int]): Int = {
-    STM.atomic((t: Txn) => {
-      implicit val txn = t
+    atomic { implicit t =>
       x() = x() + 1
       return x()
-    })
+    }
     return -1
   }
 
@@ -91,24 +90,27 @@ class TxnSuite extends STMFunSuite {
 
   test("Atomic.orElse") {
     intercept[UserException] {
-      new Atomic { def body {
-        retry
-      }} orElse new Atomic { def body {
+      atomic { implicit t =>
+        if ("likely".hashCode != 0)
+          retry        
+      } orAtomic { implicit t =>
         throw new UserException
-      }} run 
+      }
     }
   }
 
   test("AtomicFunc.orElse") {
     val x = Ref(1)
-    val a = new AtomicFunc[Boolean] { def body = {
-      if (x.get > 1) true else retry
-    }} orElse new AtomicFunc[Boolean] { def body = {
-      false
-    }}
-    assert(a.run() === false)
+    def a() = {
+      atomic { implicit t =>
+        if (x.get > 1) true else retry
+      } orAtomic { implicit t =>
+        false
+      }
+    }
+    assert(a() === false)
     x.single() = 2
-    assert(a.run() === true)
+    assert(a() === true)
   }
 
   test("STM.transform2") {
@@ -122,23 +124,23 @@ class TxnSuite extends STMFunSuite {
 
   test("simple nesting") {
     val x = Ref(10)
-    new Atomic { def body {
+    atomic { implicit t =>
       x += 1
-      new Atomic { def body {
+      atomic { implicit t =>
         assert(x.get === 11)
         x += 2
-        assert(x.bind.mode eq currentTxn)
-      }}.run
+        assert(x.bind.mode eq t)
+      }
       assert(x.get === 13)
-      assert(x.bind.mode eq currentTxn)
-    }}.run
+      assert(x.bind.mode eq t)
+    }
     assert(x.single.get === 13)
   }
 
   test("mode Single") {
     val x = Ref(10)
     val xs = x.single
-    STM.atomic { implicit t =>
+    atomic { implicit t =>
       x += 1
       assert(x() === 11)
       assert(xs() === 11)
@@ -157,7 +159,7 @@ class TxnSuite extends STMFunSuite {
 
   test("mode Escaped") {
     val x = Ref(10)
-    STM.atomic { implicit t =>
+    atomic { implicit t =>
       x += 1
       assert(x() === 11)
       assert(x.escaped() === 10)
@@ -175,11 +177,11 @@ class TxnSuite extends STMFunSuite {
       var i = 0
       while (i < 5) {
         i += 1
-        STM.atomic { implicit t =>
+        atomic { implicit t =>
           assert(x() == "abc")
           x() = "def"
         }
-        STM.atomic { implicit t =>
+        atomic { implicit t =>
           assert(x() == "def")
           x() = "abc"
         }

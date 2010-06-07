@@ -32,7 +32,7 @@ class WriteSkewSuite extends STMFunSuite {
           try {
             for (i <- 0 until incrCount) {
               if (null != failure) return
-              new Atomic { def body {
+              atomic { implicit t =>
                 if ((other() % 2) != 0) {
                   if ((self() % 2) != 0) {
                     fail("refs=" + refs.map(_.get))
@@ -40,7 +40,7 @@ class WriteSkewSuite extends STMFunSuite {
                   retry
                 }
                 self() = self() + 1
-              }}.run
+              }
             }
           } catch {
             case x => if (null == failure) failure = x

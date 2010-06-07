@@ -9,7 +9,7 @@ import management.{GarbageCollectorMXBean, ManagementFactory}
 import scala.collection.mutable.Map
 import edu.stanford.ppl.ccstm.experimental.TMap
 import edu.stanford.ppl.ccstm.experimental.impl.TMapFactory
-import edu.stanford.ppl.ccstm.{Atomic, Txn}
+import edu.stanford.ppl.ccstm._
 
 object Perf {
   {
@@ -390,7 +390,7 @@ object Perf {
       //if (target.isInstanceOf[SnapMap[_,_]]) println(target)
       var count = 0
       currentOp = IterationOp
-      new Atomic { def body {
+      atomic { implicit t =>
         //currentTxn.afterCompletion(t => { println(t.status + ", barging=" + t.barging)})
 
         count = 0
@@ -399,7 +399,7 @@ object Perf {
           count += 1
           iter.next()
         }
-      }}.run()
+      }
       currentOp = NoOp
       counts.weightedAdd(IterationOp, count)
     }

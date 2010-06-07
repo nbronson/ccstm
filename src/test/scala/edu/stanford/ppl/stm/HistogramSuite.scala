@@ -86,7 +86,7 @@ class HistogramSuite extends STMFunSuite {
               }
               i += 1
             } else {
-              new Atomic { def body {
+              atomic { implicit t =>
                 var j = 0
                 while (j < samplesPerTxn && i + j < samplesPerWorker) {
                   val tv = buckets(math.abs(hash(worker, i + j) % bucketCount))
@@ -95,7 +95,7 @@ class HistogramSuite extends STMFunSuite {
                   //tv() = tv.bind.readForWrite + 1
                   j += 1
                 }
-              }}.run
+              }
               i += samplesPerTxn
             }
           }

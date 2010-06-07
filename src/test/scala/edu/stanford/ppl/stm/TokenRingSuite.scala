@@ -55,11 +55,11 @@ class TokenRingSuite extends STMFunSuite {
               ready(index).single() = false
               ready(next).single() = true
             } else {
-              new Atomic { def body {
+              atomic { implicit t =>
                 if (ready(index).get == false) retry
                 ready(index)() = false
                 ready(next)() = true
-              }}.run
+              }
             }
           }
           barrier.await

@@ -4,7 +4,7 @@
 
 package edu.stanford.ppl.stm
 
-import edu.stanford.ppl.ccstm.{Atomic, Txn, Ref}
+import edu.stanford.ppl.ccstm._
 import java.util.concurrent.CyclicBarrier
 import edu.stanford.ppl.ExhaustiveTest
 
@@ -211,10 +211,10 @@ class FlipperSuite extends STMFunSuite {
           def read[T](ref: Ref[T]): T = ref()
           def write[T](ref: Ref[T], v: T) { ref() = v }
           def doWork(task: => Unit) {
-            new Atomic { def body {
-              txn = currentTxn
+            atomic { t =>
+              txn = t
               task
-            }}.run
+            }
             txn = null
           }
         }

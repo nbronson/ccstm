@@ -165,19 +165,19 @@ object TSPAnts {
       // drop pheromones, recalc edge probs
       for (p <- t.zip(t.tail)) {
         val edge = Edge(p._1, p._2)
-        new Atomic { def body {
+        atomic { implicit txn =>
           pheromones(edge).transform(_ + Q / len)
           probs(edge)() = prob(edge)
-        }}.run
+        }
       }
       // are we the new best?
       if (len < bestLength.single.get) {
-        new Atomic { def body {
+        atomic { implicit txn =>
           if (len < bestLength()) {
             bestLength() = len
             bestTour() = t
           }
-        }}.run
+        }
         brag(len, t)
       }
       // counters, evap
