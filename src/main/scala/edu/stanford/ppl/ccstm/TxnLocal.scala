@@ -15,8 +15,8 @@ object TxnLocal {
 
 class TxnLocal[T] {
 
-  /** Invoked if <code>get(txn)</code> precedes all calls (if any) to
-   *  <code>set(v)(txn)</code>.
+  /** Invoked if `get(txn)` precedes all calls (if any) to
+   *  `set(v)(txn)`.
    */ 
   protected def initialValue(txn: Txn): T = null.asInstanceOf[T]
 

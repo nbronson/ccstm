@@ -54,7 +54,7 @@ object Txn {
     ThreadContext.get.txn.asInstanceOf[Txn]
   }
 
-  /** Represents the current status of a <code>Txn</code>. */
+  /** Represents the current status of a `Txn`. */
   sealed abstract class Status {
     /** True if a transaction with this status might eventually commit, false
      *  if rollback is inevitable.
@@ -67,17 +67,17 @@ object Txn {
     def mustCommit: Boolean
 
     /** True if a transaction with this status might roll back, false if commit
-     *  has already been decided.  Equivalent to <code>!willCommit</code>.
+     *  has already been decided.  Equivalent to `!willCommit`.
      */
     def mightRollBack = !mustCommit
     
     /** True if a transaction with this status definitely will not commit,
-     *  false if commit is possible.  Equivalent to <code>!mightCommit</code>.
+     *  false if commit is possible.  Equivalent to `!mightCommit`.
      */
     def mustRollBack = !mightCommit
 
     /** True if, for a transaction with this status, the outcome is certain.
-     *  Equal to <code>(mustCommit || mustRollback)</code>.
+     *  Equal to `(mustCommit || mustRollback)`.
      */
     def decided = mustCommit || mustRollBack
 
@@ -88,14 +88,14 @@ object Txn {
      */
     def completed: Boolean
 
-    /** If <code>mustRollBack</code>, then the returned value describes the
+    /** If `mustRollBack`, then the returned value describes the
      *  reason why rollback is inevitable, otherwise the returned value will be
      *  null.
      */
     def rollbackCause: RollbackCause
   }
 
-  /** The <code>Status</code> for a <code>Txn</code> for which reads and writes
+  /** The `Status` for a `Txn` for which reads and writes
    *  may still be performed and callbacks may still be registered.
    */
   case object Active extends Status {
@@ -105,7 +105,7 @@ object Txn {
     def rollbackCause = null
   }
 
-  /** The <code>Status</code> for a <code>Txn</code> that is undergoing final
+  /** The `Status` for a `Txn` that is undergoing final
    *  validation.  Validating transactions may commit or roll back.  No more
    *  reads or writes may be performed, and only after-commit and
    *  after-rollback callbacks may be registered.
@@ -117,7 +117,7 @@ object Txn {
     def rollbackCause = null
   }
 
-  /** The <code>Status</code> for a <code>Txn</code> that is guaranteed to
+  /** The `Status` for a `Txn` that is guaranteed to
    *  commit, but that has not yet released all of its resources.
    */
   case object Committing extends Status {
@@ -127,7 +127,7 @@ object Txn {
     def rollbackCause = null
   }
 
-  /** The <code>Status</code> for a <code>Txn</code> that has successfully
+  /** The `Status` for a `Txn` that has successfully
    *  committed, applying all of its changes and releasing all of the resources
    *  it had acquired.
    */
@@ -138,7 +138,7 @@ object Txn {
     def rollbackCause = null
   }
 
-  /** The <code>Status</code> for a <code>Txn</code> that will definitely roll
+  /** The `Status` for a `Txn` that will definitely roll
    *  back, but that has not yet released all of its resources.
    */
   case class RollingBack(val rollbackCause: RollbackCause) extends Status {
@@ -149,7 +149,7 @@ object Txn {
     def completed = false
   }
 
-  /** The <code>Status</code> for a <code>Txn</code> that has been completely
+  /** The `Status` for a `Txn` that has been completely
    *  rolled back, releasing all of the resources it had acquired.
    */
   case class Rolledback(val rollbackCause: RollbackCause) extends Status {
@@ -163,37 +163,37 @@ object Txn {
 
   //////////////// Rollback cause
 
-  /** Instances of <code>RollbackCause</code> encode the reason for a
-   *  particular <code>Txn</code>'s rollback.
+  /** Instances of `RollbackCause` encode the reason for a
+   *  particular `Txn`'s rollback.
    */
   sealed abstract class RollbackCause {
     private[ccstm] def counter: Counter
   }
 
-  /** The base class of all <code>RollbackCause</code>s that indicate that a
+  /** The base class of all `RollbackCause`s that indicate that a
    *  transaction was rolled back due to optimistic concurrency control, and
    *  hence should be automatically retried.
    */
   sealed abstract class OptimisticFailureCause extends RollbackCause {
     /** Identifies the object that triggered rollback.  The actual object is
      *  implementation dependent, but will provide at least a reasonable
-     *  attempt at a useful <code>.toString()</code> method.
+     *  attempt at a useful `.toString()` method.
      */
     val trigger: Any
   }
 
-  /** The <code>RollbackCause</code> recorded for an explicit
-   *  <code>Txn.retry</code>.  If an API that performs automatic retry is in
-   *  use (like <code>Atomic.run</code>) the atomic block will be retried under
-   *  a new <code>Txn</code> after it is likely that it can succeed.  The
-   *  <code>readSet</code> is an opaque object used to block until the retry
+  /** The `RollbackCause` recorded for an explicit
+   *  `Txn.retry`.  If an API that performs automatic retry is in
+   *  use (like `Atomic.run`) the atomic block will be retried under
+   *  a new `Txn` after it is likely that it can succeed.  The
+   *  `readSet` is an opaque object used to block until the retry
    *  may succeed.
    */
   case class ExplicitRetryCause(readSet: AnyRef) extends RollbackCause {
     private[ccstm] def counter = explicitRetryCounter
   }
 
-  /** The <code>RollbackCause</code> recorded for an atomic block that threw an
+  /** The `RollbackCause` recorded for an atomic block that threw an
    *  exception and was rolled back to provide failure atomicity.  The atomic
    *  block will not be automatically retried.
    */
@@ -201,7 +201,7 @@ object Txn {
     private[ccstm] def counter = userExceptionCounter
   }
 
-  /** The <code>RollbackCause</code> recorded for a rollback that occurred
+  /** The `RollbackCause` recorded for a rollback that occurred
    *  because a callback or resource threw an exception.  The atomic block will
    *  not be automatically retried.
    */
@@ -217,7 +217,7 @@ object Txn {
   }
 
   /** An exception that indicates that a transaction was rolled back because a
-   *  <code>ReadResource</code> was not valid.
+   *  `ReadResource` was not valid.
    */
   case class InvalidReadResourceCause(trigger: ReadResource) extends OptimisticFailureCause {
     private[ccstm] def counter = invalidReadResourceCounter
@@ -229,14 +229,14 @@ object Txn {
    *  have been the first or second to request write access; the contention
    *  management policy may choose either transaction to roll back.  The
    *  contention manager may record extra information about its choice in
-   *  <code>extraInfo</code>.
+   *  `extraInfo`.
    */
   case class WriteConflictCause(trigger: Any, extraInfo: String) extends OptimisticFailureCause {
     private[ccstm] def counter = writeConflictCounter
   }
 
   /** An exception that indicates that a transaction was rolled back because a
-   *  <code>WriteResource</code> voted to roll back.
+   *  `WriteResource` voted to roll back.
    */
   case class VetoingWriteResourceCause(trigger: WriteResource) extends OptimisticFailureCause {
     private[ccstm] def counter = vetoingWriteResourceCounter
@@ -370,85 +370,85 @@ object Txn {
 
   //////////////// Resources participate in a two-phase commit
 
-  /** <code>ReadResource</code>s are checked each time that the virtual
+  /** `ReadResource`s are checked each time that the virtual
    *  snapshot from which the transaction has performed its reads must be moved
    *  into the future.  Each transaction is associated with a read version,
    *  which defines a "virtual snapshot".  When a value is encountered that may
    *  have been changed since the virtual snapshot was taken (since the read
    *  version was assigned), the read version is advanced and
-   *  <code>ReadResource.valid</code> is invoked for all read resources.
+   *  `ReadResource.valid` is invoked for all read resources.
    *  <p>
    *  Both read-only and updating transactions may be able to commit without
    *  advancing their virtual snapshot, in which case they won't invoke
-   *  <code>valid</code>.  To help avoid race conditions, the most
+   *  `valid`.  To help avoid race conditions, the most
    *  straightforward mechanism for adding a read resource will automatically
-   *  invoke <code>valid</code>.
+   *  invoke `valid`.
    * @see edu.stanford.ppl.ccstm.AbstractTxn # addReadResource
    */
   trait ReadResource {
-    /** Should return true iff <code>txn</code> is still valid.  May be invoked
-     *  during the <code>Active</code> and/or the <code>Validating</code>
-     *  states.  Validation during the <code>Validating</code> state may be
+    /** Should return true iff `txn` is still valid.  May be invoked
+     *  during the `Active` and/or the `Validating`
+     *  states.  Validation during the `Validating` state may be
      *  skipped by the STM if no other transactions have committed since the
-     *  last validation, or if no <code>WriteResource</code>s have been
+     *  last validation, or if no `WriteResource`s have been
      *  registered.
      *  <p>
-     *  The read resource may call <code>txn.forceRollback</code> instead of
+     *  The read resource may call `txn.forceRollback` instead of
      *  returning false, if that is more convenient.
      *  <p>
      *  If this method throws an exception and the transaction has not
      *  previously been marked for rollback, the transaction will be rolled
-     *  back with a <code>CallbackExceptionCause</code>, which will not result
+     *  back with a `CallbackExceptionCause`, which will not result
      *  in automatic retry, and which will cause the exception to be rethrown
      *  after rollback is complete.
-     *  @return true if <code>txn</code> is still valid, false if
-     *      <code>txn</code> should be rolled back as soon as possible.
+     *  @return true if `txn` is still valid, false if
+     *      `txn` should be rolled back as soon as possible.
      */
     def valid(txn: Txn): Boolean
   }
 
-  /** <code>WriteResource</code>s participate in a two-phase commit.  Each
+  /** `WriteResource`s participate in a two-phase commit.  Each
    *  write resource is given the opportunity to veto commit, and each write
    *  resource will be informed of the decision.  Unlike read resources, write
    *  resources are not consulted during advancement of the read version (and
    *  the associated virtual snapshot).  If an update resource needs to be
    *  revalidated when the read version is advanced it should also register a
-   *  <code>ReadResource</code>.
+   *  `ReadResource`.
    *  @see edu.stanford.ppl.ccstm.AbstractTxn#addWriteResource
    */
   trait WriteResource {
-    /** Called during the <code>Validating</code> state, returns true if this
+    /** Called during the `Validating` state, returns true if this
      *  resource agrees to commit.  All locks or other resources required to
      *  complete the commit must be acquired during this callback, or else
      *  this method must return false.  The consensus decision will be
-     *  delivered via a subsequent call to <code>performCommit</code> or
-     *  <code>performRollback</code>.
+     *  delivered via a subsequent call to `performCommit` or
+     *  `performRollback`.
      *  <p>
-     *  The read resource may call <code>txn.forceRollback</code> instead of
+     *  The read resource may call `txn.forceRollback` instead of
      *  returning false, if that is more convenient.
      *  <p>
      *  If this method throws an exception, the transaction will be rolled back
-     *  with a <code>CallbackExceptionCause</code>, which will not result in
+     *  with a `CallbackExceptionCause`, which will not result in
      *  automatic retry, and which will cause the exception to be rethrown
      *  after rollback is complete.
      *  @return true if this resource can definitely succeed, false if
-     *      <code>txn</code> must be rolled back. 
+     *      `txn` must be rolled back. 
      */
     def prepare(txn: Txn): Boolean
 
-    /** Called during the <code>Committing</code> state. */
+    /** Called during the `Committing` state. */
     def performCommit(txn: Txn)
 
-    /** Called during the <code>RollingBack</code> state. */
+    /** Called during the `RollingBack` state. */
     def performRollback(txn: Txn)
   }
 
   /** This function will be invoked with any exceptions that are thrown from
-   *  <code>WriteResource.performCommit</code>, from
-   *  <code>WriteResource.performRollback</code>, or from a callback function
-   *  registered via <code>Txn.afterCommit</code> or
-   *  <code>Txn.afterRollback</code>.  The default implementation prints the
-   *  transaction status and exception stack trace to <code>Console.err</code>.
+   *  `WriteResource.performCommit`, from
+   *  `WriteResource.performRollback`, or from a callback function
+   *  registered via `Txn.afterCommit` or
+   *  `Txn.afterRollback`.  The default implementation prints the
+   *  transaction status and exception stack trace to `Console.err`.
    */
   @volatile var handlePostDecisionException = (txn: Txn, callback: AnyRef, exc: Throwable) => {
     Console.err.println("discarding exception from txn callback, status is " + txn.status)
@@ -457,8 +457,8 @@ object Txn {
 
 
   /** Blocks the current thread until some value contained in one of the read
-   *  sets of one of the elements of <code>explicitRetries</code> might have
-   *  changed.  Each <code>ExplicitRetryCause</code> instance may only be
+   *  sets of one of the elements of `explicitRetries` might have
+   *  changed.  Each `ExplicitRetryCause` instance may only be
    *  passed once to an invocation of this method.
    */
   def awaitRetryAndDestroy(explicitRetries: ExplicitRetryCause*) = {
@@ -500,7 +500,7 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
   // (at least on the same git branch), so at some point in the future we might
   // rearrange everything to something more normal.
   
-  /** Values of <code>TxnLocal</code>s for this transaction, created lazily. */
+  /** Values of `TxnLocal`s for this transaction, created lazily. */
   private[ccstm] var locals: java.util.IdentityHashMap[TxnLocal[_],Any] = null
 
 

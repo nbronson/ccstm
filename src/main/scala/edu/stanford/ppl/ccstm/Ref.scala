@@ -13,8 +13,8 @@ import reflect.AnyValManifest
 object Ref {
   import impl._
 
-  /** Returns a new <code>Ref</code> instance suitable for holding instances of
-   *  <code>T</code>.
+  /** Returns a new `Ref` instance suitable for holding instances of
+   *  `T`.
    *
    *  If you have an initial value `v0` available, prefer `apply(v0)`.
    */
@@ -114,28 +114,28 @@ object Ref {
    */
   trait View[T] extends Source.View[T] with Sink.View[T] {
 
-    /** Provides access to a <code>Ref</code> that refers to the same value as
-     *  the one that was bound to produce this <code>Ref.View</code> instance.
-     *  The returned <code>Ref</code> might be a new instance, but it is always
-     *  true that <code>ref.bind.unbind == ref</code>.
-     *  @return a <code>Ref</code> instance equal to (or the same as) the one
+    /** Provides access to a `Ref` that refers to the same value as
+     *  the one that was bound to produce this `Ref.View` instance.
+     *  The returned `Ref` might be a new instance, but it is always
+     *  true that `ref.bind.unbind == ref`.
+     *  @return a `Ref` instance equal to (or the same as) the one
      *      that was bound to create this view instance.
      */
     def unbind: Ref[T]
 
-    /** Returns the same value as that returned by <code>get</code>, but adds
-     *  the <code>Ref</code> to the write set of the enclosing context, if any.
-     *  @return the current value of the bound <code>Ref</code>, as observed by
+    /** Returns the same value as that returned by `get`, but adds
+     *  the `Ref` to the write set of the enclosing context, if any.
+     *  @return the current value of the bound `Ref`, as observed by
      *      the bound context.
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
      */
     def readForWrite: T
 
-    /** Works like <code>set(v)</code>, but returns the old value.  This is an
-     *  atomic swap, equivalent to atomically performing a <code>get</code>
-     *  followed by <code>set(v)</code>.
-     *  @return the previous value of the bound <code>Ref</code>, as observed
+    /** Works like `set(v)`, but returns the old value.  This is an
+     *  atomic swap, equivalent to atomically performing a `get`
+     *  followed by `set(v)`.
+     *  @return the previous value of the bound `Ref`, as observed
      *      by the bound context.
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
@@ -143,14 +143,14 @@ object Ref {
     def swap(v: T): T
 
     /** Equivalent to atomically executing
-     *  <code>(if (before == get) { set(after); true } else false)</code>, but
+     *  `(if (before == get) { set(after); true } else false)`, but
      *  may be more efficient, especially if there is no enclosing context.
-     *  @param before a value to compare against the current <code>Ref</code>
+     *  @param before a value to compare against the current `Ref`
      *      contents.
-     *  @param after a value to store in the <code>Ref</code> if
-     *      <code>before</code> was equal to the previous cell contents.
-     *  @return <code>true</code> if <code>before</code> was equal to the
-     *      previous value of the bound <code>Ref</code>, <code>false</code>
+     *  @param after a value to store in the `Ref` if
+     *      `before` was equal to the previous cell contents.
+     *  @return `true` if `before` was equal to the
+     *      previous value of the bound `Ref`, `false`
      *      otherwise.
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
@@ -158,16 +158,16 @@ object Ref {
     def compareAndSet(before: T, after: T): Boolean
 
     /** Equivalent to atomically executing
-     *  <code>(if (before eq get) { set(after); true } else false)</code>, but
+     *  `(if (before eq get) { set(after); true } else false)`, but
      *  may be more efficient, especially if there is no enclosing context.
      *  @param before a reference whose identity will be compared against the
-     *      current <code>Ref</code> contents.
-     *  @param after a value to store in the <code>Ref</code> if
-     *      <code>before</code> has the same reference identity as the previous
+     *      current `Ref` contents.
+     *  @param after a value to store in the `Ref` if
+     *      `before` has the same reference identity as the previous
      *      cell contents.
-     *  @return <code>true</code> if <code>before</code> has the same reference
-     *      identity as the previous value of the bound <code>Ref</code>,
-     *      <code>false</code> otherwise.
+     *  @return `true` if `before` has the same reference
+     *      identity as the previous value of the bound `Ref`,
+     *      `false` otherwise.
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
      *  @see edu.stanford.ppl.ccstm.Ref.View#compareAndSet
@@ -278,41 +278,41 @@ object Ref {
  */
 trait Ref[T] extends Source[T] with Sink[T] {
 
-  /** Works like <code>set(v)</code>, but returns the old value.  This is an
-   *  atomic swap, equivalent to atomically performing a <code>get</code>
-   *  followed by <code>set(v)</code>.
-   *  @return the previous value of this <code>Ref</code>, as observed by
-   *      <code>txn</code>.
-   *  @throws IllegalStateException if <code>txn</code> is not active.
+  /** Works like `set(v)`, but returns the old value.  This is an
+   *  atomic swap, equivalent to atomically performing a `get`
+   *  followed by `set(v)`.
+   *  @return the previous value of this `Ref`, as observed by
+   *      `txn`.
+   *  @throws IllegalStateException if `txn` is not active.
    */
   def swap(v: T)(implicit txn: Txn): T
 
-  /** Transforms the value referenced by this <code>Ref</code> by applying the
-   *  function <code>f</code>.  Acts like <code>ref.set(f(ref.get))</code>, but
-   *  the execution of <code>f</code> may be deferred or duplicated to reduce
+  /** Transforms the value referenced by this `Ref` by applying the
+   *  function `f`.  Acts like `ref.set(f(ref.get))`, but
+   *  the execution of `f` may be deferred or duplicated to reduce
    *  transaction conflicts.
    *  @param f a function that is safe to call multiple times, and safe to
    *      call later during the transaction.
-   *  @throws IllegalStateException if <code>txn</code> is not active.
+   *  @throws IllegalStateException if `txn` is not active.
    */
   def transform(f: T => T)(implicit txn: Txn)
 
-  /** Transforms the value referenced by this <code>Ref</code> by applying the
-   *  <code>pf.apply</code>, but only if <code>pf.isDefinedAt</code> holds for
+  /** Transforms the value referenced by this `Ref` by applying the
+   *  `pf.apply`, but only if `pf.isDefinedAt` holds for
    *  the current value.  Returns true if a transformation was performed, false
-   *  otherwise.  <code>pf.apply</code> and <code>pf.isDefinedAt</code> may be
+   *  otherwise.  `pf.apply` and `pf.isDefinedAt` may be
    *  called multiple times, and may be deferred until later in the
    *  transaction.
    *  @param pf a partial function that is safe to call multiple times, and
    *      safe to call later in the transaction.
-   *  @return <code>pf.isDefinedAt(<i>v</i>)</code>, where <i>v</i> is the
-   *      current value of this <code>Ref</code> on entry.
-   *  @throws IllegalStateException if <code>txn</code> is not active.
+   *  @return `pf.isDefinedAt(v)`, where `v` is the
+   *      current value of this `Ref` on entry.
+   *  @throws IllegalStateException if `txn` is not active.
    */
   def transformIfDefined(pf: PartialFunction[T,T])(implicit txn: Txn): Boolean
 
   /** Returns this instance, but with only the read-only portion accessible.
-   *  Equivalent to <code>asInstanceOf[Source[T]]</code>, but may be more
+   *  Equivalent to `asInstanceOf[Source[T]]`, but may be more
    *  readable.
    *  @return this instance, but with only read-only methods accessible
    */
@@ -329,16 +329,16 @@ trait Ref[T] extends Source[T] with Sink[T] {
   //////////////// AccessMode
 
   /** Returns a reference view that does not require an implicit
-   *  <code>Txn</code> parameter on each method call, but instead always
-   *  performs accesses in the context of <code>txn</code>.  A transaction may
+   *  `Txn` parameter on each method call, but instead always
+   *  performs accesses in the context of `txn`.  A transaction may
    *  be bound regardless of its state, but reads and writes are only allowed
    *  while a transaction is active.  The view returned from this method may be
-   *  convenient when passing <code>Ref</code>s to scopes that would not
-   *  otherwise have implicit access to <code>txn</code>, and the view provides
+   *  convenient when passing `Ref`s to scopes that would not
+   *  otherwise have implicit access to `txn`, and the view provides
    *  some extra functionality that is less frequently needed.
    *  @param txn a transaction to be bound to the view.
    *  @return a view of this instance that performs all accesses as if from
-   *      <code>txn</code>.
+   *      `txn`.
    */
   def bind(implicit txn: Txn): Ref.View[T]
 
@@ -347,7 +347,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *  transaction will be nested inside an existing transaction if one is
    *  active (see `Txn.current`).  The returned instance is valid for the
    *  lifetime of the program.
-   *  @return a view into the value of this <code>Ref</code>, that will perform
+   *  @return a view into the value of this `Ref`, that will perform
    *      each operation as if in its own transaction.
    */
   def single: Ref.View[T]
@@ -358,7 +358,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *  Each operation acts as if it was performed in its own transaction while
    *  any active transaction is suspended.  The returned instance is valid for
    *  the lifetime of the program.
-   *  @return a view into the value of this <code>Ref</code>, that will bypass
+   *  @return a view into the value of this `Ref`, that will bypass
    *      any active transaction.
    */
   def escaped: Ref.View[T]

@@ -68,9 +68,9 @@ object STM {
 
   private[ccstm] case class AlternativeResult(value: Any) extends Exception
 
-  /** Repeatedly attempts to perform the work of <code>block</code> in a
+  /** Repeatedly attempts to perform the work of `block` in a
    *  transaction, until an attempt is successfully committed or an exception is
-   *  thrown by <code>block</code> or a callback registered during the block's
+   *  thrown by `block` or a callback registered during the block's
    *  execution.  On successful commit this method returns the result of the
    *  block.  If the block throws an exception, the transaction will be rolled
    *  back and the exception will be rethrown from this method without further
@@ -132,20 +132,20 @@ object STM {
   }
 
   /** Atomically executes a transaction that is composed from
-   *  <code>blocks</code> by joining with a left-biased <em>orElse</em>
+   *  `blocks` by joining with a left-biased `orElse`
    *  operator.  The first block will be attempted in an optimistic transaction
    *  until it either succeeds, fails with no retry possible (in which case the
    *  causing exception will be rethrown), or performs an explicit
-   *  <code>retry</code>.  If a retry is performed, then the next block will
+   *  `retry`.  If a retry is performed, then the next block will
    *  be attempted in the same fashion.  If all blocks are explicitly retried
    *  then execution resumes at the first block, after a change has been made
    *  to one of the values read by any transaction.
    *  <p>
-   *  The left-biasing of the <em>orElse</em> composition guarantees that if
-   *  the first block does not call <code>Txn.retry</code>, no other blocks
+   *  The left-biasing of the `orElse` composition guarantees that if
+   *  the first block does not call `Txn.retry`, no other blocks
    *  will be executed.
    *  <p>
-   *  The <em>retry</em> and <em>orElse</em> operators are modelled after those
+   *  The `retry` and `orElse` operators are modelled after those
    *  introduced by T. Harris, S. Marlow, S. P. Jones, and M. Herlihy,
    *  "Composable Memory Transactions", in PPoPP '05.
    *  @see edu.stanford.ppl.ccstm.Atomic#orElse
@@ -233,7 +233,7 @@ object STM {
    *    }
    *  }}}
    *  Because this method is only presented as an optimization, it is assumed
-   *  that the evaluation of <code>f</code> will be quick.
+   *  that the evaluation of `f` will be quick.
    */
   def transform2[A,B,Z](refA: Ref[A], refB: Ref[B], f: (A,B) => (A,B,Z)): Z = {
     if (refA.isInstanceOf[impl.RefOps[_]] && refB.isInstanceOf[impl.RefOps[_]]) {
@@ -252,8 +252,8 @@ object STM {
   }
 
   /** Establishes a happens-before relationship between transactions that
-   *  previously wrote to <code>ref</code> and a subsequent call to
-   *  <code>resurrect(identity, _)</code>.  Embalming a reference does not
+   *  previously wrote to `ref` and a subsequent call to
+   *  `resurrect(identity, _)`.  Embalming a reference does not
    *  prevent its continued use.
    */
   def embalm(identity: Int, ref: Ref[_]) {
@@ -261,7 +261,7 @@ object STM {
   }
 
   /** Establishes a happens-before relationship between subsequent accesses to
-   *  <code>ref</code> and previous calls to <code>embalm(identity, _)</code>.
+   *  `ref` and previous calls to `embalm(identity, _)`.
    *  A reference may only be resurrected into an old identity before any other
    *  operations (except construction) have been performed on it.
    */

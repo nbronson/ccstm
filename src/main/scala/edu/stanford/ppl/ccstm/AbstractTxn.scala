@@ -24,16 +24,16 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
   def status: Status
 
   /** Causes this transaction to fail with the specified cause.  If the
-   *  transaction is already doomed (<code>status.mustRollBack</code>) then
+   *  transaction is already doomed (`status.mustRollBack`) then
    *  this method does nothing.  Throws an exception if it cannot be arranged
    *  that this transaction roll back.
    *  <p>
-   *  This method does not throw <code>RollbackError</code>, but in most places
+   *  This method does not throw `RollbackError`, but in most places
    *  where it would be called it is probably correct to immediately do this.
    *  This method may only be called from the thread executing the transaction
-   *  (probably not checked); use <code>requestRollback</code> if you wish to
+   *  (probably not checked); use `requestRollback` if you wish to
    *  doom a transaction running on another thread.
-   *  @throws IllegalStateException if <code>status.mustCommit</code>.
+   *  @throws IllegalStateException if `status.mustCommit`.
    *  @see edu.stanford.ppl.ccstm.Txn#requestRollback
    */
   def forceRollback(cause: RollbackCause)
@@ -41,7 +41,7 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
   /** Attempts to doom the transaction, returning true if the transaction will
    *  definitely roll back, false if the transaction will definitely commit.
    *  This method may return true if rollback occurs for a reason other than
-   *  <code>cause</code>.  Unlike <code>forceRollback(cause)</code>, this
+   *  `cause`.  Unlike `forceRollback(cause)`, this
    *  method may be called from any thread, and never throws an exception.
    *  @see edu.stanford.ppl.ccstm.Txn#forceRollback
    */
@@ -62,7 +62,7 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
   /** Validates that the transaction is consistent with all other committed
    *  transactions and completed non-transactional accesses, immediately
    *  rolling the transaction back if that is not the case (by throwing an
-   *  <code>InvalidReadError</code>).
+   *  `InvalidReadError`).
    *  <p>
    *  CCSTM guarantees that all reads will be consistent with those from a
    *  point-in-time snapshot, even without any manual validation, so use of
@@ -71,12 +71,12 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
    */
   def explicitlyValidateReads()
 
-  /** Creates a strong reference between this <code>Txn</code> and
-   *  <code>ref</code> until the transaction has completed.
+  /** Creates a strong reference between this `Txn` and
+   *  `ref` until the transaction has completed.
    */
   def addReference(ptr: AnyRef)
 
-  /** Arranges for <code>callback</code> to be executed as late as possible
+  /** Arranges for `callback` to be executed as late as possible
    *  while the transaction is still active.  If the transaction rolls back
    *  then the callback may not be invoked.  If the callback throws an
    *  exception then the transaction will be rolled back and no subsequent
@@ -93,7 +93,7 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
 
   /** Adds a read resource to the transaction, which will participate in
    *  validation, and then immediately calls
-   *  <code>readResource.valid</code>.  This register/validate pair
+   *  `readResource.valid`.  This register/validate pair
    *  corresponds to the most common use case for read resources.  If the
    *  caller takes responsibility for validating the read resource then they
    *  may use the three-argument form of this method.  If the validation fails
@@ -110,7 +110,7 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
 
   /** Adds a read resource to the transaction like the two-argument form of
    *  this method, but skips the subsequent call to
-   *  <code>readResource.valid</code> if <code>checkAfterRegister</code> is
+   *  `readResource.valid` if `checkAfterRegister` is
    *  false.
    *  @throws IllegalStateException if this transaction is not active.
    */
@@ -124,10 +124,10 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
    */
   def addWriteResource(writeResource: WriteResource, prio: Int)
 
-  /** Adds a write resource with the default priority of <em>100</em>. */
+  /** Adds a write resource with the default priority of 100. */
   def addWriteResource(writeResource: WriteResource)
 
-  /** Arranges for <code>callback</code> to be executed after transaction
+  /** Arranges for `callback` to be executed after transaction
    *  completion, if this transaction commits.  An exception thrown from an
    *  after-commit callback will be rethrown after the rest of the after-commit
    *  callbacks are invoked.  If two callbacks have different priorities then
@@ -140,7 +140,7 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
   /** Enqueues an after-commit callback with the default priority of 0. */
   def afterCommit(callback: Txn => Unit)
 
-  /** Arranges for <code>callback</code> to be executed after transaction
+  /** Arranges for `callback` to be executed after transaction
    *  completion, if this transaction rolls back.  An exception thrown from an
    *  after-commit callback will be rethrown after the rest of the after-commit
    *  callbacks are invoked.  If two callbacks have different priorities then
@@ -153,10 +153,10 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
   /** Enqueues an after-rollback callback with the default priority of 0. */
   def afterRollback(callback: Txn => Unit)
 
-  /** Arranges for <code>callback</code> to be executed after transaction
+  /** Arranges for `callback` to be executed after transaction
    *  completion, regardless of whether the transaction rolls back or commits.
-   *  Equivalent to passing <code>callback</code> to both
-   *  <code>afterCommit</code> and <code>afterRollback</code>.
+   *  Equivalent to passing `callback` to both
+   *  `afterCommit` and `afterRollback`.
    *  @throws IllegalStateException if the transaction is already completed.
    */
   def afterCompletion(callback: Txn => Unit, prio: Int)
@@ -185,16 +185,16 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
 
   //////////////// internal Txn lifecycle stuff
 
-  /** Calls <code>commit</code>, then throws the exception that caused rollback
-   *  if the cause was either <code>UserExceptionCause</code> or
-   *  <code>CallbackExceptionCause</code>.
+  /** Calls `commit`, then throws the exception that caused rollback
+   *  if the cause was either `UserExceptionCause` or
+   *  `CallbackExceptionCause`.
    */
   private[ccstm] def commitAndRethrow()
 
 
   private[ccstm] var _callbacks: impl.Callbacks
 
-  /** Calls <code>ReadResource.valid(this)</code> for all read resources,
+  /** Calls `ReadResource.valid(this)` for all read resources,
    *  unless rollback is required.  Returns true if commit is still possible.
    *  Captures and handles exceptions.
    */
@@ -205,25 +205,25 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
    */
   private[ccstm] def writeResourcesPresent: Boolean
 
-  /** Calls <code>WriteResource.prepare(this)</code> for all write resources,
+  /** Calls `WriteResource.prepare(this)` for all write resources,
    *  unless rollback is required.  Returns true if commit is still possible.
    *  Captures and handles exceptions.  This also has the effect of invoking
-   *  all of the callbacks registered with <code>beforeCommit</code>.
+   *  all of the callbacks registered with `beforeCommit`.
    */
   private[ccstm] def writeLikeResourcesPrepare(): Boolean
 
-  /** Calls <code>WriteResource.performCommit(this)</code>, handling
+  /** Calls `WriteResource.performCommit(this)`, handling
    *  exceptions.
    */
   private[ccstm] def writeResourcesPerformCommit()
 
-  /** Calls <code>WriteResource.performRollback(this)</code>, handling
+  /** Calls `WriteResource.performRollback(this)`, handling
    *  exceptions.
    */
   private[ccstm] def writeResourcesPerformRollback()
 
-  /** Calls the handlers registered with either <code>afterCommit</code> or
-   *  <code>afterRollback</code>, as appropriate, handling any exceptions.
+  /** Calls the handlers registered with either `afterCommit` or
+   *  `afterRollback`, as appropriate, handling any exceptions.
    *  Also adjusts the commit and rollback counters.
    */
   private[ccstm] def callAfter()

@@ -8,11 +8,11 @@ private object TOptionRef {
   val metaUpdater = (new TOptionRef(None)).newMetaUpdater
 }
 
-/** A <code>Ref</code> implementation that holds only non-null
- *  <code>Option</code> instances.  When compared to
- *  <code>TAnyRef[Option[T]]</code> instances, instances of
- *  <code>TOptionRef</code> have lower storage overhead (the wrapping
- *  <code>Option</code> objects are discarded and recreated as needed), but a
+/** A `Ref` implementation that holds only non-null
+ *  `Option` instances.  When compared to
+ *  `TAnyRef[Option[T]]` instances, instances of
+ *  `TOptionRef` have lower storage overhead (the wrapping
+ *  `Option` objects are discarded and recreated as needed), but a
  *  slightly higher runtime cost when accessing.
  *
  *  @author Nathan Bronson

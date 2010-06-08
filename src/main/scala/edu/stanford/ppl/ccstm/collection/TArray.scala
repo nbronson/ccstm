@@ -36,19 +36,19 @@ object TArray {
     def refs: immutable.IndexedSeq[Ref.View[T]]
   }
 
-  /** <code>MetaMapping</code> defines the mapping from elements of the array
+  /** `MetaMapping` defines the mapping from elements of the array
    *  to the metadata entries used by the STM to protect those elements.
    *  Elements of the array that share a metadata entry may cause conflicts or
    *  contention if accessed by concurrent transactions, at least one of which
    *  is writing.  Minimal contention is realized by having a separate metadata
    *  entry for each array element, but this also maximizes the storage
-   *  overhead introduced by <code>TArray</code>.  Minimal storage overhead is
+   *  overhead introduced by `TArray`.  Minimal storage overhead is
    *  realized by having only a single metadata element, but this prevents
    *  concurrent writes to any element of the array.
    *  <p>
-   *  A <code>MetaMapping</code> is defined by three parameters,
-   *  <code>dataPerMeta</code>, <code>maxMeta</code>, and
-   *  <code>neighboringDataPerMeta</code>.  The first two are used to determine
+   *  A `MetaMapping` is defined by three parameters,
+   *  `dataPerMeta`, `maxMeta`, and
+   *  `neighboringDataPerMeta`.  The first two are used to determine
    *  the number of metadata entries that will be allocated, the last is used
    *  to map indices in the data array to indices in the metadata array.
    */

@@ -45,9 +45,9 @@ private[ccstm] object STMImpl extends GV6 {
   val StealSpinCount = System.getProperty("ccstm.steal.spin", "10").toInt
 
   /** The number of times to spin with intervening calls to
-   *  <code>Thread.yield</code> when waiting for a condition to become true.
-   *  These spins will occur after the <code>SpinCount</code> spins.  After
-   *  <code>SpinCount + YieldCount</code> spins have been performed, the
+   *  `Thread.yield` when waiting for a condition to become true.
+   *  These spins will occur after the `SpinCount` spins.  After
+   *  `SpinCount + YieldCount` spins have been performed, the
    *  waiting thread will be blocked on a Java mutex.
    */
   val YieldCount = System.getProperty("ccstm.yield", "2").toInt
@@ -55,10 +55,10 @@ private[ccstm] object STMImpl extends GV6 {
   val slotManager = new TxnSlotManager[TxnImpl](2048, 2)
   val wakeupManager = new WakeupManager // default size
 
-  /** Hashes <code>ref</code> with <code>offset</code>, mixing the resulting
+  /** Hashes `ref` with `offset`, mixing the resulting
    *  bits.  This hash function is chosen so that it is suitable as a basis for
    *  hopscotch hashing (among other purposes).
-   *  @throw NullPointerException if <code>ref</code> is null. 
+   *  @throw NullPointerException if `ref` is null. 
    */
   def hash(ref: AnyRef, offset: Int): Int = {
     if (null == ref) throw new NullPointerException
@@ -241,11 +241,11 @@ private[ccstm] object STMImpl extends GV6 {
 
   //////////////// lock waiting
 
-  /** Once <code>handle.meta</code> has been unlocked since a time it had
-   *  value <code>m0</code>, the method will return.  It might return sooner,
-   *  but an attempt is made to do the right thing.  If <code>currentTxn</code>
-   *  is non-null, <code>currentTxn.requireActive</code> will be called before
-   *  blocking and <code>currentTxn.resolveWriteWriteConflict</code> will be
+  /** Once `handle.meta` has been unlocked since a time it had
+   *  value `m0`, the method will return.  It might return sooner,
+   *  but an attempt is made to do the right thing.  If `currentTxn`
+   *  is non-null, `currentTxn.requireActive` will be called before
+   *  blocking and `currentTxn.resolveWriteWriteConflict` will be
    *  called before waiting for a transaction.
    */
   private[impl] def weakAwaitUnowned(handle: Handle[_], m0: Meta, currentTxn: TxnImpl) {
