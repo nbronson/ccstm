@@ -7,7 +7,10 @@ package edu.stanford.ppl.ccstm
 
 object Source {
 
-  /** `Source.View` defines the covariant read-only view of `Ref.View`. */
+  /** `Source.View` defines the covariant read-only view of `Ref.View`.
+   * 
+   *  @author Nathan Bronson
+   */
   trait View[+T] {
 
     /** The restriction of `Ref.View.unbind` to `Source`.
@@ -17,18 +20,30 @@ object Source {
 
     /** Returns the `AccessMode` instance that describes how this bound view
      *  was created.
-     *  @see edu.stanford.ppl.ccstm.Single
-     *  @see edu.stanford.ppl.ccstm.Escaped
-     *  @see edu.stanford.ppl.ccstm.Txn
      */
     def mode: AccessMode
 
-    /** Performs a read in the bound context.  Equivalent to `get`.
-     *  @see edu.stanford.ppl.ccstm.Source.View#get
+    /** Performs a read of the value managed by the bound `Ref`.  Equivalent to
+     *  `get`, but more concise in many situations.
+     *
+     *  Example: {{{
+     *    val x = Ref(10)
+     * 
+     *    // create and use a view on x that performs single-operation transactions
+     *    val xs: Source.View[Int] = x.single
+     *    println("x is " + xs())
+     * 
+     *    // merging the two for concise read of x outside an atomic block 
+     *    println("x is " + x.single())
+     *  }}}
+     *  @return the current value of the bound `Ref` in the bound context.
+     *  @throws IllegalStateException if this view is bound to a transaction
+     *      that is not active.
      */
     def apply() : T = get
 
-    /** Performs a read of the value managed by the bound `Ref`.
+    /** Performs a read of the value managed by the bound `Ref`.  `apply()` is
+     *  equivalent and more concise in many situations.
      *  @return the current value of the bound `Ref` in the bound context.
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
@@ -47,19 +62,17 @@ object Source {
      *  context.  Requires that the predicate be safe to reevaluate, and that
      *  `pred(x) == pred(y)` if `x == y`.
      *
-     *  If this bound view is `v`, this method is equivalent to
-     *
-     *  <pre>
-     *  STM.atomic { implicit t =>
-     *    if (!pref(v.get)) STM.retry
-     *  }
-     *  </pre>
+     *  If this bound view is `v`, this method is equivalent to {{{
+     *    atomic { implicit t =>
+     *      if (!pred(v())) retry
+     *    }
+     *  }}}
      *
      *  If you want to wait for a predicate that involves more than one `Ref`
-     *  then just use `retry` directly.
+     *  then use `retry` (from the `ccstm` package object) directly.
      *
      *  @param pred an idempotent predicate.
-     *  @see edu.stanford.ppl.ccstm.STM#retry
+     *  @see edu.stanford.ppl.ccstm#retry
      */
     def await(pred: T => Boolean)
 
@@ -85,11 +98,12 @@ object Source {
      *  reference) then the current transaction will be rolled back.
      *
      *  Although this method does not add to the read set, the returned value
-     *  is consistent with the transaction's previous (recorded) reads.
+     *  is consistent with the transaction's previous writes, recorded reads,
+     *  and still-valid unrecorded reads.
      *  @return an `UnrecordedRead` instance that holds the read value and
      *      allows explicit revalidation.
      *  @throws IllegalStateException if this view is bound to a transaction
-     *      that is not active.
+     *      that is not active or validating.
      */
     def unrecordedRead: UnrecordedRead[T]
     
@@ -112,6 +126,15 @@ trait Source[+T] {
 
   /** Performs a transactional read and checks that it is consistent with all
    *  reads already made by `txn`.  Equivalent to `get`.
+   *
+   *  Example: {{{
+   *    val x = Ref(0)
+   *    atomic { implicit t =>
+   *      ...
+   *      val v = x() // perform a read inside a transaction
+   *      ...
+   *    }
+   *  }}}
    *  @param txn an active transaction.
    *  @return the value of the `Ref` as observed by `txn`.
    *  @throws IllegalStateException if `txn` is not active.
@@ -119,7 +142,8 @@ trait Source[+T] {
   def apply()(implicit txn: Txn): T = get
 
   /** Performs a transactional read and checks that it is consistent with all
-   *  reads already made by `txn`.  Equivalent to `apply()`.
+   *  reads already made by `txn`.  Equivalent to `apply()`, which is more
+   *  concise in many situations.
    *  @param txn an active transaction.
    *  @return the value of the `Ref` as observed by `txn`.
    *  @throws IllegalStateException if `txn` is not active.
