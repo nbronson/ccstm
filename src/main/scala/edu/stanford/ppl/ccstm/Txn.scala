@@ -686,13 +686,7 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
 
   def attach() = attach(impl.ThreadContext.get)
 
-  private[ccstm] def detach(ctx: ThreadContext): Unit = {
-    requireActive()
-    ctx.txn = null
-  }
+  private[ccstm] def detach(ctx: ThreadContext): Unit = { ctx.txn = null }
 
-  private[ccstm] def attach(ctx: ThreadContext): Unit = {
-    ctx.txn = this
-    requireActive()
-  }
+  private[ccstm] def attach(ctx: ThreadContext): Unit = { ctx.txn = this }
 }
