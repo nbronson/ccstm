@@ -20,16 +20,13 @@ package edu.stanford.ppl.ccstm
  *  combination with transaction resource callbacks, it is important to
  *  consider the case that the unrecorded read is already invalid before it is
  *  returned to the requester.
- *  <p>
+ *
+ *  Writes by the same transaction that performed the unrecorded read are
+ *  '''not''' considered to invalidate the read.  
+ *
  *  When called from a non-transactional context the returned instance can be
  *  used to determine if a value has remained unchanged for a particular
  *  interval, which may be useful to detect ABA situations.
- *  <p>
- *  Some STM implementations may spuriously indicate that an unrecorded read
- *  has become invalid, despite no change actually occurring to the original
- *  value.
- *  @see edu.stanford.ppl.ccstm.Source.View#unrecordedRead
- *  @see edu.stanford.ppl.ccstm.Source.View#releasableRead
  *
  *  @author Nathan Bronson
  */
