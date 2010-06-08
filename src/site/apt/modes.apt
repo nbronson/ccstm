@@ -51,16 +51,16 @@ def incrViaRef(r: Ref[BigInt])(implicit t: Txn) {
   r.transform(_ + 1) // implicit Txn arg
 }
 
-STM.atomic(incrViaRef(x)(_))
-STM.atomic { implicit t => incrViaRef(x) }
-STM.atomic { t => incrViaRef(x)(t) }
+atomic(incrViaRef(x)(_))
+atomic { implicit t => incrViaRef(x) }
+atomic { t => incrViaRef(x)(t) }
 
 def incrViaView(x: Ref.View[BigInt]) {
   x.transform(_ + 1) // no implicit arg
 }
 
-STM.atomic { implicit t => incrViaView(x.bind) }
-STM.atomic { t => incrViaView(x.bind(t)) }
+atomic { implicit t => incrViaView(x.bind) }
+atomic { t => incrViaView(x.bind(t)) }
 ----
 
   The <<<mode>>> of a bound reference returned from <<<Ref.bind>>> will

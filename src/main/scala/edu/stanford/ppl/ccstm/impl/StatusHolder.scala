@@ -54,10 +54,10 @@ private[ccstm] class StatusHolder {
 
   //////////////// Assertions about the current status
 
-  /** Throws <code>RollbackError</code> is the status is
-   *  <code>RollingBack</code>, otherwise throws an
-   *  <code>IllegalStateException</code> if the status is something other than
-   *  <code>Active</code>.
+  /** Throws `RollbackError` is the status is
+   *  `RollingBack`, otherwise throws an
+   *  `IllegalStateException` if the status is something other than
+   *  `Active`.
    */
   private[ccstm] def requireActive() {
     val s = _status
@@ -72,19 +72,19 @@ private[ccstm] class StatusHolder {
     }
   }
 
-  /** Throws <code>RollbackError</code> is the status is
-   *  <code>RollingBack</code>, otherwise throws an
-   *  <code>IllegalStateException</code> if the status is something other than
-   *  <code>Active</code> or <code>Validating</code>.
+  /** Throws `RollbackError` is the status is
+   *  `RollingBack`, otherwise throws an
+   *  `IllegalStateException` if the status is something other than
+   *  `Active` or `Validating`.
    */
   private[ccstm] def requireActiveOrValidating() {
     val s = _status
     if ((s ne Txn.Active) && (s ne Txn.Validating)) rollbackOrIllegalState(s)
   }
 
-  /** Throws <code>RollbackError</code> is the status is 
-   *  <code>RollingBack</code>, throws an <code>IllegalStateException</code> if
-   *  the status is <code>Committed</code> or <code>RolledBack</code>.
+  /** Throws `RollbackError` is the status is 
+   *  `RollingBack`, throws an `IllegalStateException` if
+   *  the status is `Committed` or `RolledBack`.
    */
   private[ccstm] def requireNotCompleted() {
     val s = _status

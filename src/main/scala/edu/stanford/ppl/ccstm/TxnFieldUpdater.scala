@@ -103,14 +103,14 @@ object TxnFieldUpdater {
     private[ccstm] type InstanceImpl[X,Y,Z] = Instance[X]
     private[ccstm] type ValueImpl[X,Y,Z] = Value[X]
 
-    /** Overriden for each <code>TxnFieldUpdater</code> instance to return the
-     *  current value of the managed field in <code>instance</code>.  This method
+    /** Overriden for each `TxnFieldUpdater` instance to return the
+     *  current value of the managed field in `instance`.  This method
      *  should perform a volatile read.
      */
     protected def getField[X](instance: Instance[X]): Value[X]
 
-    /** Overriden for each <code>TxnFieldUpdater</code> instance to update the
-     *  value of the managed field in <code>instance</code>.  This method should
+    /** Overriden for each `TxnFieldUpdater` instance to update the
+     *  value of the managed field in `instance`.  This method should
      *  perform a volatile write.
      */
     protected def setField[X](instance: Instance[X], v: Value[X])
@@ -139,14 +139,14 @@ object TxnFieldUpdater {
     private[ccstm] type InstanceImpl[X,Y,Z] = Instance[X,Y]
     private[ccstm] type ValueImpl[X,Y,Z] = Value[X,Y]
 
-    /** Overriden for each <code>TxnFieldUpdater</code> instance to return the
-     *  current value of the managed field in <code>instance</code>.  This method
+    /** Overriden for each `TxnFieldUpdater` instance to return the
+     *  current value of the managed field in `instance`.  This method
      *  should perform a volatile read.
      */
     protected def getField[X,Y](instance: Instance[X,Y]): Value[X,Y]
 
-    /** Overriden for each <code>TxnFieldUpdater</code> instance to update the
-     *  value of the managed field in <code>instance</code>.  This method should
+    /** Overriden for each `TxnFieldUpdater` instance to update the
+     *  value of the managed field in `instance`.  This method should
      *  perform a volatile write.
      */
     protected def setField[X,Y](instance: Instance[X,Y], v: Value[X,Y])
@@ -176,14 +176,14 @@ object TxnFieldUpdater {
     private[ccstm] type InstanceImpl[X,Y,Z] = Instance[X,Y,Z]
     private[ccstm] type ValueImpl[X,Y,Z] = Value[X,Y,Z]
 
-    /** Overriden for each <code>TxnFieldUpdater</code> instance to return the
-     *  current value of the managed field in <code>instance</code>.  This method
+    /** Overriden for each `TxnFieldUpdater` instance to return the
+     *  current value of the managed field in `instance`.  This method
      *  should perform a volatile read.
      */
     protected def getField[X,Y,Z](instance: Instance[X,Y,Z]): Value[X,Y,Z]
 
-    /** Overriden for each <code>TxnFieldUpdater</code> instance to update the
-     *  value of the managed field in <code>instance</code>.  This method should
+    /** Overriden for each `TxnFieldUpdater` instance to update the
+     *  value of the managed field in `instance`.  This method should
      *  perform a volatile write.
      */
     protected def setField[X,Y,Z](instance: Instance[X,Y,Z], v: Value[X,Y,Z])
@@ -202,9 +202,9 @@ object TxnFieldUpdater {
   }
 }
 
-/** Provides transactional access to ''volatile'' properties of any class that
+/** Provides transactional access to volatile properties of any class that
  *  extends `TxnFieldUpdater.Base`.  This class can be used to store multiple
- *  transactional fields in a single object, to remove the layer of storage
+ *  transactional fields in a single object, removing the layer of storage
  *  indirection created by `Ref` instances.  Two `TxnFieldUpdater`s are 
  *  considered equal if they have the same `tClazz` and `fieldName`.
  * 
@@ -272,11 +272,11 @@ object TxnFieldUpdater {
  *  }
  *
  *  class DirectNode[K,V](key0: K, value0: V) extends TxnFieldUpdater.Base {
- *    &#64;volatile private var _color = false
- *    &#64;volatile private var _key = key0
- *    &#64;volatile private var _value0 = value0
- *    &#64;volatile private var _left: DirectNode[K,V] = null
- *    &#64;volatile private var _right: DirectNode[K,V] = null
+ *    @volatile private var _color = false
+ *    @volatile private var _key = key0
+ *    @volatile private var _value0 = value0
+ *    @volatile private var _left: DirectNode[K,V] = null
+ *    @volatile private var _right: DirectNode[K,V] = null
  *
  *    def color = DirectNode.Color(this)
  *    def key = DirectNode.Key(this)
@@ -297,27 +297,24 @@ abstract class TxnFieldUpdater[T <: Base,V](fieldName: String)(implicit m: Class
   private[ccstm] type InstanceImpl[X,Y,Z] = T
   private[ccstm] type ValueImpl[X,Y,Z] = V
 
-  /** Overriden for each <code>TxnFieldUpdater</code> instance to return the
-   *  current value of the managed field in <code>instance</code>.  This method
+  /** Overriden for each `TxnFieldUpdater` instance to return the
+   *  current value of the managed field in `instance`.  This method
    *  should perform a volatile read.
    */
   protected def getField(instance: T): V
 
-  /** Overriden for each <code>TxnFieldUpdater</code> instance to update the
-   *  value of the managed field in <code>instance</code>.  This method should
+  /** Overriden for each `TxnFieldUpdater` instance to update the
+   *  value of the managed field in `instance`.  This method should
    *  perform a volatile write.
    */
   protected def setField(instance: T, v: V)
 
-  /** Returns a <code>Ref</code> that will provide transactional access to the
-   *  field encapsulated by this updater.  Reads and writes of the returned ref
-   *  that are performed as part of a <code>Txn</code> will be linearizable
-   *  with all other transactional reads and writes.  Reads and writes of the
-   *  returned ref performed via <code>Ref.nonTxn</code> will be atomic and
-   *  isolated, and strongly ordered with any transactions that access the same
-   *  field of <code>instance</code>.
-   *  @return a <code>Ref</code> that provides transactional access to a field
-   *      in <code>instance</code>.
+  /** Returns a `Ref` that provides transactional access to the field
+   *  encapsulated by this updater.  All accesses to the field should be
+   *  performed via the `Ref`.  Non-transactional reads and writes should be
+   *  performed using single-operation transactions.
+   *  @return a `Ref` that provides transactional access to a field
+   *      in `instance`.
    */
   def apply(instance: T): Ref[V] = applyImpl(instance)
 

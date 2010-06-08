@@ -5,7 +5,7 @@
 package edu.stanford.ppl.ccstm.experimental.impl
 
 
-/** <code>IdentityPair</code> works like <code>Tuple2</code>, except that it
+/** `IdentityPair` works like `Tuple2`, except that it
  *  uses only identity equality to compare its elements, not value equality.
  */
 private[ccstm] case class IdentityPair[+A, +B](_1: A, _2: B) {

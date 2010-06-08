@@ -30,7 +30,7 @@ class Node(val elem: Int, next0: Node) {
 val top = Ref(null : Node) // or Ref[Node](null)
 
 def push(elem: Int) {
-  STM.atomic { implicit t =>
+  atomic { implicit t =>
     top() = new Node(elem, top())
   }
 }
@@ -40,7 +40,7 @@ def push(elem: Int) {
 
 ----
 def pushAll(elems: A*) {
-  STM.atomic { implicit t =>
+  atomic { implicit t =>
     elems foreach { push(_) }
   }
 }
@@ -50,8 +50,8 @@ def pushAll(elems: A*) {
 
 ----
 def isEmpty = top.single() == null
-//def isEmpty = STM.atomic { implicit t => top() == null }
+//def isEmpty = atomic { implicit t => top() == null }
 
 def clear() { top.single() = null }
-// def clear() { STM.atomic { implicit t => top() = null } }
+// def clear() { atomic { implicit t => top() = null } }
 ----

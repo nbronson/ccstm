@@ -29,13 +29,13 @@ class SpecializationsSuite extends STMFunSuite {
       assert(ref2.getClass === expectedImpl)
       assert(explicitRef.getClass === expectedImpl)
 
-      new Atomic { def body {
+      atomic { implicit t =>
         ref1() = dv
         ref2() = dv
         arr1(0) = dv
         arr2(0) = dv
         exp() = dv
-      }}.run()
+      }
     }
   }
 

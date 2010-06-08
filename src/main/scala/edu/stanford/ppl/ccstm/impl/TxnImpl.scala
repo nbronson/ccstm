@@ -38,7 +38,7 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
    *  value, and that any transaction whose writes conflict with this
    *  transaction will label those writes with a version number greater than
    *  this value.  The read version must never be greater than
-   *  <code>globalVersion.get</code>, must never decrease, and each time it is
+   *  `globalVersion.get`, must never decrease, and each time it is
    *  changed the read set must be revalidated.  Lazily assigned.
    */
   private[impl] var _readVersion: Version = freshReadVersion
@@ -83,7 +83,7 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
   /** On return, the read version will have been the global version at some
    *  point during the call, the read version will be &ge; minReadVersion, and
    *  all reads will have been validated against the new read version.  Throws
-   *  <code>RollbackError</code> if invalid.
+   *  `RollbackError` if invalid.
    */
   private def revalidate(minReadVersion: Version) {
     _readVersion = freshReadVersion(minReadVersion)
@@ -159,7 +159,7 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
 
 
   /** After this method returns, either the current transaction will have been
-   *  rolled back or <code>currentOwner</code> will allow the write resource to
+   *  rolled back or `currentOwner` will allow the write resource to
    *  be acquired.
    */
   private[impl] def resolveWriteWriteConflict(currentOwner: TxnImpl, contended: AnyRef) {

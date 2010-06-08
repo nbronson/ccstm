@@ -7,8 +7,9 @@ package edu.stanford.ppl.ccstm
 
 object Sink {
   
-  /** `Sink.View` defines the contravariant write-only portion of
-   *  `Ref.View`.
+  /** `Sink.View` defines the contravariant write-only portion of `Ref.View`.
+   * 
+   *  @author Nathan Bronson
    */
   trait View[-T] {
 
@@ -19,18 +20,30 @@ object Sink {
 
     /** Returns the `AccessMode` instance that describes how this bound view
      *  was created.
-     *  @see edu.stanford.ppl.ccstm.Single
-     *  @see edu.stanford.ppl.ccstm.Escaped
-     *  @see edu.stanford.ppl.ccstm.Txn
      */
     def mode: AccessMode
 
-    /** Writes to the bound `Ref`, equivalent to `set`.
-     *  @see edu.stanford.ppl.ccstm.Sink.View#set
+    /** Writes to `Ref` bound to this view.  Equivalent to `set`, but more
+     *  concise in many situations.
+     *
+     *  Example: {{{
+     *    val x = Ref(0)
+     * 
+     *    // create and use a view on x that performs single-operation transactions
+     *    val xs: Sink.View[Int] = x.single
+     *    xs() = 10
+     * 
+     *    // merging the two for concise write of x outside an atomic block
+     *    x.single() = 20
+     *  }}}
+     *  @param v a value to store in `unbind` using the current binding mode.
+     *  @throws IllegalStateException if this view is bound to a transaction
+     *      that is not active.
      */
-    def update(v: T) { set(v) }
+   def update(v: T) { set(v) }
 
-    /** Updates the value referred to by the bound `Ref`.
+    /** Updates the value referred to by the bound `Ref`.  Equivalent to
+     *  `update`.
      *  @param v a value to store in `unbind` using the current binding mode.
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
@@ -57,14 +70,25 @@ object Sink {
  */
 trait Sink[-T] {
 
-  /** Performs a transactional write.  Equivalent to `set(v)`.
-   *  @see edu.stanford.ppl.ccstm.Sink#set
-   */
+  /** Performs a transactional write.  The new value will not be visible by
+   *  any other transactions or any non-transactional accesses until (and
+   *  unless) `txn` successfully commits.  Equivalent to `set(v)`.
+   * 
+   *  Example: {{{
+   *    val x = Ref(0)
+   *    atomic { implicit t =>
+   *      ...
+   *      x() = 10 // perform a write inside a transaction
+   *      ...
+   *    }
+   *  }}}
+   *  @param v a value to store in the `Ref`.
+   *  @throws IllegalStateException if `txn` is not active. */
   def update(v: T)(implicit txn: Txn) { set(v) }
 
   /** Performs a transactional write.  The new value will not be visible by
    *  any other transactions or any non-transactional accesses until (and
-   *  unless) `txn` successfully commits.
+   *  unless) `txn` successfully commits.  Equivalent to `update`.
    *  @param v a value to store in the `Ref`.
    *  @throws IllegalStateException if `txn` is not active.
    */
@@ -84,7 +108,4 @@ trait Sink[-T] {
    *  @see edu.stanford.ppl.ccstm.Ref#escaped
    */
   def escaped: Sink.View[T]
-
-  @deprecated("replace with Sink.single if possible, otherwise use Sink.escaped")
-  def nonTxn: Sink.View[T]
 }

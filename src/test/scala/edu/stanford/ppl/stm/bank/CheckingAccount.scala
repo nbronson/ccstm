@@ -4,14 +4,14 @@
 
 package edu.stanford.ppl.stm.bank
 
+import edu.stanford.ppl.ccstm.{Source, Ref, Txn}
 
-import edu.stanford.ppl.ccstm.{Ref, Txn}
 
 class CheckingAccount(val name: String, initialBalance: Float) extends Account {
 
   private val _balance = Ref(initialBalance)
 
-  def balance = _balance.source
+  def balance = _balance : Source[Float]
 
   def deposit(amount: Float)(implicit txn: Txn) {
     assert(amount >= 0)
@@ -32,7 +32,7 @@ class CheckingAccountReadForWrite(val name: String, initialBalance: Float) exten
 
   private val _balance = Ref(initialBalance)
 
-  def balance = _balance.source
+  def balance = _balance : Source[Float]
 
   def deposit(amount: Float)(implicit txn: Txn) {
     assert(amount >= 0)
@@ -53,7 +53,7 @@ class CheckingAccountTransform(val name: String, initialBalance: Float) extends 
 
   private val _balance = Ref(initialBalance)
 
-  def balance = _balance.source
+  def balance = _balance : Source[Float]
 
   def deposit(amount: Float)(implicit txn: Txn) {
     assert(amount >= 0)

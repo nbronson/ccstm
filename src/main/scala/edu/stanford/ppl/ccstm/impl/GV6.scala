@@ -20,16 +20,16 @@ private[impl] trait GV6 {
   private[impl] val globalVersion = new AtomicLong(1)
 
   /** The approximate ratio of the number of commits to the number of
-   *  increments of <code>globalVersion</code>, as in TL2's GV6 scheme.  If
+   *  increments of `globalVersion`, as in TL2's GV6 scheme.  If
    *  greater than one, the actual choice to advance or not is made with a
    *  random number generator.
    */
   private val silentCommitRatio = ((Runtime.getRuntime.availableProcessors + 1) / 2) min 16
 
-  /** If <i>x</i> is a signed integer evenly chosen from a uniform distribution
+  /** If `x` is a signed integer evenly chosen from a uniform distribution
    *  between Integer.MIN_VALUE and Integer.MAX_VALUE, then the test
-   *  <code>(x <= silentCommitCutoff)</code> will succeed approximately
-   *  <code>1.0 / silentCommitRatio</code> of the time.
+   *  `(x <= silentCommitCutoff)` will succeed approximately
+   *  `1.0 / silentCommitRatio` of the time.
    */
   private val silentCommitCutoff = {
     ((1 << 31) + ((1L << 32) / silentCommitRatio) - 1).asInstanceOf[Int]
@@ -37,9 +37,9 @@ private[impl] trait GV6 {
 
   private val silentCommitRand = FastSimpleRandom
 
-  /** The maximum value of <code>nonTxnWriteVersion - globalVersion</code> that
+  /** The maximum value of `nonTxnWriteVersion - globalVersion` that
    *  will be allowed before a non-transactional store attempts to increase
-   *  <code>globalVersion</code>.  Any value larger than zero admits the
+   *  `globalVersion`.  Any value larger than zero admits the
    *  possibility that a non-transactional write will leave a version number
    *  that forces revalidation of a transaction that discovers it (like a
    *  silently-committed txn under GV6).  Larger values can help amortize the
@@ -47,9 +47,9 @@ private[impl] trait GV6 {
    */
   private val nonTxnSilentRunAhead = System.getProperty("ccstm.nontxn.runahead", "8").toInt
 
-  /** Returns a value that is greater than <code>prevVersion</code> and greater
-   *  than the value of <code>globalVersion</code> on entry.  May increase
-   *  <code>globalVersion</code>.
+  /** Returns a value that is greater than `prevVersion` and greater
+   *  than the value of `globalVersion` on entry.  May increase
+   *  `globalVersion`.
    */
   private[impl] def nonTxnWriteVersion(prevVersion: Long): Long = {
     val g = globalVersion.get
@@ -63,8 +63,8 @@ private[impl] trait GV6 {
   /** Returns a version to use for reading in a new transaction. */
   private[impl] def freshReadVersion: Long = globalVersion.get
 
-  /** Guarantees that <code>globalVersion.get</code> is &ge;
-   *  <code>minRV</code>, and returns <code>globalVersion.get</code>.
+  /** Guarantees that `globalVersion.get` is &ge;
+   *  `minRV`, and returns `globalVersion.get`.
    */
   private[impl] def freshReadVersion(minRV: Long): Long = {
     var g = globalVersion.get
@@ -78,8 +78,8 @@ private[impl] trait GV6 {
     return g
   }
 
-  /** Returns a value that is greater than <code>gvSnap</code> and greater than
-   *  <code>readVersion</code>, possibly increasing <code>globalVersion</code>.
+  /** Returns a value that is greater than `gvSnap` and greater than
+   *  `readVersion`, possibly increasing `globalVersion`.
    */
   private[impl] def freshCommitVersion(readVersion: Long, gvSnap: Long): Long = {
     val result = math.max(readVersion, gvSnap) + 1

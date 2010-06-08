@@ -20,7 +20,7 @@ private[ccstm] class Counter {
     (0L /: state.get._1.map(_.get))(_+_)
   }
 
-  /** Adjusts the current value of the counter by <code>delta</code>. */
+  /** Adjusts the current value of the counter by `delta`. */
   def +=(delta: Long) {
     if (delta == 0) return
     

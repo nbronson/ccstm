@@ -42,26 +42,30 @@ object IntSet {
 
     val header = new Node(-1, null)
 
-    def contains(e: Int) = STM.atomic { implicit t =>
-      @tailrec
-      def loop(cur: Node): Boolean = {
+    def contains(e: Int) = atomic { implicit t =>
+      @tailrec def loop(cur: Node): Boolean = {
         cur != null && (cur.e == e || loop(cur.next()))
       }
       loop(header.next())
     }
 
-    def add(e: Int) {
-      STM.atomic { implicit t =>
-        @tailrec
-        def loop(prev: Node) {
-          val cur = prev.next()
-          if (cur == null || cur.e > e)
-            prev.next() = new Node(e, cur)
-          else if (cur.e != e)
-            loop(cur)
-        }
-        loop(header)
+    def add(e: Int): Unit = atomic { implicit t =>
+      @tailrec def loop(prev: Node) {
+        val cur = prev.next()
+        if (cur == null || cur.e > e)
+          prev.next() = new Node(e, cur)
+        else if (cur.e != e)
+          loop(cur)
       }
+      loop(header)
+    }
+
+    def addAll(ee: Int*): Unit = atomic { implicit t =>
+      for (e <- ee) add(e)
+    }
+
+    def await(e: Int): Unit = atomic { implicit t =>
+      if (!contains(e)) retry
     }
   }
 }

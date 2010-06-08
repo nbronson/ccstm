@@ -55,7 +55,7 @@ class TxnFieldUpdaterSuite extends STMFunSuite {
 
   test("txn") {
     val r = new TFUSObj
-    new Atomic { def body {
+    atomic { implicit t =>
       assert(IField(r).get === 0)
       assert(IField(r)() === 0)
       assert(SField(r).get === "abc")
@@ -66,7 +66,7 @@ class TxnFieldUpdaterSuite extends STMFunSuite {
 
       SField(r)() = "def"
       assert(SField(r).get === "def")
-    }}.run()
+    }
 
     assert(IField(r).single.get === 1)
     assert(SField(r).single.get === "def")

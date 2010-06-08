@@ -6,7 +6,7 @@ import edu.stanford.ppl.ExhaustiveTest
 import edu.stanford.ppl.stm.STMFunSuite
 
 
-/** Performs single-threaded tests of <code>Ref</code>.  Since there is no
+/** Performs single-threaded tests of `Ref`.  Since there is no
  *  outside interference, the tests cover non-transactional and transactional
  *  accesses, with various types and levels of bound view reuse.   
  */

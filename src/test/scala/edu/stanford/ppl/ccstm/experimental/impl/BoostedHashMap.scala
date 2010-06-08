@@ -12,7 +12,7 @@ import java.util.concurrent.locks._
 import java.util.concurrent.{ConcurrentMap, TimeUnit, ConcurrentHashMap}
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater
 
-/** An transactionally boosted <code>ConcurrentHashMap</code>, implemented
+/** An transactionally boosted `ConcurrentHashMap`, implemented
  *  directly from M. Herlify and E. Koskinen, <em>Transactional Boosting: A
  *  Methodology for Highly-Concurrent Transactional Objects</em>, PPoPP 2008.
  *  <p>
@@ -36,7 +36,7 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater
 class BoostedHashMap_Basic[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.BasicLockHolder[A], null)
 
 /** Adds an abstract lock to coordinate transactional enumeration to
- *  <code>BoostedHashMap_Basic</code>.  The best implementation of this lock
+ *  `BoostedHashMap_Basic`.  The best implementation of this lock
  *  would use a multi-mode lock where enumeration was mode S and size change IX
  *  (see Y. Ni, V. Menon, A. Adl-Tabatabai, A. Hosking, R. Hudson, J. Moss, B.
  *  Saha, and T. Shpeisman, <em>Open Nesting in Software Transactional
@@ -48,12 +48,12 @@ class BoostedHashMap_Basic[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.B
 class BoostedHashMap_Enum[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.BasicLockHolder[A], new ReentrantReadWriteLock)
 
 /** Adds garbage collection of unused abstract locks to
- *  <code>BoostedHashMap_Basic</code>.  Uses weak references.
+ *  `BoostedHashMap_Basic`.  Uses weak references.
  */
 class BoostedHashMap_GC[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.GCLockHolder[A], null)
 
 /** Uses read/write locks to guard access to keys, rather than the mutexes of
- *  <code>BoostedHashMap_Basic</code>.  This potentially allows greater
+ *  `BoostedHashMap_Basic`.  This potentially allows greater
  *  concurrency during reads, but may have higher overheads.
  */
 class BoostedHashMap_RW[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.RWLockHolder[A], null)

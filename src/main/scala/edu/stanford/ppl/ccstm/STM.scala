@@ -7,59 +7,12 @@ package edu.stanford.ppl.ccstm
 
 import impl.ThreadContext
 import annotation.tailrec
+import util.control.ControlThrowable
 
-/** The `STM` object manages atomic execution of code blocks using software
- *  transactional memory.  The transactions provide linearizability for all of
- *  the reads and writes to data stored in `Ref` instances.  Atomic blocks are
- *  functions from `Txn` to any type.  `Ref`'s methods require that the `Txn`
- *  be available as an implicit parameter.  Scala allows the implicit modifier
- *  to be included on the argument to an anonymous method, leading to the
- *  idiomatic CCSTM atomic block
- *
- *  <pre>
- *  STM.atomic { implicit t =>
- *    // body
- *  }
- *  </pre>
- *
- *  If there are no name collisions, you can import `STM.atomic` (or `STM._`)
- *  to make atomic blocks slightly shorter.
- *
- *  Atomic blocks nest, so when modularizing your code you can chose to either
- *  pass the `Txn` instance or create a new atomic block.
- *
- *  Some examples
- *
- *  <pre>
- *  import edu.stanford.ppl.ccstm._
- *  import edu.stanford.ppl.ccstm.STM._
- *
- *  class Account(bal0: BigDecimal) {
- *    private val bal = Ref(bal0)
- *
- *    def tryWithdrawal(m: BigDecimal) = STM.atomic { implicit t =>
- *      if (bal() >= m) {
- *        bal() = bal() - m
- *        true
- *      } else {
- *        false
- *      }
- *    }
- *
- *    def deposit(m: BigDecimal)(implicit txn: Txn) {
- *      bal() = bal() + m
- *    }
- *  }
- *
- *  object Account {
- *    def tryTransfer(from: Account, to: Account, m: BigDecimal) = 
- *          STM.atomic { impliict t =>
- *      from.tryWithdrawal(m) && { to.deposit(m) ; true }
- *    }
- *  }
- *  </pre>
- *
- *  @see edu.stanford.ppl.ccstm.Ref
+/** The `STM` object encapsulated miscellaneous CCSTM functionality, and
+ *  provides a means to run transactions with fewer imports than the idiomatic
+ *  form.  Most code will use the `apply` method of `object atomic` to execute
+ *  atomic blocks. 
  *
  *  @author Nathan Bronson
  */
@@ -67,18 +20,7 @@ object STM {
 
   private[ccstm] case class AlternativeResult(value: Any) extends Exception
 
-  /** Repeatedly attempts to perform the work of <code>block</code> in a
-   *  transaction, until an attempt is successfully committed or an exception is
-   *  thrown by <code>block</code> or a callback registered during the block's
-   *  execution.  On successful commit this method returns the result of the
-   *  block.  If the block throws an exception, the transaction will be rolled
-   *  back and the exception will be rethrown from this method without further
-   *  retries.
-   *
-   *  If a transaction is already active on the current thread the block will
-   *  be run as part of the existing transaction.  In STM terminology this is
-   *  support for nested transactions using "flattening" or "subsumption".   
-   */
+  /** @see edu.stanford.ppl.ccstm.atomic#apply */
   def atomic[Z](block: Txn => Z)(implicit mt: MaybeTxn): Z = {
     // TODO: without partial rollback we can't properly implement failure atomicity (see issue #4)
 
@@ -130,28 +72,9 @@ object STM {
     }
   }
 
-  /** Atomically executes a transaction that is composed from
-   *  <code>blocks</code> by joining with a left-biased <em>orElse</em>
-   *  operator.  The first block will be attempted in an optimistic transaction
-   *  until it either succeeds, fails with no retry possible (in which case the
-   *  causing exception will be rethrown), or performs an explicit
-   *  <code>retry</code>.  If a retry is performed, then the next block will
-   *  be attempted in the same fashion.  If all blocks are explicitly retried
-   *  then execution resumes at the first block, after a change has been made
-   *  to one of the values read by any transaction.
-   *  <p>
-   *  The left-biasing of the <em>orElse</em> composition guarantees that if
-   *  the first block does not call <code>Txn.retry</code>, no other blocks
-   *  will be executed.
-   *  <p>
-   *  The <em>retry</em> and <em>orElse</em> operators are modelled after those
-   *  introduced by T. Harris, S. Marlow, S. P. Jones, and M. Herlihy,
-   *  "Composable Memory Transactions", in PPoPP '05.
-   *  @see edu.stanford.ppl.ccstm.Atomic#orElse
-   *  @see edu.stanford.ppl.ccstm.AtomicFunc#orElse
-   */
+  /** @see edu.stanford.ppl.ccstm.atomic#oneOf */
   def atomicOrElse[Z](blocks: (Txn => Z)*)(implicit mt: MaybeTxn): Z = {
-    if (null != Txn.currentOrNull) throw new UnsupportedOperationException("nested orElse is not currently supported")
+    if (null != Txn.currentOrNull) throw new UnsupportedOperationException("nested orAtomic is not currently supported")
 
     val hists = new Array[List[Txn.RollbackCause]](blocks.length)
     while (true) {
@@ -199,25 +122,15 @@ object STM {
   }
 
   private def attemptImpl[Z](txn: Txn, block: Txn => Z): Z = {
-    var nonLocalReturn: Throwable = null
+    var nonLocalReturn: ControlThrowable = null
     var result: Z = null.asInstanceOf[Z]
     try {
       result = block(txn)
     }
     catch {
       case RollbackError => {}
-      case x => {
-        // TODO: remove the dynamic check after we no longer compile for 2.8.0.Beta1
-        // 2.8.0.Beta1 should catch scala.runtime.NonLocalReturnException
-        // 2.8.0.RC1 should catch subclasses of scala.util.control.ControlThrowable
-        if (controlThrowableClass.isAssignableFrom(x.getClass)) {
-          // This has the opposite behavior from other exception types.  We don't
-          // trigger rollback, and we rethrow only if the transaction _commits_.
-          nonLocalReturn = x
-        } else {
-          txn.forceRollback(Txn.UserExceptionCause(x))
-        }
-      }
+      case x: ControlThrowable => nonLocalReturn = x
+      case x => txn.forceRollback(Txn.UserExceptionCause(x))
     }
     txn.commitAndRethrow()
     if (null != nonLocalReturn && txn.status == Txn.Committed) throw nonLocalReturn
@@ -242,7 +155,7 @@ object STM {
    *    }
    *  }}}
    *  Because this method is only presented as an optimization, it is assumed
-   *  that the evaluation of <code>f</code> will be quick.
+   *  that the evaluation of `f` will be quick.
    */
   def transform2[A,B,Z](refA: Ref[A], refB: Ref[B], f: (A,B) => (A,B,Z)): Z = {
     if (refA.isInstanceOf[impl.RefOps[_]] && refB.isInstanceOf[impl.RefOps[_]]) {
@@ -251,7 +164,7 @@ object STM {
           refB.asInstanceOf[impl.RefOps[B]].handle,
           f)
     } else {
-      atomic { t1 => implicit val t = t1 // TODO: revert after IntelliJ plugin accepts the better syntax
+      atomic { implicit t =>
         val (a,b,z) = f(refA(), refB())
         refA() = a
         refB() = b
@@ -260,11 +173,9 @@ object STM {
     }
   }
 
-  // TODO: better names?
-
   /** Establishes a happens-before relationship between transactions that
-   *  previously wrote to <code>ref</code> and a subsequent call to
-   *  <code>resurrect(identity, _)</code>.  Embalming a reference does not
+   *  previously wrote to `ref` and a subsequent call to
+   *  `resurrect(identity, _)`.  Embalming a reference does not
    *  prevent its continued use.
    */
   def embalm(identity: Int, ref: Ref[_]) {
@@ -272,7 +183,7 @@ object STM {
   }
 
   /** Establishes a happens-before relationship between subsequent accesses to
-   *  <code>ref</code> and previous calls to <code>embalm(identity, _)</code>.
+   *  `ref` and previous calls to `embalm(identity, _)`.
    *  A reference may only be resurrected into an old identity before any other
    *  operations (except construction) have been performed on it.
    */

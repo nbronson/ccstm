@@ -8,15 +8,15 @@ private object TIdentityPairRef {
   val metaUpdater = (new TIdentityPairRef(IdentityPair("",""))).newMetaUpdater
 }
 
-/** A <code>Ref</code> implementation that holds either null or a
- *  <code>IdentityPair</code> instance with a non-null element.  When compared
- *  to <code>TAnyRef[IdentityPair[A,B]]</code> instances, instances of
- *  <code>TIdentityPairRef</code> have lower storage overhead (the wrapping
- *  <code>IdentityPair</code> objects are discarded and recreated as needed),
+/** A `Ref` implementation that holds either null or a
+ *  `IdentityPair` instance with a non-null element.  When compared
+ *  to `TAnyRef[IdentityPair[A,B]]` instances, instances of
+ *  `TIdentityPairRef` have lower storage overhead (the wrapping
+ *  `IdentityPair` objects are discarded and recreated as needed),
  *  but a slightly higher runtime cost when accessing.
  *  <p>
- *  When storing, <code>IdentityPair(null,null)</code> will be silently
- *  converted to <code>null</code>.
+ *  When storing, `IdentityPair(null,null)` will be silently
+ *  converted to `null`.
  *
  *  @author Nathan Bronson
  */

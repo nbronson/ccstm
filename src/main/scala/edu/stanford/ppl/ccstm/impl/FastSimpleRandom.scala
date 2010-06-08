@@ -7,9 +7,9 @@ package edu.stanford.ppl.ccstm.impl
 
 /** A random number generator that focuses on speed and lack of inter-thread
  *  interference, rather than on the quality of the numbers returned.  The
- *  <code>object FastSimpleRandom</code> is striped internally to reduce
- *  contention when accessed from multiple threads.  The <code>class
- *  FastSimpleRandom</code> should only be used by a single thread.
+ *  `object FastSimpleRandom` is striped internally to reduce
+ *  contention when accessed from multiple threads.  The `class
+ *  FastSimpleRandom` should only be used by a single thread.
  *  <p>
  *  The constants in this 64-bit linear congruential random number generator
  *  are from http://nuclear.llnl.gov/CNP/rng/rngman/node4.html.
@@ -76,7 +76,7 @@ private[ccstm] object FastSimpleRandom {
 }
 
 /** A single-threaded random number generator that uses the same algorithm as
- *  the concurrent <code>object FastSimpleRandom</code>.
+ *  the concurrent `object FastSimpleRandom`.
  */
 private[ccstm] final class FastSimpleRandom private (private var _state: Long, dummy: Boolean) {
   import FastSimpleRandom._

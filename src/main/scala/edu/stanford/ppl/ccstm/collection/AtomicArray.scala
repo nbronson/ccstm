@@ -9,19 +9,23 @@ import collection.mutable.{WrappedArray, Builder, ArrayLike, IndexedSeq}
 import java.util.concurrent.atomic._
 import annotation.tailrec
 
-/**
- * AtomicArray implements a fixed-length indexed sequence where reads and
- * writes have volatile semantics.  In addition, it adds an atomic swap
- * operation (getAndSet) and an atomic compare-and-swap (compareAndSet).
+/** `AtomicArray` implements a fixed-length indexed sequence where reads and
+ *  writes have volatile semantics.  In addition, it adds an atomic swap
+ *  operation (`getAndSet`) and an atomic compare-and-swap (`compareAndSet`).
+ *  The collection is backed by one of the Java atomic array classes, with the
+ *  best match chosen at construction time using a manifest.
  *
- * Instances of AtomicArray are backed by one of the three Java atomic
- * array classes: AtomicIntegerArray, AtomicLongArray, and
- * AtomicReferenceArray.  No boxing of primitives is performed.  For
- * AtomicArray[T] where T is a primitive smaller than an Int, an entire 32-bit
- * Int is used for each array element.  Float-s and Double-s are stored using
- * their raw bit representation.
+ *  Instances of `AtomicArray[T]` are backed by `AtomicIntegerArray` if `T` is
+ *  a primitive of at most 32 bits (smaller values are padded rather than
+ *  packed).  `AtomicArray[Long]` and `AtomicArray[Double]` are backed by
+ *  `AtomicLongArray`.  All other instances of `AtomicArray[T]` are backed by
+ *  `AtomicReferenceArray` (except for `AtomicArray[Unit]`).  Floats and
+ *  doubles are stored using their raw bit representation.
  *
- * @author Nathan Bronson
+ *  This class is used in the implementation of CCSTM, but it is standalone
+ *  and may be generally useful.
+ *
+ *  @author Nathan Bronson
  */
 abstract class AtomicArray[T] extends IndexedSeq[T] with ArrayLike[T, AtomicArray[T]] {
 

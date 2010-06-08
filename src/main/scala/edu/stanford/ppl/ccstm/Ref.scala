@@ -4,8 +4,6 @@
 
 package edu.stanford.ppl.ccstm
 
-import reflect.AnyValManifest
-
 /** An object that provides factory methods for `Ref` instances.
  *
  *  @author Nathan Bronson
@@ -13,9 +11,7 @@ import reflect.AnyValManifest
 object Ref {
   import impl._
 
-  /** Returns a new <code>Ref</code> instance suitable for holding instances of
-   *  <code>T</code>.
-   *
+  /** Returns a new `Ref` instance suitable for holding instances of `T`.
    *  If you have an initial value `v0` available, prefer `apply(v0)`.
    */
   def make[T]()(implicit m: ClassManifest[T]): Ref[T] = {
@@ -35,10 +31,16 @@ object Ref {
 
   /** Returns a new `Ref` instance with the specified initial value.  The
    *  returned instance is not part of any transaction's read or write set.
+   *
+   *  Example: {{{
+   *    val x = Ref("initial") // creates a Ref[String]
+   *    val head1 = Ref(Nil : List[String]) // creates a Ref[List[String]] 
+   *    val head2 = Ref[List[String]](Nil)  // creates a Ref[List[String]]
+   *  }}}
    */
   def apply[T](initialValue: T)(implicit m: ClassManifest[T]): Ref[T] = {
     // TODO: this is likely to be a hot spot, perhaps RFE a method in Manifest for this test?
-    if (m.isInstanceOf[AnyValManifest[_]]) {
+    if (m.isInstanceOf[scala.reflect.AnyValManifest[_]]) {
       newPrimitiveRef(initialValue)
     } else {
       new TAnyRef(initialValue)
@@ -70,13 +72,14 @@ object Ref {
   }
 
 
-  /** Returns a `Ref` instance that uses view serializability and Abstract
-   *  Nested Transactions to minimize the need to roll back transactions.  All
-   *  operations and their result values are recorded.  If another transaction
-   *  changes the value of the returned reference, a conflict will be avoided
+  /** Returns a `Ref` instance that trades higher overhead for a reduced need
+   *  to roll back transactions.  All operations and their result values are
+   *  recorded, and writes will be delayed until just prior to commit.  If
+   *  another transaction writes to the reference, a conflict will be avoided
    *  if the history can be replayed starting with the new value without an
-   *  observable difference.  Writes to the underlying value will be delayed
-   *  until just prior to commit.
+   *  observable difference (detected using `==` on the values).
+   * 
+   *  `Ref.getWith` performs a similar function on a call-by-call basis.
    */
   def lazyConflict[T](initialValue: T)(implicit m: ClassManifest[T]) = new LazyConflictRef(initialValue)
 
@@ -100,42 +103,43 @@ object Ref {
    *
    *  Some terms:
    *
-   *  * Bound context: If `mode` is a `Txn`, that `Txn` is the bound context.
-   *    If `mode` is `Single` and a `Txn` is active on the current thread, then
-   *    the bound context is an unnamed atomic block nested in the active
-   *    `Txn`.  If `mode` is `Single` and there is no active transaction, or if
-   *    `mode` is `Escaped`, then the bound context is an unnamed top level
-   *    atomic block.
+   *   - Bound context: If `mode` is a `Txn`, that `Txn` is the bound context.
+   *     If `mode` is `Single` and a `Txn` is active on the current thread,
+   *     then the bound context is an unnamed atomic block nested in the active
+   *     `Txn`.  If `mode` is `Single` and there is no active transaction, or
+   *     if `mode` is `Escaped`, then the bound context is an unnamed top level
+   *     atomic block.
    *
-   *  * Enclosing context: If `mode` is a `Txn`, that `Txn` is the enclosing
-   *    context.  If `mode` is `Single` and there is an active `Txn` on the
-   *    current thread, then that transaction is the enclosing context.  Top
-   *    level `Single` and `Escaped` bound views have no enclosing context.
+   *   - Enclosing context: If `mode` is a `Txn`, that `Txn` is the enclosing
+   *     context.  If `mode` is `Single` and there is an active `Txn` on the
+   *     current thread, then that transaction is the enclosing context.  Top
+   *     level `Single` and `Escaped` bound views have no enclosing context.
    */
   trait View[T] extends Source.View[T] with Sink.View[T] {
 
-    /** Provides access to a <code>Ref</code> that refers to the same value as
-     *  the one that was bound to produce this <code>Ref.View</code> instance.
-     *  The returned <code>Ref</code> might be a new instance, but it is always
-     *  true that <code>ref.bind.unbind == ref</code>.
-     *  @return a <code>Ref</code> instance equal to (or the same as) the one
-     *      that was bound to create this view instance.
+    /** Provides access to a `Ref` that refers to the same value as
+     *  the one that was bound to produce this `Ref.View` instance.
+     *  The returned `Ref` might be the original reference or it might be a new
+     *  instance that is equal to the original.  It is always true that
+     *  `ref.bind.unbind == ref`.
+     *  @return a `Ref` instance equal to the one that was bound to create this
+     *      view instance.
      */
     def unbind: Ref[T]
 
-    /** Returns the same value as that returned by <code>get</code>, but adds
-     *  the <code>Ref</code> to the write set of the enclosing context, if any.
-     *  @return the current value of the bound <code>Ref</code>, as observed by
+    /** Returns the same value as that returned by `get`, but adds
+     *  the `Ref` to the write set of the enclosing context, if any.
+     *  @return the current value of the bound `Ref`, as observed by
      *      the bound context.
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
      */
     def readForWrite: T
 
-    /** Works like <code>set(v)</code>, but returns the old value.  This is an
-     *  atomic swap, equivalent to atomically performing a <code>get</code>
-     *  followed by <code>set(v)</code>.
-     *  @return the previous value of the bound <code>Ref</code>, as observed
+    /** Works like `set(v)`, but returns the old value.  This is an
+     *  atomic swap, equivalent to atomically performing a `get`
+     *  followed by `set(v)`.
+     *  @return the previous value of the bound `Ref`, as observed
      *      by the bound context.
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
@@ -143,40 +147,34 @@ object Ref {
     def swap(v: T): T
 
     /** Equivalent to atomically executing
-     *  <code>(if (before == get) { set(after); true } else false)</code>, but
+     *  `(if (before == get) { set(after); true } else false)`, but
      *  may be more efficient, especially if there is no enclosing context.
-     *  @param before a value to compare against the current <code>Ref</code>
-     *      contents.
-     *  @param after a value to store in the <code>Ref</code> if
-     *      <code>before</code> was equal to the previous cell contents.
-     *  @return <code>true</code> if <code>before</code> was equal to the
-     *      previous value of the bound <code>Ref</code>, <code>false</code>
-     *      otherwise.
+     *  @param before a value to compare against the current `Ref` contents.
+     *  @param after a value to store in the `Ref` if `before` was equal to the
+     *      previous cell contents.
+     *  @return true if `before` was equal to the previous value of the bound
+     *      `Ref`, false otherwise.
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
      */
     def compareAndSet(before: T, after: T): Boolean
 
     /** Equivalent to atomically executing
-     *  <code>(if (before eq get) { set(after); true } else false)</code>, but
+     *  `(if (before eq get) { set(after); true } else false)`, but
      *  may be more efficient, especially if there is no enclosing context.
      *  @param before a reference whose identity will be compared against the
-     *      current <code>Ref</code> contents.
-     *  @param after a value to store in the <code>Ref</code> if
-     *      <code>before</code> has the same reference identity as the previous
-     *      cell contents.
-     *  @return <code>true</code> if <code>before</code> has the same reference
-     *      identity as the previous value of the bound <code>Ref</code>,
-     *      <code>false</code> otherwise.
+     *      current `Ref` contents.
+     *  @param after a value to store in the `Ref` if `before` has the same
+     *      reference identity as the previous cell contents.
+     *  @return true if `before` has the same reference identity as the
+     *      previous value of the bound `Ref`, false otherwise.
      *  @throws IllegalStateException if this view is bound to a transaction
-     *      that is not active.
-     *  @see edu.stanford.ppl.ccstm.Ref.View#compareAndSet
-     */
+     *      that is not active. */
     def compareAndSetIdentity[A <: T with AnyRef](before: A, after: T): Boolean
 
     /** Atomically replaces the value ''v'' stored in the `Ref` with
-     *  `f`(''v'').  Some implementations may defer execution of `f` or call
-     *  `f` multiple times.
+     *  `f`(''v'').  Some `Ref` implementations may defer execution of `f` or
+     *  call `f` multiple times to reduce conflicts.
      *  @param f a function that is safe to call multiple times, and safe to
      *      call later during the enclosing context, if any.
      *  @throws IllegalStateException if this view is bound to a transaction
@@ -189,7 +187,12 @@ object Ref {
      *  in a transactional context if the return value is not needed and `f` is
      *  idempotent, since it gives the STM more flexibility to avoid
      *  transaction conflicts.
-     */
+     *  @param f a function that is safe to call multiple times, and safe to
+     *      call later during the enclosing context, if any.
+     *  @return the previous value of the bound `Ref`, as observed
+     *      by the bound context.
+     *  @throws IllegalStateException if this view is bound to a transaction
+     *      that is not active. */
     def getAndTransform(f: T => T): T
 
     /** Either atomically transforms this reference without blocking and
@@ -219,8 +222,37 @@ object Ref {
      */
     def transformIfDefined(pf: PartialFunction[T,T]): Boolean
 
+    /** Transforms the value stored in the `Ref` by incrementing it.
+     *
+     *  '''Note: Some `Ref` implementations may choose to ignore the passed-in
+     *  `Numeric[T]` instance if `T` is a primitive type.'''
+     *
+     *  @param rhs the quantity by which to increment the value of `unbind`.
+     *  @throws IllegalStateException if this view is bound to a transaction
+     *      that is not active.
+     */
     def +=(rhs: T)(implicit num: Numeric[T]) { if (num.zero != rhs) transform { v => num.plus(v, rhs) } }
+
+    /** Transforms the value stored in the `Ref` by decrementing it.
+     *
+     *  '''Note: Some `Ref` implementations may choose to ignore the passed-in
+     *  `Numeric[T]` instance if `T` is a primitive type.'''
+     *
+     *  @param rhs the quantity by which to decrement the value of `unbind`.
+     *  @throws IllegalStateException if this view is bound to a transaction
+     *      that is not active.
+     */
     def -=(rhs: T)(implicit num: Numeric[T]) { if (num.zero != rhs) transform { v => num.minus(v, rhs) } }
+
+    /** Transforms the value stored in the `Ref` by multiplying it.
+     *
+     *  '''Note: Some `Ref` implementations may choose to ignore the passed-in
+     *  `Numeric[T]` instance if `T` is a primitive type.'''
+     *
+     *  @param rhs the quantity by which to multiple the value of `unbind`.
+     *  @throws IllegalStateException if this view is bound to a transaction
+     *      that is not active.
+     */
     def *=(rhs: T)(implicit num: Numeric[T]) { if (num.zero == rhs) set(num.zero) else transform { v => num.times(v, rhs) } }
 
     // TODO: I don't know how to make /= work for both Integral and Fractional
@@ -247,16 +279,20 @@ object Ref {
  *  are linearizable.  Reads and writes performed by a successful transaction
  *  return the same values as if they were executed instantaneously at the
  *  transaction's commit (linearization) point.
- *  STM.
  *
  *  The static scope of an atomic block is defined by access to an implicit
  *  `Txn` passed to the block by the STM.  Atomic blocks nest, so to
  *  participate in an atomic block for which the `Txn` is not conveniently
- *  available, just create a new atomic block using `STM.atomic`.  In the
- *  static scope of an atomic block reads and writes of a `x: Ref` are
- *  performed with either `x.get` and `x.set(v)`, or with `x()` and `x() = v`.
- *  `single` provides a means to dynamically resolve the current scope during
- *  each method call.
+ *  available, just create a new atomic block using {{{
+ *    atomic { implicit t =>
+ *      // the body
+ *    }
+ *  }}}
+ *  In the static scope of an atomic block reads and writes of a `Ref`
+ *  are performed by `x.get` and `x.set(v)`, or more concisely by `x()` and
+ *  `x() = v`. `x.single` returns a `Ref.View` that will dynamically resolve
+ *  the current scope during each method call, automatically creating a
+ *  single-operation atomic block if no transaction is active.
  *
  *  It is possible for separate `Ref` instances to refer to the same element;
  *  in this case they will compare equal.  (As an example, a transactional
@@ -272,56 +308,71 @@ object Ref {
  *
  *  Concrete `Ref` instances may be obtained from the factory methods in
  *  `Ref`'s companion object.
- *  @see edu.stanford.ppl.ccstm.STM
  *
  *  @author Nathan Bronson
  */
 trait Ref[T] extends Source[T] with Sink[T] {
 
-  /** Works like <code>set(v)</code>, but returns the old value.  This is an
-   *  atomic swap, equivalent to atomically performing a <code>get</code>
-   *  followed by <code>set(v)</code>.
-   *  @return the previous value of this <code>Ref</code>, as observed by
-   *      <code>txn</code>.
-   *  @throws IllegalStateException if <code>txn</code> is not active.
+  /** Works like `set(v)`, but returns the old value.  This is an
+   *  atomic swap, equivalent to atomically performing a `get`
+   *  followed by `set(v)`.
+   *  @return the previous value of this `Ref`, as observed by `txn`.
+   *  @throws IllegalStateException if `txn` is not active.
    */
   def swap(v: T)(implicit txn: Txn): T
 
-  /** Transforms the value referenced by this <code>Ref</code> by applying the
-   *  function <code>f</code>.  Acts like <code>ref.set(f(ref.get))</code>, but
-   *  the execution of <code>f</code> may be deferred or duplicated to reduce
+  /** Transforms the value referenced by this `Ref` by applying the
+   *  function `f`.  Acts like `ref.set(f(ref.get))`, but
+   *  the execution of `f` may be deferred or duplicated to reduce
    *  transaction conflicts.
    *  @param f a function that is safe to call multiple times, and safe to
    *      call later during the transaction.
-   *  @throws IllegalStateException if <code>txn</code> is not active.
+   *  @throws IllegalStateException if `txn` is not active.
    */
   def transform(f: T => T)(implicit txn: Txn)
 
-  /** Transforms the value referenced by this <code>Ref</code> by applying the
-   *  <code>pf.apply</code>, but only if <code>pf.isDefinedAt</code> holds for
+  /** Transforms the value referenced by this `Ref` by applying the
+   *  `pf.apply`, but only if `pf.isDefinedAt` holds for
    *  the current value.  Returns true if a transformation was performed, false
-   *  otherwise.  <code>pf.apply</code> and <code>pf.isDefinedAt</code> may be
+   *  otherwise.  `pf.apply` and `pf.isDefinedAt` may be
    *  called multiple times, and may be deferred until later in the
    *  transaction.
    *  @param pf a partial function that is safe to call multiple times, and
    *      safe to call later in the transaction.
-   *  @return <code>pf.isDefinedAt(<i>v</i>)</code>, where <i>v</i> is the
-   *      current value of this <code>Ref</code> on entry.
-   *  @throws IllegalStateException if <code>txn</code> is not active.
+   *  @return `pf.isDefinedAt(v)`, where `v` was the value of this `Ref`
+   *      before transformation (if any).
+   *  @throws IllegalStateException if `txn` is not active.
    */
   def transformIfDefined(pf: PartialFunction[T,T])(implicit txn: Txn): Boolean
 
-  /** Returns this instance, but with only the read-only portion accessible.
-   *  Equivalent to <code>asInstanceOf[Source[T]]</code>, but may be more
-   *  readable.
-   *  @return this instance, but with only read-only methods accessible
-   */
-  def source: Source[T] = this
-  
   // numeric stuff
 
+  /** Transforms the value stored in the `Ref` by incrementing it.
+   *
+   *  '''Note: Some `Ref` implementations may choose to ignore the passed-in
+   *  `Numeric[T]` instance if `T` is a primitive type.'''
+   *
+   *  @param rhs the quantity by which to increment the value of this `Ref`.
+   *  @throws IllegalStateException if `txn` is not active. */
   def +=(rhs: T)(implicit txn: Txn, num: Numeric[T]) { if (num.zero != rhs) transform { v => num.plus(v, rhs) } }
+
+  /** Transforms the value stored in the `Ref` by decrementing it.
+   *
+   *  '''Note: Some `Ref` implementations may choose to ignore the passed-in
+   *  `Numeric[T]` instance if `T` is a primitive type.'''
+   *
+   *  @param rhs the quantity by which to decrement the value of this `Ref`.
+   *  @throws IllegalStateException if `txn` is not active. */
   def -=(rhs: T)(implicit txn: Txn, num: Numeric[T]) { if (num.zero != rhs) transform { v => num.minus(v, rhs) } }
+
+  /** Transforms the value stored in the `Ref` by multiplying it.
+   *
+   *  '''Note: Some `Ref` implementations may choose to ignore the passed-in
+   *  `Numeric[T]` instance if `T` is a primitive type.'''
+   *
+   *  @param rhs the quantity by which to multiply the value of this `Ref`.
+   *  @throws IllegalStateException if `txn` is not active.
+   */
   def *=(rhs: T)(implicit txn: Txn, num: Numeric[T]) { if (num.zero == rhs) set(num.zero) else transform { v => num.times(v, rhs) } }
 
   // TODO: I don't know how to make /= work for both Integral and Fractional
@@ -329,16 +380,16 @@ trait Ref[T] extends Source[T] with Sink[T] {
   //////////////// AccessMode
 
   /** Returns a reference view that does not require an implicit
-   *  <code>Txn</code> parameter on each method call, but instead always
-   *  performs accesses in the context of <code>txn</code>.  A transaction may
+   *  `Txn` parameter on each method call, but instead always
+   *  performs accesses in the context of `txn`.  A transaction may
    *  be bound regardless of its state, but reads and writes are only allowed
    *  while a transaction is active.  The view returned from this method may be
-   *  convenient when passing <code>Ref</code>s to scopes that would not
-   *  otherwise have implicit access to <code>txn</code>, and the view provides
+   *  convenient when passing `Ref`s to scopes that would not
+   *  otherwise have implicit access to `txn`, and the view provides
    *  some extra functionality that is less frequently needed.
    *  @param txn a transaction to be bound to the view.
    *  @return a view of this instance that performs all accesses as if from
-   *      <code>txn</code>.
+   *      `txn`.
    */
   def bind(implicit txn: Txn): Ref.View[T]
 
@@ -347,7 +398,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *  transaction will be nested inside an existing transaction if one is
    *  active (see `Txn.current`).  The returned instance is valid for the
    *  lifetime of the program.
-   *  @return a view into the value of this <code>Ref</code>, that will perform
+   *  @return a view into the value of this `Ref`, that will perform
    *      each operation as if in its own transaction.
    */
   def single: Ref.View[T]
@@ -358,13 +409,10 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *  Each operation acts as if it was performed in its own transaction while
    *  any active transaction is suspended.  The returned instance is valid for
    *  the lifetime of the program.
-   *  @return a view into the value of this <code>Ref</code>, that will bypass
+   *  @return a view into the value of this `Ref`, that will bypass
    *      any active transaction.
    */
   def escaped: Ref.View[T]
-
-  @deprecated("replace with Ref.single if possible, otherwise use Ref.escaped")
-  def nonTxn: Ref.View[T] = escaped
 
   private[ccstm] def embalm(identity: Int)
   private[ccstm] def resurrect(identity: Int)

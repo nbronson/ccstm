@@ -45,7 +45,7 @@ private[impl] final class TxnSlotManager[T <: AnyRef](range: Int, reservedSlots:
     s
   }
 
-  /** Returns the slot associated with <code>slot</code> at some instant.  The
+  /** Returns the slot associated with `slot` at some instant.  The
    *  returned value may be obsolete before this method returns.
    */
   def lookup(slot:Int): T = unwrap(slots.get(slot))
@@ -57,8 +57,8 @@ private[impl] final class TxnSlotManager[T <: AnyRef](range: Int, reservedSlots:
     }
   }
 
-  /** A non-racy version of <code>lookup</code>, that must be paired with
-   *  <code>endLookup</code>.
+  /** A non-racy version of `lookup`, that must be paired with
+   *  `endLookup`.
    */
   def beginLookup(slot: Int): T = {
     var e: AnyRef = null

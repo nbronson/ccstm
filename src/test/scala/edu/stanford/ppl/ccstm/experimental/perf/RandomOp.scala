@@ -55,7 +55,7 @@ class RandomOp extends Perf.Worker {
         val rngOrig = rng
 
         var a = 0
-        new Atomic { def body {
+        atomic { implicit currentTxn =>
           if (TxnNoReadOnlyCommit) currentTxn.addWriteResource(DummyWriteResource)
           rng = rngOrig.clone
 
@@ -77,7 +77,7 @@ class RandomOp extends Perf.Worker {
             }
             j += 1
           }
-        }}.run
+        }
         i += TxnSize
       } else {
         val r = rng.nextInt(100)

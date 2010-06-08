@@ -11,7 +11,7 @@ import java.util.concurrent.CyclicBarrier
 
 /** This test uses the transactional retry mechanism to pass a token around a
  *  ring of threads.  When there are two threads this is a ping-pong test.  A
- *  separate <code>Ref</code> is used for each handoff.
+ *  separate `Ref` is used for each handoff.
  */
 class TokenRingSuite extends STMFunSuite {
   test("small non-txn threesome") { tokenRing(3, 10000, false) }
@@ -55,11 +55,11 @@ class TokenRingSuite extends STMFunSuite {
               ready(index).single() = false
               ready(next).single() = true
             } else {
-              new Atomic { def body {
+              atomic { implicit t =>
                 if (ready(index).get == false) retry
                 ready(index)() = false
                 ready(next)() = true
-              }}.run
+              }
             }
           }
           barrier.await
