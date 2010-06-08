@@ -11,7 +11,7 @@ package edu.stanford.ppl.ccstm
  *  be available as an implicit parameter.  Scala allows the implicit modifier
  *  to be included on the argument to an anonymous method, leading to the
  *  idiomatic CCSTM atomic block {{{
- *    STM.atomic { implicit t =>
+ *    atomic { implicit t =>
  *      // body
  *    }
  *  }}}

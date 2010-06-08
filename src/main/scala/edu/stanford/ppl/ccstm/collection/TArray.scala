@@ -100,9 +100,10 @@ object TArray {
 }
 
 /** Bulk transactional storage, roughly equivalent to `Array[Ref[T]]` but much
- *  more efficient.  Elements are stored internally without boxing, and the
- *  mapping from data to metadata can be configured to maximize the potential
- *  parallelism or to minimize space overheads.  The length cannot be changed.
+ *  more space efficient.  Elements are stored internally without boxing, and
+ *  the mapping from data to metadata can be configured to maximize the
+ *  potential parallelism or to minimize space overheads.  The length cannot be
+ *  changed.
  *
  *  Elements can be read and written directly, or transient `Ref` instances can
  *  be obtained (`array.refs(index)`) for more sophisticated operations.
