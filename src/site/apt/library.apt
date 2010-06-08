@@ -62,7 +62,7 @@ CCSTM - Library-Based STM Versus Bytecode-Rewriting
     CCSTM's <<<Ref>>>s provide many advanced operations in addition
     to the basic read and write.  These are difficult to provide in a
     bytecode-rewriting STM because memory locations have no first-class
-    representation in Scala.  Some examples of these are <<<map>>>,
+    representation in Scala.  Some examples of these are <<<getWith>>>,
     <<<transform>>>, <<<swap>>>, and <<<unrecordedRead>>>.  See the
     <<<Ref>>> and <<<Ref.View>>> ScalaDoc for more operations.
 

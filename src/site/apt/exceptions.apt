@@ -26,7 +26,7 @@ CCSTM - Exception Handling in Transactions
   try something like the following:
 
 ----
-STM.atomic { implicit t =>
+atomic { implicit t =>
   try {
     Left(... body ...)
   } catch {
