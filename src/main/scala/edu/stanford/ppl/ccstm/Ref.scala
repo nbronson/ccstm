@@ -414,9 +414,6 @@ trait Ref[T] extends Source[T] with Sink[T] {
    */
   def escaped: Ref.View[T]
 
-  @deprecated("replace with Ref.single if possible, otherwise use Ref.escaped")
-  def nonTxn: Ref.View[T] = escaped
-
   private[ccstm] def embalm(identity: Int)
   private[ccstm] def resurrect(identity: Int)
 

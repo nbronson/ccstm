@@ -108,7 +108,4 @@ trait Sink[-T] {
    *  @see edu.stanford.ppl.ccstm.Ref#escaped
    */
   def escaped: Sink.View[T]
-
-  @deprecated("replace with Sink.single if possible, otherwise use Sink.escaped")
-  def nonTxn: Sink.View[T]
 }

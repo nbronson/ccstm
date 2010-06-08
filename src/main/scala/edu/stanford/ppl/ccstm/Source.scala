@@ -173,8 +173,5 @@ trait Source[+T] {
    */
   def escaped: Source.View[T]
 
-  @deprecated("replace with Source.single if possible, otherwise use Source.escaped")
-  def nonTxn: Source.View[T]
-
   // see Source.View for more operations
 }
