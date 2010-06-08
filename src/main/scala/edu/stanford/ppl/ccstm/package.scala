@@ -6,7 +6,9 @@ package edu.stanford.ppl
 
 package object ccstm {
 
-  def retry(implicit txn: edu.stanford.ppl.ccstm.Txn): Nothing = edu.stanford.ppl.ccstm.STM.retry
+  /** Equivalent to `implicitly[Txn].retry()`. */
+  def retry(implicit txn: edu.stanford.ppl.ccstm.Txn): Nothing = txn.retry()
 
+  /** This is the first half of the machinery for implementing `orAtomic`. */
   implicit def delayAtomic[A](lhs: => A) = new edu.stanford.ppl.ccstm.atomic.Delayed(lhs)
 }

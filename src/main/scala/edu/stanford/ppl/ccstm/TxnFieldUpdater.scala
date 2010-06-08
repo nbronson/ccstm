@@ -202,9 +202,9 @@ object TxnFieldUpdater {
   }
 }
 
-/** Provides transactional access to ''volatile'' properties of any class that
+/** Provides transactional access to volatile properties of any class that
  *  extends `TxnFieldUpdater.Base`.  This class can be used to store multiple
- *  transactional fields in a single object, to remove the layer of storage
+ *  transactional fields in a single object, removing the layer of storage
  *  indirection created by `Ref` instances.  Two `TxnFieldUpdater`s are 
  *  considered equal if they have the same `tClazz` and `fieldName`.
  * 
@@ -272,11 +272,11 @@ object TxnFieldUpdater {
  *  }
  *
  *  class DirectNode[K,V](key0: K, value0: V) extends TxnFieldUpdater.Base {
- *    &#64;volatile private var _color = false
- *    &#64;volatile private var _key = key0
- *    &#64;volatile private var _value0 = value0
- *    &#64;volatile private var _left: DirectNode[K,V] = null
- *    &#64;volatile private var _right: DirectNode[K,V] = null
+ *    @volatile private var _color = false
+ *    @volatile private var _key = key0
+ *    @volatile private var _value0 = value0
+ *    @volatile private var _left: DirectNode[K,V] = null
+ *    @volatile private var _right: DirectNode[K,V] = null
  *
  *    def color = DirectNode.Color(this)
  *    def key = DirectNode.Key(this)
@@ -309,13 +309,10 @@ abstract class TxnFieldUpdater[T <: Base,V](fieldName: String)(implicit m: Class
    */
   protected def setField(instance: T, v: V)
 
-  /** Returns a `Ref` that will provide transactional access to the
-   *  field encapsulated by this updater.  Reads and writes of the returned ref
-   *  that are performed as part of a `Txn` will be linearizable
-   *  with all other transactional reads and writes.  Reads and writes of the
-   *  returned ref performed via `Ref.nonTxn` will be atomic and
-   *  isolated, and strongly ordered with any transactions that access the same
-   *  field of `instance`.
+  /** Returns a `Ref` that provides transactional access to the field
+   *  encapsulated by this updater.  All accesses to the field should be
+   *  performed via the `Ref`.  Non-transactional reads and writes should be
+   *  performed using single-operation transactions.
    *  @return a `Ref` that provides transactional access to a field
    *      in `instance`.
    */

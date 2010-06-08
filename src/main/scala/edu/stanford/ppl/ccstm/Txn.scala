@@ -182,10 +182,7 @@ object Txn {
     val trigger: Any
   }
 
-  /** The `RollbackCause` recorded for an explicit
-   *  `Txn.retry`.  If an API that performs automatic retry is in
-   *  use (like `Atomic.run`) the atomic block will be retried under
-   *  a new `Txn` after it is likely that it can succeed.  The
+  /** The `RollbackCause` recorded for an explicit `retry`.  The
    *  `readSet` is an opaque object used to block until the retry
    *  may succeed.
    */
@@ -377,13 +374,13 @@ object Txn {
    *  have been changed since the virtual snapshot was taken (since the read
    *  version was assigned), the read version is advanced and
    *  `ReadResource.valid` is invoked for all read resources.
-   *  <p>
+   *
    *  Both read-only and updating transactions may be able to commit without
    *  advancing their virtual snapshot, in which case they won't invoke
    *  `valid`.  To help avoid race conditions, the most
    *  straightforward mechanism for adding a read resource will automatically
    *  invoke `valid`.
-   * @see edu.stanford.ppl.ccstm.AbstractTxn # addReadResource
+   *  @see edu.stanford.ppl.ccstm.AbstractTxn#addReadResource
    */
   trait ReadResource {
     /** Should return true iff `txn` is still valid.  May be invoked
@@ -392,10 +389,10 @@ object Txn {
      *  skipped by the STM if no other transactions have committed since the
      *  last validation, or if no `WriteResource`s have been
      *  registered.
-     *  <p>
+     *
      *  The read resource may call `txn.forceRollback` instead of
      *  returning false, if that is more convenient.
-     *  <p>
+     *
      *  If this method throws an exception and the transaction has not
      *  previously been marked for rollback, the transaction will be rolled
      *  back with a `CallbackExceptionCause`, which will not result
@@ -423,10 +420,10 @@ object Txn {
      *  this method must return false.  The consensus decision will be
      *  delivered via a subsequent call to `performCommit` or
      *  `performRollback`.
-     *  <p>
+     *
      *  The read resource may call `txn.forceRollback` instead of
      *  returning false, if that is more convenient.
-     *  <p>
+     *
      *  If this method throws an exception, the transaction will be rolled back
      *  with a `CallbackExceptionCause`, which will not result in
      *  automatic retry, and which will cause the exception to be rethrown
@@ -444,9 +441,8 @@ object Txn {
   }
 
   /** This function will be invoked with any exceptions that are thrown from
-   *  `WriteResource.performCommit`, from
-   *  `WriteResource.performRollback`, or from a callback function
-   *  registered via `Txn.afterCommit` or
+   *  `WriteResource.performCommit`, from `WriteResource.performRollback`, or
+   *  from a callback function registered via `Txn.afterCommit` or
    *  `Txn.afterRollback`.  The default implementation prints the
    *  transaction status and exception stack trace to `Console.err`.
    */
@@ -468,8 +464,8 @@ object Txn {
 
 /** An instance representing a single execution attempt for a single atomic
  *  block.  In almost all cases, `Txn` instances should be obtained by passing
- *  a block to `STM.atomic`.
- *  @see edu.stanford.ppl.ccstm.STM#atomic
+ *  a block to the `atomic` object's `apply` method.
+ *  @see edu.stanford.ppl.ccstm.atomic
  *
  *  @author Nathan Bronson
  */
@@ -479,8 +475,8 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
 
   /** An instance representing a single execution attempt for a single atomic
    *  block.  In almost all cases, `Txn` instances should be obtained by passing
-   *  a block to `STM.atomic`.
-   *  @see edu.stanford.ppl.ccstm.STM
+   *  a block to the `atomic` object's `apply` method.
+   *  @see edu.stanford.ppl.ccstm.atomic
    */
   private[ccstm] def this() = this(Nil, ThreadContext.get)
 
@@ -690,7 +686,13 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
 
   def attach() = attach(impl.ThreadContext.get)
 
-  private[ccstm] def detach(ctx: ThreadContext): Unit = { ctx.txn = null }
+  private[ccstm] def detach(ctx: ThreadContext): Unit = {
+    requireActive()
+    ctx.txn = null
+  }
 
-  private[ccstm] def attach(ctx: ThreadContext): Unit = { ctx.txn = this }
+  private[ccstm] def attach(ctx: ThreadContext): Unit = {
+    ctx.txn = this
+    requireActive()
+  }
 }

@@ -27,7 +27,7 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
    *  transaction is already doomed (`status.mustRollBack`) then
    *  this method does nothing.  Throws an exception if it cannot be arranged
    *  that this transaction roll back.
-   *  <p>
+   *
    *  This method does not throw `RollbackError`, but in most places
    *  where it would be called it is probably correct to immediately do this.
    *  This method may only be called from the thread executing the transaction
@@ -50,7 +50,7 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
   /** Rolls the transaction back, indicating that it should be retried after
    *  one or more of the values read during the transaction have changed.
    *  @throws IllegalStateException if the transaction is not active.
-   *  @see edu.stanford.ppl.ccstm.Atomic#orElse
+   *  @see edu.stanford.ppl.ccstm.atomic#oneOf
    */
   def retry()
 
@@ -63,11 +63,12 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
    *  transactions and completed non-transactional accesses, immediately
    *  rolling the transaction back if that is not the case (by throwing an
    *  `InvalidReadError`).
-   *  <p>
-   *  CCSTM guarantees that all reads will be consistent with those from a
-   *  point-in-time snapshot, even without any manual validation, so use of
-   *  this method by user code should be rare.  CCSTM always provides the
-   *  consistency guarantee referred to as "opacity".
+   *
+   *  CCSTM always guarantees that all reads are consistent with those from a
+   *  single snapshot, even without any calls to this method.  This method
+   *  provides the additional guarantee that the snapshot can be advanced to
+   *  the point in time at which this method was called.  CCSTM always
+   *  provides the consistency guarantee referred to as "opacity".
    */
   def explicitlyValidateReads()
 
@@ -109,9 +110,8 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
   def addReadResource(readResource: ReadResource)
 
   /** Adds a read resource to the transaction like the two-argument form of
-   *  this method, but skips the subsequent call to
-   *  `readResource.valid` if `checkAfterRegister` is
-   *  false.
+   *  this method, but skips the subsequent call to `readResource.valid` if
+   * `checkAfterRegister` is false.
    *  @throws IllegalStateException if this transaction is not active.
    */
   def addReadResource(readResource: ReadResource, prio: Int, checkAfterRegister: Boolean)
@@ -175,6 +175,12 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
    *  another.  With extreme care this may be used to suspend a transaction on
    *  the current thread to run another one, but if there are any conflicts
    *  between the transactions this can easily lead to deadlock.
+   *
+   *  If a detached transaction has performed a write that conflicts with
+   *  another transaction of higher priority, it will be marked for rollback
+   *  despite being detached.
+   * 
+   *  @throws IllegalStateException if the transaction is not active.
    */
   def detach();
 

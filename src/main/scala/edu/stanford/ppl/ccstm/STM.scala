@@ -9,58 +9,10 @@ import impl.ThreadContext
 import annotation.tailrec
 import util.control.ControlThrowable
 
-/** The `STM` object manages atomic execution of code blocks using software
- *  transactional memory.  The transactions provide linearizability for all of
- *  the reads and writes to data stored in `Ref` instances.  Atomic blocks are
- *  functions from `Txn` to any type.  `Ref`'s methods require that the `Txn`
- *  be available as an implicit parameter.  Scala allows the implicit modifier
- *  to be included on the argument to an anonymous method, leading to the
- *  idiomatic CCSTM atomic block
- *
- *  <pre>
- *  STM.atomic { implicit t =>
- *    // body
- *  }
- *  </pre>
- *
- *  If there are no name collisions, you can import `STM.atomic` (or `STM._`)
- *  to make atomic blocks slightly shorter.
- *
- *  Atomic blocks nest, so when modularizing your code you can chose to either
- *  pass the `Txn` instance or create a new atomic block.
- *
- *  Some examples
- *
- *  <pre>
- *  import edu.stanford.ppl.ccstm._
- *  import edu.stanford.ppl.ccstm.STM._
- *
- *  class Account(bal0: BigDecimal) {
- *    private val bal = Ref(bal0)
- *
- *    def tryWithdrawal(m: BigDecimal) = STM.atomic { implicit t =>
- *      if (bal() >= m) {
- *        bal() = bal() - m
- *        true
- *      } else {
- *        false
- *      }
- *    }
- *
- *    def deposit(m: BigDecimal)(implicit txn: Txn) {
- *      bal() = bal() + m
- *    }
- *  }
- *
- *  object Account {
- *    def tryTransfer(from: Account, to: Account, m: BigDecimal) = 
- *          STM.atomic { impliict t =>
- *      from.tryWithdrawal(m) && { to.deposit(m) ; true }
- *    }
- *  }
- *  </pre>
- *
- *  @see edu.stanford.ppl.ccstm.Ref
+/** The `STM` object encapsulated miscellaneous CCSTM functionality, and
+ *  provides a means to run transactions with fewer imports than the idiomatic
+ *  form.  Most code will use the `apply` method of `object atomic` to execute
+ *  atomic blocks. 
  *
  *  @author Nathan Bronson
  */
@@ -68,18 +20,7 @@ object STM {
 
   private[ccstm] case class AlternativeResult(value: Any) extends Exception
 
-  /** Repeatedly attempts to perform the work of `block` in a
-   *  transaction, until an attempt is successfully committed or an exception is
-   *  thrown by `block` or a callback registered during the block's
-   *  execution.  On successful commit this method returns the result of the
-   *  block.  If the block throws an exception, the transaction will be rolled
-   *  back and the exception will be rethrown from this method without further
-   *  retries.
-   *
-   *  If a transaction is already active on the current thread the block will
-   *  be run as part of the existing transaction.  In STM terminology this is
-   *  support for nested transactions using "flattening" or "subsumption".   
-   */
+  /** @see edu.stanford.ppl.ccstm.atomic#apply */
   def atomic[Z](block: Txn => Z)(implicit mt: MaybeTxn): Z = {
     // TODO: without partial rollback we can't properly implement failure atomicity (see issue #4)
 
@@ -131,28 +72,9 @@ object STM {
     }
   }
 
-  /** Atomically executes a transaction that is composed from
-   *  `blocks` by joining with a left-biased `orElse`
-   *  operator.  The first block will be attempted in an optimistic transaction
-   *  until it either succeeds, fails with no retry possible (in which case the
-   *  causing exception will be rethrown), or performs an explicit
-   *  `retry`.  If a retry is performed, then the next block will
-   *  be attempted in the same fashion.  If all blocks are explicitly retried
-   *  then execution resumes at the first block, after a change has been made
-   *  to one of the values read by any transaction.
-   *  <p>
-   *  The left-biasing of the `orElse` composition guarantees that if
-   *  the first block does not call `Txn.retry`, no other blocks
-   *  will be executed.
-   *  <p>
-   *  The `retry` and `orElse` operators are modelled after those
-   *  introduced by T. Harris, S. Marlow, S. P. Jones, and M. Herlihy,
-   *  "Composable Memory Transactions", in PPoPP '05.
-   *  @see edu.stanford.ppl.ccstm.Atomic#orElse
-   *  @see edu.stanford.ppl.ccstm.AtomicFunc#orElse
-   */
+  /** @see edu.stanford.ppl.ccstm.atomic#oneOf */
   def atomicOrElse[Z](blocks: (Txn => Z)*)(implicit mt: MaybeTxn): Z = {
-    if (null != Txn.currentOrNull) throw new UnsupportedOperationException("nested orElse is not currently supported")
+    if (null != Txn.currentOrNull) throw new UnsupportedOperationException("nested orAtomic is not currently supported")
 
     val hists = new Array[List[Txn.RollbackCause]](blocks.length)
     while (true) {
