@@ -72,10 +72,9 @@ private[ccstm] class StatusHolder {
     }
   }
 
-  /** Throws `RollbackError` is the status is
-   *  `RollingBack`, otherwise throws an
-   *  `IllegalStateException` if the status is something other than
-   *  `Active` or `Validating`.
+  /** Throws `RollbackError` is the status is `RollingBack`, otherwise throws
+   *  an `IllegalStateException` if the status is something other than `Active`
+   *  or `Validating`.
    */
   private[ccstm] def requireActiveOrValidating() {
     val s = _status

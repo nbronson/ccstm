@@ -315,7 +315,7 @@ private[ccstm] object STMImpl extends GV6 {
           } else if (owningTxn == Txn.dynCurrentOrNull) {
             // We are in an escaped context and are waiting for the txn that
             // is attached to this thread.  Deadlock if we don't do something.
-            Txn.dynCurrentOrNull.forceRollback(
+            owningTxn.forceRollback(
                 WriteConflictCause(handle, "non-txn write defeated escaped txn"))
           }
           owningTxn.awaitCompletedOrDoomed()

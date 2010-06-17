@@ -15,9 +15,9 @@ package edu.stanford.ppl.ccstm.impl
 private[ccstm] final class CallbackList[T <: AnyRef] {
   private val _zeroSlot = new CallbackPrioSlot
   private val _slotsByPrio = new java.util.TreeMap[Int,CallbackPrioSlot]
-  private var _size = 0
+  private var _nonZeroSize = 0
 
-  def size = _size + _zeroSlot.size
+  def size = _nonZeroSize + _zeroSlot.size
   def isEmpty = size == 0
 
   def add(elem: T, priority: Int) {
@@ -38,7 +38,7 @@ private[ccstm] final class CallbackList[T <: AnyRef] {
         _slotsByPrio.put(priority, slot)
       }
       slot.add(elem, m)
-      _size += 1
+      _nonZeroSize += 1
     }
   }
 
@@ -57,12 +57,12 @@ private[ccstm] final class CallbackList[T <: AnyRef] {
   def clear() {
     _zeroSlot.clear()
     _slotsByPrio.clear()
-    _size = 0
+    _nonZeroSize = 0
   }
 
   private def attemptForeach(mask: Int, block: T => Unit): Boolean = {
     val expectedSize = size
-    if (_size == 0) {
+    if (_nonZeroSize == 0) {
       if (!attemptSlot(mask, block, expectedSize, _zeroSlot)) return false
     } else {
       _slotsByPrio.put(0, _zeroSlot)
@@ -83,7 +83,7 @@ private[ccstm] final class CallbackList[T <: AnyRef] {
 
   private def reset() {
     _zeroSlot.reset()
-    if (_size > 0) {
+    if (_nonZeroSize > 0) {
       val iter = _slotsByPrio.values().iterator
       while (iter.hasNext) iter.next.reset()
     }

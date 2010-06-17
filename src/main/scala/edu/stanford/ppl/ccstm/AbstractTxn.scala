@@ -10,7 +10,8 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
 
   //////////////// Functions to be implemented in an STM-specific manner
 
-  private[ccstm] def requestRollbackImpl(cause: RollbackCause): Boolean
+  private[ccstm] def forceRollbackImpl(cause: RollbackCause)
+  private[ccstm] def requestRollbackImpl(cause: RollbackCause): Status
   private[ccstm] def retryImpl(): Nothing
   private[ccstm] def commitImpl(): Status
   private[ccstm] def explicitlyValidateReadsImpl()
@@ -23,29 +24,28 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
    */
   def status: Status
 
-  /** Causes this transaction to fail with the specified cause.  If the
-   *  transaction is already doomed (`status.mustRollBack`) then
-   *  this method does nothing.  Throws an exception if it cannot be arranged
-   *  that this transaction roll back.
+  /** Causes this transaction to fail with the specified cause, when called
+   *  from the thread running the transaction.  If the transaction is already
+   *  doomed (`status.mustRollBack`) then this method does nothing.  Throws an
+   *  exception if it cannot be arranged that this transaction roll back.
    *
-   *  This method does not throw `RollbackError`, but in most places
-   *  where it would be called it is probably correct to immediately do this.
-   *  This method may only be called from the thread executing the transaction
-   *  (probably not checked); use `requestRollback` if you wish to
-   *  doom a transaction running on another thread.
-   *  @throws IllegalStateException if `status.mustCommit`.
-   *  @see edu.stanford.ppl.ccstm.Txn#requestRollback
+   *  This method does not throw `RollbackError`, but in most places where it
+   *  would be called it is probably correct to immediately do this.  This
+   *  method may only be called from the thread executing the transaction
+   *  (probably not checked); use `requestRollback` if you wish to doom a
+   *  transaction running on another thread.
+   *  @throws IllegalStateException if `status.mustCommit`, or if called from a
+   *      thread that is not attached to the transaction
    */
   def forceRollback(cause: RollbackCause)
 
-  /** Attempts to doom the transaction, returning true if the transaction will
-   *  definitely roll back, false if the transaction will definitely commit.
-   *  This method may return true if rollback occurs for a reason other than
-   *  `cause`.  Unlike `forceRollback(cause)`, this
-   *  method may be called from any thread, and never throws an exception.
-   *  @see edu.stanford.ppl.ccstm.Txn#forceRollback
+  /** If the transaction is either `Active` or `Validating`, marks it for
+   *  rollback, otherwise it does not affect the transaction.  Returns the
+   *  transaction status after the attempt.  The returned status will either
+   *  have `Status.decided == true` or be `Preparing`.  Regardless of the
+   *  status, this method does not throw an exception.
    */
-  def requestRollback(cause: RollbackCause): Boolean
+  def requestRollback(cause: RollbackCause): Status
 
   /** Rolls the transaction back, indicating that it should be retried after
    *  one or more of the values read during the transaction have changed.
@@ -120,11 +120,12 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
    *  two-phase commit protocol.  If two write resources have different
    *  priorities then the one with the smaller priority will be invoked first,
    *  otherwise the one enqueued earlier will be invoked first.
-   *  @throws IllegalStateException if this transaction is not active.
+   *  @throws IllegalStateException if this transaction is not active or
+   *      validating.
    */
   def addWriteResource(writeResource: WriteResource, prio: Int)
 
-  /** Adds a write resource with the default priority of 100. */
+  /** Adds a write resource with the default priority of 0. */
   def addWriteResource(writeResource: WriteResource)
 
   /** Arranges for `callback` to be executed after transaction
@@ -206,6 +207,11 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
    */
   private[ccstm] def readResourcesValidate(): Boolean
 
+  /** Calls the handlers registered with `beforeCommit`.  Returns true if
+   *  commit is still possible.
+   */
+  private[ccstm] def callBefore(): Boolean
+
   /** Returns true if there are actual write resources (as opposed to
    *  write-like resources), false otherwise.
    */
@@ -213,10 +219,9 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
 
   /** Calls `WriteResource.prepare(this)` for all write resources,
    *  unless rollback is required.  Returns true if commit is still possible.
-   *  Captures and handles exceptions.  This also has the effect of invoking
-   *  all of the callbacks registered with `beforeCommit`.
+   *  Captures and handles exceptions.
    */
-  private[ccstm] def writeLikeResourcesPrepare(): Boolean
+  private[ccstm] def writeResourcesPrepare(): Boolean
 
   /** Calls `WriteResource.performCommit(this)`, handling
    *  exceptions.
