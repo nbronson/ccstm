@@ -366,10 +366,6 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
 
   /** Does the work of `forceRollback` without the thread identity check. */
   private[ccstm] def forceRollbackLocal(cause: RollbackCause) {
-    // TODO: remove
-    if (Txn.dynCurrentOrNull ne this)
-      throw new IllegalStateException("forceRollback may only be called on Txn's thread, use requestRollback instead")
-
     var s = _status
     while (!s.mustRollBack) {
       if (s.mustCommit)
