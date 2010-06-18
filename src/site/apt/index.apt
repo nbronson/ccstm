@@ -16,6 +16,11 @@ About CCSTM
 
   []
 
+  * {{{http://groups.google.com/group/scala-ccstm}Scala CCSTM}} - Mailing list
+    archive.
+
+  []
+
   * {{{./license.html}License information}} - CCSTM is open source with a BSD-style
     license.
 
@@ -30,41 +35,5 @@ About CCSTM
   CCSTM's 0.2 release is pending the release of Scala 2.8.0.  Versions built
   against 2.8.0.RC1, RC2, RC3, and RC5 are available.
 
-** Direct download
-
-  * {{{http://ppl.stanford.edu/ccstm/repo-snapshots/edu/stanford/ppl/ccstm/0.2-for-scala-2.8.0.RC5-SNAPSHOT/ccstm-0.2-for-scala-2.8.0.RC5-SNAPSHOT.jar}ccstm-0.2-for-scala-2.8.0.RC5-SNAPSHOT.jar}}
-
-  * {{{http://ppl.stanford.edu/ccstm/repo-snapshots/edu/stanford/ppl/ccstm/0.2-for-scala-2.8.0.RC3-SNAPSHOT/ccstm-0.2-for-scala-2.8.0.RC3-SNAPSHOT.jar}ccstm-0.2-for-scala-2.8.0.RC3-SNAPSHOT.jar}}
-
-  * {{{http://ppl.stanford.edu/ccstm/repo-snapshots/edu/stanford/ppl/ccstm/0.2-for-scala-2.8.0.RC2-SNAPSHOT/ccstm-0.2-for-scala-2.8.0.RC2-SNAPSHOT.jar}ccstm-0.2-for-scala-2.8.0.RC2-SNAPSHOT.jar}}
-
-  * {{{http://ppl.stanford.edu/ccstm/repo-snapshots/edu/stanford/ppl/ccstm/0.2-for-scala-2.8.0.RC1-SNAPSHOT/ccstm-0.2-for-scala-2.8.0.RC1-SNAPSHOT.jar}ccstm-0.2-for-scala-2.8.0.RC1-SNAPSHOT.jar}}
-
-** Maven repository
-
-  Merge the following fragments into your <<<pom.xml>>>
-
-----
-<repositories>
-  <repository>
-    <id>ccstm.release</id>
-    <name>CCSTM Release Repository at PPL</name>
-    <url>http://ppl.stanford.edu/ccstm/repo-releases</url>
-  </repository>
-  <repository>
-    <id>ccstm.snapshot</id>
-    <name>CCSTM Snapshot Repository at PPL</name>
-    <url>http://ppl.stanford.edu/ccstm/repo-snapshots</url>
-    <snapshots/>
-  </repository>
-</repositories>
-
-<dependencies>
-  <dependency>
-    <groupId>edu.stanford.ppl</groupId>
-    <artifactId>ccstm</artifactId>
-    <version>0.2-for-scala-2.8.0.RC5-SNAPSHOT</version>
-  </dependency>
-</dependencies>
-----
+  {{{./releases.html}Releases}} - Prebuilt JARs and Maven information
 
