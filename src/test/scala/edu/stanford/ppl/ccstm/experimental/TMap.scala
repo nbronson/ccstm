@@ -66,6 +66,7 @@ object TMap {
     def unbind: TMap[A,B]
 
     def += (kv: (A, B)) = { update(kv._1, kv._2); this }
+    override def remove(key: A): Option[B] = removeKey(key)
 
 //    def transform(key: A, f: Option[B] => Option[B])
 //    def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]]): Boolean

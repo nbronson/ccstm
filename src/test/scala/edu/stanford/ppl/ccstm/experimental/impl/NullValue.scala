@@ -48,4 +48,8 @@ private[impl] object NullValue {
       }
     }    
   }
+
+  def equal(lhs: AnyRef, rhs: AnyRef): Boolean = {
+    (lhs eq rhs) || ((lhs ne null) && (lhs ne NullValue) && (rhs ne null) && (rhs ne NullValue) && (lhs == rhs))
+  }
 }
