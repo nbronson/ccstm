@@ -44,6 +44,7 @@ object TMapFactory {
       case "t_rb" => new RedBlackTreeMap[A,B]
       case "t_sl" => new SkipListMap[A,B]
       case "p_h2" => new THashMap2[A,B]
+      case "p_h3" => new THashMap3[A,B]
     }
   }
 }
