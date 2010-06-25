@@ -40,6 +40,7 @@ object TMapFactory {
       case "p_h_lazy_enum" => new PredicatedHashMap_LazyGC_Enum[A,B]
       case "p_sl_basic" => new PredicatedSkipListMap_Basic[A,B]
       case "t_h" => new ChainingHashMap[A,B]
+      case "t_sh" => new StripedHashMap[A,B]
       case "t_bh" => new BasicHashMap[A,B]
       case "t_rb" => new RedBlackTreeMap[A,B]
       case "t_sl" => new SkipListMap[A,B]
