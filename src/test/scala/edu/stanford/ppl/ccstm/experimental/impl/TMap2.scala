@@ -123,8 +123,6 @@ trait TMap2[A,B] extends TMap2.Source[A,B] with TMap2.Sink[A,B] with TMap[A,B] {
 
   //////////////// default implementations
 
-  def removeKey(key: A)(implicit txn: Txn): Option[B] = remove(key)
-
   override def update(key: A, value: B)(implicit txn: Txn) { put(key, value) }
   override def -= (key: A)(implicit txn: Txn) { remove(key) }
 }

@@ -85,7 +85,7 @@ class PredicatedHashMap_GC_Enum[A,B] extends TMap[A,B] {
       decodePair(prev)
     }
 
-    override def removeKey(key: A): Option[B] = {
+    override def remove(key: A): Option[B] = {
       val p = existingPred(key)
       if (null == p || null == p.escaped.get) {
         // no need to create a predicate, let's linearize here
@@ -205,7 +205,7 @@ class PredicatedHashMap_GC_Enum[A,B] extends TMap[A,B] {
     decodePair(prev)
   }
 
-  def removeKey(key: A)(implicit txn: Txn): Option[B] = {
+  def remove(key: A)(implicit txn: Txn): Option[B] = {
     val tok = activeToken(key)
     val prev = tok.pred.swap(null)
     if (null != prev) sizeRef -= 1
@@ -239,7 +239,7 @@ class PredicatedHashMap_GC_Enum[A,B] extends TMap[A,B] {
       txn.addReference(token)
       None
     } else {
-      // The token will survive on its own until the commit of a removeKey,
+      // The token will survive on its own until the commit of a remove,
       // because it is has a strong ref via the transactional state.  If the
       // removal does happen it will invalidate this txn correctly.
       Some(pair._2)

@@ -39,7 +39,7 @@ class ConcHashMap[A,B] extends TMap.Bound[A,B] {
     underlying.put(key, NullValue.encode(value))
   }
 
-  override def removeKey(key: A): Option[B] = {
+  override def remove(key: A): Option[B] = {
     NullValue.decodeOption[B](underlying.remove(key))
   }
 

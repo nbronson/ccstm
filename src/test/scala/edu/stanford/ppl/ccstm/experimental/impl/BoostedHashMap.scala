@@ -504,7 +504,7 @@ class BoostedHashMap[A,B](lockHolder: BoostedHashMap.LockHolder[A], enumLock: Re
       NullValue.decodeOption(prev)
     }
 
-    override def removeKey(key: A): Option[B] = {
+    override def remove(key: A): Option[B] = {
       val lock = lockHolder.existingWriteLock(key)
       if (null == lock) return None
       
@@ -667,7 +667,7 @@ class BoostedHashMap[A,B](lockHolder: BoostedHashMap.LockHolder[A], enumLock: Re
     NullValue.decodeOption(prev)
   }
 
-  override def removeKey(key: A)(implicit txn: Txn): Option[B] = {
+  override def remove(key: A)(implicit txn: Txn): Option[B] = {
     val ctx = booster.context
     ctx.lockForWrite(key)
     if (null != enumLock) {

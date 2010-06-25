@@ -35,7 +35,7 @@ class SkipListMap[A,B](implicit aMan: Manifest[A], bMan: Manifest[B]) extends TM
     } else {
       f(v0) match {
         case Some(v) => put(key, v)
-        case None => removeKey(key)
+        case None => remove(key)
       }
       false
     }
@@ -62,7 +62,7 @@ class SkipListMap[A,B](implicit aMan: Manifest[A], bMan: Manifest[B]) extends TM
 
     def get(key: A): Option[B] = STM.atomic(unbind.get(key)(_))
     override def put(key: A, value: B): Option[B] = STM.atomic(unbind.put(key, value)(_))
-    override def removeKey(key: A): Option[B] = STM.atomic(unbind.removeKey(key)(_))
+    override def remove(key: A): Option[B] = STM.atomic(unbind.remove(key)(_))
 
     protected def transformIfDefined(key: A,
                                      pfOrNull: PartialFunction[Option[B],Option[B]],
@@ -142,7 +142,7 @@ class SkipListMap[A,B](implicit aMan: Manifest[A], bMan: Manifest[B]) extends TM
     }
   }
 
-  def removeKey(key: A)(implicit txn: Txn): Option[B] = {
+  def remove(key: A)(implicit txn: Txn): Option[B] = {
     val n = head.get
     val preds = new Array[SLNode[A,B]](n.links.length)
     val hit = n.findInTailForRemove(key, n.links.length - 1, preds)

@@ -82,7 +82,7 @@ class PredicatedHashMap_RC_Enum[A,B] extends TMap[A,B] {
       NullValue.decodeOption(prev)
     }
 
-    override def removeKey(key: A): Option[B] = {
+    override def remove(key: A): Option[B] = {
       val p = predicates.get(key)
       if (null == p || null == p.escaped.get) {
         // no need to create a predicate
@@ -216,7 +216,7 @@ class PredicatedHashMap_RC_Enum[A,B] extends TMap[A,B] {
     }
   }
 
-  def removeKey(k: A)(implicit txn: Txn): Option[B] = {
+  def remove(k: A)(implicit txn: Txn): Option[B] = {
     val p = enter(k)
     try {
       val prev = p.swap(null)

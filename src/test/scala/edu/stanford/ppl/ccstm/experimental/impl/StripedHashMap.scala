@@ -34,7 +34,7 @@ class StripedHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TMa
 
     override def put(key: K, value: V): Option[V] = mapFor(key).escaped.put(key, value)
 
-    override def removeKey(key: K): Option[V] = mapFor(key).escaped.removeKey(key)
+    override def remove(key: K): Option[V] = mapFor(key).escaped.remove(key)
     
     def iterator: Iterator[(K,V)] = {
       atomic { implicit t =>
@@ -58,7 +58,7 @@ class StripedHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TMa
 
   def get(key: K)(implicit txn: Txn): Option[V] = mapFor(key).get(key)
 
-  def removeKey(key: K)(implicit txn: Txn): Option[V] = mapFor(key).removeKey(key)
+  def remove(key: K)(implicit txn: Txn): Option[V] = mapFor(key).remove(key)
 
   def put(key: K, value: V)(implicit txn: Txn): Option[V] = mapFor(key).put(key, value)
 }
