@@ -17,7 +17,7 @@ private[impl] object WriteBuffer {
  *  offset.
  */
 private[impl] class WriteBuffer {
-  private def InitialCap = 16
+  private def InitialCap = 8
   private def InitialRealCap = 512
   private def MaxInitialRealCap = 8 * InitialRealCap
 
@@ -61,10 +61,14 @@ private[impl] class WriteBuffer {
     }
   }
 
+  private def computeSlot(ref: AnyRef, offset: Int): Int = {
+    if (_cap == InitialCap) 0 else STMImpl.hash(ref, offset) & (_cap - 1)
+  }
+
   private def find(handle: Handle[_]): Int = {
     val ref = handle.ref
     val offset = handle.offset
-    find(ref, offset, _dispatch(STMImpl.hash(ref, offset) & (_cap - 1)))
+    find(ref, offset, _dispatch(computeSlot(ref, offset)))
   }
 
   @tailrec
@@ -80,7 +84,7 @@ private[impl] class WriteBuffer {
   def put[T](handle: Handle[T], value: T): Unit = {
     val ref = handle.ref
     val offset = handle.offset
-    val slot = STMImpl.hash(ref, offset) & (_cap - 1)
+    val slot = computeSlot(ref, offset)
     val i = find(ref, offset, _dispatch(slot))
     if (i != 0) {
       // hit, update an existing entry
@@ -105,7 +109,7 @@ private[impl] class WriteBuffer {
   private def findOrAllocate(handle: Handle[_]): Int = {
     val ref = handle.ref
     val offset = handle.offset
-    val slot = STMImpl.hash(ref, offset) & (_cap - 1)
+    val slot = computeSlot(ref, offset)
     val i = find(ref, offset, _dispatch(slot))
     if (i != 0) {
       // hit
@@ -147,7 +151,7 @@ private[impl] class WriteBuffer {
     // relink the dispatch array
     var i = 1
     while (i <= _size) {
-      val slot = STMImpl.hash(_bucketAnys(refI(i)), _bucketInts(offsetI(i))) & (_cap - 1)
+      val slot = computeSlot(_bucketAnys(refI(i)), _bucketInts(offsetI(i)))
       _bucketInts(nextI(i)) = _dispatch(slot)
       _dispatch(slot) = i
       i += 1
