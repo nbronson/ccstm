@@ -192,10 +192,10 @@ object THashMap2 {
           return map.txnPut(key, ev)
         }
 
-        map.insertCount += 1
-
         // retain entry as bonus, unless we roll back
         map.pendingExits.afterRollback(txn, key, this)
+
+        map.insertCount += 1
       }
       else if (fresh) {
         // present -> present transition can rely on the bonus, exit
