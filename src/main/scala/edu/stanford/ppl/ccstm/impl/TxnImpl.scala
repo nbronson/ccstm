@@ -169,28 +169,40 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
 
     // This test is _almost_ symmetric.  Tie goes to neither.
     if (this.priority <= currentOwner.priority) {
-      resolveAsLoser(currentOwner, contended)
+      resolveAsLoser(currentOwner, contended, false, "owner has higher priority")
     } else {
       // This will resolve the conflict regardless of whether it succeeds or fails.
       val s = currentOwner.requestRollback(WriteConflictCause(contended, "steal from existing owner"))
       if ((s ne Committed) && s.mightCommit) {
         // s is either Preparing or Committing, so currentOwner's priority is
         // effectively infinite
-        resolveAsLoser(currentOwner, contended)
+        assert((s eq Preparing) || (s eq Committing))
+        resolveAsLoser(currentOwner, contended, true, (if (s eq Preparing) "owner is preparing" else "owner is committing"))
       }
     }
   }
 
-  private def resolveAsLoser(currentOwner: TxnImpl, contended: AnyRef) {
-    if (!_writeBuffer.isEmpty || writeResourcesPresent) {
-      // We could block here without deadlock if this.priority is less than
-      // currentOwner.priority, but we are obstructing other txns so we choose
-      // not to.
-      forceRollbackLocal(WriteConflictCause(contended, "existing owner wins"))
+  private def resolveAsLoser(currentOwner: TxnImpl, contended: AnyRef, ownerIsCommitting: Boolean, msg: String) {
+    // We can block here without deadlock except when the priorities match
+    // exactly and we have acquired write locks.  If currentOwner is already
+    // preparing or committing then they can't perform any more writes, so they
+    // won't need anything we've got. If currentOwner has a strictly larger
+    // priority than this Txn, then it will forcibly take anything that it
+    // needs.
+    //
+    // Our current policy is to roll ourself back and immediately retry if we
+    // have any write locks.  The immediate rollback minimizes convoys, because
+    // otherwise low priority transactions could pile up.  The immediate retry
+    // can lead to spinning, however, if currentOwner is preparing or
+    // committing.  As a heuristic, we guess that we should wait if the owner
+    // is currently preparing or committing, or if we are barging.
+
+    if (!(_writeBuffer.isEmpty && !writeResourcesPresent) &&
+        !ownerIsCommitting &&
+        !(barging && priority < currentOwner.priority)) {
+      forceRollbackLocal(WriteConflictCause(contended, msg))
       throw RollbackError
     }
-    // We haven't acquired ownership of anything, so we can safely block
-    // without obstructing anybody.
   }
 
   private[ccstm] def retryImpl(): Nothing = {
