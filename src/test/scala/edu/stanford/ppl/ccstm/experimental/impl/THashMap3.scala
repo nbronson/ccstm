@@ -88,15 +88,14 @@ object THashMap3 {
     }
 
     def nonTxnRemove[A](map: THashMap3[A,_], key: A): NullEncoded = {
-      val d0 = data
-      if (null == d0 && null == NonTxn.get(this)) {
+      if (data == null && NonTxn.get(this) == null) {
         // no change required
         return null
       }
 
       // either there is already a positive refCount or this is a no-op
-      val z = NonTxn.transform2(this, map.insertCount.aStripe, (v: AnyRef, s: Int) => {
-        (null, (if (v == null) s else s - 1), v)
+      val z = NonTxn.transform2(this, map.removeCount.aStripe, (v: AnyRef, s: Int) => {
+        (null, (if (v == null) s else s + 1), v)
       })
       if (z != null)
         exit(map, key)
@@ -208,7 +207,8 @@ object THashMap3 {
         txn.get(this)
       } catch {
         case x => {
-          if (fresh) exit(map, key)
+          if (fresh)
+            exit(map, key)
           throw x
         }
       }
@@ -350,8 +350,8 @@ class THashMap3[A,B] extends TMap2[A,B] {
 
   /////////////////////
 
-  val insertCount = new StripedIntRef(0)
-  val removeCount = new StripedIntRef(0)
+  private[impl] val insertCount = new StripedIntRef(0)
+  private[impl] val removeCount = new StripedIntRef(0)
 
   private val predicates = new ConcurrentHashMap[A,Predicate] {
     override def putIfAbsent(key: A, value: Predicate): Predicate = {
