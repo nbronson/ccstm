@@ -19,6 +19,8 @@ private[ccstm] abstract class CleanupManager[A,B] {
 
   def afterCompletion(txn: Txn, key: A, value: B) { txn.afterCompletion(new Entry(key, value)) }
 
+  def enqueue(key: A, value: B) { new Entry(key, value).enqueue() }
+
   ////////////////
   
   private def NumStripes = 16
@@ -45,7 +47,8 @@ private[ccstm] abstract class CleanupManager[A,B] {
     var size = -1
     var next: Entry = null
 
-    def apply(txn: Txn): Unit = segmentFor(key).enqueue(this)
+    def apply(txn: Txn) { enqueue() }
+    def enqueue() { segmentFor(key).enqueue(this) }
   }
 
   private class Segment {

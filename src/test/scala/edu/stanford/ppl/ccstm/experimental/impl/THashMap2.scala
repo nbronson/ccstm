@@ -17,19 +17,19 @@ import collection.CleanupManager
 object THashMap2 {
   private type NullEncoded = AnyRef
 
-  private trait Predicate extends Ref[NullEncoded] {
+  private trait Predicate[C] extends Ref[C] {
     def nonTxnGet[A]: NullEncoded
     def nonTxnPut[A](map: THashMap2[A,_], key: A, ev: NullEncoded): NullEncoded
     def nonTxnRemove[A](map: THashMap2[A,_], key: A): NullEncoded
 
-    def txnGet[A](map: THashMap2[A,_], key: A, fresh: Boolean)(implicit txn: Txn): NullEncoded
-    def txnPut[A](map: THashMap2[A,_], key: A, ev: NullEncoded, fresh: Boolean)(implicit txn: Txn): NullEncoded
-    def txnRemove[A](map: THashMap2[A,_], key: A, fresh: Boolean)(implicit txn: Txn): NullEncoded
+    def txnGet[A](map: THashMap2[A,_], key: A, entered: Boolean)(implicit txn: Txn): NullEncoded
+    def txnPut[A](map: THashMap2[A,_], key: A, ev: NullEncoded, entered: Boolean)(implicit txn: Txn): NullEncoded
+    def txnRemove[A](map: THashMap2[A,_], key: A, entered: Boolean)(implicit txn: Txn): NullEncoded
   }
 
   private val rcUpdater = (new RCPredicate(null)).newUpdater
 
-  private class RCPredicate(ev0: NullEncoded) extends TAnyRef[NullEncoded](ev0) with Predicate {
+  private class RCPredicate(ev0: NullEncoded) extends TAnyRef[NullEncoded](ev0) with Predicate[NullEncoded] {
     def newUpdater = AtomicIntegerFieldUpdater.newUpdater(classOf[RCPredicate], "refCount")
 
     @volatile var refCount = 1
@@ -115,12 +115,12 @@ object THashMap2 {
     }
     
 
-    def txnGet[A](map: THashMap2[A,_], key: A, fresh: Boolean)(implicit txn: Txn): NullEncoded = {
+    def txnGet[A](map: THashMap2[A,_], key: A, entered: Boolean)(implicit txn: Txn): NullEncoded = {
       val z = try {
         txn.get(this)
       } catch {
         case x => {
-          if (fresh)
+          if (entered)
             exit(map, key)
           throw x
         }
@@ -128,7 +128,7 @@ object THashMap2 {
 
       if (z == null) {
         // retry if this predicate is stale
-        if (!fresh && !tryEnter) {
+        if (!entered && !tryEnter) {
           map.predicates.remove(key, this)
           return map.txnGet(key)
         }
@@ -154,9 +154,9 @@ object THashMap2 {
         // map invocations (either any map, or the specific map in use), or if
         // a daemon thread should be used.
 
-        map.pendingExits.afterCompletion(txn, key, this)
+        txn.afterCompletion { _ => exit(map, key) }
       }
-      else if (fresh) {
+      else if (entered) {
         // The predicate is pre-entered.  We must exit, but it's cheaper to
         // exit now instead of creating the callback.
         exit(map, key)
@@ -165,8 +165,8 @@ object THashMap2 {
       return z
     }
 
-    def txnPut[A](map: THashMap2[A,_], key: A, ev: NullEncoded, fresh: Boolean)(implicit txn: Txn): NullEncoded = {
-      // present | fresh || tryEnter | immediate exit | commit exit | rollback exit
+    def txnPut[A](map: THashMap2[A,_], key: A, ev: NullEncoded, entered: Boolean)(implicit txn: Txn): NullEncoded = {
+      // present | entered || tryEnter | immediate exit | commit exit | rollback exit
       // --------+-------++----------+----------------+-------------+---------------
       //   yes   |  yes  ||   no     |       1        |      0      |       0
       //    no   |  yes  ||   no     |       0        |      0      |       1
@@ -177,7 +177,7 @@ object THashMap2 {
         txn.swap(this, ev)
       } catch {
         case x => {
-          if (fresh)
+          if (entered)
             exit(map, key)
           throw x
         }
@@ -186,7 +186,7 @@ object THashMap2 {
       if (z == null) {
         // we're inserting
 
-        if (!fresh && !tryEnter) {
+        if (!entered && !tryEnter) {
           map.predicates.remove(key, this)
           // put back null before anybody else gets to see it
           txn.set(this, null)
@@ -196,19 +196,19 @@ object THashMap2 {
         map.insertCount += 1
 
         // retain entry as bonus, unless we roll back
-        map.pendingExits.afterRollback(txn, key, this)
+        txn.afterRollback { _ => exit(map, key) }
       }
-      else if (fresh) {
+      else if (entered) {
         // present -> present transition can rely on the bonus, exit
-        // the fresh entry immediately
+        // the entered entry immediately
         exit(map, key)
       }
 
       return z
     }
 
-    def txnRemove[A](map: THashMap2[A,_], key: A, fresh: Boolean)(implicit txn: Txn): NullEncoded = {
-      // present | fresh || tryEnter | immediate exit | commit exit | rollback exit
+    def txnRemove[A](map: THashMap2[A,_], key: A, entered: Boolean)(implicit txn: Txn): NullEncoded = {
+      // present | entered || tryEnter | immediate exit | commit exit | rollback exit
       // --------+-------++----------+----------------+-------------+---------------
       //   yes   |  yes  ||   no     |       0        |      2      |       1
       //    no   |  yes  ||   no     |       0        |      1      |       1
@@ -219,37 +219,149 @@ object THashMap2 {
         txn.get(this)
       } catch {
         case x => {
-          if (fresh) exit(map, key)
+          if (entered)
+            exit(map, key)
           throw x
         }
       }
 
       if (z == null) {
         // retry if this predicate is stale
-        if (!fresh && !tryEnter) {
+        if (!entered && !tryEnter) {
           map.predicates.remove(key, this)
           return map.txnRemove(key)
         }
 
-        map.pendingExits.afterCompletion(txn, key, this)
+        txn.afterCompletion { _ => exit(map, key) }
       }
       else {
-        if (fresh) {
-          // rather than store a counter in pendingExits, we just perform one
-          // of the exits now and then one on commit
-          exit(map, key)
+        if (entered) {
+          // exit 2 on commit, 1 on rollback
+          txn.afterCompletion { t => exit(map, key, if (t.status eq Txn.Committed) 2 else 1) }
+        } else {
+          // we must remove the bonus, but we don't need to enter, so do nothing on rollback
+          txn.afterCommit { _ => exit(map, key) }
         }
-
-        txn.set(this, null)
 
         map.removeCount += 1
 
-        // we are relying on a previous bonus, which we must erase if we are
-        // successful
-        map.pendingExits.afterCommit(txn, key, this)
+        txn.set(this, null)
       }
 
       return z
+    }
+  }
+
+  private class Token
+
+  private class TokenRef[A,B](map: THashMap2[A,B], key: A, token: Token) extends CleanableRef[Token](token) {
+    var pred: SoftPredicate = null
+    def cleanup() {
+      map.pendingRemoves.enqueue(key, pred)
+    }
+  }
+
+  private class SoftPredicate(val softRef: TokenRef[_,_], tok: Token
+          ) extends TIdentityPairRef[Token,AnyRef](tok, null) with Predicate[IdentityPair[Token,AnyRef]] {
+
+    softRef.pred = this
+
+    def nonTxnGet[A]: NullEncoded = {
+      // if this predicate is stale, then we can just linearize at the time at
+      // which it was read from the predicate map, instead of right now
+      val z = NonTxn.get(this)
+      if (z == null) null else z._2
+    }
+
+    def nonTxnPut[A](map: THashMap2[A,_], key: A, ev: NullEncoded): NullEncoded = {
+      // this read is not atomic, but we use the result only as a heuristic
+      val d0 = data
+      if (d0 != null) {
+        // guess that we are not changing the size
+        if (NonTxn.compareAndSet(this, d0, IdentityPair(d0._1, ev))) {
+          // success
+          return d0._2
+        }
+        // failure uses transform2, which also handles insert
+      }
+
+      val token = softRef.get
+      if (token == null) {
+        // this predicate is stale, retry
+        return map.nonTxnPut(key, ev)
+      }
+
+      val z = NonTxn.transform2(this, map.insertCount.aStripe, (vp: IdentityPair[Token,AnyRef], s: Int) => {
+        (IdentityPair(token, ev), (if (null == vp) s + 1 else s), vp)
+      })
+      if (z == null) null else z._2
+    }
+    
+    def nonTxnRemove[A](map: THashMap2[A,_], key: A): NullEncoded = {
+      if (data == null && NonTxn.get(this) == null) {
+        // No change required.  If the predicate is stale we just linearize at
+        // the time that the predicate was returned.
+        return null
+      }
+
+      // no need to check softRef, because if the predicate is stale then this
+      // is a no-op and we can linearize at the previous map.predicates.get(key)
+      val z = NonTxn.transform2(this, map.removeCount.aStripe, (vp: IdentityPair[Token,AnyRef], s: Int) => {
+        (null, (if (null == vp) s else s + 1), vp)
+      })
+      if (z == null) null else z._2
+    }
+
+    def txnGet[A](map: THashMap2[A,_], key: A, entered: Boolean)(implicit txn: Txn): NullEncoded = {
+      val z = txn.get(this)
+      if (z == null) {
+        // either active+absent or stale
+        val token = softRef.get
+        if (token == null) {
+          // stale
+          map.txnGet(key)
+        } else {
+          // active+absent, pin the predicate
+          txn.addReference(token)
+          null
+        }
+      } else {
+        // active+present, predicate can't be removed unless there is a write
+        // that will conflict with us, so no need to pin
+        z._2
+      }
+    }
+
+    def txnPut[A](map: THashMap2[A,_], key: A, ev: NullEncoded, entered: Boolean)(implicit txn: Txn): NullEncoded = {
+      val token = softRef.get
+      if (token == null)
+        return map.txnPut(key, ev)
+
+      val z = txn.swap(this, IdentityPair(token, ev))
+      if (z == null)
+        map.insertCount += 1
+
+      if (z == null) null else z._2
+    }
+    
+    def txnRemove[A](map: THashMap2[A,_], key: A, entered: Boolean)(implicit txn: Txn): NullEncoded = {
+      val z = txn.swap(this, null)
+      if (z == null) {
+        // make sure it isn't stale
+        val token = softRef.get
+        if (token == null)
+          return map.txnRemove(key)
+
+        // make sure it doesn't become stale
+        txn.addReference(token)
+
+        null
+      } else {
+        // predicate holds old value until commit
+        map.removeCount += 1
+
+        z._2
+      }
     }
   }
 }
@@ -273,7 +385,7 @@ class THashMap2[A,B] extends TMap2[A,B] {
           val e = underlying.next()
           e.getValue.get(txn) match {
             case null => advance() // empty predicate, keep looking
-            case ev => avail = (e.getKey, NullValue.decode[B](ev))
+            case ev => avail = (e.getKey, NullValue.decode[B](ev.asInstanceOf[AnyRef]))
           }
         }
       }
@@ -349,7 +461,6 @@ class THashMap2[A,B] extends TMap2[A,B] {
     })
   }
 
-
   def isEmpty(implicit txn: Txn): Boolean = size == 0
 
   def size(implicit txn: Txn) = insertCount() - removeCount()
@@ -363,24 +474,24 @@ class THashMap2[A,B] extends TMap2[A,B] {
 
   /////////////////////
 
-  val insertCount = new StripedIntRef(0)
-  val removeCount = new StripedIntRef(0)
+  private[impl] val insertCount = new StripedIntRef(0)
+  private[impl] val removeCount = new StripedIntRef(0)
 
-  private val predicates = new ConcurrentHashMap[A,Predicate] {
-    override def putIfAbsent(key: A, value: Predicate): Predicate = {
+  private val predicates = new ConcurrentHashMap[A,Predicate[_]] {
+    override def putIfAbsent(key: A, value: Predicate[_]): Predicate[_] = {
       STM.resurrect(key.hashCode, value)
       super.putIfAbsent(key, value)
     }
 
     override def remove(key: Any, value: Any): Boolean = {
-      STM.embalm(key.hashCode, value.asInstanceOf[Predicate])
+      STM.embalm(key.hashCode, value.asInstanceOf[Predicate[_]])
       super.remove(key, value)
     }
   }
 
-  private val pendingExits = new CleanupManager[A,RCPredicate] {
-    def cleanup(key: A, pred: RCPredicate) {
-      pred.exit(THashMap2.this, key)
+  private[impl] val pendingRemoves = new CleanupManager[A,SoftPredicate] {
+    def cleanup(key: A, pred: SoftPredicate) {
+      predicates.remove(key, pred)
     }
   }
 
@@ -404,45 +515,75 @@ class THashMap2[A,B] extends TMap2[A,B] {
     case p => p.nonTxnRemove(this, key)
   }
 
-  private def txnGet(key: A)(implicit txn: Txn): NullEncoded = {
-    var fresh = false
+  private def txnGet(key: A)(implicit txn: Txn) = txnGetWithSoft(key)
+
+  private def txnGetWithRC(key: A)(implicit txn: Txn): NullEncoded = {
+    var entered = false
     var p = predicates.get(key)
     if (null == p) {
       val n = new RCPredicate(null)
       p = predicates.putIfAbsent(key, n)
       if (null == p) {
-        fresh = true
+        entered = true
         p = n
       }
     }
-    p.txnGet(this, key, fresh)
+    p.txnGet(this, key, entered)
+  }
+
+  private def txnGetWithSoft(key: A)(implicit txn: Txn): NullEncoded = {
+    var p = predicates.get(key)
+    if (null == p) {
+      val token = new Token
+      val n = new SoftPredicate(new TokenRef(this, key, token), token)
+      p = predicates.putIfAbsent(key, n)
+      if (null == p)
+        p = n // success
+    }
+    p.txnGet(this, key, false)
+    // reachabilityFence(token)
   }
 
   private def txnPut(key: A, ev: NullEncoded)(implicit txn: Txn): NullEncoded = {
-    var fresh = false
+    var entered = false
     var p = predicates.get(key)
     if (null == p) {
       val n = new RCPredicate(null)
       p = predicates.putIfAbsent(key, n)
       if (null == p) {
-        fresh = true
+        entered = true
         p = n
       }
     }
-    p.txnPut(this, key, ev, fresh)
+    p.txnPut(this, key, ev, entered)
   }
 
-  private def txnRemove(key: A)(implicit txn: Txn): NullEncoded = {
-    var fresh = false
+  private def txnRemove(key: A)(implicit txn: Txn) = txnRemoveWithSoft(key)
+
+  private def txnRemoveWithRC(key: A)(implicit txn: Txn): NullEncoded = {
+    var entered = false
     var p = predicates.get(key)
     if (null == p) {
       val n = new RCPredicate(null)
       p = predicates.putIfAbsent(key, n)
       if (null == p) {
-        fresh = true
+        entered = true
         p = n
       }
     }
-    p.txnRemove(this, key, fresh)
+    p.txnRemove(this, key, entered)
+  }
+
+  private def txnRemoveWithSoft(key: A)(implicit txn: Txn): NullEncoded = {
+    var p = predicates.get(key)
+    if (null == p) {
+      val token = new Token
+      val n = new SoftPredicate(new TokenRef(this, key, token), token)
+      p = predicates.putIfAbsent(key, n)
+      if (null == p)
+        p = n
+    }
+    p.txnRemove(this, key, false)
+    // reachabilityFence(token)
   }
 }
