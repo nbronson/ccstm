@@ -34,7 +34,7 @@ private[ccstm] object FastSimpleRandom {
   private val states = Array.tabulate(mask + 1)({ _ * 0x123456789abcdefL })
 
   def nextInt(): Int = {
-    val id = System.identityHashCode(Thread.currentThread) & mask
+    val id = (Thread.currentThread.getId.asInstanceOf[Int] * 13) & mask
 
     val next = step(states(id))
     states(id) = next
