@@ -164,7 +164,7 @@ class BoostedMergedHashMap_Basic[A,B] extends TMap[A,B] {
       NullValue.decodeOption(prev)
     }
 
-    override def removeKey(key: A): Option[B] = {
+    override def remove(key: A): Option[B] = {
       val lock = lockHolder.existingWriteLock(key)
       if (null == lock) return None
       
@@ -227,7 +227,7 @@ class BoostedMergedHashMap_Basic[A,B] extends TMap[A,B] {
     NullValue.decodeOption(prev)
   }
 
-  override def removeKey(key: A)(implicit txn: Txn): Option[B] = {
+  override def remove(key: A)(implicit txn: Txn): Option[B] = {
     val ctx = booster.context
     val e = ctx.lockForWrite(key).asInstanceOf[Entry]
     val prev = e.value

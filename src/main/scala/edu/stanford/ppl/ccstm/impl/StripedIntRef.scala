@@ -324,7 +324,8 @@ private[ccstm] class StripedIntRef(initialValue: Int) extends Ref[Int] {
    *  depend on the actual value.
    */
   def aStripe: TIntRef = {
-    stripes(System.identityHashCode(Thread.currentThread) & (NumStripes - 1))
+    //stripes(System.identityHashCode(Thread.currentThread) & (NumStripes - 1))
+    stripes((Thread.currentThread.getId.asInstanceOf[Int] * 5) & (NumStripes - 1))
   }
 
 

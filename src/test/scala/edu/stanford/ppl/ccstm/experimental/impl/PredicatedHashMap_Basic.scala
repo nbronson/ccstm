@@ -45,7 +45,7 @@ class PredicatedHashMap_Basic[A,B] extends TMap[A,B] {
       }
     }
 
-    override def removeKey(key: A): Option[B] = {
+    override def remove(key: A): Option[B] = {
       // if no predicate exists, then we don't need to create one
       val p = predicates.get(key)
       if (null == p) None else NullValue.decodeOption(p.escaped.swap(null))
@@ -95,7 +95,7 @@ class PredicatedHashMap_Basic[A,B] extends TMap[A,B] {
     NullValue.decodeOption(pred(key).swap(NullValue.encode(value)))
   }
 
-  def removeKey(key: A)(implicit txn: Txn): Option[B] = {
+  def remove(key: A)(implicit txn: Txn): Option[B] = {
     NullValue.decodeOption(pred(key).swap(null))
   }
 

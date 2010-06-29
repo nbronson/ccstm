@@ -89,7 +89,7 @@ class PredicatedHashMap_RC[A,B] extends TMap[A,B] {
       }
     }
 
-    override def removeKey(key: A): Option[B] = {
+    override def remove(key: A): Option[B] = {
       // if no predicate exists, then we don't need to create one
       val p = existingPred(key)
       if (null == p) {
@@ -184,7 +184,7 @@ class PredicatedHashMap_RC[A,B] extends TMap[A,B] {
     }
   }
 
-  def removeKey(k: A)(implicit txn: Txn): Option[B] = {
+  def remove(k: A)(implicit txn: Txn): Option[B] = {
     val p = enter(k)
     try {
       val prev = p.swap(null)
