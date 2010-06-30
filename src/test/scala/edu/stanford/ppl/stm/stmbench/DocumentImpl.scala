@@ -1,8 +1,8 @@
 package edu.stanford.ppl.stm.stmbench
 
+import scala.annotation._
 import stmbench7.core._
 import edu.stanford.ppl.ccstm._
-import scala.collection.immutable.WrappedString
 
 class DocumentImpl(id: Int, title: String, text0: String) extends Document {
   val text = Ref(text0).single
@@ -17,7 +17,11 @@ class DocumentImpl(id: Int, title: String, text0: String) extends Document {
   def nullOperation() {}
 
   def getText = text()
-  def searchText(symbol: Char) = new WrappedString(text()).count(_ == symbol)
+  def searchText(symbol: Char): Int = searchText(text(), symbol, 0, 0)
+  @tailrec private def searchText(s: String, c: Char, pos: Int, n: Int): Int = {
+    val i = s.indexOf(c, pos)
+    if (i < 0) n else searchText(s, c, i + 1, n + 1)
+  }
   def replaceText(from: String, to: String) = {
     val f = text transformIfDefined {
       case s if s.startsWith(from) => s.replaceFirst(from, to)
