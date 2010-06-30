@@ -37,87 +37,39 @@ class CCSTMInitializer extends SynchMethodInitializer {
 
   def createBackendFactory = new BackendFactory {
 
-    def createLargeSet[E]: LargeSet[E] =
-      new LargeSet[E] // a couple hundred, not ordered
+    // a couple hundred, not ordered
+    def createLargeSet[E](): LargeSet[E] = new LargeSetImpl.PredicatedHash[E]
 
-    def createIndex[K <: IndexKey, V] =
-      new Index[K,V]() // ordered
+    // ordered
+    def createIndex[K <: IndexKey,V](): Index[K,V] = new IndexImpl.BoxedImmutable[K,V]
 
-    def createIdPool(maxNumberOfIds: Int) =
-      new IdPool(maxNumberOfIds)
+    def createIdPool(maxNumberOfIds: Int): IdPool = new IdPoolImpl.BoxedList(maxNumberOfIds)
   }
 
   def createDesignObjFactory = new DesignObjFactory {
 
-    def createAtomicPart(id0: Int, typ0: String, bd0: Int, x0: Int, y0: Int) = new AtomicPart {
-      val bd = Ref(bd0).single
-      val x = Ref(x0)
-      val y = Ref(y0)
-      val partOf = Ref(null : CompositePart)
-      val from = Ref(Nil : List[Connection])
-      val to = Ref(Nil : List[Connection])
-
-      // DesignObj
-      def getId = id0
-      def getBuildDate = bd()
-      def getType = typ0
-      def updateBuildDate() { if (bd() % 2 == 0) bd -= 1 else bd += 1 }
-      def nullOperation() {}
-
-      // AtomicPart
-      def connectTo(dest: AtomicPart, typ: String, length: Int) {
-        val c = new ConnectionImpl(this, dest, typ, length)
-        to.single.transform(c :: _)
-        dest.addConnectionFromOtherPart(c.getReversed)
-      }
-      def addConnectionFromOtherPart(c: Connection) { from.single.transform(c :: _)}
-      def setCompositePart(po: CompositePart) { partOf() = po }
-      def getNumToConnections = to.single.size()
-      def getToConnections = new ImmutableCollectionImpl[Connection](to.single())
-      def getFromConnections = new ImmutableCollectionImpl[Connection](to.single())
-      def getPartOf = partOf.single()
-      def swapXY {
-        atomic { implicit t =>
-          val tmp = x()
-          x() = y()
-          y() = tmp
-        }
-      }
-      def getX = x.single()
-      def getY = y.single()
-      def clearPointers() {
-        atomic { implicit t =>
-          x() = 0
-          y() = 0
-          to() = null
-          from() = null
-          partOf() = null
-        }
-      }
-
-      // Comparable[AtomicPart]
-      def compareTo(rhs: AtomicPart) = getId - rhs.getId
-    }
+    def createAtomicPart(id: Int, typ: String, bd: Int, x: Int, y: Int) =
+        new AtomicPartImpl(id, typ, bd, x, y)
 
     def createConnection(from: AtomicPart, to: AtomicPart, typ: String, length: Int) =
         new ConnectionImpl(from, to, typ, length)
     
     def createBaseAssembly(id: Int, typ: String, buildDate: Int, module: Module, superAssembly: ComplexAssembly) =
-        new BaseAssembly(id, typ, buildDate, module, superAssembly)
+        new BaseAssemblyImpl(id, typ, buildDate, module, superAssembly)
 
     def createComplexAssembly(id: Int, typ: String, buildDate: Int, module: Module, superAssembly: ComplexAssembly) =
-        new ComplexAssembly(id, typ, buildDate, module, superAssembly)
+        new ComplexAssemblyImpl(id, typ, buildDate, module, superAssembly)
 
     def createCompositePart(id: Int, typ: String, buildDate: Int, documentation: Document) =
-        new CompositePart(id, typ, buildDate, documentation)
+        new CompositePartImpl(id, typ, buildDate, documentation)
 
     def createDocument(id: Int, title: String, text: String) =
-        new Document(id, title, text)
+        new DocumentImpl(id, title, text)
 
     def createManual(id: Int, title: String, text: String) =
-        new Manual(id, title, text)
+        new ManualImpl(id, title, text)
     
     def createModule(id: Int, typ: String, buildDate: Int, man: Manual) =
-        new Module(id, typ, buildDate, man)
+        new ModuleImpl(id, typ, buildDate, man)
   }
 }
