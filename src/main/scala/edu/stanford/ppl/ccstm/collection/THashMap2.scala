@@ -257,33 +257,52 @@ class THashMap2[A,B] extends TMap[A,B] {
   import THashMap2._
 
   def bind(implicit txn: Txn): TMap.View[A,B] = new TMap.AbstractTxnView[A,B,THashMap2[A,B]](txn, this) {
-    def iterator: Iterator[(A,B)] = new Iterator[(A,B)] {
+
+    private abstract class Iter[Z] extends Iterator[Z] {
+      // implement this
+      protected def fromEntry(k: A, ev: NullEncoded): Z
+
+      private var done = false
+      private var avail: Z = null.asInstanceOf[Z]
+      private var underlying: java.util.Iterator[java.util.Map.Entry[A,Predicate]] = null
 
       insertCount()(txn) // add to read set
-      private var avail: (A,B) = null
-      private val underlying = predicates.entrySet.iterator
+      underlying = predicates.entrySet.iterator
       advance()
 
       @tailrec private def advance() {
         if (!underlying.hasNext) {
           // EOI
-          avail = null
+          done = true
         } else {
           val e = underlying.next()
           e.getValue.get(txn) match {
             case null => advance() // empty predicate, keep looking
-            case ev => avail = (e.getKey, NullValue.decode[B](ev))
+            case ev => avail = fromEntry(e.getKey, ev)
           }
         }
       }
 
-      def hasNext: Boolean = (avail != null)
+      def hasNext: Boolean = !done
 
-      def next(): (A,B) = {
+      def next(): Z = {
+        if (done) throw new IllegalStateException
         val z = avail
         advance()
         z
       }
+    }
+
+    def iterator: Iterator[(A,B)] = new Iter[(A,B)] {
+      protected def fromEntry(k: A, ev: AnyRef) = (k, NullValue.decode[B](ev))
+    }
+
+    override def keysIterator: Iterator[A] = new Iter[A] {
+      protected def fromEntry(k: A, ev: AnyRef) = k
+    }
+
+    override def valuesIterator: Iterator[B] = new Iter[B] {
+      protected def fromEntry(k: A, ev: AnyRef) = NullValue.decode[B](ev)
     }
   }
 
@@ -294,32 +313,48 @@ class THashMap2[A,B] extends TMap[A,B] {
 
     override def remove(key: A) = NullValue.decodeOption[B](nonTxnRemove(key))
 
-    def iterator: Iterator[(A,B)] = new Iterator[(A,B)] {
+    private abstract class Iter[Z] extends Iterator[Z] {
+      // implement this
+      protected def fromEntry(k: A, ev: NullEncoded): Z
 
-      private var avail: (A,B) = null
+      private var done = false
+      private var avail: Z = null.asInstanceOf[Z]
       private val underlying = predicates.entrySet.iterator
       advance()
 
       @tailrec private def advance() {
         if (!underlying.hasNext) {
           // EOI
-          avail = null
+          done = true
         } else {
           val e = underlying.next()
           e.getValue.nonTxnGet match {
             case null => advance() // empty predicate, keep looking
-            case ev => avail = (e.getKey, NullValue.decode[B](ev))
+            case ev => avail = fromEntry(e.getKey, ev)
           }
         }
       }
 
-      def hasNext: Boolean = (avail != null)
+      def hasNext: Boolean = !done
 
-      def next(): (A,B) = {
+      def next(): Z = {
+        if (done) throw new IllegalStateException
         val z = avail
         advance()
         z
       }
+    }
+
+    def iterator: Iterator[(A,B)] = new Iter[(A,B)] {
+      protected def fromEntry(k: A, ev: AnyRef) = (k, NullValue.decode[B](ev))
+    }
+
+    override def keysIterator: Iterator[A] = new Iter[A] {
+      protected def fromEntry(k: A, ev: AnyRef) = k
+    }
+
+    override def valuesIterator: Iterator[B] = new Iter[B] {
+      protected def fromEntry(k: A, ev: AnyRef) = NullValue.decode[B](ev)
     }
   }
 
