@@ -6,7 +6,7 @@ package edu.stanford.ppl.ccstm
 package impl
 
 private[ccstm] class StripedIntRef(initialValue: Int) extends Ref[Int] {
-  private def NumStripes = 16
+  private def NumStripes = 8
 
   private val stripes: Array[TIntRef] = {
     val a = new Array[TIntRef](NumStripes)
