@@ -54,4 +54,10 @@ private[ccstm] class TIntRef(initialValue: Int) extends Handle[Int] with RefOps[
 
     override def -= (rhs: Int)(implicit num: Numeric[Int]) { this += (-rhs) }
   }
+
+  override def +=(rhs: Int)(implicit txn: Txn, num: Numeric[Int]) {
+    txn.getAndTransform(handle, { (v: Int) => v + rhs })
+  }
+
+  override def -=(rhs: Int)(implicit txn: Txn, num: Numeric[Int]) { this += (-rhs) }
 }
