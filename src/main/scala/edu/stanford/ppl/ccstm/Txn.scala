@@ -25,7 +25,14 @@ object Escaped extends AccessMode {
 
 object Txn {
 
-  val EnableCounters = "1tTyY" contains (System.getProperty("ccstm.counters", "") + "0").charAt(0)
+  val EnableCounters = flag("ccstm.counters", false)
+
+  // requires EnableCounters, defaults to on
+  val EnableSizeHistos = EnableCounters && flag("ccstm.histo", true)
+
+  private def flag(name: String, default: Boolean) = {
+    "1tTyY" contains (System.getProperty(name, "") + default).charAt(0)
+  }
 
   //////////////// Status
 
@@ -278,6 +285,12 @@ object Txn {
   private[ccstm] val vetoingWriteResourceCounter = new Counter
   private[ccstm] val bargingCommitCounter = new Counter
   private[ccstm] val bargingRollbackCounter = new Counter
+  private[ccstm] val commitReadSetSizeHisto = newSizeHisto
+  private[ccstm] val commitWriteSetSizeHisto = newSizeHisto
+  private[ccstm] val rollbackReadSetSizeHisto = newSizeHisto
+  private[ccstm] val rollbackWriteSetSizeHisto = newSizeHisto
+
+  private def newSizeHisto = if (!EnableSizeHistos) null else Array.tabulate(32) { _ => new Counter }
 
   private[ccstm] def countsToStr: String = {
     val buf = new StringBuilder
@@ -287,7 +300,19 @@ object Txn {
         buf ++= "\nCCSTM: " + n + (" " * (26-n.length)) + " = " + m.invoke(Txn)
       }
     }
+    if (EnableSizeHistos) {
+      buf ++= "\nCCSTM: commitReadSet    = " + sizeHistoToStr(commitReadSetSizeHisto)
+      buf ++= "\nCCSTM: commitWriteSet   = " + sizeHistoToStr(commitWriteSetSizeHisto)
+      buf ++= "\nCCSTM: rollbackReadSet  = " + sizeHistoToStr(rollbackReadSetSizeHisto)
+      buf ++= "\nCCSTM: rollbackWriteSet = " + sizeHistoToStr(rollbackWriteSetSizeHisto)
+    }
     buf.toString
+  }
+
+  private[ccstm] def sizeHistoToStr(counts: Array[Counter]): String = {
+    val data = counts map { _.get }
+    val last = data lastIndexWhere { _ != 0L }
+    data.take(1 + last).mkString(", ")
   }
 
 //  new Thread("status updater") {
@@ -693,10 +718,20 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
     if (EnableCounters) {
       if (committing) {
         commitCounter += 1
-        if (barging) bargingCommitCounter += 1
+        if (barging)
+          bargingCommitCounter += 1
+        if (EnableSizeHistos) {
+          commitReadSetSizeHisto(histoBucket(_readSet.size)) += 1
+          commitWriteSetSizeHisto(histoBucket(_writeBuffer.size)) += 1
+        }
       } else {
         s.rollbackCause.counter += 1
-        if (barging) bargingRollbackCounter += 1
+        if (barging)
+          bargingRollbackCounter += 1
+        if (EnableSizeHistos) {
+          rollbackReadSetSizeHisto(histoBucket(_readSet.size)) += 1
+          rollbackWriteSetSizeHisto(histoBucket(_writeBuffer.size)) += 1
+        }
       }
     }
     if (!_callbacks.afterCompletion.isEmpty) {
@@ -710,6 +745,8 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
       }
     }
   }
+
+  private def histoBucket(n: Int): Int = 32 - Integer.numberOfLeadingZeros(n)
 
   def detach() = detach(impl.ThreadContext.get)
 
