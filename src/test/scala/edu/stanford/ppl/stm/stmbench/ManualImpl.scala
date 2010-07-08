@@ -3,6 +3,7 @@ package edu.stanford.ppl.stm.stmbench
 import stmbench7.core._
 import edu.stanford.ppl.ccstm._
 import scala.collection.immutable.WrappedString
+import annotation.tailrec
 
 class ManualImpl(id: Int, title0: String, text0: String) extends Manual {
   val title = Ref(title0).single
@@ -16,7 +17,12 @@ class ManualImpl(id: Int, title0: String, text0: String) extends Manual {
 
   def setModule(v: Module) { module() = v }
 
-  def countOccurences(ch: Char) = new WrappedString(text()).count(_ == ch)
+  def countOccurences(ch: Char): Int = countOccurrences(ch)
+  def countOccurrences(ch: Char): Int = countOccurrences(text(), ch, 0, 0)
+  @tailrec private def countOccurrences(s: String, c: Char, pos: Int, n: Int): Int = {
+    val i = s.indexOf(c, pos)
+    if (i < 0) n else countOccurrences(s, c, i + 1, n + 1)
+  }
 
   def checkFirstLastCharTheSame = {
     val t = text()
