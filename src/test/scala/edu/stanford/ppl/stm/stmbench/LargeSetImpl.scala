@@ -31,4 +31,27 @@ object LargeSetImpl {
     def size = underlying().size
     def iterator = JavaConversions.asIterator(underlying().iterator)
   }
+
+  class TwoStage[A] extends LargeSet[A] {
+    // this should really be .dynamic, which finds the existing txn but doesn't
+    // work outside a txn
+    val underlying = Ref[LargeSet[A]](new BoxedImmutable[A]).single
+
+    def add(e: A) = {
+      val u = underlying()
+      val z = u.add(e)
+      if (u.isInstanceOf[BoxedImmutable[_]] && u.size >= 2) {
+        val repl = new PredicatedHash[A]
+        val iter = u.iterator
+        while (iter.hasNext) repl.add(iter.next())
+        underlying() = repl
+      }
+      z
+    }
+    def remove(e: A) = underlying().remove(e)
+    def contains(e: A) = underlying().contains(e)
+    def size = underlying().size
+    def iterator = underlying().iterator
+  }
+
 }

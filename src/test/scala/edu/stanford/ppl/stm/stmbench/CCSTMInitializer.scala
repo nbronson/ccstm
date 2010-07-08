@@ -37,8 +37,10 @@ class CCSTMInitializer extends SynchMethodInitializer {
 
   def createBackendFactory = new BackendFactory {
 
-    // a couple hundred, not ordered
+    // a couple hundred, not ordered, except for huge numbers of discarded
+    // sets with exactly 1 element
     def createLargeSet[E](): LargeSet[E] = new LargeSetImpl.PredicatedHash[E]
+    //def createLargeSet[E](): LargeSet[E] = new LargeSetImpl.TwoStage[E]
 
     // ordered
     def createIndex[K <: IndexKey,V](): Index[K,V] = new IndexImpl.BoxedImmutable[K,V]
