@@ -80,6 +80,8 @@ object TMap2 {
     def -=(key: A) = { dynView.-=(key); this }
 
     def iterator = dynView.iterator
+    override def keysIterator = dynView.keysIterator
+    override def valuesIterator = dynView.valuesIterator
   }
 
   abstract class AbstractEscapedView[A,B,M <: TMap2[A,B]](val unbind: M) extends View[A,B] {
