@@ -11,6 +11,7 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater
 import annotation.tailrec
 import scala.collection.Iterator
 import edu.stanford.ppl.ccstm.impl.{StripedIntRef, NonTxn, TAnyRef}
+import java.lang.ref.WeakReference
 
 
 object THashMap3 {
@@ -19,6 +20,21 @@ object THashMap3 {
   private val rcUpdater = (new Predicate(null)).newUpdater
 
   private class Predicate(ev0: NullEncoded) extends TAnyRef[NullEncoded](ev0) {
+
+    private class PendingExit[A](mapRef: WeakReference[THashMap3[A,_]], key: A) extends (Txn => Unit) {
+      def apply(txn: Txn) {
+        val map = mapRef.get
+        if (map != null)
+          exit(map, key, count(txn))
+      }
+
+      def count(txn: Txn) = 1
+    }
+
+    private class PendingExit21[A](mapRef0: WeakReference[THashMap3[A,_]], key0: A) extends PendingExit(mapRef0, key0) {
+      override def count(txn: Txn) = if (txn.status eq Txn.Committed) 2 else 1
+    }
+
     def newUpdater = AtomicIntegerFieldUpdater.newUpdater(classOf[Predicate], "refCount")
 
     @volatile var refCount = 1
@@ -142,7 +158,7 @@ object THashMap3 {
         // map invocations (either any map, or the specific map in use), or if
         // a daemon thread should be used.
 
-        txn.afterCompletion { _ => exit(map, key) }
+        txn.afterCompletion(new PendingExit[A](new WeakReference(map), key))
       }
       else if (fresh) {
         // The predicate is pre-entered.  We must exit, but it's cheaper to
@@ -180,7 +196,7 @@ object THashMap3 {
         }
 
         // retain entry as bonus, unless we roll back
-        txn.afterRollback { _ => exit(map, key) }
+        txn.afterRollback(new PendingExit[A](new WeakReference(map), key))
 
         map._size += 1
       }
@@ -220,15 +236,15 @@ object THashMap3 {
           return map.txnRemove(key)
         }
 
-        txn.afterCompletion { _ => exit(map, key) }
+        txn.afterCompletion(new PendingExit[A](new WeakReference(map), key))
       }
       else {
         if (fresh) {
           // exit 2 on commit, 1 on rollback
-          txn.afterCompletion { t => exit(map, key, if (t.status eq Txn.Committed) 2 else 1) }
+          txn.afterCompletion(new PendingExit21[A](new WeakReference(map), key))
         } else {
           // we must remove the bonus, but we don't need to enter, so do nothing on rollback
-          txn.afterCommit { _ => exit(map, key) }
+          txn.afterCommit(new PendingExit[A](new WeakReference(map), key))
         }
 
         map._size += 1
@@ -245,69 +261,102 @@ class THashMap3[A,B] extends TMap2[A,B] {
   import THashMap3._
 
   def bind(implicit txn: Txn): TMap2.View[A,B] = new TMap2.AbstractTxnView[A,B,THashMap3[A,B]](txn, this) {
-    def iterator: Iterator[(A,B)] = new Iterator[(A,B)] {
+    private abstract class Iter[Z] extends Iterator[Z] {
 
       _size()(txn) // add to read set
-      private var avail: (A,B) = null
+      private var done = false
+      private var avail: Z = null.asInstanceOf[Z]
       private val underlying = predicates.entrySet.iterator
       advance()
 
       @tailrec private def advance() {
         if (!underlying.hasNext) {
           // EOI
-          avail = null
+          done = true
+          avail = null.asInstanceOf[Z]
         } else {
           val e = underlying.next()
-          e.getValue.get(txn) match {
+          txn.get(e.getValue) match {
             case null => advance() // empty predicate, keep looking
-            case ev => avail = (e.getKey, NullValue.decode[B](ev))
+            case ev => avail = compute(e.getKey, ev)
+          }
+        }
+      }
+
+      def hasNext: Boolean = !done
+
+      def next(): Z = {
+        if (done) throw new NoSuchElementException
+        val z = avail
+        advance()
+        z
+      }
+
+      protected def compute(k: A, ev: NullEncoded): Z
+    }
+
+    def iterator: Iterator[(A,B)] = new Iter[(A,B)] {
+      protected def compute(k: A, ev: AnyRef): (A,B) = (k, NullValue.decode[B](ev))
+    }
+
+    override def keysIterator: Iterator[A] = new Iter[A] {
+      protected def compute(k: A, ev: AnyRef): A = k
+    }
+
+    override def valuesIterator: Iterator[B] = new Iter[B] {
+      protected def compute(k: A, ev: AnyRef): B = NullValue.decode[B](ev)
+    }
+  }
+
+  val escaped: TMap2.View[A,B] = new TMap2.AbstractEscapedView[A,B,THashMap3[A,B]](this) {
+    private abstract class Iter[Z] extends Iterator[Z] {
+      private var done = false
+      private var avail: Z = null.asInstanceOf[Z]
+      private val underlying = predicates.entrySet.iterator
+      advance()
+
+      @tailrec private def advance() {
+        if (!underlying.hasNext) {
+          // EOI
+          done = true
+          avail = null.asInstanceOf[Z]
+        } else {
+          val e = underlying.next()
+          e.getValue.nonTxnGet match {
+            case null => advance() // empty predicate, keep looking
+            case ev => avail = compute(e.getKey, ev)
           }
         }
       }
 
       def hasNext: Boolean = (avail != null)
 
-      def next(): (A,B) = {
+      def next(): Z = {
+        if (done) throw new NoSuchElementException
         val z = avail
         advance()
         z
       }
-    }
-  }
 
-  val escaped: TMap2.View[A,B] = new TMap2.AbstractEscapedView[A,B,THashMap3[A,B]](this) {
+      protected def compute(k: A, ev: NullEncoded): Z
+    }
+
     def get(key: A) = NullValue.decodeOption[B](nonTxnGet(key))
 
     override def put(key: A, value: B) = NullValue.decodeOption[B](nonTxnPut(key, NullValue.encode(value)))
 
     override def remove(key: A) = NullValue.decodeOption[B](nonTxnRemove(key))
 
-    def iterator: Iterator[(A,B)] = new Iterator[(A,B)] {
+    def iterator: Iterator[(A,B)] = new Iter[(A,B)] {
+      def compute(k: A, ev: NullEncoded): (A,B) = (k, NullValue.decode[B](ev))
+    }
+    
+    override def keysIterator: Iterator[A] = new Iter[A] {
+      protected def compute(k: A, ev: AnyRef): A = k
+    }
 
-      private var avail: (A,B) = null
-      private val underlying = predicates.entrySet.iterator
-      advance()
-
-      @tailrec private def advance() {
-        if (!underlying.hasNext) {
-          // EOI
-          avail = null
-        } else {
-          val e = underlying.next()
-          e.getValue.nonTxnGet match {
-            case null => advance() // empty predicate, keep looking
-            case ev => avail = (e.getKey, NullValue.decode[B](ev))
-          }
-        }
-      }
-
-      def hasNext: Boolean = (avail != null)
-
-      def next(): (A,B) = {
-        val z = avail
-        advance()
-        z
-      }
+    override def valuesIterator: Iterator[B] = new Iter[B] {
+      protected def compute(k: A, ev: AnyRef): B = NullValue.decode[B](ev)
     }
   }
 
