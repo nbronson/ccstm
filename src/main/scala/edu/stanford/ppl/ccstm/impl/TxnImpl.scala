@@ -16,8 +16,8 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
   // _status and _statusCAS come from StatusHolder via AbstractTxn
 
   private[ccstm] var _callbacks: Callbacks = null
-  private var _readSet: ReadSet = null
-  private var _writeBuffer: WriteBuffer = null
+  private[ccstm] var _readSet: ReadSet = null
+  private[ccstm] var _writeBuffer: WriteBuffer = null
   private var _strongRefSet: StrongRefSet = null
   private var _slot: Slot = 0
 
