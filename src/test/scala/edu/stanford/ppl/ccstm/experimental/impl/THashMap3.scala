@@ -79,7 +79,7 @@ object THashMap3 {
         return map.nonTxnPut(key, ev)
       }
 
-      val z = NonTxn.transform2(this, map.insertCount.aStripe, (v: AnyRef, s: Int) => {
+      val z = NonTxn.transform2(this, map._size.aStripe, (v: AnyRef, s: Int) => {
         (ev, (if (v == null) s + 1 else s), v)
       })
       if (z != null)
@@ -94,8 +94,8 @@ object THashMap3 {
       }
 
       // either there is already a positive refCount or this is a no-op
-      val z = NonTxn.transform2(this, map.removeCount.aStripe, (v: AnyRef, s: Int) => {
-        (null, (if (v == null) s else s + 1), v)
+      val z = NonTxn.transform2(this, map._size.aStripe, (v: AnyRef, s: Int) => {
+        (null, (if (v == null) s else s - 1), v)
       })
       if (z != null)
         exit(map, key)
@@ -182,7 +182,7 @@ object THashMap3 {
         // retain entry as bonus, unless we roll back
         txn.afterRollback { _ => exit(map, key) }
 
-        map.insertCount += 1
+        map._size += 1
       }
       else if (fresh) {
         // present -> present transition can rely on the bonus, exit
@@ -231,7 +231,7 @@ object THashMap3 {
           txn.afterCommit { _ => exit(map, key) }
         }
 
-        map.removeCount += 1
+        map._size += 1
         
         txn.set(this, null)
       }
@@ -247,7 +247,7 @@ class THashMap3[A,B] extends TMap2[A,B] {
   def bind(implicit txn: Txn): TMap2.View[A,B] = new TMap2.AbstractTxnView[A,B,THashMap3[A,B]](txn, this) {
     def iterator: Iterator[(A,B)] = new Iterator[(A,B)] {
 
-      insertCount()(txn) // add to read set
+      _size()(txn) // add to read set
       private var avail: (A,B) = null
       private val underlying = predicates.entrySet.iterator
       advance()
@@ -339,7 +339,7 @@ class THashMap3[A,B] extends TMap2[A,B] {
 
   def isEmpty(implicit txn: Txn): Boolean = size == 0
 
-  def size(implicit txn: Txn) = insertCount() - removeCount()
+  def size(implicit txn: Txn) = _size()
   
   def get(key: A)(implicit txn: Txn) = NullValue.decodeOption[B](txnGet(key))
 
@@ -350,10 +350,9 @@ class THashMap3[A,B] extends TMap2[A,B] {
 
   /////////////////////
 
-  private[impl] val insertCount = new StripedIntRef(0)
-  private[impl] val removeCount = new StripedIntRef(0)
+  private[impl] val _size = new StripedIntRef(0)
 
-  private val predicates = new ConcurrentHashMap[A,Predicate] {
+  private val predicates = new ConcurrentHashMap[A,Predicate](16, 0.75f, 4) {
     override def putIfAbsent(key: A, value: Predicate): Predicate = {
       STM.resurrect(key.hashCode, value)
       super.putIfAbsent(key, value)
