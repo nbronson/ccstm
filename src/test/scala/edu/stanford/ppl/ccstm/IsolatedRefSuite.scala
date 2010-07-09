@@ -357,5 +357,48 @@ class IsolatedRefSuite extends STMFunSuite {
       binder.reset()
     }
 
+    test(fact + ": " + binder + ": +=") {
+      val x = fact(1)
+      binder(x) += 2
+      assert(binder(x).get === 3)
+      binder.reset()
+    }
+
+    test(fact + ": " + binder + ": -=") {
+      val x = fact(1)
+      binder(x) -= 3
+      assert(binder(x).get === -2)
+      binder.reset()
+    }
+
+    test(fact + ": " + binder + ": *=") {
+      val x = fact(2)
+      binder(x) *= -3
+      assert(binder(x).get === -6)
+      binder.reset()
+    }
+
+    test(fact + ": " + binder + ": /=") {
+      val x = fact(11)
+      binder(x) /= 2
+      assert(binder(x).get === 5)
+      binder.reset()
+    }
+  }
+
+  for (binder <- binders) {
+    for (fact <- List({ (v: Double) => new TDoubleRef(v) },
+                      { (v: Double) => new TAnyRef[Double](v) })) {
+      createDivTest(binder, fact)
+    }
+  }
+
+  private def createDivTest(binder: Binder, fact: Double => Ref[Double]) {
+    test(fact(0.0).getClass.getSimpleName + ": " + binder + ": /=") {
+      val x = fact(11.0)
+      binder(x) /= 2
+      assert(binder(x).get === 5.5)
+      binder.reset()
+    }
   }
 }
