@@ -57,7 +57,7 @@ class FastSimpleRandomSuite extends FunSuite {
       val elapsed = System.nanoTime - begin
       best = best min elapsed
     }
-    println("best was " + (best / 10000.0) + " nanos/call")
+    println("FastSimpleRandom: best was " + (best / 10000.0) + " nanos/call")
 
     // we should be able to get less than 250 nanos, even on a Niagara
     assert(best / 10000 < 250)

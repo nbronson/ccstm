@@ -9,7 +9,7 @@ import edu.stanford.ppl.ccstm._
 
 object TMap {
   trait Source[A,+B] {
-    def nonTxn: TMap.BoundSource[A,B]
+    def escaped: TMap.BoundSource[A,B]
 
     def bind(implicit txn: Txn): TMap.BoundSource[A,B]
 
@@ -35,7 +35,7 @@ object TMap {
   }
 
   trait Sink[A,-B] {
-    def nonTxn: TMap.BoundSink[A,B]
+    def escaped: TMap.BoundSink[A,B]
 
     def bind(implicit txn: Txn): TMap.BoundSink[A,B]
 
@@ -47,7 +47,8 @@ object TMap {
     def unbind: TMap.Source[A,B]
     def context: Option[Txn]
 
-    // TODO: this should be in a TSortedMap
+    // TODO: these should be in a TSortedMap
+    def subRange(begin: A, end: A): Iterator[(A,B)] = throw new UnsupportedOperationException
     def higher(key: A): Option[(A,B)] = throw new UnsupportedOperationException
 
     override def default(key: A): B = unbind.default(key)
@@ -97,7 +98,7 @@ object TMap {
     override def put(key: A, value: B): Option[B] = unbind.put(key, value)(txn)
     override def update(key: A, value: B) { unbind.update(key, value)(txn) }
 
-    override def removeKey(key: A): Option[B] = unbind.removeKey(key)(txn)
+    override def remove(key: A): Option[B] = unbind.remove(key)(txn)
     def -=(key: A) = { unbind.-=(key)(txn); this }
 
 //    def transform(key: A, f: (Option[B]) => Option[B]) {
@@ -112,12 +113,12 @@ object TMap {
 /** An interface for transactional maps. */
 trait TMap[A,B] extends TMap.Source[A,B] with TMap.Sink[A,B] {
 
-  def nonTxn: TMap.Bound[A,B]
+  def escaped: TMap.Bound[A,B]
 
   def bind(implicit txn: Txn): TMap.Bound[A,B]
 
   def put(key: A, value: B)(implicit txn: Txn): Option[B]
-  def removeKey(key: A)(implicit txn: Txn): Option[B]
+  def remove(key: A)(implicit txn: Txn): Option[B]
 
 //  def transform(key: A, f: Option[B] => Option[B])(implicit txn: Txn) {
 //    transformIfDefined(key, null, f)
@@ -134,5 +135,5 @@ trait TMap[A,B] extends TMap.Source[A,B] with TMap.Sink[A,B] {
   //////////////// default implementations
 
   def update(key: A, value: B)(implicit txn: Txn) { put(key, value) }
-  def -= (key: A)(implicit txn: Txn) { removeKey(key) }
+  def -= (key: A)(implicit txn: Txn) { remove(key) }
 }

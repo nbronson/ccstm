@@ -8,12 +8,13 @@ import reflect.Manifest
 import edu.stanford.ppl.ccstm.experimental.TMap
 import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm._
-import collection.{LazyConflictIntRef, TArray}
-import impl.MetaHolder
+import collection.TArray
+import impl.{LazyConflictRef}
+import edu.stanford.ppl.ccstm.TxnFieldUpdater.Base
 
 class BasicHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TMap[K,V] {
   private val bucketsRef = Ref(new TArray[BHMBucket[K,V]](16, TArray.MaximizeParallelism))
-  private val sizeRef = new LazyConflictIntRef(0)
+  private val sizeRef = new LazyConflictRef(0)
 
   private def hash(key: K) = {
     // this is the bit mixing code from java.util.HashMap
@@ -24,9 +25,9 @@ class BasicHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TMap[
   }
 
 
-  def nonTxn: Bound[K,V] = new TMap.AbstractNonTxnBound[K,V,BasicHashMap[K,V]](BasicHashMap.this) {
+  def escaped: Bound[K,V] = new TMap.AbstractNonTxnBound[K,V,BasicHashMap[K,V]](BasicHashMap.this) {
 
-    override def size: Int = sizeRef.nonTxn.get
+    override def size: Int = sizeRef.escaped.get
 
     def get(key: K): Option[V] = {
       STM.atomic(unbind.get(key)(_))
@@ -36,8 +37,8 @@ class BasicHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TMap[
       STM.atomic(unbind.put(key, value)(_))
     }
 
-    override def removeKey(key: K): Option[V] = {
-      STM.atomic(unbind.removeKey(key)(_))
+    override def remove(key: K): Option[V] = {
+      STM.atomic(unbind.remove(key)(_))
     }
 
     protected def transformIfDefined(key: K,
@@ -59,7 +60,7 @@ class BasicHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TMap[
     }
   }
 
-  def isEmpty(implicit txn: Txn): Boolean = sizeRef > 0
+  def isEmpty(implicit txn: Txn): Boolean = sizeRef getWith { _ > 0 }
 
   def size(implicit txn: Txn): Int = sizeRef.get
 
@@ -93,7 +94,7 @@ class BasicHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TMap[
       buckets(i) = new BHMBucket(key, value, head)
       sizeRef += 1
       val n = buckets.length
-      if (sizeRef > n - n/4) {
+      if (sizeRef getWith { _ > n - n/4 }) {
         grow()
       }
       None
@@ -104,14 +105,14 @@ class BasicHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TMap[
     if (null == bucket) {
       None
     } else if (key == bucket.key) {
-      Some(bucket.valueRef.getAndSet(value))
+      Some(bucket.valueRef.swap(value))
     } else {
       putExisting(key, value, bucket.next)
     }
   }
 
 
-  def removeKey(key: K)(implicit txn: Txn): Option[V] = {
+  def remove(key: K)(implicit txn: Txn): Option[V] = {
     val h = hash(key)
     val buckets = bucketsRef.get
     val i = h & (buckets.length - 1)
@@ -157,11 +158,11 @@ class BasicHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TMap[
       }
     }
 
-    bucketsRef := after
+    bucketsRef() = after
   }
 }
 
-private class BHMBucket[A,B](val key: A, value0: B, next0: BHMBucket[A,B]) extends MetaHolder {
+private class BHMBucket[A,B](val key: A, value0: B, next0: BHMBucket[A,B]) extends Base {
   import BHMBucket._
 
   @volatile private var _value: B = value0

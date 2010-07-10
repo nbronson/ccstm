@@ -9,7 +9,7 @@ import java.util.concurrent.ConcurrentHashMap
 import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm.{STM, Txn}
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater
-import edu.stanford.ppl.ccstm.collection.{TAnyRef, StripedIntRef, TOptionRef, LazyConflictIntRef}
+import edu.stanford.ppl.ccstm.impl.{StripedIntRef, TAnyRef}
 
 object PredicatedHashMap_RC_Enum {
   private val refCountUpdater = (new Pred[Int]).newUpdater
@@ -48,21 +48,21 @@ class PredicatedHashMap_RC_Enum[A,B] extends TMap[A,B] {
   }
 
 
-  def nonTxn: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_RC_Enum[A,B]](this) {
+  def escaped: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_RC_Enum[A,B]](this) {
 
     override def size(): Int = {
-      sizeRef.nonTxn.get
+      sizeRef.escaped.get
     }
 
     def get(key: A): Option[B] = {
       // if no predicate exists, or the one we get is stale, we can still read None
       val p = predicates.get(key)
-      if (null == p) None else NullValue.decodeOption(p.nonTxn.get)
+      if (null == p) None else NullValue.decodeOption(p.escaped.get)
     }
 
     override def put(key: A, value: B): Option[B] = {
       val p = enter(key)
-      val pn = p.nonTxn
+      val pn = p.escaped
       val before = pn.get
       if (null != before) {
         // try to update (no size change)
@@ -82,9 +82,9 @@ class PredicatedHashMap_RC_Enum[A,B] extends TMap[A,B] {
       NullValue.decodeOption(prev)
     }
 
-    override def removeKey(key: A): Option[B] = {
+    override def remove(key: A): Option[B] = {
       val p = predicates.get(key)
-      if (null == p || null == p.nonTxn.get) {
+      if (null == p || null == p.escaped.get) {
         // no need to create a predicate
         return None
       }
@@ -182,7 +182,7 @@ class PredicatedHashMap_RC_Enum[A,B] extends TMap[A,B] {
   }
 
   def isEmpty(implicit txn: Txn): Boolean = {
-    sizeRef > 0
+    sizeRef getWith { _ > 0 }
   }
 
   def size(implicit txn: Txn): Int = {
@@ -198,7 +198,7 @@ class PredicatedHashMap_RC_Enum[A,B] extends TMap[A,B] {
   def put(k: A, v: B)(implicit txn: Txn): Option[B] = {
     val p = enter(k)
     try {
-      val prev = p.getAndSet(NullValue.encode(v))
+      val prev = p.swap(NullValue.encode(v))
       if (null == prev) {
         // None -> Some.  On commit, we leave +1 on the reference count
         sizeRef += 1
@@ -216,10 +216,10 @@ class PredicatedHashMap_RC_Enum[A,B] extends TMap[A,B] {
     }
   }
 
-  def removeKey(k: A)(implicit txn: Txn): Option[B] = {
+  def remove(k: A)(implicit txn: Txn): Option[B] = {
     val p = enter(k)
     try {
-      val prev = p.getAndSet(null)
+      val prev = p.swap(null)
       if (null != prev) {
         // Some -> None.  On commit, we erase the +1 that was left by the
         // None -> Some transition

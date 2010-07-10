@@ -6,35 +6,56 @@ package edu.stanford.ppl.ccstm
 
 import edu.stanford.ppl.stm.STMFunSuite
 
-
 class TxnFieldUpdaterSuite extends STMFunSuite {
   import TFUSObj._
 
-  test("nonTxn") {
+  test("single") {
     val r1 = new TFUSObj
-    assert(IField(r1).nonTxn.get === 0)
-    assert(SField(r1).nonTxn.get === "abc")
+    assert(IField(r1).single.get === 0)
+    assert(SField(r1).single.get === "abc")
 
-    IField(r1).nonTxn.set(1)
-    assert(IField(r1).nonTxn.get === 1)
+    IField(r1).single.set(1)
+    assert(IField(r1).single.get === 1)
 
-    SField(r1).nonTxn.set("def")
-    assert(SField(r1).nonTxn.get === "def")
+    SField(r1).single.set("def")
+    assert(SField(r1).single.get === "def")
 
     val r2 = new TFUSObj
-    assert(IField(r2).nonTxn.get === 0)
-    assert(SField(r2).nonTxn.get === "abc")
+    assert(IField(r2).single.get === 0)
+    assert(SField(r2).single.get === "abc")
 
-    IField(r2).nonTxn.set(1)
-    assert(IField(r2).nonTxn.get === 1)
+    IField(r2).single.set(1)
+    assert(IField(r2).single.get === 1)
 
-    SField(r2).nonTxn := "def"
-    assert(SField(r2).nonTxn.get === "def")
+    SField(r2).single() = "def"
+    assert(SField(r2).single.get === "def")
+  }
+
+  test("escaped") {
+    val r1 = new TFUSObj
+    assert(IField(r1).escaped.get === 0)
+    assert(SField(r1).escaped.get === "abc")
+
+    IField(r1).escaped.set(1)
+    assert(IField(r1).escaped.get === 1)
+
+    SField(r1).escaped.set("def")
+    assert(SField(r1).escaped.get === "def")
+
+    val r2 = new TFUSObj
+    assert(IField(r2).escaped.get === 0)
+    assert(SField(r2).escaped.get === "abc")
+
+    IField(r2).escaped.set(1)
+    assert(IField(r2).escaped.get === 1)
+
+    SField(r2).escaped() = "def"
+    assert(SField(r2).escaped.get === "def")
   }
 
   test("txn") {
     val r = new TFUSObj
-    new Atomic { def body {
+    atomic { implicit t =>
       assert(IField(r).get === 0)
       assert(IField(r)() === 0)
       assert(SField(r).get === "abc")
@@ -43,20 +64,20 @@ class TxnFieldUpdaterSuite extends STMFunSuite {
       IField(r).set(1)
       assert(IField(r).get === 1)
 
-      SField(r) := "def"
+      SField(r)() = "def"
       assert(SField(r).get === "def")
-    }}.run()
+    }
 
-    assert(IField(r).nonTxn.get === 1)
-    assert(SField(r).nonTxn.get === "def")
+    assert(IField(r).single.get === 1)
+    assert(SField(r).single.get === "def")
   }
 
   test("field equality") {
     assert(newIField == newIField)
     assert(newIField != newSField)
     val r = new TFUSObj
-    newIField(r).nonTxn := 2
-    assert(newIField(r).nonTxn.get === 2)
+    newIField(r).single() = 2
+    assert(newIField(r).single.get === 2)
   }
 }
 
@@ -76,7 +97,7 @@ private object TFUSObj {
   }
 }
 
-private class TFUSObj extends impl.MetaHolder {
+private class TFUSObj extends TxnFieldUpdater.Base {
   @volatile private var _iField: Int = 0
   @volatile private var _sField: String = "abc"
 }
@@ -98,7 +119,7 @@ private object TFUSGeneric {
   }
 }
 
-private class TFUSGeneric[A,B](a0: A, b0: List[(A,B)]) extends impl.MetaHolder {
+private class TFUSGeneric[A,B](a0: A, b0: List[(A,B)]) extends TxnFieldUpdater.Base {
   @volatile private var _aField = a0
   @volatile private var _bField = b0
 }

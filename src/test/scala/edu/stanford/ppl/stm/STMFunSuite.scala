@@ -8,7 +8,7 @@ import edu.stanford.ppl.ccstm.STM
 import org.scalatest.{FunSuite, Tag}
 
 
-/** Extends <code>org.scalatest.FunSuite</code> with functionality to make sure
+/** Extends `org.scalatest.FunSuite` with functionality to make sure
  *  that all transactions that have been assigned slots have released them.
  */
 trait STMFunSuite extends FunSuite {

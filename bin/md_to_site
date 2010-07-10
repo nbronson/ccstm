@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# exit immediately on error
+set -e
+
+DOC=`dirname $0`/../doc
+RELHSRC=../src/highlight
+RELTARGET=../target/site
+
+EXTRA='\n <link rel=\"stylesheet\" title=\"Default\" href=\"highlight/default.css\">\n <script type=\"text/javascript\" src=\"highlight/highlight.pack.js\"></script> \n <script type=\"text/javascript\"> \n hljs.initHighlightingOnLoad();\n </script>'
+
+cd "$DOC"
+mkdir -p "$RELTARGET"
+mkdir -p "$RELTARGET/highlight"
+
+cp "$RELHSRC/highlight.pack.js" "$RELHSRC/styles/default.css" "$RELTARGET/highlight"
+
+for f in *.md; do
+  maruku --html $f -o - | sed 's/<\/head>//' | awk '/<body>/ {print "'"$EXTRA"' </head>"} {print}' > "$RELTARGET/`basename $f .md`.html"
+done

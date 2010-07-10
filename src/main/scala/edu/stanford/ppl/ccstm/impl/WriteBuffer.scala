@@ -14,7 +14,7 @@ private[impl] object WriteBuffer {
 }
 
 private[impl] class WriteBuffer {
-  private def InitialCap = 16
+  private def InitialCap = 8
   private def InitialRealCap = 512
   private def MaxInitialRealCap = 8 * InitialRealCap
 
@@ -69,10 +69,14 @@ private[impl] class WriteBuffer {
     }
   }
 
+  private def computeSlot(ref: AnyRef, offset: Int): Int = {
+    if (_cap == InitialCap) 0 else STMImpl.hash(ref, offset) & (_cap - 1)
+  }
+
   private def find(handle: Handle[_]): Int = {
     val ref = handle.ref
     val offset = handle.offset
-    find(ref, offset, _dispatch(STMImpl.hash(ref, offset) & (_cap - 1)))
+    find(ref, offset, _dispatch(computeSlot(ref, offset)))
   }
 
   @tailrec
@@ -88,16 +92,15 @@ private[impl] class WriteBuffer {
   def put[T](handle: Handle[T], value: T): Unit = {
     val ref = handle.ref
     val offset = handle.offset
-    val slot = STMImpl.hash(ref, offset) & (_cap - 1)
-    val head = _dispatch(slot)
-    val i = find(ref, offset, head)
+    val slot = computeSlot(ref, offset)
+    val i = find(ref, offset, _dispatch(slot))
     if (i != 0) {
       // hit, update an existing entry, optionally with undo
       if (i <= _undoThreshold) _undoLog.record(i, _bucketAnys(specValueI(i)))
       _bucketAnys(specValueI(i)) = value.asInstanceOf[AnyRef]
     } else {
       // miss, create a new entry
-      append(ref, offset, handle, value, slot, head)
+      append(ref, offset, handle, value, slot)
     }
   }
 
@@ -115,9 +118,8 @@ private[impl] class WriteBuffer {
   private def findOrAllocate(handle: Handle[_]): Int = {
     val ref = handle.ref
     val offset = handle.offset
-    val slot = STMImpl.hash(ref, offset) & (_cap - 1)
-    val head = _dispatch(slot)
-    val i = find(ref, offset, head)
+    val slot = computeSlot(ref, offset)
+    val i = find(ref, offset, _dispatch(slot))
     if (i != 0) {
       // hit, undo log entry is required to capture the potential reads that
       // won't be recorded in this nested txn's read set
@@ -125,18 +127,18 @@ private[impl] class WriteBuffer {
       return i
     } else {
       // miss, create a new entry using the existing data value
-      return append(ref, offset, handle, handle.data, slot, head)
+      return append(ref, offset, handle, handle.data, slot)
     }
   }
 
-  private def append(ref: AnyRef, offset: Int, handle: Handle[_], value: Any, slot: Int, head: Int): Int = {
+  private def append(ref: AnyRef, offset: Int, handle: Handle[_], value: Any, slot: Int): Int = {
     val s = _size + 1
     _bucketAnys(refI(s)) = ref
     _bucketAnys(specValueI(s)) = value.asInstanceOf[AnyRef]
     _bucketAnys(handleI(s)) = handle
     _bucketInts(offsetI(s)) = offset
-    _bucketInts(nextI(s)) = head
-    if (slot >= 0) _dispatch(slot) = s
+    _bucketInts(nextI(s)) = _dispatch(slot)
+    _dispatch(slot) = s
     _size = s
 
     if (shouldGrow) grow()
@@ -160,7 +162,7 @@ private[impl] class WriteBuffer {
     // relink the dispatch array
     var i = 1
     while (i <= _size) {
-      val slot = STMImpl.hash(_bucketAnys(refI(i)), _bucketInts(offsetI(i))) & (_cap - 1)
+      val slot = computeSlot(_bucketAnys(refI(i)), _bucketInts(offsetI(i)))
       _bucketInts(nextI(i)) = _dispatch(slot)
       _dispatch(slot) = i
       i += 1

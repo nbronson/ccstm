@@ -11,7 +11,7 @@ import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 
 class UnlockedNonTxnMap[A,B](underlying: java.util.Map[A,AnyRef]) extends TMap[A,B] {
 
-  def nonTxn = new TMap.Bound[A,B] {
+  def escaped = new TMap.Bound[A,B] {
     def unbind: TMap[A,B] = throw new UnsupportedOperationException
     def context: Option[Txn] = None
 
@@ -40,7 +40,7 @@ class UnlockedNonTxnMap[A,B](underlying: java.util.Map[A,AnyRef]) extends TMap[A
       underlying.put(key, NullValue.encode(value))
     }
 
-    override def removeKey(key: A): Option[B] = {
+    override def remove(key: A): Option[B] = {
       NullValue.decodeOption[B](underlying.remove(key))
     }
 
@@ -87,7 +87,7 @@ class UnlockedNonTxnMap[A,B](underlying: java.util.Map[A,AnyRef]) extends TMap[A
 
   def put(key: A, value: B)(implicit txn: Txn): Option[B] = throw new UnsupportedOperationException
 
-  def removeKey(key: A)(implicit txn: Txn): Option[B] = throw new UnsupportedOperationException
+  def remove(key: A)(implicit txn: Txn): Option[B] = throw new UnsupportedOperationException
 
   protected def transformIfDefined(key: A,
                                    pfOrNull: PartialFunction[Option[B],Option[B]],

@@ -123,6 +123,8 @@ class WakeupManagerSuite extends FunSuite {
         mgr.trigger(mgr.prepareToTrigger(ticket, next))
       }
     }
-    println((System.currentTimeMillis - t0) + " elapsed (including thread creation/shutdown)")
+    val elapsed = System.currentTimeMillis - t0
+    println("ticket(" + numTickets + "," + threadsPerTicket + "," + handoffsPerThread +
+            ") took " + elapsed + " millis total")
   }
 }

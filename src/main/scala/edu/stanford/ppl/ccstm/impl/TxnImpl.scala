@@ -7,7 +7,7 @@ package edu.stanford.ppl.ccstm.impl
 import edu.stanford.ppl.ccstm._
 
 
-abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadContext) extends AbstractTxn {
+private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadContext) extends AbstractTxn {
   import STMImpl._
   import Txn._
 
@@ -16,8 +16,8 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
   // _status and _statusCAS come from StatusHolder via AbstractTxn
 
   private[ccstm] var _callbacks: Callbacks = null
-  private var _readSet: ReadSet = null
-  private var _writeBuffer: WriteBuffer = null
+  private[ccstm] var _readSet: ReadSet = null
+  private[ccstm] var _writeBuffer: WriteBuffer = null
   private var _strongRefSet: StrongRefSet = null
   private var _slot: Slot = 0
 
@@ -26,10 +26,10 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
 
   {
     attach(ctx)
-    _callbacks = ctx.takeCallbacks
-    _readSet = ctx.takeReadSet
-    _writeBuffer = ctx.takeWriteBuffer
-    _strongRefSet = ctx.takeStrongRefSet
+    _callbacks = ctx.takeCallbacks()
+    _readSet = ctx.takeReadSet()
+    _writeBuffer = ctx.takeWriteBuffer()
+    _strongRefSet = ctx.takeStrongRefSet()
     _slot = slotManager.assign(this, ctx.preferredSlot)
   }
 
@@ -38,7 +38,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
    *  value, and that any transaction whose writes conflict with this
    *  transaction will label those writes with a version number greater than
    *  this value.  The read version must never be greater than
-   *  <code>globalVersion.get</code>, must never decrease, and each time it is
+   *  `globalVersion.get`, must never decrease, and each time it is
    *  changed the read set must be revalidated.  Lazily assigned.
    */
   private[impl] var _readVersion: Version = freshReadVersion
@@ -50,6 +50,11 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
   private[ccstm] val explicitRetrying: Boolean = {
     !failureHistory.isEmpty && failureHistory.head.isInstanceOf[ExplicitRetryCause]
   }
+
+  /** `orAtomic` right-hand sides are stashed here before the left-most
+   *  child `atomic` is executed.
+   */
+  private[ccstm] var childAlternatives: List[Txn => Any] = Nil
 
   private def shouldBarge(failureHistory: List[Txn.RollbackCause]) = {
     // barge if we have already had 2 failures since the last explicit retry
@@ -78,7 +83,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
   /** On return, the read version will have been the global version at some
    *  point during the call, the read version will be &ge; minReadVersion, and
    *  all reads will have been validated against the new read version.  Throws
-   *  <code>RollbackError</code> if invalid.
+   *  `RollbackError` if invalid.
    */
   private def revalidate(minReadVersion: Version) {
     _readVersion = freshReadVersion(minReadVersion)
@@ -109,7 +114,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
       val m1 = handle.meta
       if (!changing(m1) || owner(m1) == _slot) {
         if (version(m1) != ver) {
-          forceRollback(InvalidReadCause(handle, "version changed"))
+          forceRollbackLocal(InvalidReadCause(handle, "version changed"))
           return false
         }
         // okay
@@ -117,7 +122,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
       } else if (owner(m1) == NonTxnSlot) {
         // non-txn updates don't set changing unless they will install a new
         // value, so we are the only party that can yield
-        forceRollback(InvalidReadCause(handle, "pending non-txn write"))
+        forceRollbackLocal(InvalidReadCause(handle, "pending non-txn write"))
         return false
       } else {
         // Either this txn or the owning txn must roll back.  We choose to
@@ -139,7 +144,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
           val m2 = handle.meta
           if (changing(m2) && owner(m2) == owner(m1)) {
             if (s.mightCommit) {
-              forceRollback(InvalidReadCause(handle, "pending commit"))
+              forceRollbackLocal(InvalidReadCause(handle, "pending commit"))
               return false
             }
 
@@ -154,8 +159,8 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
 
 
   /** After this method returns, either the current transaction will have been
-   *  rolled back or <code>currentOwner</code> will allow the write resource to
-   *  be acquired.
+   *  rolled back, or it is safe to wait for `currentOwner` to be `Committed`
+   *  or doomed.  
    */
   private[impl] def resolveWriteWriteConflict(currentOwner: TxnImpl, contended: AnyRef) {
     requireActive()
@@ -164,21 +169,39 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
 
     // This test is _almost_ symmetric.  Tie goes to neither.
     if (this.priority <= currentOwner.priority) {
-      if (_writeBuffer.isEmpty) {
-        // We haven't acquired ownership of anything, so we can safely block
-        // without obstructing anybody.
-        currentOwner.awaitCompletedOrDoomed()
-      } else {
-        // We could block here without deadlock if
-        // this.priority < currentOwner.priority, but we are obstructing so we
-        // choose not to.
-        forceRollback(WriteConflictCause(contended, "existing owner wins"))
-        throw RollbackError
-      }
+      resolveAsLoser(currentOwner, contended, false, "owner has higher priority")
     } else {
-      // This will resolve the conflict regardless of whether it succeeds or
-      // fails.
-      currentOwner.requestRollback(WriteConflictCause(contended, "steal from existing owner"))
+      // This will resolve the conflict regardless of whether it succeeds or fails.
+      val s = currentOwner.requestRollback(WriteConflictCause(contended, "steal from existing owner"))
+      if ((s ne Committed) && s.mightCommit) {
+        // s is either Preparing or Committing, so currentOwner's priority is
+        // effectively infinite
+        assert((s eq Preparing) || (s eq Committing))
+        resolveAsLoser(currentOwner, contended, true, (if (s eq Preparing) "owner is preparing" else "owner is committing"))
+      }
+    }
+  }
+
+  private def resolveAsLoser(currentOwner: TxnImpl, contended: AnyRef, ownerIsCommitting: Boolean, msg: String) {
+    // We can block here without deadlock except when the priorities match
+    // exactly and we have acquired write locks.  If currentOwner is already
+    // preparing or committing then they can't perform any more writes, so they
+    // won't need anything we've got. If currentOwner has a strictly larger
+    // priority than this Txn, then it will forcibly take anything that it
+    // needs.
+    //
+    // Our current policy is to roll ourself back and immediately retry if we
+    // have any write locks.  The immediate rollback minimizes convoys, because
+    // otherwise low priority transactions could pile up.  The immediate retry
+    // can lead to spinning, however, if currentOwner is preparing or
+    // committing.  As a heuristic, we guess that we should wait if the owner
+    // is currently preparing or committing, or if we are barging.
+
+    if (!(_writeBuffer.isEmpty && !writeResourcesPresent) &&
+        !ownerIsCommitting &&
+        !(barging && priority < currentOwner.priority)) {
+      forceRollbackLocal(WriteConflictCause(contended, msg))
+      throw RollbackError
     }
   }
 
@@ -191,15 +214,14 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
       }
     })
 
-    forceRollback(new ExplicitRetryCause(_readSet.clone))
+    forceRollbackLocal(new ExplicitRetryCause(_readSet.clone))
     throw RollbackError
   }
 
   private[ccstm] def commitImpl(): Status = {
     try {
-      if (status.mustRollBack || !writeLikeResourcesPrepare()) {
+      if (status.mustRollBack || !callBefore())
         return completeRollback()
-      }
 
       if (_writeBuffer.size == 0 && !writeResourcesPresent) {
         // read-only transactions are easy to commit, because all of the reads
@@ -212,19 +234,28 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
         return _status
       }
 
-      if (!_statusCAS(Active, Validating)) return completeRollback()
-
-      if (!acquireLocks()) return completeRollback()
+      if (!_statusCAS(Active, Validating) || !acquireLocks())
+        return completeRollback()
 
       // this is our linearization point
       val cv = freshCommitVersion(_readVersion, globalVersion.get)
 
       // if the reads are still valid, then they were valid at the linearization
       // point
-      if (!revalidateImpl()) return completeRollback()
+      if (!revalidateImpl())
+        return completeRollback()
 
-      // attempt to decide commit
-      if (!_statusCAS(Validating, Committing)) return completeRollback()
+      if (writeResourcesPresent) {
+        // write resources don't have to contend with cancel by other threads
+        if (!_statusCAS(Validating, Preparing) || !writeResourcesPrepare())
+          return completeRollback()
+
+        assert(_status eq Preparing)
+        _status = Committing
+      } else {
+        // attempt to decide commit
+        if (!_statusCAS(Validating, Committing)) return completeRollback()
+      }
 
       commitWrites(cv)
       writeResourcesPerformCommit()
@@ -339,19 +370,33 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
     wakeupManager.trigger(wakeups)
   }
 
-  private[ccstm] def requestRollbackImpl(cause: RollbackCause): Boolean = {
-    while (true) {
-      val s = _status
-      if (s.mustCommit) {
-        return false
-      } else if (s.mustRollBack) {
-        return true
-      } else {
-        assert(s == Active || s == Validating)
-        if (_statusCAS(s, RollingBack(cause))) return true
-      }
+  private[ccstm] def forceRollbackImpl(cause: RollbackCause) {
+    if (Txn.dynCurrentOrNull ne this)
+      throw new IllegalStateException("forceRollback may only be called on Txn's thread, use requestRollback instead")
+    forceRollbackLocal(cause)
+  }
+
+  /** Does the work of `forceRollback` without the thread identity check. */
+  private[ccstm] def forceRollbackLocal(cause: RollbackCause) {
+    var s = _status
+    while (!s.mustRollBack) {
+      if (s.mustCommit)
+        throw new IllegalStateException("forceRollback after commit is inevitable")
+
+      assert((s eq Active) || (s eq Validating) || (s eq Preparing))
+      _statusCAS(s, RollingBack(cause))
+      s = _status
     }
-    throw new Error("unreachable")
+  }
+
+  private[ccstm] def requestRollbackImpl(cause: RollbackCause): Status = {
+    var s = _status
+    while (s.remotelyCancellable) {
+      assert((s eq Active) || (s eq Validating))
+      _statusCAS(s, RollingBack(cause))
+      s = _status
+    }
+    s
   }
 
   private[ccstm] def explicitlyValidateReadsImpl() {
@@ -436,7 +481,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
     return value
   }
 
-  def map[T,Z](handle: Handle[T], f: T => Z): Z = {
+  def getWith[T,Z](handle: Handle[T], f: T => Z): Z = {
     if (barging) return f(readForWrite(handle))
 
     val u = unrecordedRead(handle)
@@ -477,6 +522,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
   }
 
   def unrecordedRead[T](handle: Handle[T]): UnrecordedRead[T] = {
+    // TODO: we could make this active, validating, or preparing if necessary
     requireActiveOrValidating()
 
     var m1 = handle.meta
@@ -491,7 +537,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
         while (changing(m0)) {
           if (_status eq Txn.Validating) {
             // can't wait
-            forceRollback(Txn.InvalidReadCause(handle, "contended unrecordedRead while validating"))
+            forceRollbackLocal(Txn.InvalidReadCause(handle, "contended unrecordedRead while validating"))
             throw RollbackError
           }
           weakAwaitUnowned(handle, m0)
@@ -500,7 +546,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
         if (version(m0) > _readVersion) {
           if (_status eq Txn.Validating) {
             // can't wait
-            forceRollback(Txn.InvalidReadCause(handle, "unrecordedRead of future value while validating"))
+            forceRollbackLocal(Txn.InvalidReadCause(handle, "unrecordedRead of future value while validating"))
             throw RollbackError
           }
           revalidate(version(m0))
@@ -576,7 +622,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
     revalidateIfRequired(version(m))
   }
   
-  def getAndSet[T](handle: Handle[T], v: T): T = {
+  def swap[T](handle: Handle[T], v: T): T = {
     requireActive()
 
     val m0 = handle.meta
@@ -595,7 +641,7 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
     handle.data
   }
 
-  def tryWrite[T](handle: Handle[T], v: T): Boolean = {
+  def trySet[T](handle: Handle[T], v: T): Boolean = {
     requireActive()
 
     val m0 = handle.meta
@@ -642,14 +688,6 @@ abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], ctx: ThreadConte
       def isDefinedAt(v: T): Boolean = (before eq v.asInstanceOf[AnyRef])
       def apply(v: T): T = after
     })
-  }
-
-  def weakCompareAndSet[T](handle: Handle[T], before: T, after: T): Boolean = {
-    compareAndSet(handle, before, after)
-  }
-
-  def weakCompareAndSetIdentity[T, R <: T with AnyRef](handle: Handle[T], before: R, after: T): Boolean = {
-    compareAndSetIdentity(handle, before, after)
   }
 
   def getAndTransform[T](handle: Handle[T], f: T => T): T = {

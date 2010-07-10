@@ -1,0 +1,59 @@
+    ----
+    Exception Handling in Transactions
+    ----
+
+CCSTM - Exception Handling in Transactions
+
+  <<Important:>> Until partial rollback of nested transactions
+  ({{{http://github.com/nbronson/ccstm/issues#issue/4}issue #4}}) is
+  completed, exceptions thrown by a nested transaction and caught in an
+  outer transaction will not have the same semantics as those thrown at
+  the top level.
+
+* User exceptions => rollback + propagate
+
+  An exception thrown from inside to outside an atomic block will
+  cause the transaction to be rolled back and then the exception will
+  be rethrown without retrying the transaction.  This is not the only
+  possible semantics, but in programs that do not use exceptions
+  for control flow it minimizes the chances that partial results
+  will be committed.  Note that because CCSTM provides opacity (even
+  partially-completed transactions are guaranteed to be consistent),
+  it is not possible for an inconsistent transaction to incorrectly
+  throw an exception.
+
+  If you want to commit an atomic block prior to propagating an exception,
+  try something like the following:
+
+----
+atomic { implicit t =>
+  try {
+    Left(... body ...)
+  } catch {
+    case x => Right(x)
+  }
+} match {
+  case Left(v) => v case Right(x) => throw x
+}
+----
+
+* Exceptions thrown by registered callbacks
+
+  If a transaction life-cycle callback or resource handler throws an
+  exception before the transaction has decided to commit, the transaction
+  will be rolled back.  The exception will be rethrown after rollback
+  or commit is complete; the remaining callbacks and handlers will
+  be invoked.  If more than one exception is caught only one of them
+  will be rethrown.  If an exception occurs after a decision to commit,
+  it will be passed to <<<Txn.handlePostDecisionException>>> and the
+  transaction will still be committed.
+
+* Internally thrown exceptions subclass RollbackError
+
+  Rollback of an in-progress transaction requires a non-local transfer
+  of control, which is accomplished by throwing <<<RollbackError>>>.
+  This will occur if a transaction becomes invalid or if it is explicitly
+  retried by the user.  <<<edu.stanford.ppl.ccstm.RollbackError>>>
+  should be allowed to propagate.  Rollbacks use <<<Error>>>s instead
+  of <<<Exception>>>s because it is common (if questionable) to catch
+  all <<<Exception>>> instances in error handling code.

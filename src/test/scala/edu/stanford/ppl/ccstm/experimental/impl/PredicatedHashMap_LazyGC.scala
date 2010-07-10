@@ -9,7 +9,6 @@ import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import java.util.concurrent.ConcurrentHashMap
 import edu.stanford.ppl.ccstm.{STM, Txn}
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater
-import edu.stanford.ppl.ccstm.collection.{IdentityPair, TIdentityPairRef}
 
 private object PredicatedHashMap_LazyGC {
 
@@ -99,11 +98,11 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
     }
   }
 
-  def nonTxn: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_LazyGC[A,B]](this) {
+  def escaped: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_LazyGC[A,B]](this) {
 
     def get(key: A): Option[B] = {
       val p = predicates.get(key)
-      if (p == null) None else decodePair(p.nonTxn.get)
+      if (p == null) None else decodePair(p.escaped.get)
     }
 
     override def put(key: A, value: B): Option[B] = {
@@ -112,7 +111,7 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
 
     private def putImpl(key: A, value: B, p: Predicate[A,B]): Option[B] = {
 
-      // put is harder than removeKey because removeKey can blindly write None
+      // put is harder than remove because remove can blindly write None
       // to a stale entry without causing problems
 
       if (null != p) {
@@ -124,16 +123,16 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
             if (tokenRef.isWeak) {
               // this predicate is already in its most general state, and it is
               // active, so we will always succeed
-              return decodePair(p.nonTxn.getAndSet(IdentityPair(token, value)))
+              return decodePair(p.escaped.swap(IdentityPair(token, value)))
             } else {
               // the predicate is strong, but we can still perform a Some -> Some
               // transition
-              val prevPair = p.nonTxn.get
-              if (null != prevPair && p.nonTxn.compareAndSet(prevPair, IdentityPair(token, value))) {
+              val prevPair = p.escaped.get
+              if (null != prevPair && p.escaped.compareAndSet(prevPair, IdentityPair(token, value))) {
                 // success
                 return Some(prevPair._2)
               } else if (null != ensureWeak(key, p)) {
-                return decodePair(p.nonTxn.getAndSet(IdentityPair(token, value)))
+                return decodePair(p.escaped.swap(IdentityPair(token, value)))
               }
               // else p is stale and must be replaced
             }
@@ -171,10 +170,10 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
         }
       }
       
-      decodePair(freshPred.nonTxn.getAndSet(IdentityPair(freshToken, value)))
+      decodePair(freshPred.escaped.swap(IdentityPair(freshToken, value)))
     }
 
-    override def removeKey(key: A): Option[B] = {
+    override def remove(key: A): Option[B] = {
       val p = predicates.get(key)
       if (null == p) {
         // no predicate means no entry, as for get()
@@ -188,7 +187,7 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
       // only wrinkle is that we can't clean up the strong ref if we observe
       // absence, because another txn may have created the predicate but not
       // yet done the store to populate it.
-      val prevPair = p.nonTxn.getAndSet(null)
+      val prevPair = p.escaped.swap(null)
       if (null == prevPair) {
         // Not previously present, somebody else's cleanup problem.  The
         // predicate may have been stale, and already removed.
@@ -320,7 +319,7 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
       val ref = pred.tokenRef
       val token = if (null == ref) null else ref.get
       if (null != token) {
-        return decodePair(pred.getAndSet(IdentityPair(token, value)))
+        return decodePair(pred.swap(IdentityPair(token, value)))
       }
     }
 
@@ -342,24 +341,24 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
     // predicate is in the strong + active + absent state, must take
     // responsibility for removing it.  That will happen if this transaction
     // rolls back.  We install using afterCompletion so that a subsequent
-    // removeKey in this txn can enable CreationInfo.removeOncommit.
+    // remove in this txn can enable CreationInfo.removeOncommit.
     txn.afterCompletion(freshPred.creationInfo)
 
     // We have to perform a txn read from the new predicate, because another
     // txn may have already updated it.  We don't, however, have to do all of
     // the normal work, because there is no way that the predicate could have
     // become stale.
-    decodePair(freshPred.getAndSet(IdentityPair(freshToken, value)))
+    decodePair(freshPred.swap(IdentityPair(freshToken, value)))
   }
 
-  def removeKey(key: A)(implicit txn: Txn): Option[B] = {
+  def remove(key: A)(implicit txn: Txn): Option[B] = {
     val pred = predicates.get(key)
     if (null != pred) {
       if (pred.createdBy(txn)) {
         // We now have knowledge that if this txn commits, the predicate should
         // be cleaned up.  Also, we don't need to weaken it.
         pred.creationInfo.removeOnCommit = true
-        return decodePair(pred.getAndSet(null))
+        return decodePair(pred.swap(null))
       }
 
       val txnState = pred.bind.readForWrite
@@ -391,7 +390,7 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
     val result = getImpl(key, null)
     if (!result.isEmpty) {
       // guess we have to remove after all
-      return removeKey(key)
+      return remove(key)
     } else {
       // expected
       return None
@@ -419,7 +418,7 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
 //    } else {
 //      f(v0) match {
 //        case Some(v) => put(key, v)
-//        case None => removeKey(key)
+//        case None => remove(key)
 //      }
 //      true
 //    }

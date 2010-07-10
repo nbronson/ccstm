@@ -1,0 +1,57 @@
+    ----
+    Quick Start
+    ----
+
+CCSTM - Quick Start
+
+  1. Import <<<edu.stanford.ppl.ccstm._>>>
+
+  2. Replace shared mutable <<<var>>>s with <<<Ref[A]>>> <<<val>>>s.
+     The factory methods in <<<Ref>>>'s companion object will return an
+     instance specialized to the contained type.  (If <<<A>>> is unknown at
+     compile time a <<<ClassManifest>>> must be available.)
+
+----
+class Node(val elem: Int, next0: Node) {
+  val next = Ref(next0)
+}
+----
+
+  3. Read a <<<Ref x>>>'s contents with <<<x()>>>, update it with
+     <<<x() = v>>>.  (These functions are <<<apply()>>> and
+     <<<update(v)>>> respectively.)
+
+  4. Wrap your code in an atomic block at whatever granularity makes sense for
+     your application.  CCSTM will run atomic blocks in parallel using
+     optimistic concurrency control, automatically retrying until successful.
+     CCSTM only manages data accessed through <<<Ref>>>s.
+
+----
+val top = Ref(null : Node) // or Ref[Node](null)
+
+def push(elem: Int) {
+  atomic { implicit t =>
+    top() = new Node(elem, top())
+  }
+}
+----
+
+  5. Compose atomic blocks by nesting them.
+
+----
+def pushAll(elems: A*) {
+  atomic { implicit t =>
+    elems foreach { push(_) }
+  }
+}
+----
+
+  6. Optimize single-operation transactions using <<<Ref.single>>>.
+
+----
+def isEmpty = top.single() == null
+//def isEmpty = atomic { implicit t => top() == null }
+
+def clear() { top.single() = null }
+// def clear() { atomic { implicit t => top() = null } }
+----

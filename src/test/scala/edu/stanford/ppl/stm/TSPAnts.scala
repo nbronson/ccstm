@@ -65,7 +65,7 @@ object TSPAnts {
     val dx = a.x - b.x
     val dy = a.y - b.y
     val d2 = dx*dx + dy*dy
-    Math.sqrt(d2.toDouble).ceil.toInt
+    math.sqrt(d2.toDouble).ceil.toInt
   }
 
   val Q = 100.0
@@ -87,7 +87,7 @@ object TSPAnts {
   val pheromones = Map.empty[Edge,Ref[Double]] ++ (for (e <- edges.toList) yield (e -> Ref(InitP)))
 
   def prob(edge: Edge)(implicit txn: Txn) = {
-    Math.pow(pheromones(edge)(), PFactor) * Math.pow(1.0 / distances(edge), DFactor)
+    math.pow(pheromones(edge)(), PFactor) * math.pow(1.0 / distances(edge), DFactor)
   }
 
   val probs = Map.empty[Edge,Ref[Double]] ++ (for (e <- edges.toList) yield (e -> Ref(STM.atomic(prob(e)(_)))))
@@ -103,15 +103,15 @@ object TSPAnts {
     val state = Ref(0)
     start()
     def act {
-      while (running) receive { case f => state.nonTxn.transform(f.asInstanceOf[(Int=>Int)]) }
+      while (running) receive { case f => state.single.transform(f.asInstanceOf[(Int=>Int)]) }
     }
   }
 
   def tickAction(cnt: Int) = {
     val newCnt = cnt + 1
-    if ((newCnt % ants.nonTxn.get.length) == 0) {
+    if ((newCnt % ants.single.get.length) == 0) {
       for (p <- pheromones.valuesIterator) {
-        p.nonTxn.transform(_ * EFactor)
+        p.single.transform(_ * EFactor)
       }
     }
     newCnt
@@ -132,7 +132,7 @@ object TSPAnts {
     loop(0, 0.0)
   }
 
-  def getProb(from: City, to: City) = probs(Edge(from, to)).nonTxn.get
+  def getProb(from: City, to: City) = probs(Edge(from, to)).single.get
 
   def nextStop(node: City, togo: Set[City]) = {
     val vec = togo.toArray
@@ -165,19 +165,19 @@ object TSPAnts {
       // drop pheromones, recalc edge probs
       for (p <- t.zip(t.tail)) {
         val edge = Edge(p._1, p._2)
-        new Atomic { def body {
+        atomic { implicit txn =>
           pheromones(edge).transform(_ + Q / len)
-          probs(edge) := prob(edge)
-        }}.run
+          probs(edge)() = prob(edge)
+        }
       }
       // are we the new best?
-      if (len < bestLength.nonTxn.get) {
-        new Atomic { def body {
+      if (len < bestLength.single.get) {
+        atomic { implicit txn =>
           if (len < bestLength()) {
-            bestLength := len
-            bestTour := t
+            bestLength() = len
+            bestTour() = t
           }
-        }}.run
+        }
         brag(len, t)
       }
       // counters, evap
@@ -187,10 +187,10 @@ object TSPAnts {
   }
 
   def run(nants: Int) = {
-    ants.nonTxn := Array.tabulate(nants)({ _ => new Thread {
+    ants.single() = Array.tabulate(nants)({ _ => new Thread {
       override def run { tourLoop }
     }})
-    for (ant <- ants.nonTxn.get) ant.start
+    for (ant <- ants.single.get) ant.start
     'running
   }
 
@@ -202,7 +202,7 @@ object TSPAnts {
       Thread.sleep(4000)
       val secs = (System.currentTimeMillis - start) / 1000.0
       printf("Running %d nodes, %d ants, %d tours, %4.3f seconds, %3.2f per second, best-so-far: %d optimal: %d\n",
-             nodes.size, nants, tourCount.get, secs, tourCount.get / secs, bestLength.nonTxn.get, optimalDistance)
+             nodes.size, nants, tourCount.get, secs, tourCount.get / secs, bestLength.single.get, optimalDistance)
       // (dorun (map deref @ants))
     }
   }

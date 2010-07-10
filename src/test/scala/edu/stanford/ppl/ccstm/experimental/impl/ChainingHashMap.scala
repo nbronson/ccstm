@@ -5,10 +5,11 @@
 package edu.stanford.ppl.ccstm.experimental.impl
 
 import reflect.Manifest
-import edu.stanford.ppl.ccstm.collection.{LazyConflictIntRef, TAnyRef, TArray}
 import edu.stanford.ppl.ccstm.experimental.TMap
 import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm._
+import collection.TArray
+import impl.LazyConflictRef
 
 object ChainingHashMap {
   private class Bucket[K,V](val hash: Int, val key: K, val value: V, val next: Bucket[K,V]) {
@@ -36,7 +37,7 @@ class ChainingHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TM
   import ChainingHashMap._
 
   private val bucketsRef = Ref(TArray[Bucket[K,V]](16))
-  private val sizeRef = new LazyConflictIntRef(0)
+  private val sizeRef = new LazyConflictRef(0)
 
   private def hash(key: K) = {
     // this is the bit mixing code from java.util.HashMap
@@ -47,17 +48,17 @@ class ChainingHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TM
   }
 
 
-  def nonTxn: Bound[K,V] = new TMap.AbstractNonTxnBound[K,V,ChainingHashMap[K,V]](ChainingHashMap.this) {
+  def escaped: Bound[K,V] = new TMap.AbstractNonTxnBound[K,V,ChainingHashMap[K,V]](ChainingHashMap.this) {
 
-    override def size: Int = sizeRef.nonTxn.get
+    override def size: Int = sizeRef.escaped.get
 
     // This uses unrecordedRead, a CCSTM special op.
 //    def get(key: K): Option[V] = {
 //      // attempt an ad-hoc txn first
 //      val h = hash(key)
-//      val unrecorded = bucketsRef.nonTxn.unrecordedRead
+//      val unrecorded = bucketsRef.escaped.unrecordedRead
 //      val buckets = unrecorded.value
-//      val head = buckets.nonTxn(h & (buckets.length - 1))
+//      val head = buckets.escaped(h & (buckets.length - 1))
 //      if (unrecorded.stillValid) {
 //        // coherent read of bucketsRef and buckets(i)
 //        val bucket = if (null == head) null else head.find(h, key)
@@ -72,9 +73,9 @@ class ChainingHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TM
     def get(key: K): Option[V] = {
       // attempt an ad-hoc txn first
       val h = hash(key)
-      val buckets = bucketsRef.nonTxn.get
-      val head = buckets.nonTxn(h & (buckets.length - 1))
-      if (bucketsRef.nonTxn.get eq buckets) {
+      val buckets = bucketsRef.escaped.get
+      val head = buckets.escaped(h & (buckets.length - 1))
+      if (bucketsRef.escaped.get eq buckets) {
         // coherent read of bucketsRef and buckets(i)
         val bucket = if (null == head) null else head.find(h, key)
         if (null == bucket) None else Some(bucket.value)
@@ -88,8 +89,8 @@ class ChainingHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TM
       STM.atomic(unbind.put(key, value)(_))
     }
 
-    override def removeKey(key: K): Option[V] = {
-      STM.atomic(unbind.removeKey(key)(_))
+    override def remove(key: K): Option[V] = {
+      STM.atomic(unbind.remove(key)(_))
     }
 
     protected def transformIfDefined(key: K,
@@ -155,7 +156,7 @@ class ChainingHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TM
     }
   }
 
-  def isEmpty(implicit txn: Txn): Boolean = sizeRef > 0
+  def isEmpty(implicit txn: Txn): Boolean = sizeRef getWith { _ > 0 }
 
   def size(implicit txn: Txn): Int = sizeRef.get
 
@@ -180,7 +181,7 @@ class ChainingHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TM
       // size change
       sizeRef += 1
       val n = buckets.length
-      if (sizeRef > n - n/4) {
+      if (sizeRef getWith { _ > n - n/4 }) {
         grow()
       }
       None
@@ -189,7 +190,7 @@ class ChainingHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TM
     }
   }
 
-  def removeKey(key: K)(implicit txn: Txn): Option[V] = {
+  def remove(key: K)(implicit txn: Txn): Option[V] = {
     val h = hash(key)
     val buckets = bucketsRef.get
     val i = h & (buckets.length - 1)
@@ -234,7 +235,7 @@ class ChainingHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TM
       // bigger
       sizeRef += 1
       val n = buckets.length
-      if (sizeRef > n - n/4) {
+      if (sizeRef getWith { _ > n - n/4 }) {
         grow()
       }
     }
@@ -262,6 +263,6 @@ class ChainingHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TM
     // now create the transactional array, giving ourself up to 512 metadata
     // locations, with neighboring array elements getting different metadata
     // mappings
-    bucketsRef := TArray(after, TArray.Striped(512))
+    bucketsRef() = TArray(after, TArray.Striped(512))
   }
 }

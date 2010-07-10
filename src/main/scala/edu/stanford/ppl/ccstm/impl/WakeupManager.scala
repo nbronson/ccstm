@@ -21,9 +21,9 @@ private[impl] final class WakeupManager(numChannels: Int, numSources: Int) {
   private val pending = new AtomicLongArray(numSources)
   private val events = new AtomicReferenceArray[Event](numChannels * ChannelSpacing)
   
-  /** The returned value must later be passed to <code>trigger</code>.
+  /** The returned value must later be passed to `trigger`.
    *  Multiple return values may be passed to a single invocation of
-   *  <code>trigger</code> by merging them with bitwise-OR.
+   *  `trigger` by merging them with bitwise-OR.
    */
   def prepareToTrigger(ref: AnyRef, offset: Int): Long = {
     val i = hash(ref, offset) & (numSources - 1)
@@ -34,11 +34,11 @@ private[impl] final class WakeupManager(numChannels: Int, numSources: Int) {
     z
   }
 
-  /** Completes the wakeups started by <code>prepareToTrigger</code>.  If a
-   *  thread completes <code>e = subscribe; e.addSource(r,o)</code> prior to
-   *  a call to <code>prepareToTrigger(r,o)</code> call whose return value is
-   *  included in <code>wakeups</code>, then any pending call to
-   *  <code>e.await</code> will return now and any future calls will return
+  /** Completes the wakeups started by `prepareToTrigger`.  If a
+   *  thread completes `e = subscribe; e.addSource(r,o)` prior to
+   *  a call to `prepareToTrigger(r,o)` call whose return value is
+   *  included in `wakeups`, then any pending call to
+   *  `e.await` will return now and any future calls will return
    *  immediately.
    */
   def trigger(wakeups: Long) {
@@ -84,7 +84,7 @@ private[impl] final class WakeupManager(numChannels: Int, numSources: Int) {
     if (null != e && events.compareAndSet(i, e, null)) e.trigger
   }
 
-  /** See <code>trigger</code>. */
+  /** See `trigger`. */
   def subscribe: Event = {
     // Picking the waiter's identity using the thread hash means that there is
     // a possibility that we will get repeated interference with another thread
@@ -95,13 +95,12 @@ private[impl] final class WakeupManager(numChannels: Int, numSources: Int) {
 
   private def subscribe(channel: Int): Event = {
     val i = channel * ChannelSpacing
-    while (true) {
+    (while (true) {
       val existing = events.get(i)
       if (null != existing) return existing
       val fresh = new Event(channel)
       if (events.compareAndSet(i, null, fresh)) return fresh
-    }
-    throw new Error("unreachable")
+    }).asInstanceOf[Nothing]
   }
 
   class Event(channel: Int) {

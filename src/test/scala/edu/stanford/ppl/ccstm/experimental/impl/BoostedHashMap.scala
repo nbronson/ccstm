@@ -12,7 +12,7 @@ import java.util.concurrent.locks._
 import java.util.concurrent.{ConcurrentMap, TimeUnit, ConcurrentHashMap}
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater
 
-/** An transactionally boosted <code>ConcurrentHashMap</code>, implemented
+/** An transactionally boosted `ConcurrentHashMap`, implemented
  *  directly from M. Herlify and E. Koskinen, <em>Transactional Boosting: A
  *  Methodology for Highly-Concurrent Transactional Objects</em>, PPoPP 2008.
  *  <p>
@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater
  *  write access (preventing concurrent reads of the same key).
  *  <p>
  *  The current implementation uses ReentrantLock-s internally, so it does not
- *  protect against concurrent access by multiple Txn (or nonTxn) that happen
+ *  protect against concurrent access by multiple Txn (or escaped) that happen
  *  to share a thread.  Most STMs have an implicit association between the
  *  current transaction context and the current thread, but this is not present
  *  in CCSTM.
@@ -36,7 +36,7 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater
 class BoostedHashMap_Basic[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.BasicLockHolder[A], null)
 
 /** Adds an abstract lock to coordinate transactional enumeration to
- *  <code>BoostedHashMap_Basic</code>.  The best implementation of this lock
+ *  `BoostedHashMap_Basic`.  The best implementation of this lock
  *  would use a multi-mode lock where enumeration was mode S and size change IX
  *  (see Y. Ni, V. Menon, A. Adl-Tabatabai, A. Hosking, R. Hudson, J. Moss, B.
  *  Saha, and T. Shpeisman, <em>Open Nesting in Software Transactional
@@ -48,12 +48,12 @@ class BoostedHashMap_Basic[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.B
 class BoostedHashMap_Enum[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.BasicLockHolder[A], new ReentrantReadWriteLock)
 
 /** Adds garbage collection of unused abstract locks to
- *  <code>BoostedHashMap_Basic</code>.  Uses weak references.
+ *  `BoostedHashMap_Basic`.  Uses weak references.
  */
 class BoostedHashMap_GC[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.GCLockHolder[A], null)
 
 /** Uses read/write locks to guard access to keys, rather than the mutexes of
- *  <code>BoostedHashMap_Basic</code>.  This potentially allows greater
+ *  `BoostedHashMap_Basic`.  This potentially allows greater
  *  concurrency during reads, but may have higher overheads.
  */
 class BoostedHashMap_RW[A,B] extends BoostedHashMap[A,B](new BoostedHashMap.RWLockHolder[A], null)
@@ -430,7 +430,7 @@ object BoostedHashMap {
               // takes on the order of a microsecond (300 nanos on my dual-core
               // laptop), so we use it instead.  The starting point is an
               // expected backoff of 500 nanoseconds.
-              val maxNanos = 1000 << Math.min(r, 14)
+              val maxNanos = 1000 << math.min(r, 14)
               val delay = FastSimpleRandom.nextInt(maxNanos)
               val t0 = System.nanoTime
               while (System.nanoTime < t0 + delay) Thread.`yield`
@@ -466,7 +466,7 @@ class BoostedHashMap[A,B](lockHolder: BoostedHashMap.LockHolder[A], enumLock: Re
                                           if (null == enumLock) null else enumLock.writeLock,
                                           if (null == enumLock) null else enumLock.readLock)
 
-  val nonTxn: TMap.Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,BoostedHashMap[A,B]](BoostedHashMap.this) {
+  val escaped: TMap.Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,BoostedHashMap[A,B]](BoostedHashMap.this) {
 
     def get(key: A): Option[B] = {
       // lockHolder implementations that garbage collect locks cannot perform
@@ -504,7 +504,7 @@ class BoostedHashMap[A,B](lockHolder: BoostedHashMap.LockHolder[A], enumLock: Re
       NullValue.decodeOption(prev)
     }
 
-    override def removeKey(key: A): Option[B] = {
+    override def remove(key: A): Option[B] = {
       val lock = lockHolder.existingWriteLock(key)
       if (null == lock) return None
       
@@ -667,7 +667,7 @@ class BoostedHashMap[A,B](lockHolder: BoostedHashMap.LockHolder[A], enumLock: Re
     NullValue.decodeOption(prev)
   }
 
-  override def removeKey(key: A)(implicit txn: Txn): Option[B] = {
+  override def remove(key: A)(implicit txn: Txn): Option[B] = {
     val ctx = booster.context
     ctx.lockForWrite(key)
     if (null != enumLock) {

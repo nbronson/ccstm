@@ -1,0 +1,57 @@
+#!/usr/bin/python
+
+import re
+import math
+import sys
+
+def load(filename):
+  #print "loading %s" % (filename)
+  num_re = re.compile('([0-9][0-9.]*) (msec|millis|nanos|ops|handoffs)')
+  inv_ops = set(('ops', 'handoffs'))
+  result = {}
+  for line in open(filename, 'r').readlines():
+    nums = num_re.search(line)
+    if nums:
+      key = num_re.sub('#', line).strip()
+      v = float(nums.group(1))
+      if nums.group(2) in inv_ops:
+        v = 1.0 / v
+      if v > 0:
+        result[key] = v
+  return result
+
+def process(filenames):
+  data = []
+  keys = set()
+  for f in filenames:
+    d = load(f)
+    data.append(d)
+    keys = keys.union(d.keys())
+  kk = list(keys)
+  kk.sort()
+  for k in kk:
+    processKey(k, data)
+
+def processKey(key, data):
+  n = 0
+  sum = 0.0
+  sumSq = 0.0
+  for d in data:
+    if key in d:
+      logV = math.log(d[key])
+      n += 1
+      sum += logV
+      sumSq += logV * logV
+  dev = math.sqrt(sumSq / n - sum * sum / (n * n) + 1e-9)
+  scores = []
+  for d in data:
+    if key in d:
+      logV = math.log(d[key])
+      change = logV - sum / n
+      s = max(-5, min(5, change / dev))
+      scores.append("%0.1f" % s)
+    else:
+      scores.append("_")
+  print "%s | %s" % (",".join(scores), key)
+
+process(sys.argv[1:])

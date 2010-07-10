@@ -5,11 +5,15 @@
 package edu.stanford.ppl.ccstm.collection
 
 import edu.stanford.ppl.ccstm._
-import edu.stanford.ppl.ccstm.impl.Handle
+import impl.{RefOps, Handle}
 import java.util.concurrent.atomic.AtomicLongArray
 import scala.reflect.ClassManifest
 import scala.collection._
 
+/** An object that provides factory methods for `TArray` instances.
+ *
+ *  @author Nathan bronson
+ */
 object TArray {
   def apply[T](length: Int)(implicit m: ClassManifest[T]) = new TArray[T](length)
   def apply[T](length: Int, metaMapping: TArray.MetaMapping)(implicit m: ClassManifest[T]) = new TArray[T](length, metaMapping)
@@ -26,41 +30,84 @@ object TArray {
   def apply[T](data: Traversable[T])(implicit m: ClassManifest[T]) = new TArray[T](data)
   def apply[T](data: Traversable[T], metaMapping: TArray.MetaMapping)(implicit m: ClassManifest[T]) = new TArray[T](data, metaMapping)
 
-  
-  trait Bound[T] extends mutable.IndexedSeq[T] {
+
+  /** A view that supports accesses to a `TArray` instance outside the static
+   *  scope of a `Txn`.
+   *  @see edu.stanford.ppl.ccstm.Ref.View
+   */
+  trait View[T] extends mutable.IndexedSeq[T] {
+    /** The `TArray` from which this view was created. */
     def unbind: TArray[T]
-    def context: Option[Txn]
+
+    def mode: AccessMode
     def length: Int = unbind.length
+
+    /** Reads the `index`th element of `unbind` in the bound context. */
     def apply(index: Int): T
+
+    /** Writes the `index`th element of `unbind` in the bound context. */ 
     def update(index: Int, v: T)
-    def refs: immutable.IndexedSeq[Ref.Bound[T]]
+
+    /** Generates `Ref.View` instances on demand for elements of `unbind`.  All
+     *  operations on the returned element views are supported.
+     */
+    def refs: immutable.IndexedSeq[Ref.View[T]]
   }
 
-  /** <code>MetaMapping</code> defines the mapping from elements of the array
+  /** `MetaMapping` defines the mapping from elements of the array
    *  to the metadata entries used by the STM to protect those elements.
    *  Elements of the array that share a metadata entry may cause conflicts or
    *  contention if accessed by concurrent transactions, at least one of which
    *  is writing.  Minimal contention is realized by having a separate metadata
    *  entry for each array element, but this also maximizes the storage
-   *  overhead introduced by <code>TArray</code>.  Minimal storage overhead is
+   *  overhead introduced by `TArray`.  Minimal storage overhead is
    *  realized by having only a single metadata element, but this prevents
    *  concurrent writes to any element of the array.
-   *  <p>
-   *  A <code>MetaMapping</code> is defined by three parameters,
-   *  <code>dataPerMeta</code>, <code>maxMeta</code>, and
-   *  <code>neighboringDataPerMeta</code>.  The first two are used to determine
+   *
+   *  A `MetaMapping` is defined by three parameters, `dataPerMeta`, `maxMeta`,
+   *  and `neighboringDataPerMeta`.  The first two are used to determine
    *  the number of metadata entries that will be allocated, the last is used
    *  to map indices in the data array to indices in the metadata array.
+   *
+   *  Several predefined `MetaMapping` instances are present in the `TArray`
+   *  object.
    */
   sealed case class MetaMapping(dataPerMeta: Int, maxMeta: Int, neighboringDataPerMeta: Int)
 
+  /** The `MetaMapping` that maximizes parallelism at the expense of space. */
   val MaximizeParallelism = MetaMapping(1, Int.MaxValue, 1)
+
+  /** The `MetaMapping` that absolutely minimizes space, at the expense of
+   *  serializing writes to separate locations by concurrent transactions.
+   */
   val MinimizeSpace = MetaMapping(1, 1, 1)
+
+  /** A `MetaMapping` that allows neighboring entries to be written in parallel
+   *  by concurrent transactions, but that fixes the total metadata independent
+   *  of the data size.  This policy is vulnerable to the birthday paradox, but
+   *  works well when contention is not too high.
+   */
   def Striped(stripeCount: Int) = MetaMapping(1, stripeCount, 1)
+
+  /** A `MetaMapping` that evenly divides the index space into a fixed number
+   *  of chunks, and allows parallelism only for concurrent writes to separate
+   *  chunks. This policy is vulnerable to the birthday paradox.
+   */
   def Chunked(chunkSize: Int) = MetaMapping(chunkSize, Int.MaxValue, chunkSize)
+
+  /** `Striped(16)`. */
   val DefaultMetaMapping = Striped(16)
 }
 
+/** Bulk transactional storage, roughly equivalent to `Array[Ref[T]]` but much
+ *  more space efficient.  Elements are stored internally without boxing, and
+ *  the mapping from data to metadata can be configured to maximize the
+ *  potential parallelism or to minimize space overheads.  The length cannot be
+ *  changed.
+ *
+ *  Elements can be read and written directly, or transient `Ref` instances can
+ *  be obtained (`array.refs(index)`) for more sophisticated operations.
+ */
 class TArray[T](private val _data: AtomicArray[T], metaMapping: TArray.MetaMapping) {
   import TArray._
 
@@ -77,28 +124,43 @@ class TArray[T](private val _data: AtomicArray[T], metaMapping: TArray.MetaMappi
   def apply(index: Int)(implicit txn: Txn) = getRef(index).get
   def update(index: Int, v: T)(implicit txn: Txn) = getRef(index).set(v)
 
-  def bind(implicit txn: Txn): Bound[T] = new Bound[T] {
+  def bind(implicit txn: Txn): View[T] = new View[T] {
     def unbind = TArray.this
-    def context = Some(txn)
+    def mode: AccessMode = txn
     def apply(index: Int): T = getRef(index).get
     def update(index: Int, v: T) = getRef(index).set(v)
-    def refs: immutable.IndexedSeq[Ref.Bound[T]] = new immutable.IndexedSeq[Ref.Bound[T]] {
+    def refs: immutable.IndexedSeq[Ref.View[T]] = new immutable.IndexedSeq[Ref.View[T]] {
       def length = unbind.length
       def apply(index: Int) = getRef(index).bind
     }
   }
 
-  def nonTxn: Bound[T] = new Bound[T] {
+  def single: View[T] = new View[T] {
     def unbind = TArray.this
-    def context = None
-    def apply(index: Int): T = getRef(index).nonTxn.get
-    def update(index: Int, v: T) = getRef(index).nonTxn.set(v)
-    def refs: immutable.IndexedSeq[Ref.Bound[T]] = new immutable.IndexedSeq[Ref.Bound[T]] {
+    def mode: AccessMode = Single
+    def apply(index: Int): T = getRef(index).single.get
+    def update(index: Int, v: T) = getRef(index).single.set(v)
+    def refs: immutable.IndexedSeq[Ref.View[T]] = new immutable.IndexedSeq[Ref.View[T]] {
       def length = unbind.length
-      def apply(index: Int) = getRef(index).nonTxn
+      def apply(index: Int) = getRef(index).single
     }
   }
 
+  def escaped: View[T] = new View[T] {
+    def unbind = TArray.this
+    def mode: AccessMode = Escaped
+    def apply(index: Int): T = getRef(index).escaped.get
+    def update(index: Int, v: T) = getRef(index).escaped.set(v)
+    def refs: immutable.IndexedSeq[Ref.View[T]] = new immutable.IndexedSeq[Ref.View[T]] {
+      def length = unbind.length
+      def apply(index: Int) = getRef(index).escaped
+    }
+  }
+
+  /** Returns a sequence that will produce transient `Ref` instances that are
+   *  backed by elements of this `TArray`.  This allows use of all of `Ref`'s
+   *  functionality for reading, writing, and transforming elements.
+   */
   def refs: immutable.IndexedSeq[Ref[T]] = new immutable.IndexedSeq[Ref[T]] {
     def length: Int = TArray.this.length
     def apply(index0: Int): Ref[T] = getRef(index0)
@@ -108,18 +170,18 @@ class TArray[T](private val _data: AtomicArray[T], metaMapping: TArray.MetaMappi
 
   private val _metaIndexShift = { var i = 0 ; while ((1L << i) < metaMapping.neighboringDataPerMeta) i += 1 ; i }
   private val _metaIndexMask = {
-    val n = Math.min(length / metaMapping.dataPerMeta, metaMapping.maxMeta)
+    val n = math.min(length / metaMapping.dataPerMeta, metaMapping.maxMeta)
     var m = 1 ; while (m < n) m = (m << 1) + 1
     assert ((m & (m + 1)) == 0)
     m
   }
 
-  private val _meta = new AtomicLongArray(Math.min(_metaIndexMask + 1, length))
+  private val _meta = new AtomicLongArray(math.min(_metaIndexMask + 1, length))
   private def _metaIndex(i: Int) = (i >> _metaIndexShift) & _metaIndexMask
 
-  private def getRef(index: Int): Ref[T] = new Ref[T] with Handle[T] {
+  private def getRef(index: Int): Ref[T] = new Handle[T] with RefOps[T] {
 
-    protected def handle: Handle[T] = this
+    private[ccstm] def handle: Handle[T] = this
 
     private[ccstm] def metaOffset = _metaIndex(index)
 

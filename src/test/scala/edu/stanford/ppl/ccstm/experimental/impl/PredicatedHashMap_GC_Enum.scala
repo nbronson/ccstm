@@ -8,7 +8,7 @@ import edu.stanford.ppl.ccstm.experimental.TMap
 import edu.stanford.ppl.ccstm.experimental.TMap.Bound
 import edu.stanford.ppl.ccstm.{STM, Txn}
 import java.util.concurrent.ConcurrentHashMap
-import edu.stanford.ppl.ccstm.collection.{IdentityPair, StripedIntRef, TIdentityPairRef}
+import edu.stanford.ppl.ccstm.impl.StripedIntRef
 
 private object PredicatedHashMap_GC_Enum {
   private class TokenRef[A,B](map: PredicatedHashMap_GC_Enum[A,B], key: A, token: Token[A,B]) extends CleanableRef[Token[A,B]](token) {
@@ -51,10 +51,10 @@ class PredicatedHashMap_GC_Enum[A,B] extends TMap[A,B] {
   }
 
 
-  def nonTxn: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_GC_Enum[A,B]](this) {
+  def escaped: Bound[A,B] = new TMap.AbstractNonTxnBound[A,B,PredicatedHashMap_GC_Enum[A,B]](this) {
 
     override def size(): Int = {
-      sizeRef.nonTxn.get
+      sizeRef.escaped.get
     }
 
     def get(key: A): Option[B] = {
@@ -63,13 +63,13 @@ class PredicatedHashMap_GC_Enum[A,B] extends TMap[A,B] {
       // the last two cases, since they will both have a null txn Token ref and
       // both correspond to None
       val p = existingPred(key)
-      if (null == p) None else decodePair(p.nonTxn.get)
+      if (null == p) None else decodePair(p.escaped.get)
     }
 
     override def put(key: A, value: B): Option[B] = {
       val tok = activeToken(key)
       val p = tok.pred
-      val pn = p.nonTxn
+      val pn = p.escaped
       val before = pn.get
       if (null != before) {
         // try to update (no size change)
@@ -85,14 +85,14 @@ class PredicatedHashMap_GC_Enum[A,B] extends TMap[A,B] {
       decodePair(prev)
     }
 
-    override def removeKey(key: A): Option[B] = {
+    override def remove(key: A): Option[B] = {
       val p = existingPred(key)
-      if (null == p || null == p.nonTxn.get) {
+      if (null == p || null == p.escaped.get) {
         // no need to create a predicate, let's linearize here
         return None
       }
 
-      // if the pred is stale, then getAndSet(None) is a no-op and doesn't harm
+      // if the pred is stale, then swap(None) is a no-op and doesn't harm
       // anything
       val prev = STM.transform2(p, sizeRef.aStripe, (vp: IdentityPair[Token[A,B],B], s: Int) => {
         (null, (if (null == vp) s else s - 1), vp)
@@ -102,12 +102,12 @@ class PredicatedHashMap_GC_Enum[A,B] extends TMap[A,B] {
 
 //    override def transform(key: A, f: (Option[B]) => Option[B]) {
 //      val tok = activeToken(key)
-//      tok.pred.nonTxn.transform(liftF(tok, f))
+//      tok.pred.escaped.transform(liftF(tok, f))
 //    }
 //
 //    override def transformIfDefined(key: A, pf: PartialFunction[Option[B],Option[B]]): Boolean = {
 //      val tok = activeToken(key)
-//      tok.pred.nonTxn.transformIfDefined(liftPF(tok, pf))
+//      tok.pred.escaped.transformIfDefined(liftPF(tok, pf))
 //    }
 //
 //    protected def transformIfDefined(key: A,
@@ -185,7 +185,7 @@ class PredicatedHashMap_GC_Enum[A,B] extends TMap[A,B] {
   }
 
   def isEmpty(implicit txn: Txn): Boolean = {
-    sizeRef > 0
+    sizeRef getWith { _ > 0 }
   }
 
   def size(implicit txn: Txn): Int = {
@@ -200,14 +200,14 @@ class PredicatedHashMap_GC_Enum[A,B] extends TMap[A,B] {
   def put(key: A, value: B)(implicit txn: Txn): Option[B] = {
     val tok = activeToken(key)
     // write buffer will pin tok
-    val prev = tok.pred.getAndSet(IdentityPair(tok, value))
+    val prev = tok.pred.swap(IdentityPair(tok, value))
     if (null == prev) sizeRef += 1
     decodePair(prev)
   }
 
-  def removeKey(key: A)(implicit txn: Txn): Option[B] = {
+  def remove(key: A)(implicit txn: Txn): Option[B] = {
     val tok = activeToken(key)
-    val prev = tok.pred.getAndSet(null)
+    val prev = tok.pred.swap(null)
     if (null != prev) sizeRef -= 1
     decodePairAndPin(tok, prev)
   }
@@ -239,7 +239,7 @@ class PredicatedHashMap_GC_Enum[A,B] extends TMap[A,B] {
       txn.addReference(token)
       None
     } else {
-      // The token will survive on its own until the commit of a removeKey,
+      // The token will survive on its own until the commit of a remove,
       // because it is has a strong ref via the transactional state.  If the
       // removal does happen it will invalidate this txn correctly.
       Some(pair._2)

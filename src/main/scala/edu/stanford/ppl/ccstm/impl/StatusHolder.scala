@@ -27,14 +27,14 @@ private[ccstm] class StatusHolder {
 
   //////////////// Access to the status, as _status
 
-  private[ccstm] def _status = __status
-  private[ccstm] def _status_=(after: Txn.Status) {
+  private[ccstm] final def _status = __status
+  private[ccstm] final def _status_=(after: Txn.Status) {
     val before = __status
     __status = after
     statusWakeups(before, after)
   }
 
-  private[ccstm] def _statusCAS(before: Txn.Status, after: Txn.Status): Boolean = {
+  private[ccstm] final def _statusCAS(before: Txn.Status, after: Txn.Status): Boolean = {
     if (StatusHolder.statusUpdater.compareAndSet(this, before, after)) {
       statusWakeups(before, after)
       true
@@ -54,12 +54,12 @@ private[ccstm] class StatusHolder {
 
   //////////////// Assertions about the current status
 
-  /** Throws <code>RollbackError</code> is the status is
-   *  <code>RollingBack</code>, otherwise throws an
-   *  <code>IllegalStateException</code> if the status is something other than
-   *  <code>Active</code>.
+  /** Throws `RollbackError` is the status is
+   *  `RollingBack`, otherwise throws an
+   *  `IllegalStateException` if the status is something other than
+   *  `Active`.
    */
-  private[ccstm] def requireActive() {
+  private[ccstm] final def requireActive() {
     val s = _status
     if (s ne Txn.Active) rollbackOrIllegalState(s)
   }
@@ -68,25 +68,24 @@ private[ccstm] class StatusHolder {
     if (s.isInstanceOf[Txn.RollingBack]) {
       throw RollbackError
     } else {
-      throw new IllegalStateException("txn.status is " + s)
+      throw new IllegalStateException(s.toString)
     }
   }
 
-  /** Throws <code>RollbackError</code> is the status is
-   *  <code>RollingBack</code>, otherwise throws an
-   *  <code>IllegalStateException</code> if the status is something other than
-   *  <code>Active</code> or <code>Validating</code>.
+  /** Throws `RollbackError` is the status is `RollingBack`, otherwise throws
+   *  an `IllegalStateException` if the status is something other than `Active`
+   *  or `Validating`.
    */
-  private[ccstm] def requireActiveOrValidating() {
+  private[ccstm] final def requireActiveOrValidating() {
     val s = _status
     if ((s ne Txn.Active) && (s ne Txn.Validating)) rollbackOrIllegalState(s)
   }
 
-  /** Throws <code>RollbackError</code> is the status is 
-   *  <code>RollingBack</code>, throws an <code>IllegalStateException</code> if
-   *  the status is <code>Committed</code> or <code>RolledBack</code>.
+  /** Throws `RollbackError` is the status is 
+   *  `RollingBack`, throws an `IllegalStateException` if
+   *  the status is `Committed` or `RolledBack`.
    */
-  private[ccstm] def requireNotCompleted() {
+  private[ccstm] final def requireNotCompleted() {
     val s = _status
     if (s != Txn.Active) {
       if (s.isInstanceOf[Txn.RollingBack]) {
@@ -99,7 +98,7 @@ private[ccstm] class StatusHolder {
 
   //////////////// Status change waiting
 
-  private[ccstm] def awaitCompletedOrDoomed() {
+  private[ccstm] final def awaitCompletedOrDoomed() {
     // spin a bit
     var spins = 0
     while (spins < SpinCount + YieldCount) {
@@ -118,7 +117,7 @@ private[ccstm] class StatusHolder {
     }
   }
 
-  private[impl] def completedOrDoomed = {
+  private[impl] final def completedOrDoomed: Boolean = {
     val s = _status
     s.completed || s.mustRollBack
   }
