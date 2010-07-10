@@ -19,9 +19,10 @@ set that is being discarded is saved for later use.
 
 ## Write buffer implementation
 
-Nested transaction support in a hash table write buffer is substantially more
-complicated, because writes to the same location must all reference the same
-entry, and because the write buffer is a record of locks that must be released.
+Nested transaction support in a hash table write buffer is substantially
+more complicated, because writes to the same location must all reference
+the same entry, and because the write buffer is a record of locks that
+must be released.
 
 Consider the following code
 
@@ -40,10 +41,9 @@ How many times will `x` be present in the write buffer?
 
 * Always 1: If entries are always merged, then the previous value of
   `x` must be stored in an undo log.  This undo log may be discarded
-  during nested commit, but it must be retained during nested rollback
-  to arrange for release of any required locks.  If the outer transaction
-  cannot survive a nested rollback, then this problem only arises during
-  nested retry.
+  during nested commit, but unless extra information is recorded it must
+  be retained during nested rollback to delay release of the locks until
+  top-level commit or rollback.
 
 * 1 or 2: Another possibility is to store a second entry, but to merge it
   during commit.  This could lead to bad behavior during deep nesting,
@@ -56,12 +56,31 @@ How many times will `x` be present in the write buffer?
   keeping the lookup chains short.  The linear allocation of buckets
   would cause problems, though.
 
-It seems that the "Always 1" solution is the best.  The only case
-where this leads to bad behavior is when there are a large number of
-nested rollbacks or retries, because the entries that have been removed
-from the write buffer but that still might be locked must be retained.
-Unacceptable growth of this data structure could be handled by making
-it a hash set that would merge duplicates.
+It seems that the "Always 1" solution is the best in terms of avoiding
+pathological behavior.  The undo log scales with the number of accesses,
+not the number of accessed locations, but this is only for locations
+written in multiple levels.
+
+## Lock release after partial rollback
+
+A particularly tricky scenario comes from the possibility that multiple
+locations are protected by a single version lock.  Consider two entries
+i and j of a `TArray` that map to the same metadata entry.  If i is
+written in the parent txn and j is written in the child txn, then a
+partial rollback should not release the lock.  There are two solutions to this
+problem.
+
+One possibility is to retain the undo log on partial rollback, delaying lock
+release until the top-level transaction completes.  This is not particularly
+desirable, even if duplicates are removed and the original values are
+discarded.
+
+Another way to prevent premature unlock is to store an extra bit in
+the write buffer entry for a memory location that indicates whether
+the access that inserted the entry also performed the lock acquisition.
+Unlock is only needed for the entry that initially acquired the lock.
+This might also be an optimization for the non-nested case, because it
+avoids the need to traverse the write buffer twice during commit.
 
 ## Txn instance identity
 

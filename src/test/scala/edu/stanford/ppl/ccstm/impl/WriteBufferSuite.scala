@@ -14,7 +14,6 @@ import edu.stanford.ppl.ExhaustiveTest
 class WriteBufferSuite extends FunSuite {
 
   type WB = WriteBuffer
-  type WBV = WriteBuffer.Visitor
 
   /** Only needed for identity comparisons. */
   class H[T](val ref: AnyRef, val offset: Int) extends Handle[T] {
@@ -65,14 +64,14 @@ class WriteBufferSuite extends FunSuite {
           val actual = wb.get(handle)
           assert(expected === actual)
           reference(ref)(offset) = Tuple2.apply[Any,Handle[_]](specValue, handle)
-          wb.put(handle.asInstanceOf[Handle[Any]], specValue)
+          wb.put(handle.asInstanceOf[Handle[Any]], false, specValue)
         }
         case GetForPut(handle) => {
           val ref = handle.ref
           val offset = handle.offset
           val expected = reference(ref).getOrElse(offset, (handle.data, null))._1
           reference(ref)(offset) = Tuple2.apply[Any,Handle[_]](expected, handle)
-          val actual = wb.allocatingGet(handle)
+          val actual = wb.allocatingGet(handle, false)
           assert(expected === actual)
           val reget = wb.get(handle)
           assert(expected === reget)
@@ -82,13 +81,15 @@ class WriteBufferSuite extends FunSuite {
       if (incrementalValidate || !iter.hasNext) {
         // validate the set
         val fresh = new NestedMap
-        wb.visit(new WBV {
-          def visit(handle: Handle[_], specValue: Any): Boolean = {
-            fresh(handle.ref)(handle.offset) = (specValue, handle)
-            assert(wb.get(handle) == specValue)
-            true
-          }
-        })
+        var i = wb.size
+        while (i > 0) {
+          val handle = wb.getHandle(i)
+          val specValue = wb.getSpecValue[Any](i)
+          fresh(handle.ref)(handle.offset) = (specValue, handle)
+          val lhs = wb.get(handle)
+          assert(lhs === specValue)
+          i -= 1
+        }
         assert(fresh.size == reference.size)
         for (ref <- fresh.keySet.toArray) {
           val f = fresh(ref)
@@ -173,7 +174,7 @@ class WriteBufferSuite extends FunSuite {
     val handles = refs.map({ r => new H[String](r, 0) })
 
     val wb = new WB
-    for (i <- 0 until size) wb.put(handles(i), "x")
+    for (i <- 0 until size) wb.put(handles(i), true, "x")
 
     var best = Long.MaxValue
     for (p <- 0 until passes) {
@@ -188,7 +189,7 @@ class WriteBufferSuite extends FunSuite {
             fail
           }
         } else {
-          wb.put(handles(k), "x")
+          wb.put(handles(k), false, "x")
         }
         k += 1
         i += 1
@@ -219,18 +220,18 @@ class WriteBufferSuite extends FunSuite {
     val h11 = new H[String](ref1, 1)
     val h2 = new H[String](ref2, 0)
     val wb = new WB
-    wb.put(h10, "outer")
+    wb.put(h10, true, "outer")
     assert(wb.get(h10) === "outer")
     wb.push()
     assert(wb.get(h10) === "outer")
-    wb.put(h10, "inner10")
-    wb.put(h11, "inner11")
+    wb.put(h10, false, "inner10")
+    wb.put(h11, true, "inner11")
     assert(wb.get(h10) === "inner10")
     assert(wb.get(h11) === "inner11")
     wb.popWithCommit()
     assert(wb.get(h10) === "inner10")
     assert(wb.get(h11) === "inner11")
-    wb.put(h2, "outer2")
+    wb.put(h2, true, "outer2")
     assert(wb.get(h2) === "outer2")
   }
 
@@ -241,12 +242,12 @@ class WriteBufferSuite extends FunSuite {
     val h11 = new H[String](ref1, 1)
     val h2 = new H[String](ref2, 0)
     val wb = new WB
-    wb.put(h10, "outer")
+    wb.put(h10, true, "outer")
     assert(wb.get(h10) === "outer")
     wb.push()
     assert(wb.get(h10) === "outer")
-    wb.put(h10, "inner10")
-    wb.put(h11, "inner11")
+    wb.put(h10, false, "inner10")
+    wb.put(h11, true, "inner11")
     assert(wb.get(h10) === "inner10")
     assert(wb.get(h11) === "inner11")
     val accum = new ReadSetBuilder()
@@ -258,7 +259,7 @@ class WriteBufferSuite extends FunSuite {
     wb.popWithRollback()
     assert(wb.get(h10) === "outer")
     assert(wb.get(h11) eq null)
-    wb.put(h2, "outer2")
+    wb.put(h2, true, "outer2")
     assert(wb.get(h2) === "outer2")
   }
 }

@@ -81,7 +81,7 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
   //////////////// Implementation
 
   /** On return, the read version will have been the global version at some
-   *  point during the call, the read version will be &ge; minReadVersion, and
+   *  point during the call, the read version will be >= minReadVersion, and
    *  all reads will have been validated against the new read version.  Throws
    *  `RollbackError` if invalid.
    */
@@ -90,7 +90,7 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
     if (!revalidateImpl()) throw RollbackError
   }
 
-  /** Calls revalidate(version) if version &le; _readVersion. */
+  /** Calls revalidate(version) if version > _readVersion. */
   private def revalidateIfRequired(version: Version) {
     if (version > _readVersion) {
       revalidate(version)
@@ -207,16 +207,26 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
 
   private[ccstm] def retryImpl(): Nothing = {
     // writeBuffer entries are part of the conceptual read set
-    _writeBuffer.visit(new WriteBuffer.Visitor {
-      def visit(handle: Handle[_], specValue: Any): Boolean = {
-        _readSet.add(handle, version(handle.meta))
-        true
-      }
-    })
+    var i = _writeBuffer.size
+    while (i > 0) {
+      val h = _writeBuffer.getHandle(i)
+      _readSet.add(h, version(h.meta))
+      i -= 1
+    }
 
     forceRollbackLocal(new ExplicitRetryCause(_readSet.clone))
     throw RollbackError
   }
+
+//  private[ccstm] def nestedCommit() {
+//
+//    // outcomes:
+//    //   partial commit => no WB traversal at all, just fire and pop callbacks, pop WB and discard WB undo log
+//    //   partial rollback => traverse WB suffix to release freshOwned locks, fire and pop callbacks, pop WB while applying WB undo log
+//    //   total rollback => same as partial commit, but don't fire callbacks, then throw RetryError   
+//    //   partial retry => same as partial rollback, plus add all rolled-back handles to the top-level retry set
+//
+//  }
 
   private[ccstm] def commitImpl(): Status = {
     try {
@@ -290,7 +300,7 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
 
     var i = _writeBuffer.size
     while (i > 0) {
-      rollbackWrite(_writeBuffer.visitHandle(i))
+      rollbackWrite(_writeBuffer.getHandle(i))
       i -= 1
     }
   }
@@ -300,7 +310,8 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
     while (owner(m) == _slot) {
       // we must use CAS because there can be concurrent pendingWaiter adds
       // and concurrent "helpers" that release the lock
-      if (handle.metaCAS(m, withRollback(m))) return
+      if (handle.metaCAS(m, withRollback(m)))
+        return
       m = handle.meta
     }
   }
@@ -309,7 +320,8 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
     var wakeups = 0L
     var i = _writeBuffer.size
     while (i > 0) {
-      if (!acquireLock(_writeBuffer.visitHandle(i))) return false
+      if (!acquireLock(_writeBuffer.getHandle(i)))
+        return false
       i -= 1
     }
     return _status == Validating
@@ -321,7 +333,8 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
       // remote requestRollback might have doomed us, followed by a steal
       // of this handle, so we must verify ownership each try
       while (owner(m) == _slot) {
-        if (handle.metaCAS(m, withChanging(m))) return true
+        if (handle.metaCAS(m, withChanging(m)))
+          return true
         m = handle.meta
       }
       return false
@@ -334,40 +347,33 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
       return
     }
 
-    // first pass
     var wakeups = 0L
     var i = _writeBuffer.size
     while (i > 0) {
-      val handle = _writeBuffer.visitHandle(i)
-      val specValue = _writeBuffer.visitSpecValue(i)
-      i -= 1
+      val handle = _writeBuffer.getHandle(i).asInstanceOf[Handle[Any]]
 
       // update the value
-      handle.asInstanceOf[Handle[Any]].data = specValue
+      handle.data = _writeBuffer.getSpecValue[Any](i)
 
-      // We must accumulate the pending wakeups during this pass, because
-      // during the second pass we clear the PW bit on the first handle that
-      // references a particular metadata.
-      if (pendingWakeups(handle.meta)) {
-        wakeups |= wakeupManager.prepareToTrigger(handle.ref, handle.offset)
-      }
-    }
-
-    // second pass
-    i = _writeBuffer.size
-    while (i > 0) {
-      val handle = _writeBuffer.visitHandle(i)
-      i -= 1
-
+      // note that we accumulate wakeup entries for each ref and offset, even
+      // if they share metadata
       val m = handle.meta
-      if (owner(m) == _slot) {
-        // release the lock, clear the PW bit, and update the version
+      if (pendingWakeups(m))
+        wakeups |= wakeupManager.prepareToTrigger(handle.ref, handle.offset)
+
+      assert(owner(m) == _slot)
+
+      // release the lock, clear the PW bit, and update the version if this was
+      // the entry that actually acquired ownership
+      if (_writeBuffer.wasFreshOwner(i))
         handle.meta = withCommit(m, cv)
-      }
+
+      i -= 1
     }
 
     // unblock anybody waiting on a value change that has just occurred
-    wakeupManager.trigger(wakeups)
+    if (wakeups != 0L)
+      wakeupManager.trigger(wakeups)
   }
 
   private[ccstm] def forceRollbackImpl(cause: RollbackCause) {
@@ -378,6 +384,7 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
 
   /** Does the work of `forceRollback` without the thread identity check. */
   private[ccstm] def forceRollbackLocal(cause: RollbackCause) {
+    // TODO: partial rollback
     var s = _status
     while (!s.mustRollBack) {
       if (s.mustCommit)
@@ -414,38 +421,22 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
     STMImpl.weakAwaitUnowned(handle, m0, this)
   }
 
-  private def acquireOwnership(handle: Handle[_], m0: Meta): Meta = {
-    var m = m0
-    var done = false
-    while (!done) {
-      while (owner(m) != UnownedSlot) {
+  /** Returns the pre-acquisition metadata. */
+  private def acquireOwnership(handle: Handle[_]): Meta = {
+    var m = handle.meta
+    if (owner(m) == _slot)
+      return m
+    (while (true) {
+      if (owner(m) != UnownedSlot)
         weakAwaitUnowned(handle, m)
-        m = handle.meta
-      }
-      val after = withOwner(m, _slot)
-      if (handle.metaCAS(m, after)) {
-        m = after
-        done = true
-      } else {
-        m = handle.meta
-      }
-    }
-    m
+      else if (handle.metaCAS(m, withOwner(m, _slot)))
+        return m
+      m = handle.meta
+    }).asInstanceOf[Nothing]
   }
 
-  /** Returns 0L on failure. */
-  private def tryAcquireOwnership(handle: Handle[_], m0: Meta): Meta = {
-    var m = m0
-    if (owner(m) != UnownedSlot) {
-      0L
-    } else {
-      val after = withOwner(m, _slot)
-      if (handle.metaCAS(m, after)) {
-        after
-      } else {
-        0L
-      }
-    }
+  private def tryAcquireOwnership(handle: Handle[_], m0: Meta): Boolean = {
+    owner(m0) == UnownedSlot && handle.metaCAS(m0, withOwner(m0, _slot))
   }
 
   //////////////// barrier implementations
@@ -597,20 +588,13 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
     }
   }
 
+  private def freshOwner(mPrev: Meta) = owner(mPrev) == UnownedSlot
+
   def set[T](handle: Handle[T], v: T) {
     requireActive()
-
-    val m0 = handle.meta
-    if (owner(m0) == _slot) {
-      // Self-owned.  This particular ref+offset might not be in the write
-      // buffer, but it's definitely not in anybody else's.
-      _writeBuffer.put(handle, v)
-      return
-    }
-
-    val m = acquireOwnership(handle, m0)
-
-    _writeBuffer.put(handle, v)
+    val mPrev = acquireOwnership(handle)
+    val f = freshOwner(mPrev)
+    _writeBuffer.put(handle, f, v)
 
     // This might not be a blind write, because meta might be shared with other
     // values that are subsequently read by the transaction.  We don't need to
@@ -618,27 +602,22 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
     // grab ownership.  This means it suffices to check against _readVersion.
     // We must put something in the buffer before calling revalidate in case we
     // roll back, so that the ownership gets released.
-
-    revalidateIfRequired(version(m))
+    //
+    // If not f, then this was already self-owned.  This particular ref+offset
+    // might not be in the write buffer, but it's definitely not in anybody
+    // else's.
+    if (f)
+      revalidateIfRequired(version(mPrev))
   }
   
   def swap[T](handle: Handle[T], v: T): T = {
     requireActive()
-
-    val m0 = handle.meta
-    if (owner(m0) == _slot) {
-      val z = _writeBuffer.get(handle)
-      _writeBuffer.put(handle, v)
-      return z
-    }
-
-    val m = acquireOwnership(handle, m0)
-    _writeBuffer.put(handle, v)
-
-    revalidateIfRequired(version(m))
-
-    // definitely no value previously in the write buffer
-    handle.data
+    val mPrev = acquireOwnership(handle)
+    val f = freshOwner(mPrev)
+    val v0 = _writeBuffer.swap(handle, f, v)
+    if (f)
+      revalidateIfRequired(version(mPrev))
+    v0
   }
 
   def trySet[T](handle: Handle[T], v: T): Boolean = {
@@ -646,34 +625,25 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
 
     val m0 = handle.meta
     if (owner(m0) == _slot) {
-      _writeBuffer.put(handle, v)
+      _writeBuffer.put(handle, false, v)
       return true
     }
 
-    val m = tryAcquireOwnership(handle, m0)
-    if (m == 0L) return false
-
-    _writeBuffer.put(handle, v)
-
-    revalidateIfRequired(version(m))
+    if (!tryAcquireOwnership(handle, m0))
+      return false
+    _writeBuffer.put(handle, true, v)
+    revalidateIfRequired(version(m0))
     return true
   }
 
   def readForWrite[T](handle: Handle[T]): T = {
     requireActive()
-
-    val m0 = handle.meta
-    if (owner(m0) == _slot) {
-      return _writeBuffer.allocatingGet(handle)
-    }
-
-    val m = acquireOwnership(handle, m0)
-
-    val v = _writeBuffer.allocatingGet(handle)
-
-    revalidateIfRequired(version(m))
-
-    return v
+    val mPrev = acquireOwnership(handle)
+    val f = freshOwner(mPrev)
+    val v = _writeBuffer.allocatingGet(handle, f)
+    if (f)
+      revalidateIfRequired(version(mPrev))
+    v
   }
 
   def compareAndSet[T](handle: Handle[T], before: T, after: T): Boolean = {
@@ -690,21 +660,14 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
     })
   }
 
-  def getAndTransform[T](handle: Handle[T], f: T => T): T = {
+  def getAndTransform[T](handle: Handle[T], func: T => T): T = {
     requireActive()
-
-    val m0 = handle.meta
-    if (owner(m0) == _slot) {
-      return _writeBuffer.getAndTransform(handle, f)
-    }
-
-    val m = acquireOwnership(handle, m0)
-
-    val v0 = _writeBuffer.getAndTransform(handle, f)
-
-    revalidateIfRequired(version(m))
-
-    return v0
+    val mPrev = acquireOwnership(handle)
+    val f = freshOwner(mPrev)
+    val v0 = _writeBuffer.getAndTransform(handle, f, func)
+    if (f)
+      revalidateIfRequired(version(mPrev))
+    v0
   }
 
   def tryTransform[T](handle: Handle[T], f: T => T): Boolean = {
@@ -712,17 +675,14 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
 
     val m0 = handle.meta
     if (owner(m0) == _slot) {
-      _writeBuffer.getAndTransform(handle, f)
+      _writeBuffer.getAndTransform(handle, false, f)
       return true
     }
 
-    val m = tryAcquireOwnership(handle, m0)
-    if (m == 0L) return false
-
-    _writeBuffer.getAndTransform(handle, f)
-
-    revalidateIfRequired(version(m))
-
+    if (!tryAcquireOwnership(handle, m0))
+      return false
+    _writeBuffer.getAndTransform(handle, true, f)
+    revalidateIfRequired(version(m0))
     return true
   }
 
