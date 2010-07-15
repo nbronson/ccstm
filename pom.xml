@@ -1,12 +1,12 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
   <properties>
-    <scala.version>2.8.0.RC7</scala.version>
+    <scala.version>2.8.0</scala.version>
   </properties>
 
   <modelVersion>4.0.0</modelVersion>
   <groupId>edu.stanford.ppl</groupId>
   <artifactId>ccstm</artifactId>
-  <version>0.2-for-scala-${scala.version}-SNAPSHOT</version>
+  <version>0.2-for-scala-${scala.version}</version>
   <packaging>jar</packaging>
   <name>CCSTM</name>
   <description>Software transactional memory for Scala, bundled with transactional collection classes</description>
@@ -17,6 +17,7 @@
       <distribution>repo</distribution>
     </license>
   </licenses>
+  <url>http://ppl.stanford.edu/ccstm</url>
   <inceptionYear>2009</inceptionYear>
   <organization>
     <name>Stanford CS - Pervasive Parallelism Laboratory</name>
@@ -108,7 +109,10 @@
     <dependency>
       <groupId>org.scalatest</groupId>
       <artifactId>scalatest</artifactId>
-      <version>1.2-for-scala-${scala.version}-SNAPSHOT</version>
+      <!-- 2.8.0.RC7 is identical to 2.8.0.final, but scalatest for final is
+           not yet available so just use the RC7 version -->
+      <!-- <version>1.2-for-scala-${scala.version}</version> -->
+      <version>1.2-for-scala-2.8.0.RC7-SNAPSHOT</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
@@ -127,7 +131,7 @@
       <plugin>
         <groupId>org.scala-tools</groupId>
         <artifactId>maven-scala-plugin</artifactId>
-        <version>2.13.2-SNAPSHOT</version>
+        <version>2.14</version>
         <executions>
           <execution>
             <goals>
@@ -151,7 +155,7 @@
       <plugin>
         <groupId>org.scala-tools</groupId>
         <artifactId>maven-scala-plugin</artifactId>
-        <version>2.13.2-SNAPSHOT</version>
+        <version>2.14</version>
         <configuration>
           <scalaVersion>${scala.version}</scalaVersion>
         </configuration>
