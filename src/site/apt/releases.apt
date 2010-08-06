@@ -17,7 +17,17 @@ CCSTM - Releases
 
   * {{{./RELEASE-NOTES.txt}RELEASE-NOTES.txt}} - Release notes for v0.2
 
-* Maven repository
+* If you build using sbt
+
+  Add the folllowing lines to your project definition class in
+  <<<project/build>>>
+
+----
+  val ccstm = "edu.stanford.ppl" % "ccstm" % "0.2-for-scala-2.8.0"
+  val ccstmRepo = "CCSTM Release Repository at PPL" at "http://ppl.stanford.edu/ccstm/repo-releases"
+----
+
+* If you build using Maven
 
   Merge the following fragments into your <<<pom.xml>>>
 
@@ -27,12 +37,6 @@ CCSTM - Releases
     <id>ccstm.release</id>
     <name>CCSTM Release Repository at PPL</name>
     <url>http://ppl.stanford.edu/ccstm/repo-releases</url>
-  </repository>
-  <repository>
-    <id>ccstm.snapshot</id>
-    <name>CCSTM Snapshot Repository at PPL</name>
-    <url>http://ppl.stanford.edu/ccstm/repo-snapshots</url>
-    <snapshots/>
   </repository>
 </repositories>
 
