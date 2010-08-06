@@ -81,10 +81,13 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
    *  while the transaction is still active.  If the transaction rolls back
    *  then the callback may not be invoked.  If the callback throws an
    *  exception then the transaction will be rolled back and no subsequent
-   *  before-completion callbacks will be invoked.  If two callbacks have
+   *  before-commit callbacks will be invoked.  If two callbacks have
    *  different priorities then the one with the smaller priority will be
    *  invoked first, otherwise the one enqueued earlier will be invoked
    *  first.
+   *
+   *  It is okay to call `beforeCommit` from inside a before-commit handler.
+   *  If the reentrantly-added handler has a lower priority than the current
    *  @throws IllegalStateException if this transaction is not active.
    */
   def beforeCommit(callback: Txn => Unit, prio: Int)
