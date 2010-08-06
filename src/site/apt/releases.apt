@@ -4,20 +4,30 @@
 
 CCSTM - Releases
 
-  CCSTM 0.2 is the stable release.  It is compiled against Scala
-  2.8.0.final.
+  CCSTM 0.2.1 is the most recent stable release.  It is compiled against
+  Scala 2.8.0.final.
 
 * Direct download
 
-  * {{{http://ppl.stanford.edu/ccstm/repo-releases/edu/stanford/ppl/ccstm/0.2-for-scala-2.8.0/ccstm-0.2-for-scala-2.8.0.jar}ccstm-0.2-for-scala-2.8.0.jar}}
+  * {{{http://ppl.stanford.edu/ccstm/repo-releases/edu/stanford/ppl/ccstm/0.2.1-for-scala-2.8.0/ccstm-0.2.1-for-scala-2.8.0.jar}ccstm-0.2.1-for-scala-2.8.0.jar}}
 
 * Documentation
 
   * {{{./scaladocs/index.html}ScalaDoc}} - API Documentation
 
-  * {{{./RELEASE-NOTES.txt}RELEASE-NOTES.txt}} - Release notes for v0.2
+  * {{{./RELEASE-NOTES.txt}RELEASE-NOTES.txt}} - Release notes for v0.2.1
 
-* Maven repository
+* If you build using sbt
+
+  Add the folllowing lines to your project definition class in
+  <<<project/build>>>
+
+----
+  val ccstm = "edu.stanford.ppl" % "ccstm" % "0.2.1-for-scala-2.8.0"
+  val ccstmRepo = "CCSTM Release Repository at PPL" at "http://ppl.stanford.edu/ccstm/repo-releases"
+----
+
+* If you build using Maven
 
   Merge the following fragments into your <<<pom.xml>>>
 
@@ -28,24 +38,20 @@ CCSTM - Releases
     <name>CCSTM Release Repository at PPL</name>
     <url>http://ppl.stanford.edu/ccstm/repo-releases</url>
   </repository>
-  <repository>
-    <id>ccstm.snapshot</id>
-    <name>CCSTM Snapshot Repository at PPL</name>
-    <url>http://ppl.stanford.edu/ccstm/repo-snapshots</url>
-    <snapshots/>
-  </repository>
 </repositories>
 
 <dependencies>
   <dependency>
     <groupId>edu.stanford.ppl</groupId>
     <artifactId>ccstm</artifactId>
-    <version>0.2-for-scala-2.8.0</version>
+    <version>0.2.1-for-scala-2.8.0</version>
   </dependency>
 </dependencies>
 ----
 
 * Older prebuild JARs
+
+  * {{{http://ppl.stanford.edu/ccstm/repo-releases/edu/stanford/ppl/ccstm/0.2-for-scala-2.8.0/ccstm-0.2-for-scala-2.8.0.jar}ccstm-0.2-for-scala-2.8.0.jar}}
 
   * {{{http://ppl.stanford.edu/ccstm/repo-snapshots/edu/stanford/ppl/ccstm/0.2-for-scala-2.8.0.RC7-SNAPSHOT/ccstm-0.2-for-scala-2.8.0.RC7-SNAPSHOT.jar}ccstm-0.2-for-scala-2.8.0.RC7-SNAPSHOT.jar}}
 
