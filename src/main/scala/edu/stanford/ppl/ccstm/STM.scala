@@ -111,15 +111,6 @@ object STM {
     Left(z)
   }
 
-  private val controlThrowableClass: Class[_] = {
-    try {
-      Class.forName("scala.util.control.ControlThrowable")
-    } catch {
-      case x: ClassNotFoundException =>
-          Class.forName("scala.util.control.ControlException")
-    }
-  }
-
   private def attemptImpl[Z](txn: Txn, block: Txn => Z): Z = {
     var nonLocalReturn: ControlThrowable = null
     var result: Z = null.asInstanceOf[Z]
