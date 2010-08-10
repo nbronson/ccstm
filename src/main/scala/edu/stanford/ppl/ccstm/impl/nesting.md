@@ -99,3 +99,25 @@ a single instance for all nesting levels?  Should that still be called
 `Txn`?  The name must be short, because that is the visible implicit
 parameter type.
 
+I think it is reasonable to have a single `Txn` for all nesting levels,
+because that is the unit of inter-thread visibility.  We can define
+`Txn.status` to be the status as it affects that visibility, so a partial
+rollback does not cause the transaction to leave the `Active` state.
+
+Supporting partial rollback during a remote steal is tricky, because
+the thief can't safely access the victim's read set or write buffer.
+This means that the remote thief can't determine whether partial rollback
+is possible.  We could have the thief atomically register the identity of
+the memory locations that they have stolen, forcing the victim to react.
+This means that although progress can be restored in the face of a stuck
+`Txn`, memory usage and work could grow.  It also means that nobody can
+ride in the wake of a high priority transaction, because they can only
+steal based on their own priority.
+
+One possibility would be to move victimized transactions to a `Victim` state
+from which they could recover by reacquiring ownership of their write buffer.
+So long as they observed the same version, that nesting level could be
+retained.  A better name for the status might be `Bumped`.  Hmm, bumped
+transactions are still active:
+
+    case class Active(depth: Int, validDepth: Int, bumped: Boolean)
