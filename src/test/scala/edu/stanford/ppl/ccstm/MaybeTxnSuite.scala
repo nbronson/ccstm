@@ -57,7 +57,7 @@ class MaybeTxnSuite extends STMFunSuite {
     assert(x.escaped() === 101)
   }
 
-  test("Static lookup overrides dynamic") {
+  test("Static vs dynamic lookup") {
     implicit var t0: Txn = null
     STM.atomic { t =>
       t0 = t
@@ -70,11 +70,11 @@ class MaybeTxnSuite extends STMFunSuite {
     assert(Txn.currentOrNull eq t0)
     assert(Txn.dynCurrentOrNull eq null)
     STM.atomic { t =>
-      assert(t0 eq t)
-      assert(t.status === Txn.Committed)
-      assert(Txn.current === Some(t))
-      assert(Txn.currentOrNull eq t)
-      assert(Txn.dynCurrentOrNull eq null)
+      assert(t0 ne t)
+      assert(t.status === Txn.Active)
+      assert(Txn.current === Some(t0))
+      assert(Txn.currentOrNull eq t0)
+      assert(Txn.dynCurrentOrNull eq t)
     }
   }
 }
