@@ -708,11 +708,12 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
   def afterCompletion(callback: Txn => Unit) { afterCompletion(callback, 0) }
 
   def afterCompletion(callback: Txn => Unit, prio: Int) {
+    // TODO: afterCompletion(prio: Int)(callback: Txn => Unit)
     requireNotCompleted()
     _callbacks.afterCompletion.add(callback, prio, true, true)
   }
 
-  private[ccstm] def callAfter() {
+  private[ccstm] def callAfter(readSetSize: Int, writeBufferSize: Int) {
     val s = status
     val committing = s eq Committed
     if (EnableCounters) {
@@ -721,16 +722,16 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
         if (barging)
           bargingCommitCounter += 1
         if (EnableSizeHistos) {
-          commitReadSetSizeHisto(histoBucket(_readSet.size)) += 1
-          commitWriteSetSizeHisto(histoBucket(_writeBuffer.size)) += 1
+          commitReadSetSizeHisto(histoBucket(readSetSize)) += 1
+          commitWriteSetSizeHisto(histoBucket(writeBufferSize)) += 1
         }
       } else {
         s.rollbackCause.counter += 1
         if (barging)
           bargingRollbackCounter += 1
         if (EnableSizeHistos) {
-          rollbackReadSetSizeHisto(histoBucket(_readSet.size)) += 1
-          rollbackWriteSetSizeHisto(histoBucket(_writeBuffer.size)) += 1
+          rollbackReadSetSizeHisto(histoBucket(readSetSize)) += 1
+          rollbackWriteSetSizeHisto(histoBucket(writeBufferSize)) += 1
         }
       }
     }

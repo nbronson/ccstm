@@ -274,16 +274,21 @@ private[ccstm] abstract class TxnImpl(failureHistory: List[Txn.RollbackCause], c
       return Committed
       
     } finally {
-      callAfter()
-
-      // cleanup
+      // disassociate the Txn before the callbacks, so that they can run a Txn
       val ctx = ThreadContext.get
-      ctx.put(_callbacks, _readSet, _writeBuffer, _strongRefSet, _slot)
-      _callbacks = null
+      val readSetSize = _readSet.size
+      val writeBufferSize = _writeBuffer.size
+      ctx.put(_readSet, _writeBuffer, _strongRefSet, _slot)
       _readSet = null
       _writeBuffer = null
       slotManager.release(_slot)
       detach(ctx)
+
+      // after-commit or after-rollback
+      callAfter(readSetSize, writeBufferSize)
+
+      ctx.putCallbacks(_callbacks)
+      _callbacks = null
     }
   }
 

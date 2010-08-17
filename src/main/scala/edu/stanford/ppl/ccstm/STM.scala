@@ -25,7 +25,7 @@ object STM {
     // TODO: without partial rollback we can't properly implement failure atomicity (see issue #4)
 
     mt match {
-      case txn: Txn => nestedAtomic(block, txn) // static resolution of enclosing block
+      case txn: Txn if !txn.status.completed => nestedAtomic(block, txn) // static resolution of enclosing block
       case _ => {
         // dynamic scoping for nesting
         val ctx = ThreadContext.get

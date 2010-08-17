@@ -27,6 +27,15 @@ CCSTM - Releases
   val ccstmRepo = "CCSTM Release Repository at PPL" at "http://ppl.stanford.edu/ccstm/repo-releases"
 ----
 
+  To use a pre-release version of CCSTM add the snapshot repository and
+  use a version number ending in <<<-SNAPSHOT>>>
+
+----
+  val ccstm = "edu.stanford.ppl" % "ccstm" % "0.2.2-for-scala-2.8.0-SNAPSHOT"
+  val ccstmRepo = "CCSTM Release Repository at PPL" at "http://ppl.stanford.edu/ccstm/repo-releases"
+  val ccstmSnap = "CCSTM Snapshot Repository at PPL" at "http://ppl.stanford.edu/ccstm/repo-snapshots"
+----
+
 * If you build using Maven
 
   Merge the following fragments into your <<<pom.xml>>>

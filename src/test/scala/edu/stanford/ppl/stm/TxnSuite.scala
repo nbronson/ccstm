@@ -196,4 +196,89 @@ class TxnSuite extends STMFunSuite {
     // The exception is StripedIntRef, which has relatively expensive reads.
     assert(best / 10 < 5000)
   }
+
+  def testAfterCommit(name: String, f1: (Txn, (Txn => Unit)) => Unit, f2: (Txn, (Txn => Unit),Int) => Unit) {
+    test(name) {
+      var ran = false
+      atomic { implicit t =>
+        f1(t, { t2 =>
+          assert(t === t2)
+          assert(!ran)
+          ran = true
+        })
+      }
+      assert(ran)
+    }
+
+    test(name + " with priority") {
+      var first = false
+      var second = false
+      atomic { implicit t =>
+        f1(t, { t2 =>
+          assert(t === t2)
+          assert(first)
+          assert(!second)
+          second = true
+        })
+        f2(t, { t2 =>
+          assert(t === t2)
+          assert(!first)
+          assert(!second)
+          first = true
+        }, -10)
+      }
+      assert(first)
+      assert(second)
+    }
+  }
+
+  testAfterCommit("afterCompletion", { (t, h) => t.afterCompletion(h) }, { (t, h, p) => t.afterCompletion(h, p) })
+  testAfterCommit("afterCommit", { (t, h) => t.afterCommit(h) }, { (t, h, p) => t.afterCommit(h, p) })
+
+  test("afterRollback on commit") {
+    atomic { implicit t =>
+      t.afterRollback { _ => assert(false) }
+    }
+  }
+
+  test("afterRollback on rollback") {
+    val x = Ref(10)
+    var ran = false
+    atomic { implicit t =>
+      t.afterRollback { _ =>
+        assert(!ran)
+        ran = true
+      }
+      if (x() == 10) {
+        val adversary = new Thread {
+          override def run() {
+            x.single.transform(_ + 1)
+          }
+        }
+        adversary.start()
+        adversary.join()
+        x()
+        assert(false) // this relies on the semantics of CCSTM, some STMs could reach here safely
+      }
+    }
+    assert(ran)
+  }
+
+  test("afterCommit runs a txn") {
+    var ran = false
+    val x = Ref(0)
+    atomic { implicit t =>
+      x() = 1
+      t.afterCommit { _ =>
+        atomic { implicit t =>
+          assert(!ran)
+          ran = true
+          assert(x() === 1)
+          x() = 2
+        }
+      }
+    }
+    assert(ran)
+    assert(x.single() === 2)
+  }
 }

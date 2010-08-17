@@ -73,9 +73,14 @@ private[ccstm] final class ThreadContext {
     }
   }
 
-  def put(cb: Callbacks, rs: ReadSet, wb: WriteBuffer, srs: StrongRefSet, slot: STMImpl.Slot) {
-    cb.clear()
-    _callbacks = cb
+  def putCallbacks(cb: Callbacks) {
+    if (_callbacks == null) {
+      cb.clear()
+      _callbacks = cb
+    }
+  }
+
+  def put(rs: ReadSet, wb: WriteBuffer, srs: StrongRefSet, slot: STMImpl.Slot) {
     rs.clear()
     _readSet = rs
     wb.clear()
