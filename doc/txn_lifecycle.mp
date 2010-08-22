@@ -40,11 +40,20 @@ beginfig(1);
     Activity.aaa_body("body of", "atomic block");
     aaa_body.info.foreColor := (0.9, 1.0, 0.9);
 
-    State.aaa("Active(2) ...", "")(aaa_ar, aaa_body);
+    State.aaa("Active(2)", "")(aaa_ar, aaa_body);
     aaa.info.left := aaa.info.right := 10;
     %aaa.info.drawNameLine := 1;
     topToBottom(20)(aaa_ar, aaa_body);
 
+
+    Activity.aaaa_ar("", "");
+    Activity.aaaa_body("", "");
+    aaaa_body.info.foreColor := (0.9, 1.0, 0.9);
+
+    State.aaaa("Active(3)", "...")();
+    aaaa.info.left := aaaa.info.right := 0;
+    aaaa.info.bottom := 82;
+    aaaa.info.foreColor := (1.0, 1.0, 0.9);
 
     Activity.preparing_rr("read-resource", "validate");
     Activity.preparing_wr("write-resource", "prepare");
@@ -62,13 +71,14 @@ beginfig(1);
     %prepared.info.drawNameLine := 1;
 
 
-    State.undecided("")(a, aa, aaa, preparing, prepared);    
+    State.undecided("")(a, aa, aaa, aaaa, preparing, prepared);    
     undecided.info.left := undecided.info.right := 20;
     %undecided.info.drawNameLine := 1;
     undecided.info.foreColor := (1.0, 1.0, 0.95);
 
     aa.nw = a.ne + (30, 0);
     aaa.nw = aa.ne + (30, 0);
+    aaaa.nw = aaa.ne + (30, 0);
     %preparing.width = a.width;
     %prepared.width = a.width;
     topToBottom(40)(aa, preparing);
@@ -99,32 +109,38 @@ beginfig(1);
     rolledback.c = committed.c - (aaa_body.c - a_body.c);
 
     State.attempt("Txn lifetime - one atomic execution attempt", "")(b, undecided, committed, rolledback);
-    attempt.info.foreColor := (1.0, 1.0, 0.95);
+    attempt.info.foreColor := (1.0, 1.0, 0.98);
     %drawObjects(b, undecided, committed, rolledback);
     drawObject(attempt);
 
     clink(transition)(b, a_body);
     clink(transition)(a_ar, a_body);
     clink(transition)(a_body, a_bc);
-    pair a_i;
-    pair a_ii;
-    a_i = (a_body.c + aa_body.c) / 2 + (0, -5);
-    a_ii = (a_body.c + aa_body.c) / 2 + (0, 5);
-    link(transition)(pathCut(a_body, aa_body)(a_body.c .. a_ii .. aa_body.c));
-    link(transition)(pathCut(aa_body, a_body)(aa_body.c .. a_i .. a_body.c));
-    item(iAssoc)("nested atomic")(obj.s = a_ii);
-    item(iAssoc)("nested commit")(obj.n = a_i);
+    pair a_mid;
+    a_mid = 0.5[a_body.c, aa_body.c];
+    link(transition)(pathCut(a_body, aa_body)(a_body.c .. (a_mid + (0, 5)) .. aa_body.c));
+    item(iAssoc)("nested atomic")(obj.s = (a_mid + (0, 5)));
+    link(transition)(pathCut(aa_body, a_body)(aa_body.c .. (a_mid + (0, -5)) .. a_body.c));
+    item(iAssoc)("nested commit")(obj.n = (a_mid + (0, -5)));
     link(transition)(pathCut(aa_body, a_ar)(aa_body.c -- a_ar.c));
-    item(iAssoc)("partial rollback")(obj.n = 0.5[a_ar.c,aa_ar.c] + (0, -10));
-    pair aa_i;
-    pair aa_ii;
-    aa_i = (aa_body.c + aaa_body.c) / 2 + (0, -5);
-    aa_ii = (aa_body.c + aaa_body.c) / 2 + (0, 5);
-    link(transition)(pathCut(aa_body, aaa_body)(aa_body.c .. aa_ii .. aaa_body.c));
-    link(transition)(pathCut(aaa_body, aa_body)(aaa_body.c .. aa_i .. aa_body.c));
+    item(iAssoc)("partial rollback")(obj.s = 0.5[a_ar.c, aa_body.c] + (0, 5));
+
     clink(transition)(aa_ar, aa_body);
-    clink(transition)(aaa_body, aa_ar);
-    clink(transition)(aaa_ar)(aaa_body);
+    pair aa_mid;
+    aa_mid = 0.5[aa_body.c, aaa_body.c];
+    link(transition)(pathCut(aa_body, aaa_body)(aa_body.c .. (aa_mid + (0, 5)) .. aaa_body.c));
+    link(transition)(pathCut(aaa_body, aa_body)(aaa_body.c .. (aa_mid + (0, -5)) .. aa_body.c));
+    link(transition)(pathCut(aaa_body, aa_ar)(aaa_body.c -- aa_ar.c));
+
+    clink(transition)(aaa_ar, aaa_body);
+    pair aaaa_body_c;
+    aaaa_body_c = aaa_body.c + (aaaa.c - aaa.c);
+    pair aaa_mid;
+    aaa_mid = 0.5[aaa_body.c, aaaa_body_c];
+    link(transition)(pathCut(aaa_body, aaaa)(aaa_body.c .. (aaa_mid + (0, 5)) .. aaaa_body_c));
+    link(transition)(pathCut(aaaa, aaa_body)(aaaa_body_c .. (aaa_mid + (0, -5)) .. aaa_body.c));
+    link(transition)(pathCut(aaaa, aaa_ar)(aaaa_body_c -- aaa_ar.c));
+
     clink(transition)(a_bc, preparing_rr);
     clink(transition)(preparing_rr, preparing_wr);
     clink(transition)(preparing_wr, prepared_d);
@@ -132,12 +148,20 @@ beginfig(1);
     clink(transition)(prepared_d, committed_wr);
     clink(transition)(committed_wr, committed_ac);
     clink(transition)(committed_ac, committed_e);
-    clink(transition)(undecided, rolledback_wr);
+    %clink(transition)(undecided, rolledback_wr);
+    link(transition)(pathCut(undecided, rolledback_wr)(a.s .. (undecided.sw + (-20, 0)) .. rolledback_wr.c));
     clink(transition)(rolledback_wr, rolledback_ar);
     clink(transition)(rolledback_ar, rolledback_e);
 
 endfig;
 end
+
+
+
+
+
+
+
 
 
 
