@@ -12,6 +12,7 @@ input metauml;
 beginfig(1);
     iActivity.foreColor := (0.8, 0.8, 1.0);
     iState.foreColor := (1.0, 1.0, 0.85);
+    iAssoc.iFont.scale := 0.9;
 
     Begin.b;
 
@@ -23,7 +24,8 @@ beginfig(1);
     State.a("Active(0)", "")(a_ar, a_body, a_bc);
     a.info.left := a.info.right := 10;
     %a.info.drawNameLine := 1;
-    topToBottom(20)(a_ar, a_body, a_bc);
+    topToBottom(40)(a_ar, a_body);
+    topToBottom(20)(a_body, a_bc);
 
 
     Activity.aa_ar("after-rollback", "handlers");
@@ -33,7 +35,7 @@ beginfig(1);
     State.aa("Active(1)", "")(aa_ar, aa_body);
     aa.info.left := aa.info.right := 10;
     %aa.info.drawNameLine := 1;
-    topToBottom(20)(aa_ar, aa_body);
+    topToBottom(40)(aa_ar, aa_body);
 
 
     Activity.aaa_ar("after-rollback", "handlers");
@@ -43,17 +45,18 @@ beginfig(1);
     State.aaa("Active(2)", "")(aaa_ar, aaa_body);
     aaa.info.left := aaa.info.right := 10;
     %aaa.info.drawNameLine := 1;
-    topToBottom(20)(aaa_ar, aaa_body);
+    topToBottom(40)(aaa_ar, aaa_body);
 
 
     Activity.aaaa_ar("", "");
     Activity.aaaa_body("", "");
     aaaa_body.info.foreColor := (0.9, 1.0, 0.9);
 
-    State.aaaa("Active(3)", "...")();
+    State.aaaa("Active(n)", "", "n > 2")();
     aaaa.info.left := aaaa.info.right := 0;
-    aaaa.info.bottom := 82;
+    aaaa.info.bottom := 92;
     aaaa.info.foreColor := (1.0, 1.0, 0.9);
+    aaaa.info.borderColor := (0.5, 0.5, 0.5);
 
     Activity.preparing_rr("read-resource", "validate");
     Activity.preparing_wr("write-resource", "prepare");
@@ -71,12 +74,12 @@ beginfig(1);
     %prepared.info.drawNameLine := 1;
 
 
-    State.undecided("")(a, aa, aaa, aaaa, preparing, prepared);    
+    State.undecided("undecided states, commit or rollback possible", "")(a, aa, aaa, aaaa, preparing, prepared);    
     undecided.info.left := undecided.info.right := 20;
     %undecided.info.drawNameLine := 1;
     undecided.info.foreColor := (1.0, 1.0, 0.95);
 
-    aa.nw = a.ne + (30, 0);
+    aa.nw = a.ne + (40, 0);
     aaa.nw = aa.ne + (30, 0);
     aaaa.nw = aaa.ne + (30, 0);
     %preparing.width = a.width;
@@ -123,7 +126,7 @@ beginfig(1);
     link(transition)(pathCut(aa_body, a_body)(aa_body.c .. (a_mid + (0, -5)) .. a_body.c));
     item(iAssoc)("nested commit")(obj.n = (a_mid + (0, -5)));
     link(transition)(pathCut(aa_body, a_ar)(aa_body.c -- a_ar.c));
-    item(iAssoc)("partial rollback")(obj.s = 0.5[a_ar.c, aa_body.c] + (0, 5));
+    item(iAssoc)("partial rollback")(obj.n = 0.5[a_ar.c, aa_ar.c] + (0, -5));
 
     clink(transition)(aa_ar, aa_body);
     pair aa_mid;
@@ -141,6 +144,16 @@ beginfig(1);
     link(transition)(pathCut(aaaa, aaa_body)(aaaa_body_c .. (aaa_mid + (0, -5)) .. aaa_body.c));
     link(transition)(pathCut(aaaa, aaa_ar)(aaaa_body_c -- aaa_ar.c));
 
+    pair aa_c;
+    aa_c = 0.5[aa_ar.c, aa_body.c];
+    link(transition)(pathCut(aaa_body, a_ar)(aaa_body.c .. (aa_c + (5, -0.5)) ..  (aa_c + (-5, 0.5)) .. a_ar.c));
+
+    pair aaa_c;
+    aaa_c = 0.5[aaa_ar.c, aaa_body.c];
+    link(transition)(pathCut(aaaa, aa_ar)(aaaa_body_c .. (aaa_c + (5, -0.5)) ..  (aaa_c + (-5, 0.5)) .. aa_ar.c));
+
+    link(transition)(pathCut(aaaa, a_ar)(aaaa_body_c .. (aaa_c + (0, -5)) ..  (aa_c + (0, 5)) .. a_ar.c));
+
     clink(transition)(a_bc, preparing_rr);
     clink(transition)(preparing_rr, preparing_wr);
     clink(transition)(preparing_wr, prepared_d);
@@ -148,6 +161,8 @@ beginfig(1);
     clink(transition)(prepared_d, committed_wr);
     clink(transition)(committed_wr, committed_ac);
     clink(transition)(committed_ac, committed_e);
+    item(iAssoc)("top-level commit")(obj.e = 0.5[prepared_d.c, committed_wr.c] + (-5, 5));
+    item(iAssoc)("top-level rollback")(obj.w = rolledback.nw + (-25, 15));
     %clink(transition)(undecided, rolledback_wr);
     link(transition)(pathCut(undecided, rolledback_wr)(a.s .. (undecided.sw + (-20, 0)) .. rolledback_wr.c));
     clink(transition)(rolledback_wr, rolledback_ar);
@@ -155,6 +170,8 @@ beginfig(1);
 
 endfig;
 end
+
+
 
 
 
