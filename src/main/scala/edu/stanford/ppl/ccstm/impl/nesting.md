@@ -121,3 +121,25 @@ retained.  A better name for the status might be `Bumped`.  Hmm, bumped
 transactions are still active:
 
     case class Active(depth: Int, validDepth: Int, bumped: Boolean)
+
+## Lifecycle callbacks
+
+If an after-commit handler is registered in a nested transaction context,
+it should be fired only if every active transaction context commits.
+It should be fired as soon as all of these conditions is met.
+
+If an after-rollback handler is registered in a nested transaction
+context, it should be fired after any of the active nested transaction
+contexts rolls back.  It should be fired as soon as this condition is met.
+
+Currently, remote cancel is disabled during the entire preparation phase.
+This is done only so that the last `WriteResource` can take over the
+commit decision.  We should consider reenabling remote cancel during
+preparation, and adding a special hook for this use case.  Perhaps:
+
+    Txn.setDecider(f: Unit => Boolean)
+
+We might also consider a callback hook that occurs after commit is
+inevitable but before locks have been released:
+
+    Txn.afterDecision(f: Unit => Unit)
