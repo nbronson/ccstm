@@ -58,13 +58,11 @@ beginfig(1);
     aaaa.info.foreColor := (1.0, 1.0, 0.9);
     aaaa.info.borderColor := (0.5, 0.5, 0.5);
 
-    Activity.preparing_rr("read-resource", "validate");
-    Activity.preparing_wr("write-resource", "prepare");
+    Activity.preparing_ext("external resources", "prepare");
 
-    State.preparing("Preparing", "")(preparing_rr, preparing_wr);
+    State.preparing("Preparing", "")(preparing_ext);
     preparing.info.left := preparing.info.right := 10;
     %preparing.info.drawNameLine := 1;
-    topToBottom(20)(preparing_rr, preparing_wr);
 
 
     Activity.prepared_d("external", "decider");
@@ -85,26 +83,26 @@ beginfig(1);
     %preparing.width = a.width;
     %prepared.width = a.width;
     topToBottom(40)(aa, preparing);
-    prepared_d.c = preparing_wr.c + (aaa_body.c - aa_body.c);
+    prepared_d.c = preparing_ext.c + (aaa_body.c - aa_body.c);
 
-    Activity.committed_wr("write-resource", "commit");
+    Activity.committed_ext("external resources", "commit");
     Activity.committed_ac("after-commit", "handlers");
     End.committed_e;
 
-    State.committed("Committed", "")(committed_wr, committed_ac, committed_e);
+    State.committed("Committed", "")(committed_ext, committed_ac, committed_e);
     committed.info.left := committed.info.right := 20;
     %committed.info.drawNameLine := 1;
-    topToBottom(20)(committed_wr, committed_ac, committed_e);
+    topToBottom(20)(committed_ext, committed_ac, committed_e);
 
 
-    Activity.rolledback_wr("write-resource", "rollback");
+    Activity.rolledback_ext("external resources", "rollback");
     Activity.rolledback_ar("after-rollback", "handlers");
     End.rolledback_e;
 
-    State.rolledback("RolledBack", "")(rolledback_wr, rolledback_ar, rolledback_e);
+    State.rolledback("RolledBack", "")(rolledback_ext, rolledback_ar, rolledback_e);
     rolledback.info.left := rolledback.info.right := 20;
     %rolledback.info.drawNameLine := 1;
-    topToBottom(20)(rolledback_wr, rolledback_ar, rolledback_e);
+    topToBottom(20)(rolledback_ext, rolledback_ar, rolledback_e);
 
     %committed.width = a.width;
     leftToRight(70)(b, a_body);
@@ -154,22 +152,24 @@ beginfig(1);
 
     link(transition)(pathCut(aaaa, a_ar)(aaaa_body_c .. (aaa_c + (0, -5)) ..  (aa_c + (0, 5)) .. a_ar.c));
 
-    clink(transition)(a_bc, preparing_rr);
-    clink(transition)(preparing_rr, preparing_wr);
-    clink(transition)(preparing_wr, prepared_d);
-    clink(transition)(preparing_wr, committed_wr);
-    clink(transition)(prepared_d, committed_wr);
-    clink(transition)(committed_wr, committed_ac);
+    clink(transition)(a_bc, preparing_ext);
+    clink(transition)(preparing_ext, prepared_d);
+    clink(transition)(preparing_ext, committed_ext);
+    clink(transition)(prepared_d, committed_ext);
+    clink(transition)(committed_ext, committed_ac);
     clink(transition)(committed_ac, committed_e);
-    item(iAssoc)("top-level commit")(obj.e = 0.5[prepared_d.c, committed_wr.c] + (-5, 5));
+    item(iAssoc)("top-level commit")(obj.e = 0.5[prepared_d.c, committed_ext.c] + (-5, 5));
     item(iAssoc)("top-level rollback")(obj.w = rolledback.nw + (-25, 15));
-    %clink(transition)(undecided, rolledback_wr);
-    link(transition)(pathCut(undecided, rolledback_wr)(a.s .. (undecided.sw + (-20, 0)) .. rolledback_wr.c));
-    clink(transition)(rolledback_wr, rolledback_ar);
+    %clink(transition)(undecided, rolledback_ext);
+    link(transition)(pathCut(undecided, rolledback_ext)(a.s .. (undecided.sw + (-20, 0)) .. rolledback_ext.c));
+    clink(transition)(rolledback_ext, rolledback_ar);
     clink(transition)(rolledback_ar, rolledback_e);
 
 endfig;
 end
+
+
+
 
 
 
