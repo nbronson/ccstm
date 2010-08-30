@@ -237,7 +237,7 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
    *  `afterRollback`, as appropriate, handling any exceptions.
    *  Also adjusts the commit and rollback counters.
    */
-  private[ccstm] def callAfter()
+  private[ccstm] def callAfter(readSetSize: Int, writeBufferSize: Int)
 
   private[ccstm] def attach(ctx: impl.ThreadContext)
   private[ccstm] def detach(ctx: impl.ThreadContext)
