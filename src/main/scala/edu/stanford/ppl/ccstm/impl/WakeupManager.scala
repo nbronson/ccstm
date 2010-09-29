@@ -128,10 +128,12 @@ private[impl] final class WakeupManager(numChannels: Int, numSources: Int) {
 
     def await(currentTxn: TxnImpl) {
       if (!_triggered) {
-        if (null != currentTxn) currentTxn.requireActive()
+        if (null != currentTxn)
+          currentTxn.checkAccess()
         synchronized {
           while (!_triggered) {
-            if (null != currentTxn) currentTxn.requireActive()
+            if (null != currentTxn)
+              currentTxn.checkAccess()
             wait
           }
         }

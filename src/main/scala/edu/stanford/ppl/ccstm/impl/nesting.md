@@ -143,3 +143,30 @@ We might also consider a callback hook that occurs after commit is
 inevitable but before locks have been released:
 
     Txn.afterDecision(f: Unit => Unit)
+
+## Nested retry
+
+At the top level, when a retry occurs the entire Txn is rolled back
+and the union of the read set and write buffer becomes the watch set.
+If an alternative is available the watch set is saved on the side while
+the alternative is attempted.  If it also executes `retry` then the watch
+set is accumulates again.  Once all alternatives are exhausted then the
+watch set is used to perform the block.
+
+When a nested retry is performed without an alternative, it must
+trickle upward.  This means that the watch set for the nested block
+does not need to include elements that will be added to the watch set
+when the outer retry occurs.  Only new read set and new write buffer
+entries need be considered.
+
+## Contention management
+
+Intuitively, the construct
+
+    atomic { implicit t => atomic { implicit t =>
+      // body
+    }}
+
+should behave identically to a singly-nested `atomic` with regards to forward
+progress, priority escalation and barging.  Only when a rollback is complete
+can the priority or barging status of a transaction be changed.

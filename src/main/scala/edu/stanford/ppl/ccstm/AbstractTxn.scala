@@ -10,10 +10,12 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
 
   //////////////// Functions to be implemented in an STM-specific manner
 
-  private[ccstm] def forceRollbackImpl(cause: RollbackCause)
+  private[ccstm] def forceRollbackImpl(invalidNestingLevel: Int, cause: RollbackCause): Nothing
   private[ccstm] def requestRollbackImpl(cause: RollbackCause): Status
-  private[ccstm] def retryImpl(): Nothing
-  private[ccstm] def commitImpl(): Status
+  private[ccstm] def topLevelComplete(): Status
+  private[ccstm] def takeRetrySet(): impl.ReadSet
+  private[ccstm] def nestedBegin()
+  private[ccstm] def nestedComplete(): RollbackCause
   private[ccstm] def explicitlyValidateReadsImpl()
   private[ccstm] def addReferenceImpl(ptr: AnyRef)
 
@@ -24,26 +26,44 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
    */
   def status: Status
 
-  /** Causes this transaction to fail with the specified cause, when called
-   *  from the thread running the transaction.  If the transaction is already
-   *  doomed (`status.mustRollBack`) then this method does nothing.  Throws an
-   *  exception if it cannot be arranged that this transaction roll back.
-   *
-   *  This method does not throw `RollbackError`, but in most places where it
-   *  would be called it is probably correct to immediately do this.  This
-   *  method may only be called from the thread executing the transaction
-   *  (probably not checked); use `requestRollback` if you wish to doom a
-   *  transaction running on another thread.
-   *  @throws IllegalStateException if `status.mustCommit`, or if called from a
-   *      thread that is not attached to the transaction
+  /** Returns the number of nested atomic blocks in this `Txn`.  A value of 0
+   *  indicates a top-level atomic block.
    */
-  def forceRollback(cause: RollbackCause)
+  def nestingLevel: Int
 
-  /** If the transaction is either `Active` or `Validating`, marks it for
+  /** Causes the specified `invalidNestingLevel` to be rolled back due to the
+   *  specified `cause`.  If `invalidNestingLevel` is 0 then the entire
+   *  transaction is guaranteed to be rolled back, otherwise either a a
+   *  partial or complete rollback may occur.  After a partial rollback
+   *  `nestingLevel` will be less than `invalidNestingLevel`.
+   *
+   *  To roll back just the current nesting level of `txn`, use {{{
+   *    txn.forceRollback(txn.nestingLevel, cause)
+   *  }}}
+   *  To roll back the entire transaction `txn`, use {{{
+   *    txn.forceRollback(0, cause)
+   *  }}}
+   *
+   *  If the invalid nesting level is already doomed then this method does not
+   *  change the cause.  Throws an `IllegalStateException` if the transaction
+   *  is already committed.  This method may only be called by the thread
+   *  executing the transaction; use `requestRollback` if you wish to doom a
+   *  transaction running on another thread.
+   *  @throws IllegalStateException if `status` is `Committed` or if called
+   *      from a thread that is not attached to the transaction.
+   *  @throws IllegalArgumentException if `invalidNestinglevel` is less than
+   *      zero.
+   */
+  def forceRollback(invalidNestingLevel: Int, cause: RollbackCause): Nothing
+
+  /** If the transaction is either `Active` or `Preparing`, marks it for
    *  rollback, otherwise it does not affect the transaction.  Returns the
-   *  transaction status after the attempt.  The returned status will either
-   *  have `Status.decided == true` or be `Preparing`.  Regardless of the
-   *  status, this method does not throw an exception.
+   *  transaction status after the attempt.  The returned status will be one
+   *  of `Prepared`, `Committed`, or `RolledBack`.  Regardless of the status,
+   *  this method does not throw an exception.
+   *
+   *  Unlike `forceRollback`, this method may be called from any thread.  Note
+   *  that there is no facility for remotely triggering a partial rollback.
    */
   def requestRollback(cause: RollbackCause): Status
 
@@ -53,11 +73,6 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
    *  @see edu.stanford.ppl.ccstm.atomic#oneOf
    */
   def retry()
-
-  /** Completes the transaction, committing if possible.  Returns the final
-   *  status.
-   */
-  def commit(): Status
 
   /** Validates that the transaction is consistent with all other committed
    *  transactions and completed non-transactional accesses, immediately
@@ -186,12 +201,12 @@ private[ccstm] abstract class AbstractTxn extends impl.StatusHolder {
    * 
    *  @throws IllegalStateException if the transaction is not active.
    */
-  def detach();
+  def detach()
 
   /** Attaches this transaction to the current thread after a called to
    *  `detach()`.                                                                         
    */
-  def attach();
+  def attach()
 
   //////////////// internal Txn lifecycle stuff
 

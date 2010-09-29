@@ -22,31 +22,154 @@ object STM {
 
   /** @see edu.stanford.ppl.ccstm.atomic#apply */
   def atomic[Z](block: Txn => Z)(implicit mt: MaybeTxn): Z = {
-    // TODO: without partial rollback we can't properly implement failure atomicity (see issue #4)
+    val ctx = getContext
 
-    mt match {
-      case txn: Txn if !txn.status.completed => nestedAtomic(block, txn) // static resolution of enclosing block
-      case _ => {
-        // dynamic scoping for nesting
-        val ctx = ThreadContext.get
-        if (null != ctx.txn) {
-          nestedAtomic(block, ctx.txn)
-        } else {
-          topLevelAtomic(block, ctx, Nil)
+    val bb = ctx.alternatives
+    if (bb.isEmpty) {
+      atomic(block, ctx)
+    } else {
+      ctx.alternatives = Nil
+
+      // There was one or more orAtomic clauses.  ctx.alternatives has type
+      // List[Txn => Any], because the return types of the other blocks might
+      // not be compatible with Z.  This means that we can't return the result
+      // from this method directly.  The two possibilities are:
+      //    store it in ctx and return a bogus value of Z
+      //    wrap the value in an exception and throw it
+      // We choose the latter because the resulting code is much less likely
+      // to fail silently.
+      val z = atomicOrElse(block :: bb, ctx)
+      throw AlternativeResult(z)
+    }
+  }
+
+  private def getContext(implicit mt: MaybeTxn): ThreadContext = mt match {
+    case txn: Txn => txn.ctx
+    case _ => ThreadContext.get
+  }
+
+  private def atomic[Z](block: Txn => Z, ctx: ThreadContext): Z = {
+    val txn = ctx.txn
+    if (txn == null)
+      topLevelAtomic(block, Nil, ctx)
+    else
+      nestedAtomic(block, txn)
+  }
+
+  @tailrec
+  private def topLevelAtomic[Z](block: Txn => Z, hist: List[Txn.RollbackCause], ctx: ThreadContext): Z = {
+    // new transaction
+    val txn = new Txn(hist, ctx)
+    var nonLocalReturn: ControlThrowable = null
+    var result: Z = null.asInstanceOf[Z]
+    try {
+      result = block(txn)
+    } catch {
+      case RollbackError => {}
+      case x: ControlThrowable => nonLocalReturn = x
+      case x => txn.forceRollback(0, Txn.UserExceptionCause(x))
+    }
+    val s = txn.topLevelComplete()
+    if (s eq Txn.Committed) {
+      // SUCCESS, return value is either the result or a control transfer
+      if (nonLocalReturn != null)
+        throw nonLocalReturn
+      result
+    } else {
+      // FAILURE, throw an exception if no retry should be performed
+      val h = s.rollbackCause
+      h match {
+        case Txn.UserExceptionCause(x) => throw x
+        case Txn.CallbackExceptionCause(_, x) => throw x
+        case Txn.ExplicitRetryCause => Txn.awaitRetry(txn.takeRetrySet())
+        case _ =>
+      }
+      topLevelAtomic(block, h :: hist, ctx)
+    }
+  }
+
+  private def topLevelAttempt[Z](block: Txn => Z, hist: List[Txn.RollbackCause], ctx: ThreadContext): Either[Z, Txn.RollbackCause] = {
+    // new transaction
+    val txn = new Txn(hist, ctx)
+    var nonLocalReturn: ControlThrowable = null
+    var result: Z = null.asInstanceOf[Z]
+    try {
+      result = block(txn)
+    } catch {
+      case RollbackError => {}
+      case x: ControlThrowable => nonLocalReturn = x
+      case x => txn.forceRollback(0, Txn.UserExceptionCause(x))
+    }
+    val s = txn.topLevelComplete()
+    if (s eq Txn.Committed) {
+      // success, return value is either the result or a control transfer
+      if (nonLocalReturn != null)
+        throw nonLocalReturn
+      Left(result)
+    } else {
+      // failure, throw an exception if no retry should be performed
+      s.rollbackCause match {
+        case Txn.UserExceptionCause(x) => throw x
+        case Txn.CallbackExceptionCause(_, x) => throw x
+        case h => Right(h)
+      }
+    }
+  }
+
+  @tailrec
+  private def nestedAtomic[Z](block: Txn => Z, txn: Txn): Z = {
+    nestedAttempt(block, txn) match {
+      case Left(z) => z
+      case Right(h) => {
+        h match {
+          case Txn.ExplicitRetryCause => txn.retry(x.readSet)
+          case x: Txn.OptimisticFailureCause => {
+            // We can either retry immediately or roll back the parent.  There
+            // is not much benefit to performing extra partial rollbacks,
+            // because if one of the parents would take a different path next
+            // time it would have been detected during the validation that
+            // failed here.  Only if we go back to the very beginning can we
+            // turn on barging and/or increase our priority.
+          }
         }
+        topLevelAtomic(block, h :: hist, ctx)
+      }
+    }
+  }
+  private def nestedAttempt[Z](block: Txn => Z, txn: Txn): Either[Z, Txn.RollbackCause] = {
+    txn.nestedBegin()
+    var nonLocalReturn: ControlThrowable = null
+    var result: Z = null.asInstanceOf[Z]
+    try {
+      result = block(txn)
+    } catch {
+      case RollbackError => {}
+      case x: ControlThrowable => nonLocalReturn = x
+      case x => txn.forceRollback(txn.nestingLevel, Txn.UserExceptionCause(x))
+    }
+    val rc = txn.nestedCommit()
+    if (rc == null) {
+      // success, return value is either the result or a control transfer
+      if (nonLocalReturn != null)
+        throw nonLocalReturn
+      Left(result)
+    } else {
+      // failure, throw an exception if no retry should be performed
+      rc match {
+        case Txn.UserExceptionCause(x) => throw x
+        case Txn.CallbackExceptionCause(_, x) => throw x
+        case h => Right(h)
       }
     }
   }
 
   private def nestedAtomic[Z](block: Txn => Z, txn: Txn): Z = {
-    if (!txn.childAlternatives.isEmpty) {
-      throw new UnsupportedOperationException("nested retry/orElse not yet supported (issue #4)")
+    txn.nestedBegin()
+    try {
+      block(txn)
+    } catch {
     }
-    block(txn)
-  }
 
-  @tailrec
-  private def topLevelAtomic[Z](block: Txn => Z, ctx: ThreadContext, hist: List[Txn.RollbackCause]): Z = {
     if (!ctx.alternatives.isEmpty) {
       // There was one or more orElse clauses.  Be careful, because their
       // return type might not be Z.
@@ -54,28 +177,34 @@ object STM {
       ctx.alternatives = Nil
       val z = atomicOrElse((block :: b): _*)
       throw AlternativeResult(z)
-    }
 
-    // new transaction
-    val txn = new Txn(hist, ctx)
-    val z = attemptImpl(txn, block)
-    if (txn.status eq Txn.Committed) {
-      z
-    } else {
-      val cause = txn.status.rollbackCause
-      cause match {
-        case x: Txn.ExplicitRetryCause => Txn.awaitRetryAndDestroy(x)
-        case _ => {}
-      }
-      // retry
-      topLevelAtomic(block, ctx, cause :: hist)
     }
+    val b = txn.childAlternatives
+    txn.childAlternatives = Nil
+
+    txn.nestedBegin()
+    try {
+
+    }
+    if (!txn.childAlternatives.isEmpty) {
+      throw new UnsupportedOperationException("nested retry/orElse not yet supported (issue #4)")
+    }
+    block(txn)
   }
 
-  /** @see edu.stanford.ppl.ccstm.atomic#oneOf */
-  def atomicOrElse[Z](blocks: (Txn => Z)*)(implicit mt: MaybeTxn): Z = {
-    if (null != Txn.currentOrNull) throw new UnsupportedOperationException("nested orAtomic is not currently supported")
 
+  /** @see edu.stanford.ppl.ccstm.atomic#oneOf */
+  def atomicOrElse[Z](blocks: (Txn => Z)*)(implicit mt: MaybeTxn): Z = atomicOrElse(getContext, blocks)
+
+  private def atomicOrElse[Z](ctx: ThreadContext, blocks: Seq[Txn => Z]): Z = {
+    val txn = ctx.txn
+    if (txn == null)
+      topLevelAtomicOrElse(ctx, blocks :: bb)
+    else
+      nestedAtomicOrElse(txn, blocks)
+  }
+
+  private def topLevelAtomicOrElse[Z](ctx: ThreadContext, blocks: Seq[Txn => Z]): Z = {
     val hists = new Array[List[Txn.RollbackCause]](blocks.length)
     (while (true) {
       // give all of the blocks a chance
@@ -90,41 +219,19 @@ object STM {
 
       // go to sleep
       val ers = hists.map(_.head.asInstanceOf[Txn.ExplicitRetryCause])
-      Txn.awaitRetryAndDestroy(ers:_*)
+      Txn.awaitRetryAndDestroy(ers: _*)
     }).asInstanceOf[Nothing]
   }
 
+  @tailrec
   private def attemptUntilRetry[Z](block: Txn => Z,
-                                   hist0: List[Txn.RollbackCause]): Either[Z, List[Txn.RollbackCause]] = {
-    val ctx = ThreadContext.get
-    var hist = hist0
-    var txn = new Txn(hist, ctx)
-    var z = attemptImpl(txn, block)
-    while (txn.status ne Txn.Committed) {
-      val cause = txn.status.rollbackCause
-      hist = cause :: hist
-      if (cause.isInstanceOf[Txn.ExplicitRetryCause]) return Right(hist)
-      // retry
-      txn = new Txn(hist, ctx)
-      z = attemptImpl(txn, block)
+                                   hist: List[Txn.RollbackCause],
+                                   ctx: ThreadContext): Either[Z, List[Txn.RollbackCause]] = {
+    topLevelAttempt(block, hist, ctx) match {
+      case z @ Left(_) => z
+      case z @ Right(Txn.ExplicitRetryCause(_) :: _) => z
+      case Right(hh) => attemptUntilRetry(block, hh, ctx)
     }
-    Left(z)
-  }
-
-  private def attemptImpl[Z](txn: Txn, block: Txn => Z): Z = {
-    var nonLocalReturn: ControlThrowable = null
-    var result: Z = null.asInstanceOf[Z]
-    try {
-      result = block(txn)
-    }
-    catch {
-      case RollbackError => {}
-      case x: ControlThrowable => nonLocalReturn = x
-      case x => txn.forceRollback(Txn.UserExceptionCause(x))
-    }
-    txn.commitAndRethrow()
-    if (null != nonLocalReturn && txn.status == Txn.Committed) throw nonLocalReturn
-    result
   }
 
   /** Rolls the transaction back, indicating that it should be retried after

@@ -63,6 +63,11 @@ object Txn {
 
   /** Represents the current status of a `Txn`. */
   sealed abstract class Status {
+    /** True if a transaction with this status might eventually commit and can
+     *  add to its read and write set.
+     */
+    def mayAccess: Boolean
+
     /** True if a transaction with this status might eventually commit, false
      *  if rollback is inevitable.
      */
@@ -108,10 +113,13 @@ object Txn {
     def rollbackCause: RollbackCause
   }
 
-  /** The `Status` for a `Txn` for which reads and writes
-   *  may still be performed and callbacks may still be registered.
+  // TODO: cache Active instances
+
+  /** The `Status` for a `Txn` for which reads and writes may still be
+   *  performed (possibly after a partial rollback).
    */
-  case object Active extends Status {
+  case class Active(val depth: Int, val validDepth: Int, val partialRollbackCause: RollbackCause) extends Status {
+    def mayAccess = depth == validDepth
     def mightCommit = true
     def mustCommit = false
     def remotelyCancellable = true
@@ -119,26 +127,27 @@ object Txn {
     def rollbackCause = null
   }
 
-  /** The `Status` for a `Txn` that is undergoing final validation.  Validating
-   *  transactions may commit or roll back.  No more reads or writes may be
-   *  performed, and only write resources, after-commit, and after-rollback
-   *  callbacks may be registered.
-   */
-  case object Validating extends Status {
-    def mightCommit = true
-    def mustCommit = false
-    def remotelyCancellable = true
-    def completed = false
-    def rollbackCause = null
-  }
-
-  /** The `Status` for a `Txn` that is preparing its write resources.  This is
-   *  similar to `Validating`, but the transaction may no longer be rolled back
-   *  by another transaction with a higher priority or by a `requestRollback`
-   *  call from another thread.  No more reads or writes may be performed, and
-   *  only after-commit and after-rollback callbacks may be registered.
+  /** The `Status` for a `Txn` that is in the process of attempting a top-level
+   *  commit, but that has not yet decided whether to commit or roll back.  No
+   *  `Ref` reads or writes are allowed, and no additional before-commit
+   *  handlers, read-resources or write-resources may be registered.
    */
   case object Preparing extends Status {
+    def mayAccess = false
+    def mightCommit = true
+    def mustCommit = false
+    def remotelyCancellable = true
+    def completed = false
+    def rollbackCause = null
+  }
+
+  /** The `Status` for a `Txn` that has successfully acquired all write
+   *  permissions necessary, and that has delegated the final commit decision
+   *  to a `Decider`.  Transactions without an external decider may skip this
+   *  state.
+   */
+  case object Prepared extends Status {
+    def mayAccess = false
     def mightCommit = true
     def mustCommit = false
     def remotelyCancellable = false
@@ -150,6 +159,7 @@ object Txn {
    *  commit, but that has not yet released all of its resources.
    */
   case object Committing extends Status {
+    def mayAccess = false
     def mightCommit = true
     def mustCommit = true
     def remotelyCancellable = false
@@ -162,6 +172,7 @@ object Txn {
    *  it had acquired.
    */
   case object Committed extends Status {
+    def mayAccess = false
     def mightCommit = true
     def mustCommit = true
     def remotelyCancellable = false
@@ -175,6 +186,7 @@ object Txn {
   case class RollingBack(val rollbackCause: RollbackCause) extends Status {
     { if (null == rollbackCause) throw new NullPointerException }
 
+    def mayAccess = false
     def mightCommit = false
     def mustCommit = false
     def remotelyCancellable = false
@@ -187,6 +199,7 @@ object Txn {
   case class Rolledback(val rollbackCause: RollbackCause) extends Status {
     { if (null == rollbackCause) throw new NullPointerException }
 
+    def mayAccess = false
     def mightCommit = false
     def mustCommit = false
     def remotelyCancellable = false
@@ -215,11 +228,8 @@ object Txn {
     val trigger: Any
   }
 
-  /** The `RollbackCause` recorded for an explicit `retry`.  The
-   *  `readSet` is an opaque object used to block until the retry
-   *  may succeed.
-   */
-  case class ExplicitRetryCause(readSet: AnyRef) extends RollbackCause {
+  /** The `RollbackCause` recorded for an explicit `retry`. */
+  case object ExplicitRetryCause extends RollbackCause {
     private[ccstm] def counter = explicitRetryCounter
   }
 
@@ -275,7 +285,9 @@ object Txn {
 
   //////////////// Statistics
 
-  private[ccstm] val commitCounter = new Counter  
+  // TODO: partial rollback statistics
+
+  private[ccstm] val commitCounter = new Counter
   private[ccstm] val explicitRetryCounter = new Counter
   private[ccstm] val userExceptionCounter = new Counter
   private[ccstm] val callbackExceptionCounter = new Counter
@@ -485,6 +497,8 @@ object Txn {
     def performRollback(txn: Txn)
   }
 
+  // TODO: rename handlePostDecisionException to better reflect use during nested rollback
+
   /** This function will be invoked with any exceptions that are thrown from
    *  `WriteResource.performCommit`, from `WriteResource.performRollback`, or
    *  from a callback function registered via `Txn.afterCommit` or
@@ -549,25 +563,16 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
   
   def status: Status = _status
 
-  def forceRollback(cause: RollbackCause) { forceRollbackImpl(cause) }
-
-  def requestRollback(cause: RollbackCause) = requestRollbackImpl(cause)
-
-  def retry(): Nothing = { retryImpl() }
-
-  def commit(): Status = commitImpl()
-
-  /** On return, status.rollbackCause will be either null, ExplicitRetryCause,
-   *  or an OptimisticFailureCause.
-   */
-  private[ccstm] def commitAndRethrow() {
-    val s = commit()
-    s.rollbackCause match {
-      case UserExceptionCause(x) => throw x
-      case CallbackExceptionCause(_, x) => throw x
-      case _ =>
-    }
+  def nestingLevel: Int = status match {
+    case Active(depth, _, _) => depth
+    case _ => 0
   }
+
+  def forceRollback(invalidNestingLevel: Int, cause: RollbackCause): Nothing = forceRollbackImpl(invalidNestingLevel, cause)
+
+  def requestRollback(cause: RollbackCause): Status = requestRollbackImpl(cause)
+
+  def retry(): Nothing = forceRollback(nestingLevel, ExplicitRetryCause)
 
   def explicitlyValidateReads() { explicitlyValidateReadsImpl() }
 
@@ -575,26 +580,26 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
   
 
   def beforeCommit(callback: Txn => Unit, prio: Int) {
-    requireActive()
+    // beforeCommit has the same status requirements as a read or write barrier
+    checkAccess()
     _callbacks.beforeCommit.add(callback, prio)
   }
 
   def beforeCommit(callback: Txn => Unit) { beforeCommit(callback, 0) }
 
-  private[ccstm] def callBefore(): Boolean = {
+  private[ccstm] def applyBeforeCommitHandlers() {
     if (!_callbacks.beforeCommit.isEmpty) {
-      for (res <- _callbacks.beforeCommit) {
+      for (handler <- _callbacks.beforeCommit) {
         try {
-          res(this)
+          handler(this)
         } catch {
           case x => {
-            forceRollback(CallbackExceptionCause(res, x))
+            forceRollback(CallbackExceptionCause(handler, x))
+            throw RollbackError
           }
         }
-        if (status != Active) return false
       }
     }
-    return true
   }
 
   def addReadResource(readResource: ReadResource) {
@@ -606,11 +611,11 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
   }
 
   def addReadResource(readResource: ReadResource, prio: Int, checkAfterRegister: Boolean) {
-    requireActive()
+    checkAddReadResource()
     _callbacks.readResources.add(readResource, prio)
     if (checkAfterRegister) {
       validateNoThrow(readResource)
-      requireActive()
+      checkAccess()
     }
   }
 
@@ -628,6 +633,7 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
 
   private[ccstm] def readResourcesValidate(): Boolean = {
     if (!_callbacks.readResources.isEmpty) {
+      // TODO: partial rollback if read resource was registered in a nested txn
       for (res <- _callbacks.readResources) {
         validateNoThrow(res)
         if (!status.mightCommit) return false
@@ -641,7 +647,7 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
   }
 
   def addWriteResource(writeResource: WriteResource, prio: Int) {
-    requireActiveOrValidating()
+    checkAddWriteResource()
     _callbacks.writeResources.add(writeResource, prio)
   }
 
@@ -692,15 +698,15 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
   }
 
   def afterCommit(callback: Txn => Unit, prio: Int) {
-    requireNotCompleted()
-    _callbacks.afterCompletion.add(callback, prio, true, false)
+    checkAddAfterCompletion()
+    _callbacks.afterCommit.add(callback, prio)
   }
 
   def afterCommit(callback: Txn => Unit) { afterCommit(callback, 0) }
 
   def afterRollback(callback: Txn => Unit, prio: Int) {
-    requireNotCompleted()
-    _callbacks.afterCompletion.add(callback, prio, false, true)
+    checkAddAfterCompletion()
+    _callbacks.afterRollback.add(callback, prio)
   }
 
   def afterRollback(callback: Txn => Unit) { afterRollback(callback, 0) }
@@ -709,11 +715,38 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
 
   def afterCompletion(callback: Txn => Unit, prio: Int) {
     // TODO: afterCompletion(prio: Int)(callback: Txn => Unit)
-    requireNotCompleted()
-    _callbacks.afterCompletion.add(callback, prio, true, true)
+    checkAddAfterCompletion()
+    _callbacks.afterCommit.add(callback, prio)
+    _callbacks.afterRollback.add(callback, prio)
   }
 
-  private[ccstm] def callAfter(readSetSize: Int, writeBufferSize: Int) {
+  private[ccstm] def callbacksCheckpoint(): Long = {
+    val a = _callbacks.afterCommit.size : Long
+    val b = _callbacks.afterRollback.size : Long
+    (a << 32) | b
+  }
+
+  private def packCheckpoint(acSize: Int, arSize: Int) = ((acSize : Long) << 32) | (arSize : Long)
+  private def unpackACSize(checkpoint: Long) = (checkpoint >> 32).asInstanceOf[Int]
+  private def unpackARSize(checkpoint: Long) = checkpoint.asInstanceOf[Int]
+
+  private[ccstm] def callbacksPartialRollback(checkpoint: Long) {
+    _callbacks.afterCommit.trim(unpackACSize(checkpoint))
+
+    val n = unpackARSize(checkpoint)
+    if (_callbacks.afterRollback.size != n) {
+      _callbacks.afterRollback.reverseVisitAndTrim(n) { cb =>
+        try {
+          cb(this)
+        }
+        catch {
+          case x => forceRollback(CallbackExceptionCause(cb, x))
+        }
+      }
+    }
+  }
+
+  private[ccstm] def callbacksAfter(readSetSize: Int, writeBufferSize: Int) {
     val s = status
     val committing = s eq Committed
     if (EnableCounters) {
@@ -735,8 +768,9 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
         }
       }
     }
-    if (!_callbacks.afterCompletion.isEmpty) {
-      _callbacks.afterCompletion.foreach(committing) { cb =>
+    val list = if (committing) _callbacks.afterCommit else _callbacks.afterRollback
+    if (!list.isEmpty) {
+      for (cb <- list) {
         try {
           cb(this)
         }

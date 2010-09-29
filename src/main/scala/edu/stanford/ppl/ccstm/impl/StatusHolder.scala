@@ -15,7 +15,7 @@ private[ccstm] object StatusHolder {
 private[ccstm] class StatusHolder {
   import STMImpl.{SpinCount, YieldCount}
 
-  @volatile private var __status: Txn.Status = Txn.Active
+  @volatile private var __status: Txn.Status = Txn.Active(0, 0)
   @volatile private var _anyAwaitingDecided = false
   @volatile private var _anyAwaitingCompletedOrDoomed = false
 
@@ -54,46 +54,70 @@ private[ccstm] class StatusHolder {
 
   //////////////// Assertions about the current status
 
-  /** Throws `RollbackError` is the status is
-   *  `RollingBack`, otherwise throws an
-   *  `IllegalStateException` if the status is something other than
-   *  `Active`.
+  /** Throws `RollbackError` if the current atomic block should be rolled back,
+   *  or throws `IllegalStateException` if the transaction state does not allow
+   *  a `Ref` access.
    */
-  private[ccstm] final def requireActive() {
+  private[ccstm] final def checkAccess() {
     val s = _status
-    if (s ne Txn.Active) rollbackOrIllegalState(s)
+    if (!s.mayAccess)
+      doThrow(s)
   }
 
-  private def rollbackOrIllegalState(s: Txn.Status) {
-    if (s.isInstanceOf[Txn.RollingBack]) {
+  private def doThrow(s: Txn.Status) = s match {
+    case _: Txn.Active => throw RollbackError // must be partial rollback
+    case _: Txn.RollingBack => throw RollbackError
+    case _ => throw new IllegalStateException(s.toString)
+  }
+
+  /** Throws `RollbackError` if the current atomic block should be rolled back,
+   *  or throws `IllegalArgumentException` if the transaction state does not
+   *  allow an unrecorded read.  This is like `checkAccess`, but it also
+   *  accepts the `Preparing` state.
+   */
+  private[ccstm] final def checkUnrecordedRead() {
+    checkAccessOrPreparing()
+  }
+
+  private def checkAccessOrPreparing() {
+    val s = _status
+    if (!s.mayAccess && (s ne Txn.Preparing)) doThrow(s)
+  }
+
+  /** Checks if a before-commit handler may be registered from the current
+   *  context.  This is equivalent to `checkAccess`.
+   */
+  private[ccstm] final def checkAddBeforeCommit() { checkAccess() }
+
+  /** Checks if a read-resource may be registered from the current context.
+   *  This is equivalent to `checkAccess`.
+   */
+  private[ccstm] final def checkAddReadResource() { checkAccess() }
+
+  /** Checks if a write-resource may be registered from the current context.
+   *  Write-resources may be added any time that accesses are allowed, or
+   *  during the preparing phase.  New write resources during the preparing
+   *  phase are allowed because the visitation explicitly _includes_ handlers
+   *  added reentrantly.
+   */
+  private[ccstm] final def checkAddWriteResource() { checkAccessOrPreparing() }
+
+  /** Checks if an after-commit, after-rollback, or after-completion handler
+   *  may be attached to the current context.  This is allowed so long as the
+   *  after-completion handlers have not yet started firing.  Throws
+   *  `RollbackError` if one is pending.
+   */
+  private[ccstm] final def checkAddAfterCompletion() { checkNotCompleted() }
+
+  /** Throws `RollbackError` is the status is `RollingBack`, throws an
+   *  `IllegalStateException` if the status is `Committed` or `RolledBack`.
+   */
+  private def checkNotCompleted() {
+    val s = _status
+    if (s.isInstanceOf[Txn.RollingBack])
       throw RollbackError
-    } else {
+    else if (s.completed)
       throw new IllegalStateException(s.toString)
-    }
-  }
-
-  /** Throws `RollbackError` is the status is `RollingBack`, otherwise throws
-   *  an `IllegalStateException` if the status is something other than `Active`
-   *  or `Validating`.
-   */
-  private[ccstm] final def requireActiveOrValidating() {
-    val s = _status
-    if ((s ne Txn.Active) && (s ne Txn.Validating)) rollbackOrIllegalState(s)
-  }
-
-  /** Throws `RollbackError` is the status is 
-   *  `RollingBack`, throws an `IllegalStateException` if
-   *  the status is `Committed` or `RolledBack`.
-   */
-  private[ccstm] final def requireNotCompleted() {
-    val s = _status
-    if (s != Txn.Active) {
-      if (s.isInstanceOf[Txn.RollingBack]) {
-        throw RollbackError
-      } else if (s.completed) {
-        throw new IllegalStateException("txn.status is " + s)
-      }
-    }
   }
 
   //////////////// Status change waiting
@@ -105,7 +129,8 @@ private[ccstm] class StatusHolder {
       spins += 1
       if (spins > SpinCount) Thread.`yield`
 
-      if (completedOrDoomed) return
+      if (completedOrDoomed)
+        return
     }
 
     // spin failed, put ourself to sleep

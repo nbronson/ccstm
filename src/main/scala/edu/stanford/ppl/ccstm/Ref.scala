@@ -317,7 +317,7 @@ object Ref {
  *  in this case they will compare equal.  (As an example, a transactional
  *  array class might store elements in an array and create `Ref`s on demand.)
  *  `Ref`s (or `Source`s) may be provided for computed values, such as the
- *  emptiness of a queue, to allow conditional retry and waiting on semantic
+ *  emptiness of a queue, to allow  conditional retry and waiting on semantic
  *  properties.
  *
  *  To perform an access outside a transaction, use the view returned by

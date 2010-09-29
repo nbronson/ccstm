@@ -257,6 +257,8 @@ private[ccstm] object STMImpl extends GV6 {
   }
 
   private def weakAwaitNonTxnUnowned(handle: Handle[_], m0: Meta, currentTxn: TxnImpl) {
+    // TODO: should we spin longer here to avoid allocation?
+
     // spin a bit
     var spins = 0
     while (spins < SpinCount + YieldCount) {
@@ -266,7 +268,7 @@ private[ccstm] object STMImpl extends GV6 {
       val m = handle.meta
       if (ownerAndVersion(m) != ownerAndVersion(m0)) return
 
-      if (null != currentTxn) currentTxn.requireActive()
+      if (null != currentTxn) currentTxn.checkAccess()
     }
 
     // to wait for a non-txn owner, we use pendingWakeups
@@ -300,7 +302,7 @@ private[ccstm] object STMImpl extends GV6 {
         val m = handle.meta
         if (ownerAndVersion(m) != ownerAndVersion(m0)) return
 
-        if (null != currentTxn) currentTxn.requireActive()
+        if (null != currentTxn) currentTxn.checkAccess()
       }
     }
 

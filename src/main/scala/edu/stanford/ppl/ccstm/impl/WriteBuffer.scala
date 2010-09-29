@@ -168,7 +168,7 @@ private[impl] final class WriteBuffer {
     return i
   }
 
-  private def grow(): Unit = {
+  private def grow() {
     // adjust capacity
     _cap *= 2
     if (_cap > _dispatch.length) {
@@ -180,7 +180,7 @@ private[impl] final class WriteBuffer {
       java.util.Arrays.fill(_dispatch, 0, _cap, 0)
     }
 
-    // relink the dispatch array
+    // rebuild the dispatch array by iterating the slots
     var i = 1
     while (i <= _size) {
       val slot = computeSlot(getRef(i), getOffset(i))
@@ -190,9 +190,9 @@ private[impl] final class WriteBuffer {
     }
   }
 
-  def clear(): Unit = {
+  def clear() {
     if (_cap <= MaxInitialRealCap) {
-      // null out the existing arrays
+      // null out the existing arrays that hold references
       var i = _size
       while (i > 0) {
         setRef(i, null)
@@ -201,7 +201,7 @@ private[impl] final class WriteBuffer {
         i -= 1
       }
 
-      // zero the initial portion of the dispatch array
+      // zero the portion of the dispatch array that will be reused immediately
       java.util.Arrays.fill(_dispatch, 0, InitialCap, 0)
     } else {
       // discard the existing big ones, to prevent bloat
@@ -214,7 +214,7 @@ private[impl] final class WriteBuffer {
     _cap = InitialCap
   }
 
-  //////// visitation
+  //////// nesting management and visitation
 
   /** Creates and switches to a nested context. */
   def push() {
@@ -222,18 +222,17 @@ private[impl] final class WriteBuffer {
     _undoThreshold = _size
   }
 
-  /** Commits the active nested context. */
-  def popWithCommit() {
+  /** Commits the active nested context into the parent context. */
+  def popWithNestedCommit() {
     _undoThreshold = _undoLog.prevThreshold
     _undoLog = _undoLog.prevLog
   }
 
-  /** Discards the active nested context, and accumulates the handles that were
-   *  first used during that exact context.  The caller is responsible for
-   *  aggregating handles across multiple `popWithRollback`-s, prior to this
-   *  call.
+  /** Restores the contents of the write buffer to the state at which `push`
+   *  was called, calling `unlock.apply` for each fresh-owner handle that was
+   *  added since the matching push.
    */
-  def popWithRollback() {
+  def popWithNestedRollback() {
     // apply the undo log in reverse order
     var i = _undoLog.size - 1
     while (i >= 0) {
@@ -244,8 +243,11 @@ private[impl] final class WriteBuffer {
     // null out references from the discarded buckets
     i = _size
     while (i > _undoThreshold) {
-//      if (wasFreshOwner(i))
-//        unlocker.visit(_bucketAnys(handleI(i)).asInstanceOf[Handle[_]], true, _bucketAnys(specValueI(i)))
+      if (wasFreshOwner(i)) {
+        // unlock
+        val h = getHandle(i)
+        h.meta = STMImpl.withRollback(h.meta)
+      }
 
       setRef(i, null)
       setSpecValue(i, null)
@@ -255,13 +257,13 @@ private[impl] final class WriteBuffer {
     _size = _undoThreshold
 
     // revert to previous context
-    popWithCommit()
+    popWithNestedCommit()
   }
 
-  /** Adds all handles that were added to the write buffer in the current
-   *  nesting level to `accum`, along with their current version number.
+  /** Adds to `accum` all handles that were written to in the current nesting
+   *  level but not in any parent level.
    */
-  def accumulateLevel(accum: ReadSetBuilder): Unit = {
+  def accumulateLevel(accum: ReadSetBuilder) {
     var i = _size
     while (i > _undoThreshold) {
       val h = getHandle(i)
@@ -273,11 +275,11 @@ private[impl] final class WriteBuffer {
 
 private class WBUndoLog(val prevLog: WBUndoLog, val prevThreshold: Int) {
   var size = 0
-  var index = new Array[Int](16)
-  var prevValue = new Array[AnyRef](16)
+  var index: Array[Int] = null
+  var prevValue: Array[AnyRef] = null
 
   def record(i: Int, v: AnyRef) {
-    if (size == index.length) {
+    if (size == 0 || size == index.length) {
       grow()
     }
     index(size) = i
@@ -286,7 +288,12 @@ private class WBUndoLog(val prevLog: WBUndoLog, val prevThreshold: Int) {
   }
 
   private def grow() {
-    index = java.util.Arrays.copyOf(index, index.length * 2)
-    prevValue = java.util.Arrays.copyOf(prevValue, prevValue.length * 2)
+    if (size == 0) {
+      index = new Array[Int](16)
+      prevValue = new Array[AnyRef](16)
+    } else {
+      index = java.util.Arrays.copyOf(index, index.length * 2)
+      prevValue = java.util.Arrays.copyOf(prevValue, prevValue.length * 2)
+    }
   }
 }

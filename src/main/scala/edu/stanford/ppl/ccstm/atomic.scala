@@ -109,22 +109,14 @@ object atomic {
 
     /** @see edu.stanford.ppl.ccstm.atomic#oneOf */
     def orAtomic[B >: A](rhs: Txn => B)(implicit mt: MaybeTxn): B = {
-      var ctx: ThreadContext = null
-      val txn = mt match {
-        case t: Txn => t
-        case _ => { ctx = ThreadContext.get ; ctx.txn }
+      var ctx = mt match {
+        case t: Txn => t.ctx
+        case _ => ThreadContext.get
       }
 
-      val rightMost = if (txn == null) {
-        val a = ctx.alternatives
-        ctx.alternatives = rhs :: a
-        a.isEmpty
-      }
-      else {
-        val a = txn.childAlternatives
-        txn.childAlternatives = rhs :: a
-        a.isEmpty
-      }
+      val a = ctx.alternatives
+      ctx.alternatives = rhs :: a
+      val rightMost = a.isEmpty
 
       // We don't have the type B available when we type lhs, so we can't
       // pass rhs's return through lhs's.  We handle this by tunnelling the
@@ -134,9 +126,16 @@ object atomic {
       // only the right-most orElse do the catch.
       if (!rightMost) {
         lhs
+        // If lhs returns it must not have contained an atomic block.  We can't
+        // detect all incorrect usages, but at least we can catch some.  As a
+        // problem example consider:
+        //  { atomic { implicit t => ... } ; someStuff() } orAtomic ...
+        // someStuff() will never be run.
+        throw new IllegalStateException("orAtomic wasn't chained directly from an atomic")
       } else {
         try {
           lhs
+          throw new IllegalStateException("orAtomic wasn't chained directly from an atomic")
         } catch {
           case STM.AlternativeResult(z) => z.asInstanceOf[B]
         }
