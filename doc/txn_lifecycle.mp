@@ -21,7 +21,7 @@ beginfig(1);
     a_body.info.foreColor := (0.9, 1.0, 0.9);
     Activity.a_bc("before-commit", "handlers");
 
-    State.a("Active(0)", "")(a_ar, a_body, a_bc);
+    State.a("Active", "nesting-level = 0")(a_ar, a_body, a_bc);
     a.info.left := a.info.right := 10;
     %a.info.drawNameLine := 1;
     topToBottom(40)(a_ar, a_body);
@@ -32,7 +32,7 @@ beginfig(1);
     Activity.aa_body("body of", "atomic block");
     aa_body.info.foreColor := (0.9, 1.0, 0.9);
 
-    State.aa("Active(1)", "")(aa_ar, aa_body);
+    State.aa("Active", "nesting-level = 1")(aa_ar, aa_body);
     aa.info.left := aa.info.right := 10;
     %aa.info.drawNameLine := 1;
     topToBottom(40)(aa_ar, aa_body);
@@ -42,7 +42,7 @@ beginfig(1);
     Activity.aaa_body("body of", "atomic block");
     aaa_body.info.foreColor := (0.9, 1.0, 0.9);
 
-    State.aaa("Active(2)", "")(aaa_ar, aaa_body);
+    State.aaa("Active", "nesting-level = 2")(aaa_ar, aaa_body);
     aaa.info.left := aaa.info.right := 10;
     %aaa.info.drawNameLine := 1;
     topToBottom(40)(aaa_ar, aaa_body);
@@ -52,7 +52,7 @@ beginfig(1);
     Activity.aaaa_body("", "");
     aaaa_body.info.foreColor := (0.9, 1.0, 0.9);
 
-    State.aaaa("Active(n)", "", "n > 2")();
+    State.aaaa("Active", "nesting-level > 2", "")();
     aaaa.info.left := aaaa.info.right := 0;
     aaaa.info.bottom := 92;
     aaaa.info.foreColor := (1.0, 1.0, 0.9);
@@ -167,6 +167,8 @@ beginfig(1);
 
 endfig;
 end
+
+
 
 
 
