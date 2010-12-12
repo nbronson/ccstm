@@ -4,18 +4,15 @@ import sbt._
 
 class CCSTMProject(info: ProjectInfo) extends DefaultProject(info) {
   val scalatest = crossScalaVersionString match {
-    case "2.8.0.Beta1" => "org.scalatest" % "scalatest" % "1.0.1-for-scala-2.8.0.Beta1-with-test-interfaces-0.3-SNAPSHOT"
-    case "2.8.0.RC1" => "org.scalatest" % "scalatest" % "1.0.1-for-scala-2.8.0.RC1-SNAPSHOT"
+    // RC7 is the same as the release, but scalatest against the release is not
+    // yet available
+    case "2.8.0" => "org.scalatest" % "scalatest" % "1.2-for-scala-2.8.0.RC7-SNAPSHOT"
     case _ => "org.scalatest" % "scalatest" % ("1.2-for-scala-" + crossScalaVersionString + "-SNAPSHOT")
   }
   val scalaToolsSnapshots = "Scala-Tools Maven2 Snapshots Repository" at "http://scala-tools.org/repo-snapshots"
 
   // include the license file in the resulting JAR
   //override def mainResources = super.mainResources + "LICENSE.txt"
-
-  // 2.8.0.RC1 has specialization bugs
-  override def compileOptions =
-    super.compileOptions.toList ++ (if (buildScalaVersion == "2.8.0.RC1") Some(CompileOption("-no-specialization")) else None)
 
   // this stuff doesn't work right yet
 //  val pplRepo = Resolver.sftp("ppl-sftp-repo", "ppl.stanford.edu", "/var/www/html/ppl/")

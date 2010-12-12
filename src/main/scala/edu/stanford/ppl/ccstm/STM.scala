@@ -25,7 +25,7 @@ object STM {
     // TODO: without partial rollback we can't properly implement failure atomicity (see issue #4)
 
     mt match {
-      case txn: Txn => nestedAtomic(block, txn) // static resolution of enclosing block
+      case txn: Txn if !txn.status.completed => nestedAtomic(block, txn) // static resolution of enclosing block
       case _ => {
         // dynamic scoping for nesting
         val ctx = ThreadContext.get
@@ -77,7 +77,7 @@ object STM {
     if (null != Txn.currentOrNull) throw new UnsupportedOperationException("nested orAtomic is not currently supported")
 
     val hists = new Array[List[Txn.RollbackCause]](blocks.length)
-    while (true) {
+    (while (true) {
       // give all of the blocks a chance
       for (i <- 0 until blocks.length) {
         if (null == hists(i)) hists(i) = Nil
@@ -91,8 +91,7 @@ object STM {
       // go to sleep
       val ers = hists.map(_.head.asInstanceOf[Txn.ExplicitRetryCause])
       Txn.awaitRetryAndDestroy(ers:_*)
-    }
-    throw new Error("unreachable")
+    }).asInstanceOf[Nothing]
   }
 
   private def attemptUntilRetry[Z](block: Txn => Z,

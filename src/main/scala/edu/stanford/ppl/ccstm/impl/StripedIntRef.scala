@@ -5,18 +5,26 @@
 package edu.stanford.ppl.ccstm
 package impl
 
-private[ccstm] class StripedIntRef(initialValue: Int) extends Ref[Int] {
-  private def NumStripes = 16
+import java.util.concurrent.atomic.AtomicReferenceArray
 
-  private val stripes: Array[TIntRef] = {
-    val a = new Array[TIntRef](NumStripes)
-    a(0) = new TIntRef(initialValue)
-    var i = 1
-    while (i < NumStripes) {
-      a(i) = new TIntRef(0)
-      i += 1
-    }
+private[ccstm] class StripedIntRef(initialValue: Int) extends Ref[Int] {
+  private def NumStripes = 8
+
+  private val stripes: AtomicReferenceArray[TIntRef] = {
+    val a = new AtomicReferenceArray[TIntRef](NumStripes)
+    if (initialValue != 0)
+      a.set(0, new TIntRef(initialValue))
     a
+  }
+
+  private def stripe(i: Int): TIntRef = {
+    val s = stripes.get(i)
+    if (s != null) s else installStripe(i)
+  }
+
+  private def installStripe(i: Int): TIntRef = {
+    stripes.compareAndSet(i, null, new TIntRef(0))
+    stripes.get(i)
   }
 
   private abstract class ViewImpl extends Ref.View[Int] {
@@ -118,7 +126,7 @@ private[ccstm] class StripedIntRef(initialValue: Int) extends Ref[Int] {
         val a = new Array[UnrecordedRead[Int]](NumStripes)
         var i = 0
         while (i < NumStripes) {
-          a(i) = stripes(i).bind.unrecordedRead
+          a(i) = stripe(i).bind.unrecordedRead
           i += 1
         }
         a
@@ -149,7 +157,7 @@ private[ccstm] class StripedIntRef(initialValue: Int) extends Ref[Int] {
         val a = new Array[ReleasableRead[Int]](NumStripes)
         var i = 0
         while (i < NumStripes) {
-          a(i) = stripes(i).bind.releasableRead
+          a(i) = stripe(i).bind.releasableRead
           i += 1
         }
         a
@@ -187,17 +195,17 @@ private[ccstm] class StripedIntRef(initialValue: Int) extends Ref[Int] {
       var i = 0
       var s = 0
       while (i < NumStripes) {
-        s += stripes(i).bind.readForWrite
+        s += stripe(i).bind.readForWrite
         i += 1
       }
       s
     }
 
     def swap(v: Int): Int = {
-      var s = stripes(0).swap(v)
+      var s = stripe(0).swap(v)
       var i = 1
       while (i < NumStripes) {
-        s += stripes(i).swap(0)
+        s += stripe(i).swap(0)
         i += 1
       }
       s
@@ -229,13 +237,13 @@ private[ccstm] class StripedIntRef(initialValue: Int) extends Ref[Int] {
     def tryTransform(f: Int => Int): Boolean = {
       var i = 0
       while (i < NumStripes) {
-        if (!stripes(i).bind.tryTransform(e => e)) return false
+        if (!stripe(i).bind.tryTransform(e => e)) return false
         i += 1
       }
-      stripes(0).set(f(get))
+      stripe(0).set(f(get))
       i = 1
       while (i < NumStripes) {
-        stripes(i).set(0)
+        stripe(i).set(0)
         i += 1
       }
       return true
@@ -262,7 +270,7 @@ private[ccstm] class StripedIntRef(initialValue: Int) extends Ref[Int] {
     var s = 0
     var i = 0
     while (i < NumStripes) {
-      s += stripes(i).get
+      s += stripe(i).get
       i += 1
     }
     s
@@ -274,19 +282,19 @@ private[ccstm] class StripedIntRef(initialValue: Int) extends Ref[Int] {
   }
 
   def set(v: Int)(implicit txn: Txn) {
-    stripes(0).set(v)
+    stripe(0).set(v)
     var i = 1
     while (i < NumStripes) {
-      stripes(i).set(0)
+      stripe(i).set(0)
       i += 1
     }
   }
 
   def swap(v: Int)(implicit txn: Txn): Int = {
-    var s = stripes(0).swap(v)
+    var s = stripe(0).swap(v)
     var i = 1
     while (i < NumStripes) {
-      s += stripes(i).swap(0)
+      s += stripe(i).swap(0)
       i += 1
     }
     s
@@ -324,15 +332,16 @@ private[ccstm] class StripedIntRef(initialValue: Int) extends Ref[Int] {
    *  depend on the actual value.
    */
   def aStripe: TIntRef = {
-    stripes(System.identityHashCode(Thread.currentThread) & (NumStripes - 1))
+    //stripes(System.identityHashCode(Thread.currentThread) & (NumStripes - 1))
+    stripe((Thread.currentThread.getId.asInstanceOf[Int] * 5) & (NumStripes - 1))
   }
 
 
   private[ccstm] def embalm(identity: Int) {
-    for (s <- stripes) s.embalm(identity)
+    for (i <- 0 until NumStripes) stripe(i).embalm(identity)
   }
   
   private[ccstm] def resurrect(identity: Int) {
-    for (s <- stripes) s.resurrect(identity)
+    for (i <- 0 until NumStripes) stripe(i).resurrect(identity)
   }
 }

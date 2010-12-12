@@ -37,8 +37,8 @@ class BasicHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TMap[
       STM.atomic(unbind.put(key, value)(_))
     }
 
-    override def removeKey(key: K): Option[V] = {
-      STM.atomic(unbind.removeKey(key)(_))
+    override def remove(key: K): Option[V] = {
+      STM.atomic(unbind.remove(key)(_))
     }
 
     protected def transformIfDefined(key: K,
@@ -112,7 +112,7 @@ class BasicHashMap[K,V](implicit km: Manifest[K], vm: Manifest[V]) extends TMap[
   }
 
 
-  def removeKey(key: K)(implicit txn: Txn): Option[V] = {
+  def remove(key: K)(implicit txn: Txn): Option[V] = {
     val h = hash(key)
     val buckets = bucketsRef.get
     val i = h & (buckets.length - 1)

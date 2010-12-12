@@ -4,16 +4,39 @@
 
 CCSTM - Releases
 
-  The latest stable release of CCSTM is 0.1.  It is compiled for Scala
-  2.8.0.Beta1.
+  CCSTM 0.2.1 is the most recent stable release.  It is compiled against
+  Scala 2.8.0.final.
 
 * Direct download
 
-  * From PPL's site: {{{http://ppl.stanford.edu/ccstm/repo-releases/edu/stanford/ppl/ccstm/0.1/ccstm-0.1.jar}ccstm-0.1.jar}}
+  * {{{http://ppl.stanford.edu/ccstm/repo-releases/edu/stanford/ppl/ccstm/0.2.1-for-scala-2.8.0/ccstm-0.2.1-for-scala-2.8.0.jar}ccstm-0.2.1-for-scala-2.8.0.jar}}
 
-  * From GitHub: {{{http://github.com/downloads/nbronson/ccstm/ccstm-0.1.jar}ccstm-0.1.jar}}
+* Documentation
 
-* Maven repository
+  * {{{./scaladocs/index.html}ScalaDoc}} - API Documentation
+
+  * {{{./RELEASE-NOTES.txt}RELEASE-NOTES.txt}} - Release notes for v0.2.1
+
+* If you build using sbt
+
+  Add the folllowing lines to your project definition class in
+  <<<project/build>>>
+
+----
+  val ccstm = "edu.stanford.ppl" % "ccstm" % "0.2.1-for-scala-2.8.0"
+  val ccstmRepo = "CCSTM Release Repository at PPL" at "http://ppl.stanford.edu/ccstm/repo-releases"
+----
+
+  To use a pre-release version of CCSTM add the snapshot repository and
+  use a version number ending in <<<-SNAPSHOT>>>
+
+----
+  val ccstm = "edu.stanford.ppl" % "ccstm" % "0.2.2-for-scala-2.8.0-SNAPSHOT"
+  val ccstmRepo = "CCSTM Release Repository at PPL" at "http://ppl.stanford.edu/ccstm/repo-releases"
+  val ccstmSnap = "CCSTM Snapshot Repository at PPL" at "http://ppl.stanford.edu/ccstm/repo-snapshots"
+----
+
+* If you build using Maven
 
   Merge the following fragments into your <<<pom.xml>>>
 
@@ -30,22 +53,25 @@ CCSTM - Releases
   <dependency>
     <groupId>edu.stanford.ppl</groupId>
     <artifactId>ccstm</artifactId>
-    <version>0.1</version>
+    <version>0.2.1-for-scala-2.8.0</version>
   </dependency>
 </dependencies>
 ----
 
-  If you would like to use CCSTM snapshot releases you can also add the
-  snapshot repository, and then use a dependency version like
-  `0.2.Beta-SNAPSHOT`.
+* Older prebuild JARs
 
-----
-<repositories>
-  <repository>
-    <id>ccstm.snapshot</id>
-    <name>CCSTM Snapshot Repository at PPL</name>
-    <url>http://ppl.stanford.edu/ccstm/repo-snapshots</url>
-    <snapshots/>
-  </repository>
-</repositories>
-----
+  * {{{http://ppl.stanford.edu/ccstm/repo-releases/edu/stanford/ppl/ccstm/0.2-for-scala-2.8.0/ccstm-0.2-for-scala-2.8.0.jar}ccstm-0.2-for-scala-2.8.0.jar}}
+
+  * {{{http://ppl.stanford.edu/ccstm/repo-snapshots/edu/stanford/ppl/ccstm/0.2-for-scala-2.8.0.RC7-SNAPSHOT/ccstm-0.2-for-scala-2.8.0.RC7-SNAPSHOT.jar}ccstm-0.2-for-scala-2.8.0.RC7-SNAPSHOT.jar}}
+
+  * {{{http://ppl.stanford.edu/ccstm/repo-snapshots/edu/stanford/ppl/ccstm/0.2-for-scala-2.8.0.RC6-SNAPSHOT/ccstm-0.2-for-scala-2.8.0.RC6-SNAPSHOT.jar}ccstm-0.2-for-scala-2.8.0.RC6-SNAPSHOT.jar}}
+
+  * {{{http://ppl.stanford.edu/ccstm/repo-snapshots/edu/stanford/ppl/ccstm/0.2-for-scala-2.8.0.RC5-SNAPSHOT/ccstm-0.2-for-scala-2.8.0.RC5-SNAPSHOT.jar}ccstm-0.2-for-scala-2.8.0.RC5-SNAPSHOT.jar}}
+
+  * {{{http://ppl.stanford.edu/ccstm/repo-snapshots/edu/stanford/ppl/ccstm/0.2-for-scala-2.8.0.RC3-SNAPSHOT/ccstm-0.2-for-scala-2.8.0.RC3-SNAPSHOT.jar}ccstm-0.2-for-scala-2.8.0.RC3-SNAPSHOT.jar}}
+
+  * {{{http://ppl.stanford.edu/ccstm/repo-snapshots/edu/stanford/ppl/ccstm/0.2-for-scala-2.8.0.RC2-SNAPSHOT/ccstm-0.2-for-scala-2.8.0.RC2-SNAPSHOT.jar}ccstm-0.2-for-scala-2.8.0.RC2-SNAPSHOT.jar}}
+
+  * {{{http://ppl.stanford.edu/ccstm/repo-snapshots/edu/stanford/ppl/ccstm/0.2-for-scala-2.8.0.RC1-SNAPSHOT/ccstm-0.2-for-scala-2.8.0.RC1-SNAPSHOT.jar}ccstm-0.2-for-scala-2.8.0.RC1-SNAPSHOT.jar}}
+
+  * {{{http://ppl.stanford.edu/ccstm/repo-releases/edu/stanford/ppl/ccstm/0.1/ccstm-0.1.jar}ccstm-0.1.jar}} for Scala 2.8.0.Beta1

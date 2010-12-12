@@ -111,7 +111,7 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
 
     private def putImpl(key: A, value: B, p: Predicate[A,B]): Option[B] = {
 
-      // put is harder than removeKey because removeKey can blindly write None
+      // put is harder than remove because remove can blindly write None
       // to a stale entry without causing problems
 
       if (null != p) {
@@ -173,7 +173,7 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
       decodePair(freshPred.escaped.swap(IdentityPair(freshToken, value)))
     }
 
-    override def removeKey(key: A): Option[B] = {
+    override def remove(key: A): Option[B] = {
       val p = predicates.get(key)
       if (null == p) {
         // no predicate means no entry, as for get()
@@ -341,7 +341,7 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
     // predicate is in the strong + active + absent state, must take
     // responsibility for removing it.  That will happen if this transaction
     // rolls back.  We install using afterCompletion so that a subsequent
-    // removeKey in this txn can enable CreationInfo.removeOncommit.
+    // remove in this txn can enable CreationInfo.removeOncommit.
     txn.afterCompletion(freshPred.creationInfo)
 
     // We have to perform a txn read from the new predicate, because another
@@ -351,7 +351,7 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
     decodePair(freshPred.swap(IdentityPair(freshToken, value)))
   }
 
-  def removeKey(key: A)(implicit txn: Txn): Option[B] = {
+  def remove(key: A)(implicit txn: Txn): Option[B] = {
     val pred = predicates.get(key)
     if (null != pred) {
       if (pred.createdBy(txn)) {
@@ -390,7 +390,7 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
     val result = getImpl(key, null)
     if (!result.isEmpty) {
       // guess we have to remove after all
-      return removeKey(key)
+      return remove(key)
     } else {
       // expected
       return None
@@ -418,7 +418,7 @@ class PredicatedHashMap_LazyGC[A,B] extends TMap[A,B] {
 //    } else {
 //      f(v0) match {
 //        case Some(v) => put(key, v)
-//        case None => removeKey(key)
+//        case None => remove(key)
 //      }
 //      true
 //    }

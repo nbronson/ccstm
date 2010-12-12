@@ -33,7 +33,7 @@ class RedBlackTreeMap[A,B] extends TMap[A,B] {
     } else {
       f(v0) match {
         case Some(v) => put(key, v)
-        case None => removeKey(key)
+        case None => remove(key)
       }
       false
     }
@@ -78,7 +78,7 @@ class RedBlackTreeMap[A,B] extends TMap[A,B] {
     def get(key: A): Option[B] = STM.atomic(unbind.get(key)(_))
     override def higher(key: A): Option[(A,B)] = STM.atomic(unbind.higher(key)(_))
     override def put(key: A, value: B): Option[B] = STM.atomic(unbind.put(key, value)(_))
-    override def removeKey(key: A): Option[B] = STM.atomic(unbind.removeKey(key)(_))
+    override def remove(key: A): Option[B] = STM.atomic(unbind.remove(key)(_))
 
     protected def transformIfDefined(key: A,
                                      pfOrNull: PartialFunction[Option[B],Option[B]],
@@ -159,7 +159,7 @@ class RedBlackTreeMap[A,B] extends TMap[A,B] {
     return None
   }
 
-  def removeKey(key: A)(implicit txn: Txn): Option[B] = {
+  def remove(key: A)(implicit txn: Txn): Option[B] = {
     val x = getNode(key)
     if (null == x) {
       None

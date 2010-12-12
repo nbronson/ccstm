@@ -5,7 +5,7 @@
 package edu.stanford.ppl.ccstm.impl
 
 import edu.stanford.ppl.ccstm._
-
+import math.Numeric
 
 private[ccstm] class TxnView[T](val unbind: Ref[T],
                                 protected val handle: impl.Handle[T],
@@ -34,4 +34,9 @@ private[ccstm] class TxnView[T](val unbind: Ref[T],
   def getAndTransform(f: T => T): T = txn.getAndTransform(handle, f)
   def tryTransform(f: T => T): Boolean = txn.tryTransform(handle, f)
   def transformIfDefined(pf: PartialFunction[T,T]): Boolean = txn.transformIfDefined(handle, pf)
+
+  override def += (rhs: T)(implicit num: Numeric[T]) { unbind.+=(rhs)(txn, num) }
+  override def -= (rhs: T)(implicit num: Numeric[T]) { unbind.-=(rhs)(txn, num) }
+  override def *= (rhs: T)(implicit num: Numeric[T]) { unbind.*=(rhs)(txn, num) }
+  override def /= (rhs: T)(implicit num: Numeric[T]) { unbind./=(rhs)(txn, num) }
 }

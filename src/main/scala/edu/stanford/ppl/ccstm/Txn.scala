@@ -25,7 +25,14 @@ object Escaped extends AccessMode {
 
 object Txn {
 
-  val EnableCounters = "1tTyY" contains (System.getProperty("ccstm.counters", "") + "0").charAt(0)
+  val EnableCounters = flag("ccstm.counters", false)
+
+  // requires EnableCounters, defaults to on
+  val EnableSizeHistos = EnableCounters && flag("ccstm.histo", true)
+
+  private def flag(name: String, default: Boolean) = {
+    "1tTyY" contains (System.getProperty(name, "") + default).charAt(0)
+  }
 
   //////////////// Status
 
@@ -81,6 +88,12 @@ object Txn {
      */
     def decided = mustCommit || mustRollBack
 
+    /** True if a transaction is not decided and may be canceled by a call to
+     *  `Txn.requestRollback` or by a lock request by a higher-priority
+     *  transaction.
+     */
+    def remotelyCancellable: Boolean
+    
     /** True if, for a transaction with this status, the transaction can no
      *  longer intefere with the execution of other transactions.  All locks
      *  will have been released, but after-commit or after-rollback callbacks
@@ -101,18 +114,34 @@ object Txn {
   case object Active extends Status {
     def mightCommit = true
     def mustCommit = false
+    def remotelyCancellable = true
     def completed = false
     def rollbackCause = null
   }
 
-  /** The `Status` for a `Txn` that is undergoing final
-   *  validation.  Validating transactions may commit or roll back.  No more
-   *  reads or writes may be performed, and only after-commit and
-   *  after-rollback callbacks may be registered.
+  /** The `Status` for a `Txn` that is undergoing final validation.  Validating
+   *  transactions may commit or roll back.  No more reads or writes may be
+   *  performed, and only write resources, after-commit, and after-rollback
+   *  callbacks may be registered.
    */
   case object Validating extends Status {
     def mightCommit = true
     def mustCommit = false
+    def remotelyCancellable = true
+    def completed = false
+    def rollbackCause = null
+  }
+
+  /** The `Status` for a `Txn` that is preparing its write resources.  This is
+   *  similar to `Validating`, but the transaction may no longer be rolled back
+   *  by another transaction with a higher priority or by a `requestRollback`
+   *  call from another thread.  No more reads or writes may be performed, and
+   *  only after-commit and after-rollback callbacks may be registered.
+   */
+  case object Preparing extends Status {
+    def mightCommit = true
+    def mustCommit = false
+    def remotelyCancellable = false
     def completed = false
     def rollbackCause = null
   }
@@ -123,6 +152,7 @@ object Txn {
   case object Committing extends Status {
     def mightCommit = true
     def mustCommit = true
+    def remotelyCancellable = false
     def completed = false
     def rollbackCause = null
   }
@@ -134,6 +164,7 @@ object Txn {
   case object Committed extends Status {
     def mightCommit = true
     def mustCommit = true
+    def remotelyCancellable = false
     def completed = true
     def rollbackCause = null
   }
@@ -146,6 +177,7 @@ object Txn {
 
     def mightCommit = false
     def mustCommit = false
+    def remotelyCancellable = false
     def completed = false
   }
 
@@ -157,6 +189,7 @@ object Txn {
 
     def mightCommit = false
     def mustCommit = false
+    def remotelyCancellable = false
     def completed = true
   }
 
@@ -252,6 +285,12 @@ object Txn {
   private[ccstm] val vetoingWriteResourceCounter = new Counter
   private[ccstm] val bargingCommitCounter = new Counter
   private[ccstm] val bargingRollbackCounter = new Counter
+  private[ccstm] val commitReadSetSizeHisto = newSizeHisto
+  private[ccstm] val commitWriteSetSizeHisto = newSizeHisto
+  private[ccstm] val rollbackReadSetSizeHisto = newSizeHisto
+  private[ccstm] val rollbackWriteSetSizeHisto = newSizeHisto
+
+  private def newSizeHisto = if (!EnableSizeHistos) null else Array.tabulate(32) { _ => new Counter }
 
   private[ccstm] def countsToStr: String = {
     val buf = new StringBuilder
@@ -261,7 +300,19 @@ object Txn {
         buf ++= "\nCCSTM: " + n + (" " * (26-n.length)) + " = " + m.invoke(Txn)
       }
     }
+    if (EnableSizeHistos) {
+      buf ++= "\nCCSTM: commitReadSet    = " + sizeHistoToStr(commitReadSetSizeHisto)
+      buf ++= "\nCCSTM: commitWriteSet   = " + sizeHistoToStr(commitWriteSetSizeHisto)
+      buf ++= "\nCCSTM: rollbackReadSet  = " + sizeHistoToStr(rollbackReadSetSizeHisto)
+      buf ++= "\nCCSTM: rollbackWriteSet = " + sizeHistoToStr(rollbackWriteSetSizeHisto)
+    }
     buf.toString
+  }
+
+  private[ccstm] def sizeHistoToStr(counts: Array[Counter]): String = {
+    val data = counts map { _.get }
+    val last = data lastIndexWhere { _ != 0L }
+    data.take(1 + last).mkString(", ")
   }
 
 //  new Thread("status updater") {
@@ -373,63 +424,57 @@ object Txn {
    *  which defines a "virtual snapshot".  When a value is encountered that may
    *  have been changed since the virtual snapshot was taken (since the read
    *  version was assigned), the read version is advanced and
-   *  `ReadResource.valid` is invoked for all read resources.
+   *  `ReadResource.valid` is checked for all read resources.
    *
    *  Both read-only and updating transactions may be able to commit without
    *  advancing their virtual snapshot, in which case they won't invoke
-   *  `valid`.  To help avoid race conditions, the most
-   *  straightforward mechanism for adding a read resource will automatically
-   *  invoke `valid`.
-   *  @see edu.stanford.ppl.ccstm.AbstractTxn#addReadResource
+   *  `valid`.
    */
   trait ReadResource {
-    /** Should return true iff `txn` is still valid.  May be invoked
-     *  during the `Active` and/or the `Validating`
-     *  states.  Validation during the `Validating` state may be
-     *  skipped by the STM if no other transactions have committed since the
-     *  last validation, or if no `WriteResource`s have been
-     *  registered.
+    /** Should return true iff `txn` is still valid.  May be invoked during the
+     *  `Active` and/or the `Validating` states.  Validation during the
+     *  `Validating` state may be skipped by the STM if no other transactions
+     *  have committed since the last validation, or if no `WriteResource`s
+     *  have been registered.
      *
-     *  The read resource may call `txn.forceRollback` instead of
-     *  returning false, if that is more convenient.
+     *  The read resource may call `txn.forceRollback` instead of returning
+     *  false, if that is more convenient.
      *
      *  If this method throws an exception and the transaction has not
      *  previously been marked for rollback, the transaction will be rolled
-     *  back with a `CallbackExceptionCause`, which will not result
-     *  in automatic retry, and which will cause the exception to be rethrown
+     *  back with a `CallbackExceptionCause`, which will not result in
+     *  automatic retry, and which will cause the exception to be rethrown
      *  after rollback is complete.
-     *  @return true if `txn` is still valid, false if
-     *      `txn` should be rolled back as soon as possible.
+     *  @return true if `txn` is still valid, false if `txn` should be rolled
+     *      back as soon as possible.
      */
     def valid(txn: Txn): Boolean
   }
 
-  /** `WriteResource`s participate in a two-phase commit.  Each
-   *  write resource is given the opportunity to veto commit, and each write
-   *  resource will be informed of the decision.  Unlike read resources, write
-   *  resources are not consulted during advancement of the read version (and
-   *  the associated virtual snapshot).  If an update resource needs to be
-   *  revalidated when the read version is advanced it should also register a
-   *  `ReadResource`.
-   *  @see edu.stanford.ppl.ccstm.AbstractTxn#addWriteResource
+  /** `WriteResource`s participate in a two-phase commit.  Each write resource
+   *  is given the opportunity to veto commit, and each write resource will be
+   *  informed of the decision.  Unlike read resources, write resources are not
+   *  consulted during advancement of the read version (and the associated
+   *  virtual snapshot).  If an update resource needs to be revalidated when
+   *  the read version is advanced it should also register a `ReadResource`.
    */
   trait WriteResource {
-    /** Called during the `Validating` state, returns true if this
-     *  resource agrees to commit.  All locks or other resources required to
-     *  complete the commit must be acquired during this callback, or else
-     *  this method must return false.  The consensus decision will be
-     *  delivered via a subsequent call to `performCommit` or
-     *  `performRollback`.
+    /** Called during the `Preparing` state, returns true if this resource
+     *  agrees to commit.  If it has already been determined that a transaction
+     *  will roll back, then this method won't be called.  All locks or other
+     *  resources required to complete the commit must be acquired during this
+     *  callback, or else this method must return false.  The consensus
+     *  decision will be delivered via a subsequent call to `performCommit` or
+     *  `performRollback`.  `performRollback` will be called on every write
+     *  resource, whether or not their `prepare` method was called.
      *
-     *  The read resource may call `txn.forceRollback` instead of
-     *  returning false, if that is more convenient.
+     *  The write resource may call `txn.forceRollback` instead of returning
+     *  false, if that is more convenient.
      *
      *  If this method throws an exception, the transaction will be rolled back
-     *  with a `CallbackExceptionCause`, which will not result in
-     *  automatic retry, and which will cause the exception to be rethrown
-     *  after rollback is complete.
-     *  @return true if this resource can definitely succeed, false if
-     *      `txn` must be rolled back. 
+     *  with a `CallbackExceptionCause`, which will not result in automatic
+     *  retry, and which will cause the exception to be rethrown after rollback
+     *  is complete.
      */
     def prepare(txn: Txn): Boolean
 
@@ -504,9 +549,7 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
   
   def status: Status = _status
 
-  def forceRollback(cause: RollbackCause) {
-    if (!requestRollback(cause)) throw new IllegalStateException
-  }
+  def forceRollback(cause: RollbackCause) { forceRollbackImpl(cause) }
 
   def requestRollback(cause: RollbackCause) = requestRollbackImpl(cause)
 
@@ -533,14 +576,26 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
 
   def beforeCommit(callback: Txn => Unit, prio: Int) {
     requireActive()
-    _callbacks.writeLikeResources.add(new WriteResource {
-      def prepare(txn: Txn): Boolean = { callback(txn); true }
-      def performCommit(txn: Txn) {}
-      def performRollback(txn: Txn) {}
-    }, prio)
+    _callbacks.beforeCommit.add(callback, prio)
   }
 
   def beforeCommit(callback: Txn => Unit) { beforeCommit(callback, 0) }
+
+  private[ccstm] def callBefore(): Boolean = {
+    if (!_callbacks.beforeCommit.isEmpty) {
+      for (res <- _callbacks.beforeCommit) {
+        try {
+          res(this)
+        } catch {
+          case x => {
+            forceRollback(CallbackExceptionCause(res, x))
+          }
+        }
+        if (status != Active) return false
+      }
+    }
+    return true
+  }
 
   def addReadResource(readResource: ReadResource) {
     addReadResource(readResource, 0)
@@ -582,20 +637,19 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
   }
 
   def addWriteResource(writeResource: WriteResource) {
-    addWriteResource(writeResource, 100)
+    addWriteResource(writeResource, 0)
   }
 
   def addWriteResource(writeResource: WriteResource, prio: Int) {
-    requireActive()
-    _callbacks.writeLikeResources.add(writeResource, prio)
-    _callbacks.writeResourcesPresent = true
+    requireActiveOrValidating()
+    _callbacks.writeResources.add(writeResource, prio)
   }
 
-  private[ccstm] def writeResourcesPresent = _callbacks.writeResourcesPresent
+  private[ccstm] def writeResourcesPresent = !_callbacks.writeResources.isEmpty
 
-  private[ccstm] def writeLikeResourcesPrepare(): Boolean = {
-    if (!_callbacks.writeLikeResources.isEmpty) {
-      for (res <- _callbacks.writeLikeResources) {
+  private[ccstm] def writeResourcesPrepare(): Boolean = {
+    if (!_callbacks.writeResources.isEmpty) {
+      for (res <- _callbacks.writeResources) {
         try {
           if (!res.prepare(this)) {
             forceRollback(VetoingWriteResourceCause(res))
@@ -605,15 +659,15 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
             forceRollback(CallbackExceptionCause(res, x))
           }
         }
-        if (status != Active) return false
+        if (status ne Preparing) return false
       }
     }
     return true
   }
 
   private[ccstm] def writeResourcesPerformCommit() {
-    if (_callbacks.writeLikeResources.isEmpty) {
-      for (res <- _callbacks.writeLikeResources) {
+    if (!_callbacks.writeResources.isEmpty) {
+      for (res <- _callbacks.writeResources) {
         try {
           res.performCommit(this)
         }
@@ -625,8 +679,8 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
   }
 
   private[ccstm] def writeResourcesPerformRollback() {
-    if (_callbacks.writeLikeResources.isEmpty) {
-      for (res <- _callbacks.writeLikeResources) {
+    if (!_callbacks.writeResources.isEmpty) {
+      for (res <- _callbacks.writeResources) {
         try {
           res.performRollback(this)
         }
@@ -654,20 +708,31 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
   def afterCompletion(callback: Txn => Unit) { afterCompletion(callback, 0) }
 
   def afterCompletion(callback: Txn => Unit, prio: Int) {
+    // TODO: afterCompletion(prio: Int)(callback: Txn => Unit)
     requireNotCompleted()
     _callbacks.afterCompletion.add(callback, prio, true, true)
   }
 
-  private[ccstm] def callAfter() {
+  private[ccstm] def callAfter(readSetSize: Int, writeBufferSize: Int) {
     val s = status
     val committing = s eq Committed
     if (EnableCounters) {
       if (committing) {
         commitCounter += 1
-        if (barging) bargingCommitCounter += 1
+        if (barging)
+          bargingCommitCounter += 1
+        if (EnableSizeHistos) {
+          commitReadSetSizeHisto(histoBucket(readSetSize)) += 1
+          commitWriteSetSizeHisto(histoBucket(writeBufferSize)) += 1
+        }
       } else {
         s.rollbackCause.counter += 1
-        if (barging) bargingRollbackCounter += 1
+        if (barging)
+          bargingRollbackCounter += 1
+        if (EnableSizeHistos) {
+          rollbackReadSetSizeHisto(histoBucket(readSetSize)) += 1
+          rollbackWriteSetSizeHisto(histoBucket(writeBufferSize)) += 1
+        }
       }
     }
     if (!_callbacks.afterCompletion.isEmpty) {
@@ -681,6 +746,8 @@ final class Txn private[ccstm] (failureHistory: List[Txn.RollbackCause], ctx: Th
       }
     }
   }
+
+  private def histoBucket(n: Int): Int = 32 - Integer.numberOfLeadingZeros(n)
 
   def detach() = detach(impl.ThreadContext.get)
 

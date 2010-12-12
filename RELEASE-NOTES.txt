@@ -1,0 +1,112 @@
+CCSTM 0.2.1 - RELEASE NOTES
+
+http://ppl.stanford.edu/ccstm
+
+=============================
+CHANGES BETWEEN 0.2 and 0.2.1
+=============================
+
+* Added /= for Refs
+* Added "ccstm.histo" system property
+* Various performance and memory footprint improvements
+
+-----------------
+Added /= for Refs
+-----------------
+
+Previous versions provided +=, -= and *= on Ref using a Numeric[T]
+implicit.  /= is now provided by performing a runtime check to see if
+the Numeric[T] is an instance of Fractional[T] or Integral[T].
+
+-----------------------------------
+Added "ccstm.histo" system property
+-----------------------------------
+
+If the flags -Dccstm.counters=true and -Dccstm.histo=true are passed to
+the JVM (use the environment variable JAVA_OPTS if you are using the
+scala launcher script), a histogram of approximate transaction sizes
+will be printed during JVM shutdown.  -Dccstm.counters=true by itself
+produces various summary statistics.
+
+-----------------------------------------------------
+Various performance and memory footprint improvements
+-----------------------------------------------------
+
+The most important of these improves the predictability of the system if
+a transaction commit is slow due to a large transaction or to lifecycle
+callbacks.  See commit c1f983047a2574cf96e163232f395ba3b9fc4f04
+
+
+=============================
+KNOWN ISSUES IN THIS RELEASE:
+=============================
+
+* No partial rollback
+
+-------------------
+No partial rollback
+-------------------
+
+Nested transactions are currently flattened into the outer-most atomic
+block, so it is not possible to roll back an inner transaction without
+also rolling back the outer.  This has two effects:
+
+- Nested transactions may use retry, but they cannot be composed using
+  orAtomic.  A call to orAtomic inside the dynamic scope of a transaction
+  will result in an UnsupportedOperationException.
+
+- Failure atomicity (rollback when an exception is thrown out of an atomic
+  block) does not work for nested atomic blocks.  If the outer transaction
+  does not handle the exception then the entire atomic block will
+  be rolled back, but if the exception is handled within the outer
+  transaction the inner transaction may be committed.
+
+
+=====================
+API CHANGES SINCE 0.1
+=====================
+
+* Better syntax for atomic blocks
+* Ref assignment operator changed to ()=
+* Bound renamed to View
+* map renamed to getWith
+
+-------------------------------
+Better syntax for atomic blocks
+-------------------------------
+
+If you import edu.stanford.ppl.ccstm._, then there is no need to refer
+to the STM object.  In addition, composition of blocks using retry and
+orAtomic can be done in a natural manner:
+
+    atomic { implicit t =>
+      // body A
+    } orAtomic { implicit t =>
+      // body tried if A calls retry
+    }
+
+Atomic blocks extending Atomic and AtomicFunc are no longer supported.
+
+---------------------------------------
+Ref assignment operation changed to ()=
+---------------------------------------
+
+The assignment operator for Refs has been changed from := to update,
+written "ref() = value".  This has better precedence than :=, and is
+symmetric with reads.
+
+---------------------
+Bound renamed to View
+---------------------
+
+Ref.bind, Ref.single, and Ref.escaped now return instances of Ref.View.
+
+----------------------
+map renamed to getWith
+----------------------
+
+Ref.getWith(func) returns the same value as func(ref.get), but allows the
+enclosing transaction to survive changes to the ref if there is no change
+in the value returned by func.  This method (on Source and Source.View)
+was previously called map.
+

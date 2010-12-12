@@ -45,6 +45,18 @@ private[ccstm] class TIntRef(initialValue: Int) extends Handle[Int] with RefOps[
     }
 
     override def -= (rhs: Int)(implicit num: Numeric[Int]) { this += (-rhs) }
+
+    override def *= (rhs: Int)(implicit num: Numeric[Int]) {
+      if (rhs == 0)
+        set(0)
+      else if (rhs != 1)
+        transform({ _ * rhs })
+    }
+
+    override def /= (rhs: Int)(implicit num: Numeric[Int]) {
+      if (rhs != 1)
+        transform({ _ / rhs })
+    }
   }
 
   override def escaped: Ref.View[Int] = new EscapedView[Int](this, handle) {
@@ -53,5 +65,37 @@ private[ccstm] class TIntRef(initialValue: Int) extends Handle[Int] with RefOps[
     }
 
     override def -= (rhs: Int)(implicit num: Numeric[Int]) { this += (-rhs) }
+
+    override def *= (rhs: Int)(implicit num: Numeric[Int]) {
+      if (rhs == 0)
+        set(0)
+      else if (rhs != 1)
+        transform({ _ * rhs })
+    }
+
+    override def /= (rhs: Int)(implicit num: Numeric[Int]) {
+      if (rhs != 1)
+        transform({ _ / rhs })
+    }
+  }
+
+  override def += (rhs: Int)(implicit txn: Txn, num: Numeric[Int]) {
+    if (rhs != 0)
+      transform({ _ + rhs })
+  }
+
+  override def -= (rhs: Int)(implicit txn: Txn, num: Numeric[Int]) { this += (-rhs) }
+
+
+  override def *= (rhs: Int)(implicit txn: Txn, num: Numeric[Int]) {
+    if (rhs == 0)
+      set(0)
+    else if (rhs != 1)
+      transform({ _ * rhs })
+  }
+
+  override def /= (rhs: Int)(implicit txn: Txn, num: Numeric[Int]) {
+    if (rhs != 1)
+      transform({ _ / rhs })
   }
 }

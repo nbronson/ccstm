@@ -25,4 +25,8 @@ private[collection] object NullValue {
   def decodeOption[B](packed: AnyRef): Option[B] = {
     if (null eq packed) None else Some(decode(packed))
   }
+
+  def equal(lhs: AnyRef, rhs: AnyRef): Boolean = {
+    (lhs eq rhs) || ((lhs ne null) && (lhs ne NullValue) && (rhs ne null) && (rhs ne NullValue) && (lhs == rhs))
+  }
 }

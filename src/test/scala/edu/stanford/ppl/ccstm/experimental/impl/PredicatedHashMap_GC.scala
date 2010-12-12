@@ -94,7 +94,7 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
       decodePair(pred.escaped.swap(IdentityPair(token, value)))
     }
 
-    override def removeKey(key: A): Option[B] = {
+    override def remove(key: A): Option[B] = {
       // if the pred is stale, then swap(None) is a no-op and doesn't harm
       // anything
       val p = predicates.get(key)
@@ -239,7 +239,7 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
   }
 
   
-  def removeKey(key: A)(implicit txn: Txn): Option[B] = removeImpl(key, predicates.get(key))
+  def remove(key: A)(implicit txn: Txn): Option[B] = removeImpl(key, predicates.get(key))
 
   private def removeImpl(key: A, pred: Predicate[B])(implicit txn: Txn): Option[B] = {
     val token = if (null == pred) null else pred.softRef.get
@@ -316,7 +316,7 @@ class PredicatedHashMap_GC[A,B] extends TMap[A,B] {
       txn.addReference(token)
       None
     } else {
-      // The token will survive on its own until the commit of a removeKey,
+      // The token will survive on its own until the commit of a remove,
       // because it is has a strong ref via the transactional state.  If the
       // removal does happen it will invalidate this txn correctly.
       Some(pair._2)

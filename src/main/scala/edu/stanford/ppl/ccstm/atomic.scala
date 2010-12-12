@@ -11,7 +11,7 @@ package edu.stanford.ppl.ccstm
  *  be available as an implicit parameter.  Scala allows the implicit modifier
  *  to be included on the argument to an anonymous method, leading to the
  *  idiomatic CCSTM atomic block {{{
- *    STM.atomic { implicit t =>
+ *    atomic { implicit t =>
  *      // body
  *    }
  *  }}}
@@ -71,7 +71,7 @@ object atomic {
    *  "flattening" or "subsumption".  A future version of CCSTM will implement
    *  partial rollback.
    */
-  def apply[Z](block: Txn => Z) = STM.atomic(block)
+  def apply[Z](block: Txn => Z)(implicit mt: MaybeTxn) = STM.atomic(block)
 
   /** Atomically executes a transaction that is composed from `blocks` by
    *  joining with a left-biased `orAtomic` operator.  This is equivalent to

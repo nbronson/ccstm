@@ -41,7 +41,7 @@ class PredicatedHashMap_Enum[A,B] extends TMap[A,B] {
       }))
     }
 
-    override def removeKey(key: A): Option[B] = {
+    override def remove(key: A): Option[B] = {
       val p = predicates.get(key)
       if (null == p || null == p.escaped.get) {
         // no need to create a predicate, let's linearize right here
@@ -173,7 +173,7 @@ class PredicatedHashMap_Enum[A,B] extends TMap[A,B] {
     }
   }
 
-  def removeKey(key: A)(implicit txn: Txn): Option[B] = {
+  def remove(key: A)(implicit txn: Txn): Option[B] = {
     val prev = pred(key).swap(None)
     if (null != prev) {
       sizeRef -= 1

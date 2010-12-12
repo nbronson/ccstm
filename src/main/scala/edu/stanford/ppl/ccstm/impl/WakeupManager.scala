@@ -95,13 +95,12 @@ private[impl] final class WakeupManager(numChannels: Int, numSources: Int) {
 
   private def subscribe(channel: Int): Event = {
     val i = channel * ChannelSpacing
-    while (true) {
+    (while (true) {
       val existing = events.get(i)
       if (null != existing) return existing
       val fresh = new Event(channel)
       if (events.compareAndSet(i, null, fresh)) return fresh
-    }
-    throw new Error("unreachable")
+    }).asInstanceOf[Nothing]
   }
 
   class Event(channel: Int) {

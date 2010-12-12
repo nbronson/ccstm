@@ -231,7 +231,7 @@ object Ref {
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
      */
-    def +=(rhs: T)(implicit num: Numeric[T]) { if (num.zero != rhs) transform { v => num.plus(v, rhs) } }
+    def += (rhs: T)(implicit num: Numeric[T]) { transform { v => num.plus(v, rhs) } }
 
     /** Transforms the value stored in the `Ref` by decrementing it.
      *
@@ -242,7 +242,7 @@ object Ref {
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
      */
-    def -=(rhs: T)(implicit num: Numeric[T]) { if (num.zero != rhs) transform { v => num.minus(v, rhs) } }
+    def -= (rhs: T)(implicit num: Numeric[T]) { transform { v => num.minus(v, rhs) } }
 
     /** Transforms the value stored in the `Ref` by multiplying it.
      *
@@ -253,9 +253,28 @@ object Ref {
      *  @throws IllegalStateException if this view is bound to a transaction
      *      that is not active.
      */
-    def *=(rhs: T)(implicit num: Numeric[T]) { if (num.zero == rhs) set(num.zero) else transform { v => num.times(v, rhs) } }
+    def *= (rhs: T)(implicit num: Numeric[T]) { transform { v => num.times(v, rhs) } }
 
-    // TODO: I don't know how to make /= work for both Integral and Fractional
+    /** Transforms the value stored in the `Ref` by performing a division on it,
+     *  throwing away the remainder.  The careful reader will note that division
+     *  is actually provided by either an implicit `Fractional[T]` or an implicit
+     *  `Integral[T]`.  Due to problems overloading based on the available
+     *  implicits we accept any `Numeric[T]` and assume that it can be converted
+     *  at runtime into either of the two previous types.
+     *
+     *  '''Note: Some `Ref` implementations may choose to ignore the passed-in
+     *  `Integral[T]` instance if `T` is a primitive type.'''
+     *
+     *  @param rhs the quantity by which to divide the value of `unbind`.
+     *  @throws IllegalStateException if this view is bound to a transaction
+     *      that is not active.
+     */
+    def /= (rhs: T)(implicit num: Numeric[T]) {
+      num match {
+        case numF: Fractional[T] => transform { v => numF.div(v, rhs) }
+        case numI: Integral[T] => transform { v => numI.quot(v, rhs) }
+      }
+    }
 
     override def equals(rhs: Any) = rhs match {
       case b: View[_] => (mode == b.mode) && (unbind == b.unbind)
@@ -354,7 +373,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *
    *  @param rhs the quantity by which to increment the value of this `Ref`.
    *  @throws IllegalStateException if `txn` is not active. */
-  def +=(rhs: T)(implicit txn: Txn, num: Numeric[T]) { if (num.zero != rhs) transform { v => num.plus(v, rhs) } }
+  def += (rhs: T)(implicit txn: Txn, num: Numeric[T]) { transform { v => num.plus(v, rhs) } }
 
   /** Transforms the value stored in the `Ref` by decrementing it.
    *
@@ -363,7 +382,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *
    *  @param rhs the quantity by which to decrement the value of this `Ref`.
    *  @throws IllegalStateException if `txn` is not active. */
-  def -=(rhs: T)(implicit txn: Txn, num: Numeric[T]) { if (num.zero != rhs) transform { v => num.minus(v, rhs) } }
+  def -= (rhs: T)(implicit txn: Txn, num: Numeric[T]) { transform { v => num.minus(v, rhs) } }
 
   /** Transforms the value stored in the `Ref` by multiplying it.
    *
@@ -373,9 +392,27 @@ trait Ref[T] extends Source[T] with Sink[T] {
    *  @param rhs the quantity by which to multiply the value of this `Ref`.
    *  @throws IllegalStateException if `txn` is not active.
    */
-  def *=(rhs: T)(implicit txn: Txn, num: Numeric[T]) { if (num.zero == rhs) set(num.zero) else transform { v => num.times(v, rhs) } }
+  def *= (rhs: T)(implicit txn: Txn, num: Numeric[T]) { transform { v => num.times(v, rhs) } }
 
-  // TODO: I don't know how to make /= work for both Integral and Fractional
+  /** Transforms the value stored in the `Ref` by performing a division on it,
+   *  throwing away the remainder.  The careful reader will note that division
+   *  is actually provided by either an implicit `Fractional[T]` or an implicit
+   *  `Integral[T]`.  Due to problems overloading based on the available
+   *  implicits we accept any `Numeric[T]` and assume that it can be converted
+   *  at runtime into either of the two previous types.
+   *
+   *  '''Note: Some `Ref` implementations may choose to ignore the passed-in
+   *  `Numeric[T]` instance if `T` is a primitive type.'''
+   *
+   *  @param rhs the quantity by which to divide the value of this `Ref`.
+   *  @throws IllegalStateException if `txn` is not active.
+   */
+  def /= (rhs: T)(implicit txn: Txn, num: Numeric[T]) {
+    num match {
+      case numF: Fractional[T] => transform { v => numF.div(v, rhs) }
+      case numI: Integral[T] => transform { v => numI.quot(v, rhs) }
+    }
+  }
 
   //////////////// AccessMode
 
