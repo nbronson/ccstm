@@ -63,13 +63,15 @@ if [ "x$SCALA_HOME" = "x" ]; then
   exit 1
 fi
 
+SCALA_VERSION=`awk -F= '$1=="scala.version" {print $2}' $PROPS`
+
 # CLASSPATH should include whatever was passed in on the command
 # line, target/classes, target/test-classes, all of the JARs in
 # lib_managed/compile, and then the core Scala libs.
 if [ "x$CLASSPATH" != "x" ]; then
   CLASSPATH="${CLASSPATH}:"
 fi
-CLASSPATH="${CLASSPATH}$CCSTM_BASE/target/classes:$CCSTM_BASE/target/test-classes"
+CLASSPATH="${CLASSPATH}$CCSTM_BASE/target/scala_$SCALA_VERSION/classes:$CCSTM_BASE/target/scala_$SCALA_VERSION/test-classes"
 for j in "$CCSTM_BASE"/lib_managed/compile/*.jar $SCALA_HOME/lib/scala-{compiler,library}.jar; do
   CLASSPATH="${CLASSPATH}:$j"
 done
