@@ -176,7 +176,9 @@ object STM {
     impl.NonTxn.transform2(refA.nonTxnHandle, refB.nonTxnHandle, f)
   }
 
-  // TODO: better names?
+  def ccasi[A <: AnyRef, B <: AnyRef](refA: Ref[A], a0: A, refB: Ref[B], b0: B, b1: B): Boolean = {
+      impl.NonTxn.ccasi(refA.nonTxnHandle, a0, refB.nonTxnHandle, b0, b1)
+  }
 
   /** Establishes a happens-before relationship between transactions that
    *  previously wrote to <code>ref</code> and a subsequent call to

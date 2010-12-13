@@ -420,6 +420,54 @@ private[ccstm] object NonTxn {
     return z
   }
 
+  def ccasi[A <: AnyRef, B <: AnyRef](handleA: Handle[A], a0: A, handleB: Handle[B], b0: B, b1: B): Boolean = {
+    var tries = 0
+    while (tries < 10) {
+      // acquire exclusive ownership of B, then decide
+      val mB0 = acquireLock(handleB, true)
+      if (b0 ne handleB.data.asInstanceOf[AnyRef]) {
+        // b doesn't match
+        discardLock(handleB, mB0)
+        return false
+      }
+
+      var mA0 = handleA.meta
+      while (!changing(mA0)) {
+        // attempt a stable read of A
+        val a = handleA.data
+        val mA1 = handleA.meta
+        if (changingAndVersion(mA0) != changingAndVersion(mA1)) {
+          // read of A was unstable, but we don't need to block right now
+          mA0 = mA1
+        } else {
+          // we can definitely complete the CCASI
+          if (a eq a0) {
+            // a0 and b0 both match
+            handleB.data = b1
+            commitLock(handleB, mB0)
+            return true
+          } else {
+            // a0 doesn't match
+            discardLock(handleB, mB0)
+            return false
+          }
+        }
+      }
+
+      // release our lock before waiting for A
+      discardLock(handleB, mB0)
+      weakAwaitUnowned(handleA, mA0)
+
+      tries += 1
+    }
+
+    // fall back on a transaction
+    return STM.atomic { t =>
+      val txn = t.asInstanceOf[TxnImpl]
+      (txn.get(handleA) eq a0) && (txn.get(handleB) eq b0) && { txn.set(handleB, b1) ; true }
+    }
+  }
+
   def getAndAdd(handle: Handle[Int], delta: Int): Int = {
     val m0 = acquireLock(handle, true)
     val v0 = handle.data

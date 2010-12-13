@@ -44,6 +44,7 @@ object TMapFactory {
       case "t_bh" => new BasicHashMap[A,B]
       case "t_rb" => new RedBlackTreeMap[A,B]
       case "t_sl" => new SkipListMap[A,B]
+      case "snap" => new HashTrieTMap[A, B]
     }
   }
 }
