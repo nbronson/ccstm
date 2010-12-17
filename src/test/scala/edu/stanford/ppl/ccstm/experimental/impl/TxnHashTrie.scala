@@ -4,6 +4,7 @@ package edu.stanford.ppl.ccstm.experimental.impl
 
 import edu.stanford.ppl.ccstm._
 import edu.stanford.ppl.ccstm.experimental._
+import edu.stanford.ppl.ccstm.impl.FastSimpleRandom
 
 /** `TxnHashTrie` implements a transactional mutable hash trie using Ref-s,
  *  with lazy cloning to allow efficient snapshots.  Fundamental operations are
@@ -27,6 +28,8 @@ object TxnHashTrie {
   // ideal balanced tree, and those bytes are accessed in a more cache friendly
   // fashion.
   private def MaxLeafCapacity = 14
+
+  //private def MaxContendedLeafCapacity = 4
 
   private def keyHash[A](key: A): Int = if (null == key) 0 else mixBits(key.hashCode)
 
@@ -175,6 +178,12 @@ object TxnHashTrie {
     def shouldSplit: Boolean = {
       // if the hash function is bad we might be oversize but unsplittable
       hashes.length > MaxLeafCapacity && hashes(hashes.length - 1) != hashes(0)
+    }
+
+    def shouldSplitIfContended: Boolean = {
+      //hashes.length > MaxContendedLeafCapacity && hashes(hashes.length - 1) != hashes(0)
+      // split with p = length / MaxLeafCapacity
+      hashes(0) != hashes(hashes.length - 1) && FastSimpleRandom.nextInt(16) < hashes.length
     }
 
     def split(gen: Long, shift: Int): Branch[A, B] = {
@@ -667,8 +676,16 @@ object TxnHashTrie {
     !current match {
       case leaf: Leaf[A, B] => {
         val i = leaf.find(hash, key)
-        if (!leaf.noChange(i, value))
-          current := leaf.withPut(rootGen, shift, hash, key, value, i)
+        if (!leaf.noChange(i, value)) {
+          val after = leaf.withPut(rootGen, shift, hash, key, value, i)
+          if (!current.tryWrite(after)) {
+            current := after
+            after match {
+              case lf: Leaf[A, B] if lf.shouldSplitIfContended => current := lf.split(rootGen, shift)
+              case _ =>
+            }
+          }
+        }
         leaf.get(i)
       }
       case branch: Branch[A, B] => {
