@@ -17,6 +17,7 @@
           <option name="SMART_TABS" value="false" />
           <option name="LABEL_INDENT_SIZE" value="0" />
           <option name="LABEL_INDENT_ABSOLUTE" value="false" />
+          <option name="USE_RELATIVE_INDENTS" value="false" />
         </ADDITIONAL_INDENT_OPTIONS>
         <ADDITIONAL_INDENT_OPTIONS fileType="xml">
           <option name="INDENT_SIZE" value="4" />
@@ -26,6 +27,7 @@
           <option name="SMART_TABS" value="false" />
           <option name="LABEL_INDENT_SIZE" value="0" />
           <option name="LABEL_INDENT_ABSOLUTE" value="false" />
+          <option name="USE_RELATIVE_INDENTS" value="false" />
         </ADDITIONAL_INDENT_OPTIONS>
       </value>
     </option>
@@ -94,6 +96,7 @@
           <option name="IGNORE_DEPRECATED" value="false" />
           <option name="IGNORE_JAVADOC_PERIOD" value="true" />
           <option name="IGNORE_DUPLICATED_THROWS" value="false" />
+          <option name="IGNORE_POINT_TO_ITSELF" value="false" />
           <option name="myAdditionalJavadocTags" value="" />
         </inspection_tool>
       </profile>
@@ -251,6 +254,9 @@
       <module fileurl="file://$PROJECT_DIR$/ccstm.iml" filepath="$PROJECT_DIR$/ccstm.iml" />
     </modules>
   </component>
+  <component name="ProjectResources">
+    <default-html-doctype>http://www.w3.org/1999/xhtml</default-html-doctype>
+  </component>
   <component name="ProjectRootManager" version="2" languageLevel="JDK_1_5" assert-keyword="true" jdk-15="true" project-jdk-name="1.6" project-jdk-type="JavaSDK">
     <output url="file://$PROJECT_DIR$/out" />
   </component>
@@ -261,6 +267,20 @@
     <mapping directory="" vcs="Git" />
   </component>
   <component name="libraryTable">
+    <library name="DeuceSTM">
+      <CLASSES>
+        <root url="jar://$PROJECT_DIR$/lib/deuceAgent-1.2.0.jar!/" />
+      </CLASSES>
+      <JAVADOC />
+      <SOURCES />
+    </library>
+    <library name="Multiverse">
+      <CLASSES>
+        <root url="jar://$PROJECT_DIR$/lib/multiverse-alpha-0.4-SNAPSHOT.jar!/" />
+      </CLASSES>
+      <JAVADOC />
+      <SOURCES />
+    </library>
     <library name="SBT-managed libs">
       <CLASSES>
         <root url="file://$PROJECT_DIR$/lib_managed/compile" />
@@ -276,22 +296,8 @@
       </CLASSES>
       <JAVADOC />
       <SOURCES>
-        <root url="jar://$PROJECT_DIR$/../scala/scala-2.7.7.final/src/scala-library-src.jar!/" />
+        <root url="jar://$USER_HOME$/scala/scala-2.7.7.final/src/scala-library-src.jar!/" />
       </SOURCES>
-    </library>
-    <library name="DeuceSTM">
-      <CLASSES>
-        <root url="jar://$PROJECT_DIR$/lib/deuceAgent-1.2.0.jar!/" />
-      </CLASSES>
-      <JAVADOC />
-      <SOURCES />
-    </library>
-    <library name="Multiverse">
-      <CLASSES>
-        <root url="jar://$PROJECT_DIR$/lib/multiverse-alpha-0.4-SNAPSHOT.jar!/" />
-      </CLASSES>
-      <JAVADOC />
-      <SOURCES />
     </library>
     <library name="ScalaTest">
       <CLASSES>
