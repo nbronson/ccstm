@@ -41,9 +41,7 @@ object TxnHashTrie {
 
   //////// shared instances
   
-  private val someNull = Some(null)
-  private val emptySetValue = new Leaf[Any, Unit](new Array[Int](0), new Array[AnyRef](0), null)
-  private val emptyMapValue = new Leaf[Any, Unit](new Array[Int](0), new Array[AnyRef](0), new Array[AnyRef](0))
+  private val emptyLeaf = new Leaf[Any, Unit](new Array[Int](0), new Array[AnyRef](0))
 
   //////// publicly-visible stuff
 
@@ -59,13 +57,13 @@ object TxnHashTrie {
     def endBuild: Node[A, B]
   }
 
-  type SetNode[A] = Node[A, AnyRef]
-  type SetBuildingNode[A] = BuildingNode[A, AnyRef]
-
-  /** If used by a Set, values will be null. */
   final class Leaf[A, B](val hashes: Array[Int],
-                         val keys: Array[AnyRef],
-                         val values: Array[AnyRef]) extends Node[A, B] with BuildingNode[A, B] {
+                         val kvs: Array[AnyRef]) extends Node[A, B] with BuildingNode[A, B] {
+
+    def getKey(i: Int): A = kvs(2 * i).asInstanceOf[A]
+    def getValue(i: Int): B = kvs(2 * i + 1).asInstanceOf[B]
+    def setKey(i: Int, k: A) { kvs(2 * i) = k.asInstanceOf[AnyRef] }
+    def setValue(i: Int, v: B) { kvs(2 * i + 1) = v.asInstanceOf[AnyRef] }
 
     def endBuild = this
 
@@ -78,16 +76,14 @@ object TxnHashTrie {
       if (i < 0)
         None
       else
-        Some(values(i).asInstanceOf[B])
+        Some(getValue(i))
     }
 
     def get(i: Int): Option[B] = {
       if (i < 0)
         None
-      else if (null != values)
-        Some(values(i).asInstanceOf[B])
       else
-        someNull.asInstanceOf[Option[B]]
+        Some(getValue(i))
     }
 
     def find(hash: Int, key: A): Int = {
@@ -95,7 +91,7 @@ object TxnHashTrie {
       while (i > 0) {
         i -= 1
         val h = hashes(i)
-        if (h == hash && keyEqual(key.asInstanceOf[AnyRef], keys(i).asInstanceOf[AnyRef]))
+        if (h == hash && keyEqual(key.asInstanceOf[AnyRef], kvs(2 * i)))
           return i
         if (h < hash)
           return ~(i + 1)
@@ -113,7 +109,7 @@ object TxnHashTrie {
     }
 
     def noChange[B](i: Int, value: B): Boolean = {
-      i >= 0 && (null == values || (values(i) eq value.asInstanceOf[AnyRef]))
+      i >= 0 && (kvs(2 * i + 1) eq value.asInstanceOf[AnyRef])
     }
 
     def withPut(gen: Long, shift: Int, hash: Int, key: A, value: B, i: Int): Node[A, B] = {
@@ -131,11 +127,11 @@ object TxnHashTrie {
     }
 
     private def withUpdate(i: Int, value: B): Leaf[A, B] = {
-      // reuse hashes and keys
-      val nvalues = new Array[AnyRef](values.length)
-      System.arraycopy(values, 0, nvalues, 0, values.length)
-      nvalues(i) = value.asInstanceOf[AnyRef]
-      new Leaf[A, B](hashes, keys, nvalues)
+      // reuse hashes
+      val nkvs = new Array[AnyRef](kvs.length)
+      System.arraycopy(kvs, 0, nkvs, 0, kvs.length)
+      nkvs(2 * i + 1) = value.asInstanceOf[AnyRef]
+      new Leaf[A, B](hashes, nkvs)
     }
 
     private def withInsert(i: Int, hash: Int, key: A, value: B): Leaf[A, B] = {
@@ -146,15 +142,10 @@ object TxnHashTrie {
       System.arraycopy(hashes, i, z.hashes, i + 1, j)
       z.hashes(i) = hash
 
-      System.arraycopy(keys, 0, z.keys, 0, i)
-      System.arraycopy(keys, i, z.keys, i + 1, j)
-      z.keys(i) = key.asInstanceOf[AnyRef]
-
-      if (null != values) {
-        System.arraycopy(values, 0, z.values, 0, i)
-        System.arraycopy(values, i, z.values, i + 1, j)
-        z.values(i) = value.asInstanceOf[AnyRef]
-      }
+      System.arraycopy(kvs, 0, z.kvs, 0, 2 * i)
+      System.arraycopy(kvs, 2 * i, z.kvs, 2 * i + 2, 2 * j)
+      z.setKey(i, key)
+      z.setValue(i, value)
 
       z
     }
@@ -170,13 +161,8 @@ object TxnHashTrie {
           System.arraycopy(hashes, 0, z.hashes, 0, i)
           System.arraycopy(hashes, i + 1, z.hashes, i, j)
 
-          System.arraycopy(keys, 0, z.keys, 0, i)
-          System.arraycopy(keys, i + 1, z.keys, i, j)
-
-          if (null != values) {
-            System.arraycopy(values, 0, z.values, 0, i)
-            System.arraycopy(values, i + 1, z.values, i, j)
-          }
+          System.arraycopy(kvs, 0, z.kvs, 0, 2 * i)
+          System.arraycopy(kvs, 2 * i + 2, z.kvs, 2 * i, 2 * j)
         }
         z
       }
@@ -228,9 +214,8 @@ object TxnHashTrie {
         val pos = sizes(slot)
         val dst = children(slot).asInstanceOf[Leaf[A, B]]
         dst.hashes(pos) = hashes(i)
-        dst.keys(pos) = keys(i)
-        if (null != values)
-          dst.values(pos) = values(i)
+        dst.kvs(2 * pos) = kvs(2 * i)
+        dst.kvs(2 * pos + 1) = kvs(2 * i + 1)
 
         // If the hashes were very poorly distributed one leaf might get
         // everything.  We could resplit now, but it doesn't seem to be worth
@@ -244,39 +229,38 @@ object TxnHashTrie {
 
     private def newLeaf(n: Int): Leaf[A, B] = {
       if (n == 0) {
-        (if (null == values) emptySetValue else emptyMapValue).asInstanceOf[Leaf[A, B]]
+        emptyLeaf.asInstanceOf[Leaf[A, B]]
       } else {
-        val nvalues = if (null == values) null else new Array[AnyRef](n)
-        new Leaf[A, B](new Array[Int](n), new Array[AnyRef](n), nvalues)
+        new Leaf[A, B](new Array[Int](n), new Array[AnyRef](2 * n))
       }
     }
 
     def setForeach[U](f: A => U) {
       var i = 0
-      while (i < keys.length) {
-        f(keys(i).asInstanceOf[A])
+      while (i < hashes.length) {
+        f(getKey(i))
         i += 1
       }
     }
 
     def mapForeach[U](f: ((A, B)) => U) {
       var i = 0
-      while (i < keys.length) {
-        f((keys(i).asInstanceOf[A], values(i).asInstanceOf[B]))
+      while (i < hashes.length) {
+        f((getKey(i), getValue(i)))
         i += 1
       }
     }
 
     def setIterator: Iterator[A] = new Iterator[A] {
       var pos = 0
-      def hasNext = pos < keys.length
-      def next: A = { val z = keys(pos).asInstanceOf[A] ; pos += 1 ; z }
+      def hasNext = pos < hashes.length
+      def next: A = { val z = getKey(pos) ; pos += 1 ; z }
     }
 
     def mapIterator: Iterator[(A, B)] = new Iterator[(A,B)] {
       var pos = 0
-      def hasNext = pos < keys.length
-      def next: (A, B) = { val z = (keys(pos).asInstanceOf[A], values(pos).asInstanceOf[B]) ; pos += 1 ; z }
+      def hasNext = pos < hashes.length
+      def next: (A, B) = { val z = (getKey(pos), getValue(pos)) ; pos += 1 ; z }
     }
   }
 
@@ -357,7 +341,7 @@ object TxnHashTrie {
         } else {
           pos += 1
           val c = children(pos).get
-          if ((c eq emptySetValue) || (c eq emptyMapValue))
+          if (c eq emptyLeaf)
             advance() // keep looking, nothing is here
           else {
             iter = childIter(c)
@@ -387,13 +371,10 @@ object TxnHashTrie {
 
   //////////////// construction
 
-  def emptySetNode[A]: SetNode[A] = emptySetValue.asInstanceOf[SetNode[A]]
-  def emptyMapNode[A, B]: Node[A, B] = emptyMapValue.asInstanceOf[Node[A, B]]
+  def emptyMapNode[A, B]: Node[A, B] = emptyLeaf.asInstanceOf[Node[A, B]]
 
-  def emptySetBuildingNode[A]: SetBuildingNode[A] = emptySetValue.asInstanceOf[SetBuildingNode[A]]
-  def emptyMapBuildingNode[A, B]: BuildingNode[A, B] = emptyMapValue.asInstanceOf[BuildingNode[A, B]]
+  def emptyMapBuildingNode[A, B]: BuildingNode[A, B] = emptyLeaf.asInstanceOf[BuildingNode[A, B]]
 
-  def buildingAdd[A](root: SetBuildingNode[A], x: A): SetBuildingNode[A] = buildingPut(root, 0, keyHash(x), x, null)
   def buildingPut[A, B](root: BuildingNode[A, B], k: A, v: B): BuildingNode[A, B] = buildingPut(root, 0, keyHash(k), k, v)
 
   private def buildingPut[A, B](current: BuildingNode[A, B], shift: Int, hash: Int, key: A, value: B): BuildingNode[A, B] = {
@@ -449,7 +430,7 @@ object TxnHashTrie {
         val i = leaf.find(hash, key)
         if (i < 0)
           throw new NoSuchElementException("key not found: " + key)
-        leaf.values(i).asInstanceOf[B]
+        leaf.getValue(i)
       }
       case branch: Branch[A, B] => getOrThrow(branch.children(indexFor(shift, hash)), shift + LogBF, hash, key)
     }
@@ -643,7 +624,7 @@ object TxnHashTrie {
         val i = leaf.find(hash, key)
         if (i < 0)
           throw new NoSuchElementException("key not found: " + key)
-        leaf.values(i).asInstanceOf[B]
+        leaf.getValue(i)
       }
       case branch: Branch[A, B] => getOrThrow(branch.children(indexFor(shift, hash)).unbind, shift + LogBF, hash, key)(txn)
     }
