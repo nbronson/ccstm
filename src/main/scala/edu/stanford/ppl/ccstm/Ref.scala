@@ -294,6 +294,7 @@ trait Ref[T] extends Source[T] with Sink[T] {
 
   def :=(v: T)(implicit txn: Txn) { set(v) }
   def set(v: T)(implicit txn: Txn) { txn.set(handle, v) }
+  def tryWrite(v: T)(implicit txn: Txn) = txn.tryWrite(handle, v)
 
   //////////////// Ref functions
 

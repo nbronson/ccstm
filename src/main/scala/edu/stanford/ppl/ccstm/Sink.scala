@@ -82,6 +82,8 @@ trait Sink[-T] {
    */
   def set(v: T)(implicit txn: Txn)
 
+  def tryWrite(v: T)(implicit txn: Txn): Boolean
+
   /** The restriction of <code>Ref.bind</code> to <code>Sink</code>.
    *  @see edu.stanford.ppl.ccstm.Ref#bind
    */
