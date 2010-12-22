@@ -115,9 +115,9 @@ object TxnHashTrie {
       i >= 0 && (kvs(2 * i + 1) eq value.asInstanceOf[AnyRef])
     }
 
-    def withPut(gen: Long, shift: Int, hash: Int, key: A, value: B, i: Int): Node[A, B] = {
+    def withPut(gen: Long, shift: Int, hash: Int, key: A, value: B, i: Int, contended: Boolean): Node[A, B] = {
       if (i < 0)
-        withInsert(~i, hash, key, value).splitIfNeeded(gen, shift)
+        withInsert(~i, hash, key, value).splitIfNeeded(gen, shift, contended)
       else
         withUpdate(i, value)
     }
@@ -171,19 +171,12 @@ object TxnHashTrie {
       }
     }
 
-    def splitIfNeeded(gen: Long, shift: Int): Node[A, B] = if (!shouldSplit) this else split(gen, shift)
+    def splitIfNeeded(gen: Long, shift: Int, contended: Boolean): Node[A, B] = if (!shouldSplit(contended)) this else split(gen, shift)
 
-    def buildingSplitIfNeeded(shift: Int): BuildingNode[A, B] = if (!shouldSplit) this else buildingSplit(shift)
+    def buildingSplitIfNeeded(shift: Int): BuildingNode[A, B] = if (!shouldSplit(false)) this else buildingSplit(shift)
 
-    def shouldSplit: Boolean = {
-      // if the hash function is bad we might be oversize but unsplittable
-      hashes.length > MaxLeafCapacity && hashes(hashes.length - 1) != hashes(0)
-    }
-
-    def shouldSplitIfContended: Boolean = {
-      //hashes.length > MaxContendedLeafCapacity && hashes(hashes.length - 1) != hashes(0)
-      // split with p = length / MaxLeafCapacity
-      hashes(0) != hashes(hashes.length - 1) && FastSimpleRandom.nextInt(16) < hashes.length
+    def shouldSplit(contended: Boolean): Boolean = {
+      (contended || hashes.length > MaxLeafCapacity) && hashes(hashes.length - 1) != hashes(0)
     }
 
     def split(gen: Long, shift: Int): Branch[A, B] = {
@@ -404,6 +397,28 @@ object TxnHashTrie {
 abstract class TxnHashTrie[A, B](var root: Ref.Bound[TxnHashTrie.Node[A, B]]) {
   import TxnHashTrie._
 
+  //////////////// txn contention tracking
+
+  private final def pct = 10000
+
+  val contentionThreshold = (System.getProperty("trie.contention", "1.0").toDouble * pct).toInt
+  var contentionEstimate = 0
+
+  private def recordNoContention() {
+    if (FastSimpleRandom.nextInt(32) == 0) {
+      val e = contentionEstimate
+      contentionEstimate = e - (e >> 4) // this is 15/16, applied every 32nd time, so about 99.8%
+    }
+  }
+
+  private def recordContention() {
+    val e = contentionEstimate
+    contentionEstimate = e + ((100 * pct - e) >> 9) // 100 * pct is the max
+  }
+
+  private def isContended = contentionEstimate > contentionThreshold
+
+
   //////////////// hash trie operations on escaped Ref.Bound
 
   protected def ntFrozenRoot(): Node[A, B] = {
@@ -465,7 +480,7 @@ abstract class TxnHashTrie[A, B](var root: Ref.Bound[TxnHashTrie.Node[A, B]]) {
       !root match {
         case leaf: Leaf[A, B] => {
           val i = leaf.find(hash, key)
-          if (leaf.noChange(i, value) || root.compareAndSetIdentity(leaf, leaf.withPut(0L, 0, hash, key, value, i)))
+          if (leaf.noChange(i, value) || root.compareAndSetIdentity(leaf, leaf.withPut(0L, 0, hash, key, value, i, failures > 0)))
             leaf.get(i) // success, read from old leaf
           else
             ntRootPut(hash, key, value, failures + 1)
@@ -505,7 +520,7 @@ abstract class TxnHashTrie[A, B](var root: Ref.Bound[TxnHashTrie.Node[A, B]]) {
           val i = leaf.find(hash, key)
           if (leaf.noChange(i, value) || STM.ccasi(
                   root.unbind, rootNode, current.unbind,
-                  leaf, leaf.withPut(rootNode.gen, shift, hash, key, value, i)))
+                  leaf, leaf.withPut(rootNode.gen, shift, hash, key, value, i, failures > 0)))
             leaf.get(i) // success
           else if ((!root) ne rootNode)
             failingPut(hash, key, value) // root retry
@@ -657,13 +672,22 @@ abstract class TxnHashTrie[A, B](var root: Ref.Bound[TxnHashTrie.Node[A, B]]) {
       case leaf: Leaf[A, B] => {
         val i = leaf.find(hash, key)
         if (!leaf.noChange(i, value))
-          root := leaf.withPut(0L, 0, hash, key, value, i)
+          set(root.unbind, leaf.withPut(0L, 0, hash, key, value, i, isContended))
         leaf.get(i)
       }
       case branch: Branch[A, B] => {
         val b = if (!branch.frozen) branch else txUnshare(branch.gen + 1, root.unbind, branch)
         txChildPut(b.gen, b.children(indexFor(0, hash)).unbind, LogBF, hash, key, value)(txn)
       }
+    }
+  }
+
+  private def set(ref: Ref[Node[A, B]], node: Node[A, B])(implicit txn: Txn) {
+    if (ref.tryWrite(node)) {
+      recordNoContention()
+    } else {
+      ref := node
+      recordContention()
     }
   }
 
@@ -678,16 +702,8 @@ abstract class TxnHashTrie[A, B](var root: Ref.Bound[TxnHashTrie.Node[A, B]]) {
     !current match {
       case leaf: Leaf[A, B] => {
         val i = leaf.find(hash, key)
-        if (!leaf.noChange(i, value)) {
-          val after = leaf.withPut(rootGen, shift, hash, key, value, i)
-          if (!current.tryWrite(after)) {
-            current := after
-            after match {
-              case lf: Leaf[A, B] if lf.shouldSplitIfContended => current := lf.split(rootGen, shift)
-              case _ =>
-            }
-          }
-        }
+        if (!leaf.noChange(i, value))
+          set(current, leaf.withPut(rootGen, shift, hash, key, value, i, isContended))
         leaf.get(i)
       }
       case branch: Branch[A, B] => {
@@ -704,7 +720,7 @@ abstract class TxnHashTrie[A, B](var root: Ref.Bound[TxnHashTrie.Node[A, B]]) {
       case leaf: Leaf[A, B] => {
         val i = leaf.find(hash, key)
         if (i >= 0)
-          root := leaf.withRemove(i)
+          set(root.unbind, leaf.withRemove(i))
         leaf.get(i)
       }
       case branch: Branch[A, B] => {
@@ -725,7 +741,7 @@ abstract class TxnHashTrie[A, B](var root: Ref.Bound[TxnHashTrie.Node[A, B]]) {
       case leaf: Leaf[A, B] => {
         val i = leaf.find(hash, key)
         if (i >= 0)
-          current := leaf.withRemove(i)
+          set(current, leaf.withRemove(i))
         leaf.get(i)
       }
       case branch: Branch[A, B] => {
